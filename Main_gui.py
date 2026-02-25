@@ -6,10 +6,10 @@ from typing import Optional
 
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from smd.steam_path import validate_steam_path
-from smd.storage.settings import get_setting, set_setting
-from smd.structs import OSType, Settings
-from smd.utils import root_folder
+from sff.steam_path import validate_steam_path
+from sff.storage.settings import get_setting, set_setting
+from sff.structs import OSType, Settings
+from sff.utils import root_folder
 
 try:
     _root = root_folder(outside_internal=True)
@@ -27,7 +27,7 @@ except Exception as e:
     QMessageBox.critical(None, "SFF startup error", msg[:2000])
     sys.exit(1)
 
-logger = logging.getLogger("smd")
+logger = logging.getLogger("sff")
 logger.setLevel(logging.DEBUG)
 fh = logging.FileHandler("debug.log")
 fh.setFormatter(
@@ -47,7 +47,7 @@ def get_steam_path_gui() -> Optional[Path]:
             return p.resolve()
     if sys.platform == "win32":
         try:
-            from smd.registry_access import find_steam_path_from_registry
+            from sff.registry_access import find_steam_path_from_registry
             p = find_steam_path_from_registry()
             if validate_steam_path(p):
                 return p
@@ -92,13 +92,13 @@ def main() -> None:
         steam_path = path_obj.resolve()
         set_setting(Settings.STEAM_PATH, str(steam_path))
 
-    from smd.gui.gui_prompts import install as install_gui_prompts
+    from sff.gui.gui_prompts import install as install_gui_prompts
     install_gui_prompts()
 
     from steam.client import SteamClient
-    from smd.steam_client import SteamInfoProvider
-    from smd.ui import UI
-    from smd.gui import SFFMainWindow
+    from sff.steam_client import SteamInfoProvider
+    from sff.ui import UI
+    from sff.gui import SFFMainWindow
 
     client = SteamClient()
     provider = SteamInfoProvider(client)

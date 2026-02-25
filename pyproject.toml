@@ -34,7 +34,7 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["smd*"]
+include = ["sff*"]
 
 [tool.isort]
 profile = "black"
@@ -53,7 +53,7 @@ changelog_incremental = true
 gpg_sign = true
 changelog_start_rev = "4.2.0"
 version_files = [
-    "smd/strings.py:VERSION"
+    "sff/strings.py:VERSION"
 ]
 
 [project.optional-dependencies]

@@ -12,16 +12,16 @@ from colorama import init as color_init
 from steam.client import SteamClient  # type: ignore
 
 from InquirerPy import inquirer
-from smd.prompts import prompt_confirm, prompt_select
-from smd.steam_client import SteamInfoProvider
-from smd.steam_path import init_steam_path
-from smd.storage.settings import resolve_advanced_mode
-from smd.strings import VERSION
-from smd.structs import GAME_SPECIFIC_CHOICES, MainMenu, MainReturnCode, OSType
-from smd.ui import UI
-from smd.utils import root_folder
+from sff.prompts import prompt_confirm, prompt_select
+from sff.steam_client import SteamInfoProvider
+from sff.steam_path import init_steam_path
+from sff.storage.settings import resolve_advanced_mode
+from sff.strings import VERSION
+from sff.structs import GAME_SPECIFIC_CHOICES, MainMenu, MainReturnCode, OSType
+from sff.ui import UI
+from sff.utils import root_folder
 
-logger = logging.getLogger("smd")
+logger = logging.getLogger("sff")
 logger.setLevel(logging.DEBUG)
 
 fh = logging.FileHandler("debug.log")

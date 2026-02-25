@@ -273,3 +273,7 @@
 02/25/2026 02:04:33 AM::smd.storage.settings::DEBUG::get_setting: Online-fix.me Password
 02/25/2026 02:28:27 AM::smd::DEBUG::CWD is C:\Users\Syrer\SFF\Idk\smdconsumer\SFFreal
 02/25/2026 02:28:27 AM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/25/2026 03:17:31 AM::sff::DEBUG::CWD is C:\Users\Syrer\SFF\Idk\smdconsumer\SFFreal
+02/25/2026 03:17:31 AM::sff::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/25/2026 03:17:32 AM::sff.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/25/2026 03:17:32 AM::sff.storage.settings::INFO::Migrating settings from version 0.0.0 to 1.0.0

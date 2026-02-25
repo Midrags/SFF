@@ -82,43 +82,43 @@ def check_enhancement_dependencies():
     
     return all_passed
 
-def check_smd_modules():
+def check_sff_modules():
     """Check all SFF modules can be imported"""
     print_header("Checking SFF Modules")
     
     modules = [
         # Core modules
-        ("smd.utils", "Core utilities"),
-        ("smd.structs", "Data structures"),
-        ("smd.strings", "String constants"),
-        ("smd.ui", "User interface"),
-        ("smd.steam_client", "Steam client"),
-        ("smd.steam_path", "Steam path detection"),
+        ("sff.utils", "Core utilities"),
+        ("sff.structs", "Data structures"),
+        ("sff.strings", "String constants"),
+        ("sff.ui", "User interface"),
+        ("sff.steam_client", "Steam client"),
+        ("sff.steam_path", "Steam path detection"),
         
         # Storage modules
-        ("smd.storage.settings", "Settings management"),
-        ("smd.storage.vdf", "VDF parsing"),
-        ("smd.storage.acf", "ACF parsing"),
+        ("sff.storage.settings", "Settings management"),
+        ("sff.storage.vdf", "VDF parsing"),
+        ("sff.storage.acf", "ACF parsing"),
         
         # Lua modules
-        ("smd.lua.manager", "Lua manager"),
-        ("smd.lua.writer", "Lua writer"),
+        ("sff.lua.manager", "Lua manager"),
+        ("sff.lua.writer", "Lua writer"),
         
         # Manifest modules
-        ("smd.manifest.downloader", "Manifest downloader"),
-        ("smd.manifest.crypto", "Manifest crypto"),
+        ("sff.manifest.downloader", "Manifest downloader"),
+        ("sff.manifest.crypto", "Manifest crypto"),
         
         # Enhancement modules
-        ("smd.cache", "API caching"),
-        ("smd.backup", "Backup system"),
-        ("smd.notifications", "Desktop notifications"),
-        ("smd.recent_files", "Recent files"),
-        ("smd.library_scanner", "Library scanner"),
-        ("smd.progress", "Progress bars"),
-        ("smd.integrity", "Integrity verification"),
-        ("smd.analytics", "Analytics tracking"),
-        ("smd.keyboard_shortcuts", "Keyboard shortcuts"),
-        ("smd.online_fix", "Online-fix integration"),
+        ("sff.cache", "API caching"),
+        ("sff.backup", "Backup system"),
+        ("sff.notifications", "Desktop notifications"),
+        ("sff.recent_files", "Recent files"),
+        ("sff.library_scanner", "Library scanner"),
+        ("sff.progress", "Progress bars"),
+        ("sff.integrity", "Integrity verification"),
+        ("sff.analytics", "Analytics tracking"),
+        ("sff.keyboard_shortcuts", "Keyboard shortcuts"),
+        ("sff.online_fix", "Online-fix integration"),
     ]
     
     all_passed = True
@@ -139,16 +139,16 @@ def check_file_structure():
     required_files = [
         ("Main.py", "Entry point"),
         ("requirements.txt", "Dependencies list"),
-        ("smd/ui.py", "UI module"),
-        ("smd/structs.py", "Data structures"),
+        ("sff/ui.py", "UI module"),
+        ("sff/structs.py", "Data structures"),
         ("tests/test_all_features.py", "Test suite"),
     ]
     
     required_folders = [
-        ("smd", "Core modules"),
-        ("smd/storage", "Storage modules"),
-        ("smd/lua", "Lua modules"),
-        ("smd/manifest", "Manifest modules"),
+        ("sff", "Core modules"),
+        ("sff/storage", "Storage modules"),
+        ("sff/lua", "Lua modules"),
+        ("sff/manifest", "Manifest modules"),
         ("docs", "Documentation"),
         ("tests", "Test suites"),
     ]
@@ -176,7 +176,7 @@ def check_settings_enum():
     print_header("Checking Settings Configuration")
     
     try:
-        from smd.structs import Settings
+        from sff.structs import Settings
         
         required_settings = [
             "ADVANCED_MODE",
@@ -207,7 +207,7 @@ def check_main_menu():
     print_header("Checking Main Menu Configuration")
     
     try:
-        from smd.structs import MainMenu
+        from sff.structs import MainMenu
         
         required_options = [
             "MANAGE_LUA",
@@ -236,7 +236,7 @@ def check_ui_methods():
     print_header("Checking UI Methods")
     
     try:
-        from smd.ui import UI
+        from sff.ui import UI
         
         required_methods = [
             "edit_settings_menu",
@@ -268,7 +268,7 @@ def run_quick_tests():
     
     # Test cache
     try:
-        from smd.cache import get_cache
+        from sff.cache import get_cache
         cache = get_cache()
         cache.set("test", "value", ttl=60)
         result = cache.get("test")
@@ -282,7 +282,7 @@ def run_quick_tests():
     
     # Test analytics
     try:
-        from smd.analytics import get_analytics_tracker
+        from sff.analytics import get_analytics_tracker
         tracker = get_analytics_tracker()
         tracker.record_operation("test", success=True)
         passed = len(tracker.data.operations) > 0
@@ -295,7 +295,7 @@ def run_quick_tests():
     
     # Test recent files
     try:
-        from smd.recent_files import get_recent_files_manager
+        from sff.recent_files import get_recent_files_manager
         manager = get_recent_files_manager()
         recent = manager.get_all()
         passed = isinstance(recent, list)
@@ -308,7 +308,7 @@ def run_quick_tests():
     
     # Test notifications
     try:
-        from smd.notifications import get_notification_service
+        from sff.notifications import get_notification_service
         service = get_notification_service()
         passed = service is not None
         print_check("Notification service", passed)
@@ -331,7 +331,7 @@ def main():
     results.append(("Python Version", check_python_version()))
     results.append(("Core Dependencies", check_core_dependencies()))
     results.append(("Enhancement Dependencies", check_enhancement_dependencies()))
-    results.append(("SFF Modules", check_smd_modules()))
+    results.append(("SFF Modules", check_sff_modules()))
     results.append(("File Structure", check_file_structure()))
     results.append(("Settings Configuration", check_settings_enum()))
     results.append(("Main Menu Configuration", check_main_menu()))
