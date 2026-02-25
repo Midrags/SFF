@@ -1,0 +1,275 @@
+02/21/2026 01:13:16 AM::smd::DEBUG::CWD is C:\Users\Syrer\SMD\Idk\smdconsumer\SMD_2
+02/21/2026 01:13:16 AM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/21/2026 01:13:16 AM::smd::DEBUG::Received args: Namespace(file=None, version=False, batch=None, quiet=False, auto_update=False, export_ids=None, dry_run=False)
+02/21/2026 01:13:16 AM::smd::DEBUG::Steam client init in 0.036409616470336914s
+02/21/2026 01:13:16 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/21/2026 01:13:16 AM::smd.storage.settings::INFO::Migrating settings from version 0.0.0 to 1.0.0
+02/21/2026 01:13:16 AM::smd.storage.settings::INFO::Settings migration completed
+02/21/2026 01:13:16 AM::smd.steam_path::DEBUG::Updating STEAM_PATH in Settings
+02/21/2026 01:13:16 AM::smd.storage.settings::DEBUG::set_setting: Steam Installation Path -> C:\Program Files (x86)\Steam
+02/21/2026 01:13:16 AM::smd::DEBUG::Steam path init in 0.04045271873474121s
+02/21/2026 01:13:16 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/21/2026 01:13:16 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/21/2026 09:10:55 PM::smd::DEBUG::CWD is C:\Users\Syrer\SMD\Idk\smdconsumer\SMD_2
+02/21/2026 09:10:55 PM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/21/2026 09:10:55 PM::smd::DEBUG::Received args: Namespace(file=None, version=False, batch=None, quiet=False, auto_update=False, export_ids=None, dry_run=False)
+02/21/2026 09:10:55 PM::smd::DEBUG::Steam client init in 0.013008594512939453s
+02/21/2026 09:10:55 PM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/21/2026 09:10:55 PM::smd::DEBUG::Steam path init in 0.014009237289428711s
+02/21/2026 09:10:55 PM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/21/2026 09:10:55 PM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/21/2026 09:11:11 PM::smd.storage.settings::DEBUG::set_setting: GreenLuma AppList Folder -> C:\Users\Syrer\SMD\Idk\smdconsumer\SMD_2\applist
+02/21/2026 09:11:11 PM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/21/2026 09:11:11 PM::smd.storage.settings::DEBUG::set_setting: Play Music -> False
+02/21/2026 09:11:11 PM::smd::DEBUG::Init finished in 16.06421184539795s
+02/21/2026 09:11:11 PM::smd::DEBUG::Root folder is C:\Users\Syrer\SMD\Idk\smdconsumer\SMD_2
+02/21/2026 09:11:11 PM::smd::DEBUG::Steam path is C:\Program Files (x86)\Steam
+02/21/2026 09:11:11 PM::smd::DEBUG::AppList path is C:\Users\Syrer\SMD\Idk\smdconsumer\SMD_2\applist
+02/21/2026 09:11:11 PM::smd.storage.settings::DEBUG::get_setting: Advanced Mode
+02/21/2026 09:11:11 PM::smd.storage.settings::DEBUG::set_setting: Advanced Mode -> False
+02/21/2026 09:11:11 PM::smd::DEBUG::Took 16.065356731414795s to start
+02/21/2026 09:11:18 PM::smd.storage.settings::DEBUG::get_setting: Online-fix.me Username
+02/21/2026 09:11:18 PM::smd.storage.settings::DEBUG::get_setting: Online-fix.me Password
+02/21/2026 09:12:18 PM::smd::DEBUG::CWD is C:\Users\Syrer\SMD\Idk\smdconsumer\SMD_2
+02/21/2026 09:12:18 PM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/21/2026 09:12:18 PM::smd::DEBUG::Received args: Namespace(file=None, version=False, batch=None, quiet=False, auto_update=False, export_ids=None, dry_run=False)
+02/21/2026 09:12:18 PM::smd::DEBUG::Steam client init in 0.010773897171020508s
+02/21/2026 09:12:18 PM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/21/2026 09:12:18 PM::smd::DEBUG::Steam path init in 0.0119781494140625s
+02/21/2026 09:12:18 PM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/21/2026 09:12:18 PM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/21/2026 09:12:20 PM::smd.storage.settings::DEBUG::set_setting: GreenLuma AppList Folder -> C:\Users\Syrer\SMD\Idk\smdconsumer\SMD_2
+02/21/2026 09:12:20 PM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/21/2026 09:12:20 PM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/21/2026 09:12:20 PM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/21/2026 09:12:20 PM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/21/2026 09:12:20 PM::smd::DEBUG::Init finished in 1.6044607162475586s
+02/21/2026 09:12:20 PM::smd::DEBUG::Root folder is C:\Users\Syrer\SMD\Idk\smdconsumer\SMD_2
+02/21/2026 09:12:20 PM::smd::DEBUG::Steam path is C:\Program Files (x86)\Steam
+02/21/2026 09:12:20 PM::smd::DEBUG::AppList path is C:\Users\Syrer\SMD\Idk\smdconsumer\SMD_2
+02/21/2026 09:12:20 PM::smd.storage.settings::DEBUG::get_setting: Advanced Mode
+02/21/2026 09:12:20 PM::smd::DEBUG::Took 1.6059656143188477s to start
+02/22/2026 09:33:13 PM::smd::DEBUG::CWD is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/22/2026 09:33:13 PM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/22/2026 09:33:13 PM::smd::DEBUG::Received args: Namespace(file=None, version=False, batch=None, quiet=False, auto_update=False, export_ids=None, dry_run=False)
+02/22/2026 09:33:13 PM::smd::DEBUG::Steam client init in 0.03713178634643555s
+02/22/2026 09:33:13 PM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/22/2026 09:33:13 PM::smd::DEBUG::Steam path init in 0.042743682861328125s
+02/22/2026 09:33:13 PM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/22/2026 09:33:13 PM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/22/2026 09:33:20 PM::smd::DEBUG::CWD is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/22/2026 09:33:20 PM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/22/2026 09:33:20 PM::smd::DEBUG::Received args: Namespace(file=None, version=False, batch=None, quiet=False, auto_update=False, export_ids=None, dry_run=False)
+02/22/2026 09:33:20 PM::smd::DEBUG::Steam client init in 0.009805679321289062s
+02/22/2026 09:33:20 PM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/22/2026 09:33:20 PM::smd::DEBUG::Steam path init in 0.010836601257324219s
+02/22/2026 09:33:20 PM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/22/2026 09:33:20 PM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 02:27:34 AM::smd::DEBUG::CWD is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:27:34 AM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/24/2026 02:27:34 AM::smd::DEBUG::Received args: Namespace(file=None, version=False, batch=None, quiet=False, auto_update=False, export_ids=None, dry_run=False)
+02/24/2026 02:27:34 AM::smd::DEBUG::Steam client init in 0.009107589721679688s
+02/24/2026 02:27:34 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/24/2026 02:27:34 AM::smd::DEBUG::Steam path init in 0.010120391845703125s
+02/24/2026 02:27:34 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/24/2026 02:27:34 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 02:27:36 AM::smd.storage.settings::DEBUG::set_setting: GreenLuma AppList Folder -> C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:27:36 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/24/2026 02:27:36 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/24/2026 02:27:36 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/24/2026 02:27:36 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/24/2026 02:27:36 AM::smd::DEBUG::Init finished in 1.3734564781188965s
+02/24/2026 02:27:36 AM::smd::DEBUG::Root folder is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:27:36 AM::smd::DEBUG::Steam path is C:\Program Files (x86)\Steam
+02/24/2026 02:27:36 AM::smd::DEBUG::AppList path is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:27:36 AM::smd.storage.settings::DEBUG::get_setting: Advanced Mode
+02/24/2026 02:27:36 AM::smd::DEBUG::Took 1.3744597434997559s to start
+02/24/2026 02:27:41 AM::smd::DEBUG::Root folder is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:27:41 AM::smd::DEBUG::Steam path is C:\Program Files (x86)\Steam
+02/24/2026 02:27:41 AM::smd::DEBUG::AppList path is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:27:41 AM::smd.storage.settings::DEBUG::get_setting: Advanced Mode
+02/24/2026 02:27:58 AM::smd::DEBUG::Root folder is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:27:58 AM::smd::DEBUG::Steam path is C:\Program Files (x86)\Steam
+02/24/2026 02:27:58 AM::smd::DEBUG::AppList path is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:27:58 AM::smd.storage.settings::DEBUG::get_setting: Advanced Mode
+02/24/2026 02:28:00 AM::smd::DEBUG::Root folder is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:28:00 AM::smd::DEBUG::Steam path is C:\Program Files (x86)\Steam
+02/24/2026 02:28:00 AM::smd::DEBUG::AppList path is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:28:00 AM::smd.storage.settings::DEBUG::get_setting: Advanced Mode
+02/24/2026 02:28:03 AM::smd.app_injector.applist::DEBUG::[get_local_ids] Ignored all_games.txt
+02/24/2026 02:28:03 AM::smd.app_injector.applist::DEBUG::[get_local_ids] Ignored requirements-online-fix.txt
+02/24/2026 02:28:03 AM::smd.app_injector.applist::DEBUG::[get_local_ids] Ignored requirements.txt
+02/24/2026 02:51:14 AM::smd::DEBUG::CWD is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:51:14 AM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/24/2026 02:51:14 AM::smd::DEBUG::Received args: Namespace(file=None, version=False, batch=None, quiet=False, auto_update=False, export_ids=None, dry_run=False)
+02/24/2026 02:51:14 AM::smd::DEBUG::Steam client init in 0.008626937866210938s
+02/24/2026 02:51:14 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/24/2026 02:51:14 AM::smd::DEBUG::Steam path init in 0.00998544692993164s
+02/24/2026 02:51:14 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/24/2026 02:51:14 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 02:51:14 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/24/2026 02:51:14 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/24/2026 02:51:14 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/24/2026 02:51:14 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/24/2026 02:51:14 AM::smd::DEBUG::Init finished in 0.012500524520874023s
+02/24/2026 02:51:14 AM::smd::DEBUG::Root folder is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:51:14 AM::smd::DEBUG::Steam path is C:\Program Files (x86)\Steam
+02/24/2026 02:51:14 AM::smd::DEBUG::AppList path is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 02:51:14 AM::smd.storage.settings::DEBUG::get_setting: Advanced Mode
+02/24/2026 02:51:14 AM::smd::DEBUG::Took 0.012500524520874023s to start
+02/24/2026 03:56:00 AM::smd::DEBUG::CWD is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 03:56:00 AM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/24/2026 03:56:00 AM::smd::DEBUG::Received args: Namespace(file=None, version=False, batch=None, quiet=False, auto_update=False, export_ids=None, dry_run=False)
+02/24/2026 03:56:00 AM::smd::DEBUG::Steam client init in 0.017385482788085938s
+02/24/2026 03:56:00 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/24/2026 03:56:00 AM::smd::DEBUG::Steam path init in 0.01838827133178711s
+02/24/2026 03:56:00 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/24/2026 03:56:00 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 03:56:00 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/24/2026 03:56:00 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/24/2026 03:56:00 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/24/2026 03:56:00 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/24/2026 03:56:00 AM::smd::DEBUG::Init finished in 0.019892215728759766s
+02/24/2026 03:56:00 AM::smd::DEBUG::Root folder is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 03:56:00 AM::smd::DEBUG::Steam path is C:\Program Files (x86)\Steam
+02/24/2026 03:56:00 AM::smd::DEBUG::AppList path is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 03:56:00 AM::smd.storage.settings::DEBUG::get_setting: Advanced Mode
+02/24/2026 03:56:00 AM::smd::DEBUG::Took 0.02090930938720703s to start
+02/24/2026 04:22:58 AM::smd::DEBUG::CWD is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 04:22:58 AM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/24/2026 04:22:58 AM::smd::DEBUG::Received args: Namespace(file=None, version=False, batch=None, quiet=False, auto_update=False, export_ids=None, dry_run=False)
+02/24/2026 04:22:58 AM::smd::DEBUG::Steam client init in 0.01001429557800293s
+02/24/2026 04:22:58 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/24/2026 04:22:58 AM::smd::DEBUG::Steam path init in 0.01001429557800293s
+02/24/2026 04:22:58 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/24/2026 04:22:58 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 04:22:58 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/24/2026 04:22:58 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/24/2026 04:22:58 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/24/2026 04:22:58 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/24/2026 04:22:58 AM::smd::DEBUG::Init finished in 0.011516571044921875s
+02/24/2026 04:22:58 AM::smd::DEBUG::Root folder is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 04:22:58 AM::smd::DEBUG::Steam path is C:\Program Files (x86)\Steam
+02/24/2026 04:22:58 AM::smd::DEBUG::AppList path is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/24/2026 04:22:58 AM::smd.storage.settings::DEBUG::get_setting: Advanced Mode
+02/24/2026 04:22:58 AM::smd::DEBUG::Took 0.012527942657470703s to start
+02/24/2026 04:23:01 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/24/2026 04:23:01 AM::smd.notifications::WARNING::win10toast not available. Notifications disabled.
+02/24/2026 04:23:01 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/24/2026 04:23:01 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 04:23:01 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/24/2026 04:23:01 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/24/2026 04:23:01 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/24/2026 04:23:01 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/24/2026 04:27:11 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/24/2026 04:27:11 AM::smd.notifications::WARNING::win10toast not available. Notifications disabled.
+02/24/2026 04:27:11 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/24/2026 04:27:11 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 04:27:11 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/24/2026 04:27:11 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/24/2026 04:27:11 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/24/2026 04:27:11 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/24/2026 04:27:14 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/24/2026 04:27:14 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 04:39:55 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/24/2026 04:39:56 AM::smd.notifications::WARNING::win10toast not available. Notifications disabled.
+02/24/2026 04:39:56 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/24/2026 04:39:56 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 04:39:56 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/24/2026 04:39:56 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/24/2026 04:39:56 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/24/2026 04:39:56 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/24/2026 04:47:35 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/24/2026 04:47:36 AM::smd.notifications::WARNING::win10toast not available. Notifications disabled.
+02/24/2026 04:47:36 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/24/2026 04:47:36 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 04:47:36 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/24/2026 04:47:36 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/24/2026 04:47:36 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/24/2026 04:47:36 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/24/2026 04:48:23 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/24/2026 04:48:23 AM::smd.notifications::WARNING::win10toast not available. Notifications disabled.
+02/24/2026 04:48:23 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/24/2026 04:48:23 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 04:48:23 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/24/2026 04:48:23 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/24/2026 04:48:23 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/24/2026 04:48:23 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/24/2026 04:48:38 AM::smd.storage.settings::DEBUG::get_setting: Prefer SmokeAPI over CreamAPI (Steam)
+02/24/2026 04:48:40 AM::smd.storage.settings::DEBUG::set_setting: Prefer SmokeAPI over CreamAPI (Steam) -> False
+02/24/2026 04:48:46 AM::smd.storage.settings::DEBUG::get_setting: Steam Username
+02/24/2026 04:48:51 AM::smd.storage.settings::DEBUG::get_setting: Online-fix.me Username
+02/24/2026 05:01:06 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/24/2026 05:01:06 AM::smd.notifications::WARNING::win10toast not available. Notifications disabled.
+02/24/2026 05:01:06 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/24/2026 05:01:06 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/24/2026 05:01:06 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/24/2026 05:01:06 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/24/2026 05:01:06 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/24/2026 05:01:06 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/25/2026 12:40:34 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/25/2026 12:40:35 AM::smd.notifications::WARNING::win10toast not available. Notifications disabled.
+02/25/2026 12:40:35 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/25/2026 12:40:35 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/25/2026 12:40:35 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/25/2026 12:40:35 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/25/2026 12:40:35 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/25/2026 12:40:35 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/25/2026 12:40:56 AM::smd.storage.settings::DEBUG::set_setting: Steam Installation Path -> C:\Program Files (x86)\SteamSTest
+02/25/2026 12:43:44 AM::smd.steam_patch::INFO::Removed C:\Program Files (x86)\Steam\xinput1_4.dll
+02/25/2026 12:44:16 AM::smd.steam_patch::INFO::Copied C:\Users\Syrer\SFF\Idk\smdconsumer\SFF\steam_patch\xinput1_4.dll -> C:\Program Files (x86)\Steam\xinput1_4.dll
+02/25/2026 01:12:38 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/25/2026 01:12:39 AM::smd.notifications::WARNING::win10toast not available. Notifications disabled.
+02/25/2026 01:12:39 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/25/2026 01:12:39 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/25/2026 01:12:39 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/25/2026 01:12:39 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/25/2026 01:12:39 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/25/2026 01:12:39 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/25/2026 02:01:48 AM::smd::DEBUG::CWD is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/25/2026 02:01:48 AM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/25/2026 02:02:25 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/25/2026 02:02:42 AM::smd.storage.settings::DEBUG::set_setting: Steam Installation Path -> C:\Program Files (x86)\Steam
+02/25/2026 02:02:42 AM::smd.notifications::WARNING::win10toast not available. Notifications disabled.
+02/25/2026 02:02:42 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/25/2026 02:02:42 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/25/2026 02:02:42 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/25/2026 02:02:42 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/25/2026 02:02:42 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/25/2026 02:02:42 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/25/2026 02:02:55 AM::smd::DEBUG::CWD is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/25/2026 02:02:55 AM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
+02/25/2026 02:02:55 AM::smd::DEBUG::Received args: Namespace(file=None, version=False, batch=None, quiet=False, auto_update=False, export_ids=None, dry_run=False)
+02/25/2026 02:02:55 AM::smd::DEBUG::Steam client init in 0.009585142135620117s
+02/25/2026 02:02:55 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/25/2026 02:02:55 AM::smd::DEBUG::Steam path init in 0.011087656021118164s
+02/25/2026 02:02:55 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/25/2026 02:02:55 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/25/2026 02:02:55 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/25/2026 02:02:55 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/25/2026 02:02:55 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/25/2026 02:02:55 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/25/2026 02:02:55 AM::smd::DEBUG::Init finished in 0.012305974960327148s
+02/25/2026 02:02:55 AM::smd::DEBUG::Root folder is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/25/2026 02:02:55 AM::smd::DEBUG::Steam path is C:\Program Files (x86)\Steam
+02/25/2026 02:02:55 AM::smd::DEBUG::AppList path is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/25/2026 02:02:55 AM::smd.storage.settings::DEBUG::get_setting: Advanced Mode
+02/25/2026 02:02:55 AM::smd::DEBUG::Took 0.013314485549926758s to start
+02/25/2026 02:03:08 AM::smd::DEBUG::Root folder is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/25/2026 02:03:08 AM::smd::DEBUG::Steam path is C:\Program Files (x86)\Steam
+02/25/2026 02:03:08 AM::smd::DEBUG::AppList path is C:\Users\Syrer\SFF\Idk\smdconsumer\SFF
+02/25/2026 02:03:08 AM::smd.storage.settings::DEBUG::get_setting: Advanced Mode
+02/25/2026 02:03:18 AM::smd.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/25/2026 02:03:19 AM::smd.notifications::WARNING::win10toast not available. Notifications disabled.
+02/25/2026 02:03:19 AM::smd.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/25/2026 02:03:19 AM::smd.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/25/2026 02:03:19 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored all_games.txt
+02/25/2026 02:03:19 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements-online-fix.txt
+02/25/2026 02:03:19 AM::smd.app_injector.applist::DEBUG::[get_local_filenames] Ignored requirements.txt
+02/25/2026 02:03:19 AM::smd.storage.settings::DEBUG::get_setting: Play Music
+02/25/2026 02:03:47 AM::smd.storage.settings::DEBUG::get_setting: Online-fix.me Username
+02/25/2026 02:03:47 AM::smd.storage.settings::DEBUG::get_setting: Online-fix.me Password
+02/25/2026 02:04:33 AM::smd.storage.settings::DEBUG::get_setting: Online-fix.me Username
+02/25/2026 02:04:33 AM::smd.storage.settings::DEBUG::get_setting: Online-fix.me Password
+02/25/2026 02:28:27 AM::smd::DEBUG::CWD is C:\Users\Syrer\SFF\Idk\smdconsumer\SFFreal
+02/25/2026 02:28:27 AM::smd::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe

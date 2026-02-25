@@ -1,0 +1,3 @@
+# Multiplayer fix (online-fix.me) – Selenium + Chrome
+selenium>=4.15.0
+# Chrome browser must be installed
