@@ -412,7 +412,7 @@ class UI:
         stplug_in = self.steam_path / "config" / "stplug-in"
         if not stplug_in.exists():
             print(
-                Fore.YELLOW + "No stplug-in folder found. Add games first (e.g. sync LUAs or process a .lua file)."
+                Fore.YELLOW + "No stplug-in folder found. Add games first (e.g. process a .lua file)."
                 + Style.RESET_ALL
             )
             return MainReturnCode.LOOP

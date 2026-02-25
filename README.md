@@ -28,7 +28,7 @@ Extract the ZIP and use the AppList folder from GreenLuma when SFF asks for it. 
 
 - Download and use Lua files for games, download manifests, and set up GreenLuma.  
 - Write Lua and manifest data into Steam's config so games work with or without an extra injector.  
-- On Windows, optionally patch Steam (using two DLLs in the steam_patch folder) so Steam reads that data without replacing Steam.exe.  
+- On Windows, games work with GreenLuma's AppList and your Lua setup.  
 - Other features: multiplayer fixes (online-fix.me), DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).  
 - Parallel downloads, backups, recent files, and settings export/import.
 

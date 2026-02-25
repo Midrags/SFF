@@ -23,10 +23,6 @@ Process recent .lua file: Opens your last processed files so you can run them ag
 
 Scan game library: Lets SFF find games in your Steam libraries.
 
-Patch / Unpatch Steam (DLL): On Windows only. Installs or removes two small files in your Steam folder so Steam reads the game data SFF prepares. The two DLLs are included in the steam_patch folder.
-
-Sync saved LUAs to Steam: Copies your saved Lua files and manifests into Steam’s config so games work even without running another injector.
-
 Settings: Change Steam path, GreenLuma folder, and other options.
 
 **Keyboard**

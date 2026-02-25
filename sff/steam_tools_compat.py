@@ -72,34 +72,6 @@ def sync_manifest_to_config_depotcache(steam_path: Path, manifest_path: Path) ->
         return False
 
 
-def sync_all_saved_lua_to_steam(steam_path: Path, saved_lua_dir: Path) -> int:
-    """
-    Copy all .lua files from saved_lua into Steam config/stplug-in.
-    Use this to make all previously backed-up games work without DLLInjector.
-
-    Returns:
-        Number of LUAs copied.
-    """
-    if not saved_lua_dir.exists():
-        return 0
-    count = 0
-    dest_dir = steam_path / "config" / STPLUGIN_DIR
-    try:
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        for lua_file in saved_lua_dir.glob("*.lua"):
-            app_id = lua_file.stem
-            if not app_id.isdigit():
-                continue
-            dest_file = dest_dir / f"{app_id}.lua"
-            shutil.copy2(lua_file, dest_file)
-            count += 1
-        if count:
-            logger.info("Synced %d LUA(s) to Steam config/stplug-in", count)
-    except OSError as e:
-        logger.warning("Could not sync saved LUAs to Steam: %s", e)
-    return count
-
-
 def remove_lua_from_steam(steam_path: Path, app_id: str | int) -> bool:
     """
     Remove a game's LUA file from Steam config/stplug-in (reverse of install_lua_to_steam).
@@ -117,30 +89,3 @@ def remove_lua_from_steam(steam_path: Path, app_id: str | int) -> bool:
     except OSError as e:
         logger.warning("Could not remove LUA from Steam config: %s", e)
         return False
-
-
-def sync_all_manifests_to_config_depotcache(steam_path: Path) -> int:
-    """
-    Copy all manifests from Steam/depotcache to Steam/config/depotcache
-    so both locations are populated (for Steam Tools compatibility).
-
-    Returns:
-        Number of manifest files copied.
-    """
-    depotcache = steam_path / "depotcache"
-    config_depot = steam_path.joinpath(*CONFIG_DEPOTCACHE_SUBDIR)
-    if not depotcache.exists():
-        return 0
-    count = 0
-    try:
-        config_depot.mkdir(parents=True, exist_ok=True)
-        for manifest_file in depotcache.glob("*.manifest"):
-            dest = config_depot / manifest_file.name
-            if not dest.exists() or dest.stat().st_mtime < manifest_file.stat().st_mtime:
-                shutil.copy2(manifest_file, dest)
-                count += 1
-        if count:
-            logger.info("Synced %d manifest(s) to config/depotcache", count)
-    except OSError as e:
-        logger.warning("Could not sync manifests to config/depotcache: %s", e)
-    return count

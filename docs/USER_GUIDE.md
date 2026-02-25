@@ -61,8 +61,6 @@ GreenLuma has a bug where if you launch Steam while in Offline Mode, it gets stu
 You can view and delete IDs that have been added to the AppList folder here.
 
 ### Patch / Unpatch Steam (DLL)
-On Windows, SFF can patch Steam so it reads the game data SFF prepares (Lua files and related folders) without replacing Steam. The two files (xinput1_4.dll and hid.dll) are included in the steam_patch folder. Choose this menu option and pick "Patch Steam". To remove the patch, choose "Unpatch Steam" and restart Steam.
-
 ### Check for updates
 You can update SFF using this. It's a bit funky though.
 
