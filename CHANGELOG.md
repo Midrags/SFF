@@ -1,6 +1,17 @@
 # Changelog
 
-## v4.6.0 (latest)
+## v4.6.1 (latest)
+
+### Package rename: smd → sff
+
+- **Renamed package folder** from `smd` to `sff`. All imports, paths, and references updated.
+- **Credits unchanged:** SMD appears only in attribution (e.g. "Modified from original SMD by jericjan").
+- **Config changes:** Secret store service is now `sff_tool`; online-fix temp prefix is `sff_online_fix_`; DLC unlocker validation uses `.sff_write_test`. If you stored credentials before, you may need to re-enter them once.
+- **Docs:** Removed optional Steam patch references from README and docs.
+
+---
+
+## v4.6.0
 
 ### GUI version
 

@@ -1,6 +1,6 @@
 [project]
 name = "steam-manifest-decrypt"
-version = "4.6.0"
+version = "4.6.1"
 description = "Decrypt steam manifest files"
 readme = "README.md"
 requires-python = ">=3.9"
