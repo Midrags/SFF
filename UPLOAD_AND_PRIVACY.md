@@ -12,7 +12,7 @@ This folder is a **consumer-ready** copy of SMD with no personal data in the cod
 - **GreenLuma/**, **dlc_unlocker_cache/**, **backups/**, **saved_lua/** – Your own data.
 - **build/**, **dist/** – Build outputs.
 - **.git/** – Version control (not needed in the zip).
-- **.cursor/** and any path with "cursor" or co-author rules – Do not include in release zips.
+- **Editor/IDE config folders** – Do not include in release zips.
 
 ## Making a release zip for GitHub
 
@@ -24,7 +24,7 @@ git archive --format=zip --output=SMD_2-v4.5.1.zip v4.5.1
 
 Then upload **SMD_2-v4.5.1.zip** to the release. If you zip by hand, exclude everything in the "Never commit or upload" list and the **.git** folder.
 
-Anything with "cursor" in the name or Cursor/co-author rules (e.g. `.cursor/`, related docs or hooks) is in **.gitignore**, so it is never committed and never appears in a `git archive` zip.
+Editor and IDE config folders are in **.gitignore**, so they are never committed and never appear in a `git archive` zip.
 
 The **.gitignore** in this folder is already set so that these are ignored if you use Git.
 

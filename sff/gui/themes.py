@@ -28,7 +28,7 @@ QLineEdit, QComboBox {
     min-height: 20px;
     color: #111;
 }
-QComboBox::drop-down { border: none; }
+QComboBox::drop-down { border: none; width: 24px; min-width: 24px; }
 QComboBox QAbstractItemView { background-color: #fff; color: #111; }
 QTextEdit, QPlainTextEdit {
     background-color: #fff;
@@ -44,6 +44,16 @@ QMenu { background-color: #fff; color: #111; }
 QMenu::item:selected { background-color: #e8e8e8; color: #111; }
 QRadioButton { color: #111; }
 QRadioButton::indicator { width: 14px; height: 14px; }
+QRadioButton::indicator:unchecked {
+    border: 2px solid #888;
+    border-radius: 7px;
+    background-color: transparent;
+}
+QRadioButton::indicator:checked {
+    border: 2px solid #333;
+    border-radius: 7px;
+    background-color: #333;
+}
 QLabel { color: #111; }
 QDialog { background-color: #fafafa; color: #111; }
 """
@@ -78,7 +88,7 @@ QLineEdit, QComboBox {
     min-height: 20px;
     color: #e8e8e8;
 }
-QComboBox::drop-down { border: none; }
+QComboBox::drop-down { border: none; width: 24px; min-width: 24px; }
 QComboBox QAbstractItemView { background-color: #3c3c3c; color: #e8e8e8; }
 QTextEdit, QPlainTextEdit {
     background-color: #1e1e1e;
@@ -94,6 +104,16 @@ QMenu { background-color: #2d2d2d; color: #e8e8e8; }
 QMenu::item:selected { background-color: #505050; color: #fff; }
 QRadioButton { color: #e8e8e8; }
 QRadioButton::indicator { width: 14px; height: 14px; }
+QRadioButton::indicator:unchecked {
+    border: 2px solid #666;
+    border-radius: 7px;
+    background-color: transparent;
+}
+QRadioButton::indicator:checked {
+    border: 2px solid #ddd;
+    border-radius: 7px;
+    background-color: #ddd;
+}
 QLabel { color: #e8e8e8; }
 QDialog { background-color: #2d2d2d; color: #e8e8e8; }
 """

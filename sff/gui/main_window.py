@@ -63,6 +63,48 @@ class GenericWorker(QObject):
             self.finished.emit(None)
 
 
+def _arrow_style_url(path: Path) -> str:
+    """Return a stylesheet-ready url() string. Uses forward slashes for Windows Qt."""
+    s = str(path.resolve()).replace("\\", "/")
+    return f'"{s}"' if " " in s else s
+
+
+_RESOURCES_DIR = Path(__file__).resolve().parent / "resources"
+
+
+class GameComboBox(QComboBox):
+    """ComboBox with visible arrow that points down when closed, up when open."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._popup_open = False
+        self._down_path = _RESOURCES_DIR / "arrow_down.png"
+        self._up_path = _RESOURCES_DIR / "arrow_up.png"
+        self._update_arrow()
+
+    def showPopup(self) -> None:
+        self._popup_open = True
+        self._update_arrow()
+        super().showPopup()
+
+    def hidePopup(self) -> None:
+        super().hidePopup()
+        self._popup_open = False
+        self._update_arrow()
+
+    def _update_arrow(self) -> None:
+        if not self._down_path.exists() or not self._up_path.exists():
+            return
+        p = self._up_path if self._popup_open else self._down_path
+        url = _arrow_style_url(p)
+        self.setStyleSheet(
+            f"QComboBox::down-arrow {{ image: url({url}); width: 14px; height: 14px; }}"
+            "QComboBox::drop-down {"
+            " subcontrol-origin: padding; subcontrol-position: center right;"
+            " width: 24px; min-width: 24px; border: none; }"
+        )
+
+
 class SFFMainWindow(QMainWindow):
     def __init__(self, ui: Any, steam_path: Path) -> None:
         super().__init__()
@@ -122,7 +164,7 @@ class SFFMainWindow(QMainWindow):
 
         game_row = QHBoxLayout()
         game_row.addWidget(QLabel("Game:"))
-        self.game_combo = QComboBox()
+        self.game_combo = GameComboBox()
         self.game_combo.setMinimumWidth(280)
         game_row.addWidget(self.game_combo)
         refresh_btn = QPushButton("Refresh list")

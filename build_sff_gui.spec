@@ -31,6 +31,10 @@ if os.path.exists(os.path.join(spec_root, 'sff.png')):
 if os.path.exists(os.path.join(spec_root, 'sff.ico')):
     datas.append(('sff.ico', '.'))
 
+gui_resources = os.path.join(spec_root, 'sff', 'gui', 'resources')
+if os.path.exists(gui_resources):
+    datas.append((gui_resources, 'sff/gui/resources'))
+
 win10toast_data = get_win10toast_data()
 if win10toast_data:
     datas.append(win10toast_data)

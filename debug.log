@@ -277,3 +277,13 @@
 02/25/2026 03:17:31 AM::sff::DEBUG::exe is C:\Users\Syrer\AppData\Local\Programs\Python\Python311\python.exe
 02/25/2026 03:17:32 AM::sff.storage.settings::DEBUG::get_setting: Steam Installation Path
 02/25/2026 03:17:32 AM::sff.storage.settings::INFO::Migrating settings from version 0.0.0 to 1.0.0
+02/25/2026 03:31:10 AM::sff.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/25/2026 03:31:10 AM::sff.storage.settings::INFO::Migrating settings from version 0.0.0 to 1.0.0
+02/25/2026 04:01:28 AM::sff.storage.settings::DEBUG::get_setting: Steam Installation Path
+02/25/2026 04:01:35 AM::sff.storage.settings::DEBUG::set_setting: Steam Installation Path -> C:\Program Files (x86)\Steam
+02/25/2026 04:01:36 AM::sff.notifications::WARNING::win10toast not available. Notifications disabled.
+02/25/2026 04:01:36 AM::sff.storage.settings::DEBUG::get_setting: AppList ID Limit (0 = unlimited)
+02/25/2026 04:01:36 AM::sff.storage.settings::DEBUG::get_setting: GreenLuma AppList Folder
+02/25/2026 04:01:39 AM::sff.storage.settings::DEBUG::set_setting: GreenLuma AppList Folder -> C:\Program Files (x86)\Steam
+02/25/2026 04:01:39 AM::sff.storage.settings::DEBUG::get_setting: Play Music
+02/25/2026 04:01:39 AM::sff.storage.settings::DEBUG::set_setting: Play Music -> False
