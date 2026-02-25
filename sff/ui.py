@@ -36,15 +36,10 @@ from sff.prompts import (
 )
 from sff.recent_files import get_recent_files_manager
 from sff.storage.acf import ACFParser, get_app_name_from_acf
-from sff.storage.vdf import ensure_library_has_app, get_steam_libs
-from sff.steam_client import get_product_info, SteamInfoProvider
+from sff.storage.vdf import ensure_library_has_app
+from sff.steam_client import create_provider_for_current_thread, get_product_info, SteamInfoProvider
 from sff.steam_store import get_app_name_from_store
-from sff.steam_tools_compat import (
-    install_lua_to_steam,
-    remove_lua_from_steam,
-    sync_all_manifests_to_config_depotcache,
-    sync_all_saved_lua_to_steam,
-)
+from sff.steam_tools_compat import install_lua_to_steam, remove_lua_from_steam
 from sff.storage.settings import (
     clear_setting,
     export_settings,
@@ -124,11 +119,20 @@ class UI:
         self.sls_man = (
             SLSManager(steam_path, provider) if os_type == OSType.LINUX else None
         )
+        
+        # Initialize new services
         self.notification_service = get_notification_service()
         self.recent_files_manager = get_recent_files_manager()
         self.analytics_tracker = get_analytics_tracker()
 
         self.init_midi_player()
+
+    def _steam_provider(self) -> SteamInfoProvider:
+        """Provider for Steam API. Uses thread-local client when not in main thread."""
+        import threading
+        if threading.current_thread() is threading.main_thread():
+            return self.provider
+        return create_provider_for_current_thread()
 
     def init_midi_player(self):
         if (play_music := get_setting(Settings.PLAY_MUSIC)) is None:
@@ -403,27 +407,6 @@ class UI:
             return MainReturnCode.LOOP_NO_PROMPT
         return self.app_list_man.display_menu(self.provider)
 
-    def sync_lua_to_steam_menu(self) -> MainReturnCode:
-        """Sync saved LUAs and manifests into Steam config so games work without DLLInjector (Steam Tools style)."""
-        saved_lua_dir = Path.cwd() / "saved_lua"
-        n_lua = sync_all_saved_lua_to_steam(self.steam_path, saved_lua_dir)
-        n_man = sync_all_manifests_to_config_depotcache(self.steam_path)
-        stplug = self.steam_path / "config" / "stplug-in"
-        config_depot = self.steam_path / "config" / "depotcache"
-        if n_lua > 0 or n_man > 0:
-            print(
-                Fore.GREEN + f"Synced {n_lua} LUA(s) to {stplug}, {n_man} manifest(s) to {config_depot}. "
-                "Games should now appear and work when launching Steam with or without DLLInjector."
-                + Style.RESET_ALL
-            )
-        else:
-            print(
-                Fore.YELLOW + f"No saved LUAs in {saved_lua_dir} and no manifests in depotcache. "
-                "Process a .lua file first, then run this again."
-                + Style.RESET_ALL
-            )
-        return MainReturnCode.LOOP
-
     def remove_game_menu(self) -> MainReturnCode:
         """Remove a game from library: delete stplug-in LUA and optionally AppList entry. User can choose from list or type App ID."""
         stplug_in = self.steam_path / "config" / "stplug-in"
@@ -555,60 +538,27 @@ class UI:
             print("Unsupported OS for this action.")
             return MainReturnCode.LOOP_NO_PROMPT
 
-        source_choices = [
-            ("Steam games", "steam"),
-            ("Games outside of Steam", "outside"),
-        ]
-        source: Optional[str] = prompt_select(
-            "Choose game source:",
-            source_choices,
-            cancellable=True,
-        )
-        if source is None:
+        if (lib_path := self.select_steam_library()) is None:
             return MainReturnCode.LOOP_NO_PROMPT
-
-        if source == "steam":
-            steam_libs = get_steam_libs(self.steam_path)
-            lib_path = steam_libs[0] if steam_libs else self.steam_path
-            handler = GameHandler(
-                self.steam_path, lib_path, self.provider, injection_manager
-            )
-            return handler.execute_choice(choice)
-
-        # "outside" — user selects a folder path
-        game_path = prompt_dir(
-            "Enter the game folder path (root folder containing the game):"
-        )
-        game_name_raw = prompt_text(
-            "Game name for search (e.g. on online-fix.me). Press Enter to use folder name:",
-            validator=lambda x: True,
-        )
-        game_name = (game_name_raw or "").strip() or game_path.name
-        app_id_raw = prompt_text(
-            "Steam App ID (optional; needed for DLC/Workshop). Press Enter to skip:",
-            validator=lambda x: True,
-        )
-        app_id = (app_id_raw or "").strip() or "0"
-        override_game = ACFInfo(app_id, game_path.resolve(), name=game_name)
-        steam_libs = get_steam_libs(self.steam_path)
-        lib_path = steam_libs[0] if steam_libs else self.steam_path
+        provider = self._steam_provider()
         handler = GameHandler(
-            self.steam_path, lib_path, self.provider, injection_manager
+            self.steam_path, lib_path, provider, injection_manager
         )
-        return handler.execute_choice(choice, override_game=override_game)
+        return handler.execute_choice(choice)
 
     def run_game_action_with_selection(
         self, choice: GameSpecificChoices, acf_info: ACFInfo
     ) -> MainReturnCode:
-        """Run a game-specific action with a pre-selected game (for GUI). No prompts for source/game."""
+        """Run a game-specific action with a pre-selected game (for GUI)."""
         injection_manager = self.app_list_man or self.sls_man
         if injection_manager is None:
             print("Unsupported OS for this action.")
             return MainReturnCode.LOOP_NO_PROMPT
         steam_libs = get_steam_libs(self.steam_path)
         lib_path = steam_libs[0] if steam_libs else self.steam_path
+        provider = self._steam_provider()
         handler = GameHandler(
-            self.steam_path, lib_path, self.provider, injection_manager
+            self.steam_path, lib_path, provider, injection_manager
         )
         return handler.execute_choice(choice, override_game=acf_info)
 
@@ -724,7 +674,8 @@ class UI:
             return MainReturnCode.LOOP_NO_PROMPT
 
         lua_manager = LuaManager(self.os_type)
-        downloader = ManifestDownloader(self.provider, self.steam_path)
+        provider = self._steam_provider()
+        downloader = ManifestDownloader(provider, self.steam_path)
         config = ConfigVDFWriter(self.steam_path)
         acf = ACFWriter(lib_path)
         steam_proc = (
@@ -737,8 +688,12 @@ class UI:
         )
         if parsed_lua is None:
             return MainReturnCode.LOOP_NO_PROMPT
+        
+        # Track recent file
         if parsed_lua.path:
             self.recent_files_manager.add(parsed_lua.path)
+        
+        # Record analytics
         self.analytics_tracker.record_feature_usage("process_lua_full")
         
         set_stats_and_achievements(int(parsed_lua.app_id))
@@ -762,11 +717,15 @@ class UI:
         acf.write_acf(parsed_lua)
         ensure_library_has_app(self.steam_path, lib_path, str(parsed_lua.app_id))
         print(Fore.YELLOW + "\nDownloading Manifests:" + Style.RESET_ALL)
+        
+        # Check if parallel downloads are enabled
         use_parallel = get_setting(Settings.USE_PARALLEL_DOWNLOADS)
         if use_parallel:
             downloader.download_manifests_parallel(parsed_lua, auto_manifest=True)
         else:
             downloader.download_manifests(parsed_lua, auto_manifest=True)
+        
+        # Record successful operation
         duration = time.time() - start_time
         self.analytics_tracker.record_operation(
             "process_lua_full",
@@ -774,6 +733,8 @@ class UI:
             success=True,
             duration=duration
         )
+        
+        # Show notification
         self.notification_service.show_success(
             "Processing Complete",
             f"Successfully processed {parsed_lua.app_id}"
@@ -1033,7 +994,8 @@ class UI:
         steam_libs = get_steam_libs(self.steam_path)
 
         lua_manager = LuaManager(self.os_type)
-        downloader = ManifestDownloader(self.provider, self.steam_path)
+        provider = self._steam_provider()
+        downloader = ManifestDownloader(provider, self.steam_path)
         steam_proc = (
             SteamProcess(self.steam_path, self.app_list_man.applist_folder)
             if self.app_list_man
@@ -1167,7 +1129,8 @@ class UI:
         steam_libs = get_steam_libs(self.steam_path)
 
         lua_manager = LuaManager(self.os_type)
-        downloader = ManifestDownloader(self.provider, self.steam_path)
+        provider = self._steam_provider()
+        downloader = ManifestDownloader(provider, self.steam_path)
         
         updated_count = 0
         explored_ids: list[int] = []

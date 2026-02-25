@@ -51,6 +51,7 @@ def prompt_select(
     for c in choices:
         if isinstance(c, Enum):
             if exclude and c in exclude:
+                # Skip excluded choice
                 continue
             new_choices.append(Choice(value=c, name=c.value))
         elif isinstance(c, Choice):
@@ -176,6 +177,7 @@ def prompt_confirm(
         return _gui_backend.prompt_confirm(
             msg, true_msg=true_msg, false_msg=false_msg, default=default,
         )
+    # inquirer.confirm exists but I prefer this
     return prompt_select(
         msg,
         [

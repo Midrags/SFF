@@ -17,7 +17,14 @@ logger = logging.getLogger(__name__)
 
 
 class UnlockerManager:
+    """Orchestrates unlocker selection and operations"""
+    
     def __init__(self, steam_path: Optional[Path] = None):
+        """Initialize the unlocker manager
+        
+        Args:
+            steam_path: Path to Steam installation (optional)
+        """
         self.steam_path = steam_path
         self.unlockers: list[UnlockerBase] = [
             SmokeAPIUnlocker(),
@@ -28,6 +35,14 @@ class UnlockerManager:
         ]
     
     def detect_platform(self, game_dir: Path) -> Platform:
+        """Detect game platform by scanning for platform-specific DLLs
+        
+        Args:
+            game_dir: Game installation directory
+            
+        Returns:
+            Platform.STEAM for Steam games, Platform.UBISOFT for Ubisoft games
+        """
         # Check for Steam DLLs
         if (game_dir / "steam_api.dll").exists() or (game_dir / "steam_api64.dll").exists():
             logger.info(f"Detected Steam platform in {game_dir}")
@@ -48,11 +63,27 @@ class UnlockerManager:
         return Platform.STEAM
     
     def get_compatible_unlockers(self, platform: Platform) -> list[UnlockerBase]:
+        """Filter unlockers by platform compatibility
+        
+        Args:
+            platform: The game platform to filter by
+            
+        Returns:
+            List of unlockers compatible with the specified platform
+        """
         compatible = [u for u in self.unlockers if platform in u.supported_platforms]
         logger.info(f"Found {len(compatible)} compatible unlockers for {platform.value}")
         return compatible
     
     def get_active_unlocker(self, app_id: int) -> Optional[UnlockerType]:
+        """Get currently active unlocker for a game
+        
+        Args:
+            app_id: Steam App ID of the game
+            
+        Returns:
+            UnlockerType if an unlocker is active, None otherwise
+        """
         settings = load_all_settings()
         unlocker_map = settings.get(Settings.ACTIVE_UNLOCKER_PER_GAME.key_name, {})
         
@@ -67,6 +98,12 @@ class UnlockerManager:
         return None
     
     def set_active_unlocker(self, app_id: int, unlocker_type: UnlockerType) -> None:
+        """Store active unlocker for a game
+        
+        Args:
+            app_id: Steam App ID of the game
+            unlocker_type: The unlocker type to set as active
+        """
         settings = load_all_settings()
         unlocker_map = settings.get(Settings.ACTIVE_UNLOCKER_PER_GAME.key_name, {})
         
@@ -87,6 +124,14 @@ class UnlockerManager:
         logger.info(f"Set active unlocker for app {app_id} to {unlocker_type.value}")
     
     def get_unlocker_by_type(self, unlocker_type: UnlockerType) -> Optional[UnlockerBase]:
+        """Get an unlocker instance by its type
+        
+        Args:
+            unlocker_type: The type of unlocker to retrieve
+            
+        Returns:
+            UnlockerBase instance if found, None otherwise
+        """
         for unlocker in self.unlockers:
             if unlocker.unlocker_type == unlocker_type:
                 return unlocker

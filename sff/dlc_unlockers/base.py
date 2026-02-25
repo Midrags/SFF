@@ -27,30 +27,37 @@ class UnlockerBase(ABC):
     @property
     @abstractmethod
     def unlocker_type(self) -> UnlockerType:
+        """Returns the type of this unlocker"""
         pass
     
     @property
     @abstractmethod
     def supported_platforms(self) -> list[Platform]:
+        """Returns platforms this unlocker supports"""
         pass
     
     @property
     @abstractmethod
     def display_name(self) -> str:
+        """Human-readable name for UI"""
         pass
     
     @abstractmethod
     def is_installed(self, game_dir: Path) -> bool:
+        """Check if this unlocker is currently installed"""
         pass
     
     @abstractmethod
     def install(self, game_dir: Path, dlc_ids: list[int], app_id: int) -> bool:
+        """Install unlocker to game directory with DLC configuration"""
         pass
     
     @abstractmethod
     def uninstall(self, game_dir: Path) -> bool:
+        """Remove unlocker and restore backups"""
         pass
     
     @abstractmethod
     def generate_config(self, dlc_ids: list[int], app_id: int) -> dict:
+        """Generate configuration dict for this unlocker"""
         pass

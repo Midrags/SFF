@@ -37,17 +37,28 @@ class KoaloaderUnlocker(UnlockerBase):
     
     @property
     def unlocker_type(self) -> UnlockerType:
+        """Returns the type of this unlocker"""
         return UnlockerType.KOALOADER
     
     @property
     def supported_platforms(self) -> list[Platform]:
+        """Returns platforms this unlocker supports"""
         return [Platform.STEAM]
     
     @property
     def display_name(self) -> str:
+        """Human-readable name for UI"""
         return "Koaloader"
     
     def is_installed(self, game_dir: Path) -> bool:
+        """Check if Koaloader is currently installed
+        
+        Args:
+            game_dir: Game installation directory
+            
+        Returns:
+            True if Koaloader config and proxy DLL are present
+        """
         has_config = (game_dir / self.CONFIG_FILENAME).exists()
         
         # Check for any proxy DLL with backup (indicator of installation)
@@ -59,6 +70,16 @@ class KoaloaderUnlocker(UnlockerBase):
         return has_config and has_proxy_backup
     
     def _select_proxy_dll(self, game_dir: Path, koaloader_dir: Optional[Path] = None, arch: Optional[str] = None) -> Optional[str]:
+        """Select which proxy DLL to use
+        
+        Args:
+            game_dir: Game installation directory
+            koaloader_dir: Directory containing Koaloader DLLs (to check availability)
+            arch: Architecture ("32" or "64") to check for available proxies
+            
+        Returns:
+            Name of proxy DLL to use, or None if none available
+        """
         # Check which proxy DLLs already exist in the game directory
         existing_proxies = [
             proxy for proxy in self.PROXY_OPTIONS
@@ -105,6 +126,19 @@ class KoaloaderUnlocker(UnlockerBase):
                 koaloader_dir: Optional[Path] = None,
                 smokeapi_dir: Optional[Path] = None,
                 proxy_dll: Optional[str] = None) -> bool:
+        """Install Koaloader to game directory
+        
+        Args:
+            game_dir: Game installation directory
+            dlc_ids: List of DLC IDs to unlock (not used by Koaloader, unlocks all)
+            app_id: Steam App ID of the game
+            koaloader_dir: Directory containing Koaloader DLLs (optional, for testing)
+            smokeapi_dir: Directory containing SmokeAPI DLLs (optional, for testing)
+            proxy_dll: Specific proxy DLL to use (optional, auto-selects if None)
+            
+        Returns:
+            True if installation succeeded, False otherwise
+        """
         try:
             # Detect architecture (32 or 64 bit)
             # Check for steam_api64.dll to determine architecture (search in subdirectories too)
@@ -235,6 +269,14 @@ class KoaloaderUnlocker(UnlockerBase):
             return False
     
     def uninstall(self, game_dir: Path) -> bool:
+        """Remove Koaloader and restore backups
+        
+        Args:
+            game_dir: Game installation directory
+            
+        Returns:
+            True if uninstallation succeeded, False otherwise
+        """
         try:
             # Remove config file
             config_path = game_dir / self.CONFIG_FILENAME
@@ -285,6 +327,15 @@ class KoaloaderUnlocker(UnlockerBase):
             return False
     
     def generate_config(self, dlc_ids: list[int], app_id: int) -> dict:
+        """Generate Koaloader configuration
+        
+        Args:
+            dlc_ids: List of DLC IDs (not used, Koaloader loads SmokeAPI which unlocks all)
+            app_id: Steam App ID of the game
+            
+        Returns:
+            Configuration dictionary for Koaloader
+        """
         return {
             "logging": False,
             "enabled": True,

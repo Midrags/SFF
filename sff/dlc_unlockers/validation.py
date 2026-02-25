@@ -10,6 +10,14 @@ logger = logging.getLogger(__name__)
 
 
 def validate_game_directory(game_dir: Path) -> Tuple[bool, Optional[str]]:
+    """Validate game directory before operations.
+    
+    Args:
+        game_dir: Path to game directory
+        
+    Returns:
+        (is_valid, error_message) tuple
+    """
     if not game_dir.exists():
         return False, f"Game directory does not exist: {game_dir}"
     
@@ -26,6 +34,14 @@ def validate_game_directory(game_dir: Path) -> Tuple[bool, Optional[str]]:
 
 
 def validate_write_permissions(directory: Path) -> Tuple[bool, Optional[str]]:
+    """Validate write permissions for a directory.
+    
+    Args:
+        directory: Directory to check
+        
+    Returns:
+        (has_permission, error_message) tuple
+    """
     if not directory.exists():
         return False, f"Directory does not exist: {directory}"
     
@@ -42,6 +58,15 @@ def validate_write_permissions(directory: Path) -> Tuple[bool, Optional[str]]:
 
 
 def check_disk_space(directory: Path, required_bytes: int = 10 * 1024 * 1024) -> Tuple[bool, Optional[str]]:
+    """Check available disk space.
+    
+    Args:
+        directory: Directory to check space for
+        required_bytes: Minimum required bytes (default 10MB)
+        
+    Returns:
+        (has_space, error_message) tuple
+    """
     try:
         stat = shutil.disk_usage(directory)
         free_space = stat.free
@@ -56,6 +81,14 @@ def check_disk_space(directory: Path, required_bytes: int = 10 * 1024 * 1024) ->
 
 
 def validate_dll_file(dll_path: Path) -> Tuple[bool, Optional[str]]:
+    """Validate DLL file exists and is readable.
+    
+    Args:
+        dll_path: Path to DLL file
+        
+    Returns:
+        (is_valid, error_message) tuple
+    """
     if not dll_path.exists():
         return False, f"DLL file does not exist: {dll_path}"
     
@@ -74,6 +107,14 @@ def validate_dll_file(dll_path: Path) -> Tuple[bool, Optional[str]]:
 
 
 def validate_app_id(app_id: int) -> Tuple[bool, Optional[str]]:
+    """Validate Steam App ID.
+    
+    Args:
+        app_id: Steam App ID
+        
+    Returns:
+        (is_valid, error_message) tuple
+    """
     if app_id <= 0:
         return False, f"Invalid App ID: {app_id} (must be positive)"
     
@@ -84,6 +125,14 @@ def validate_app_id(app_id: int) -> Tuple[bool, Optional[str]]:
 
 
 def validate_dlc_ids(dlc_ids: list[int]) -> Tuple[bool, Optional[str]]:
+    """Validate DLC ID list.
+    
+    Args:
+        dlc_ids: List of DLC IDs
+        
+    Returns:
+        (is_valid, error_message) tuple
+    """
     if not isinstance(dlc_ids, list):
         return False, f"DLC IDs must be a list, got {type(dlc_ids)}"
     
@@ -99,6 +148,14 @@ def validate_dlc_ids(dlc_ids: list[int]) -> Tuple[bool, Optional[str]]:
 
 
 def check_file_in_use(file_path: Path) -> Tuple[bool, Optional[str]]:
+    """Check if a file is currently in use (Windows only).
+    
+    Args:
+        file_path: Path to file to check
+        
+    Returns:
+        (is_in_use, error_message) tuple
+    """
     if not file_path.exists():
         return False, None  # Not in use if doesn't exist
     

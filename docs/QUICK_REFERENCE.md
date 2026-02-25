@@ -2,8 +2,7 @@
 
 **Run SFF**
 ```bash
-python Main.py          # CLI version
-python Main_gui.py      # GUI version
+python Main.py
 ```
 
 **Other useful commands**
@@ -24,15 +23,13 @@ Process recent .lua file: Opens your last processed files so you can run them ag
 
 Scan game library: Lets SFF find games in your Steam libraries.
 
+Patch / Unpatch Steam (DLL): On Windows only. Installs or removes two small files in your Steam folder so Steam reads the game data SFF prepares. The two DLLs are included in the steam_patch folder.
+
 Sync saved LUAs to Steam: Copies your saved Lua files and manifests into Steam’s config so games work even without running another injector.
 
 Settings: Change Steam path, GreenLuma folder, and other options.
 
-**GUI version**
-
-Run `python Main_gui.py` or `SFF_GUI.exe` for the graphical interface. All features are available as buttons. Game selection is a dropdown. Settings have their own dialog. Build the GUI exe with `build_simple_gui.bat`.
-
-**Keyboard (CLI)**
+**Keyboard**
 
 You can type a number to jump to a menu option. Escape or Back goes back. Ctrl+C exits.
 

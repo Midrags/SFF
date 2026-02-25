@@ -11,7 +11,6 @@ import logging
 import shutil
 from pathlib import Path
 
-
 logger = logging.getLogger(__name__)
 
 STPLUGIN_DIR = "stplug-in"
@@ -145,5 +144,3 @@ def sync_all_manifests_to_config_depotcache(steam_path: Path) -> int:
     except OSError as e:
         logger.warning("Could not sync manifests to config/depotcache: %s", e)
     return count
-
-

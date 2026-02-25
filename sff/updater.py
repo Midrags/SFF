@@ -38,7 +38,7 @@ def is_newer_version(remote_tag: str, current: str) -> bool:
 
 
 class Updater:
-    """Checks and fetches updates from https://github.com/Midrags/SMD_2/releases/"""
+    """Checks and fetches updates from https://github.com/Midrags/SFF/releases/"""
 
     _LATEST_URL = (
         f"https://api.github.com/repos/{GITHUB_UPDATE_USERNAME}/{REPO_UPDATE_NAME}/releases/latest"

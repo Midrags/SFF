@@ -247,7 +247,6 @@ class SFFMainWindow(QMainWindow):
         tools_row1 = QHBoxLayout()
         for label, func in [
             ("Manage AppList IDs", lambda: self.ui.applist_menu()),
-            ("Sync LUAs to Steam", lambda: self.ui.sync_lua_to_steam_menu()),
             ("Offline mode fix", lambda: self.ui.offline_fix_menu()),
         ]:
             btn = QPushButton(label)
@@ -426,6 +425,7 @@ class SFFMainWindow(QMainWindow):
         self._current_theme = key
         _, style = THEMES[key]
         self.setStyleSheet(style)
+        self.game_combo._update_arrow()
 
     # ── Settings dialog ──────────────────────────────────────────
 

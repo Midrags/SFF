@@ -38,10 +38,4 @@ In menus you can often press a number to choose an option. Escape or Back goes b
 
 You can run SFF with extra options: for example `--batch file1.lua file2.lua` to process several files, or `--dry-run` to see what would happen without doing it. Run `python Main.py --help` to see all options.
 
-**GUI version**
-
-SFF has a full graphical interface. Run `python Main_gui.py` or build `SFF_GUI.exe` with `build_simple_gui.bat`.
-
-The GUI gives you all the same features as the CLI but in a window with buttons, dropdowns, and dialogs. Pick your game from a dropdown of all installed Steam games, or enter a folder path for games outside Steam. All actions are buttons. Settings have their own dialog where you can edit, delete, export, and import settings. Switch between light and dark themes from the menu. All output shows in a log panel. Any prompt that would appear in the terminal shows up as a dialog box instead.
-
 For step-by-step use of the main menu, see the [User Guide](USER_GUIDE.md). If something goes wrong, check the error message and the debug.log file in the SFF folder, or ask for help on Discord.

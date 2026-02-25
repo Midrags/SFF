@@ -13,6 +13,17 @@ DLL_64_NAME = "steam_api64.dll"
 def find_steam_api_dll(
     game_dir: Path, dll_name: str, *, exclude_backup: bool = True
 ) -> Optional[Path]:
+    """Find steam_api DLL in game directory.
+
+    Args:
+        game_dir: Game installation directory
+        dll_name: "steam_api.dll", "steam_api64.dll", or backup names like "steam_api_o.dll"
+        exclude_backup: If True, skip files with stem ending in "_o" (backup files).
+            Set False when explicitly searching for backup files.
+
+    Returns:
+        Path to first matching DLL, or None
+    """
     dll_path = game_dir / dll_name
     if dll_path.exists() and (not exclude_backup or not dll_path.stem.endswith("_o")):
         return dll_path
@@ -24,6 +35,17 @@ def find_steam_api_dll(
 
 
 def detect_steam_architecture(game_dir: Path, backup_suffix: str = "_o") -> Optional[str]:
+    """Detect game architecture from steam_api DLL presence.
+
+    Prefers 64-bit. Also checks for backup files when original may be replaced.
+
+    Args:
+        game_dir: Game installation directory
+        backup_suffix: Suffix for backup files (e.g. "_o" for steam_api64_o.dll)
+
+    Returns:
+        "64" or "32", or None if neither found
+    """
     # Check originals first
     if (game_dir / DLL_64_NAME).exists():
         return "64"
@@ -47,6 +69,16 @@ def detect_steam_architecture(game_dir: Path, backup_suffix: str = "_o") -> Opti
 
 
 def find_all_steam_api_locations(game_dir: Path, backup_suffix: str = "_o") -> list[tuple[Path, str, str]]:
+    """Find all steam_api DLL locations (for multi-location installs like Unreal games).
+
+    Args:
+        game_dir: Game installation directory
+        backup_suffix: Suffix to exclude (backup files)
+
+    Returns:
+        List of (path, dll_name, architecture) sorted by depth then path.
+        Same directory can appear twice if it has both 32 and 64-bit DLLs.
+    """
     locations: list[tuple[Path, str, str]] = []
     seen: set[tuple[Path, str]] = set()  # (path, dll_name) to allow both arches in same dir
     for dll_name in [DLL_32_NAME, DLL_64_NAME]:

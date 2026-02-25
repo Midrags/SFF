@@ -1,33 +1,6 @@
 # Changelog
 
-## v4.6.1 (latest)
-
-### Package rename: smd → sff
-
-- **Renamed package folder** from `smd` to `sff`. All imports, paths, and references updated.
-- **Credits unchanged:** SMD appears only in attribution (e.g. "Modified from original SMD by jericjan").
-- **Config changes:** Secret store service is now `sff_tool`; online-fix temp prefix is `sff_online_fix_`; DLC unlocker validation uses `.sff_write_test`. If you stored credentials before, you may need to re-enter them once.
-- **Docs:** Removed optional Steam patch references from README and docs.
-
----
-
-## v4.6.0
-
-### GUI version
-
-- **Full graphical interface added.** Run `python Main_gui.py` or build `SFF_GUI.exe` using `build_simple_gui.bat`. Everything you can do in the CLI is now available through buttons, menus, and dialogs.
-- **Game selection:** Pick any installed Steam game from a dropdown (all Steam libraries are scanned), or switch to "Games outside of Steam" and set a folder path, game name, and App ID manually.
-- **All actions as buttons:** Game actions (crack, DRM removal, DLC check, workshop items, multiplayer fix, DLC unlockers), Lua/manifest processing (process .lua, manifests only, recent files, update all), and library/Steam tools (AppList management, Steam patching, sync LUAs, offline fix, context menu, remove game).
-- **Settings dialog:** Edit, delete, export, and import all settings from a single window. Every setting type is handled (booleans, paths, passwords, enums, etc.).
-- **Themes:** Light theme (black text) and dark theme (white text). Switch from the Theme menu.
-- **Log output:** All action output is shown in the log panel with ANSI color codes stripped. Clear the log anytime.
-- **Prompt bridge:** Any interactive prompt that would normally require a terminal (select, confirm, text input, file/folder picker) automatically shows up as a Qt dialog instead. This means every feature works in the GUI without changes to the underlying code.
-- **Build script:** `build_simple_gui.bat` and `build_sff_gui.spec` produce `SFF_GUI.exe` (windowed, no console).
-- **CLI unchanged:** `Main.py` and `SFF.exe` work exactly the same as before. The GUI is a separate entry point.
-
----
-
-## v4.5.5
+## v4.5.5 (latest)
 
 ### Multiplayer fix (online-fix.me) – Selenium login fix
 

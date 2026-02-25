@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 class GitHubReleaseDownloader:
+    """Downloads DLLs from acidicoala GitHub releases"""
+    
     RELEASE_URLS = {
         UnlockerType.SMOKEAPI: "https://api.github.com/repos/acidicoala/SmokeAPI/releases/latest",
         UnlockerType.CREAMAPI: "https://api.github.com/repos/acidicoala/CreamAPI/releases/latest",
@@ -24,10 +26,23 @@ class GitHubReleaseDownloader:
     }
     
     def __init__(self, cache_dir: Path):
+        """Initialize downloader with cache directory
+        
+        Args:
+            cache_dir: Directory to store downloaded DLLs
+        """
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
     
     async def download_latest(self, unlocker_type: UnlockerType) -> Optional[Path]:
+        """Download latest release and return path to cached DLL directory
+        
+        Args:
+            unlocker_type: Type of unlocker to download
+            
+        Returns:
+            Path to directory containing extracted DLLs, or None if download failed
+        """
         if unlocker_type not in self.RELEASE_URLS:
             logger.error(f"No release URL configured for {unlocker_type}")
             return None
@@ -134,6 +149,14 @@ class GitHubReleaseDownloader:
                 return None
     
     def get_cached_dll(self, unlocker_type: UnlockerType) -> Optional[Path]:
+        """Get cached DLL directory path without downloading
+        
+        Args:
+            unlocker_type: Type of unlocker to look up
+            
+        Returns:
+            Path to directory containing cached DLLs, or None if not cached
+        """
         unlocker_cache_dir = self.cache_dir / unlocker_type.value
         if not unlocker_cache_dir.exists():
             return None
@@ -151,6 +174,15 @@ class GitHubReleaseDownloader:
         return dll_dir if dll_dir else latest_version
     
     def _find_dll_directory(self, root_dir: Path, unlocker_type: UnlockerType) -> Optional[Path]:
+        """Find the directory containing DLL files within extracted ZIP
+        
+        Args:
+            root_dir: Root directory of extracted ZIP
+            unlocker_type: Type of unlocker to find DLLs for
+            
+        Returns:
+            Path to directory containing DLLs, or None if not found
+        """
         # Define expected DLL names for each unlocker type
         expected_dlls = {
             UnlockerType.SMOKEAPI: ["smoke_api32.dll", "smoke_api64.dll"],
@@ -187,6 +219,14 @@ class GitHubReleaseDownloader:
         return None
     
     def _get_local_resource(self, unlocker_type: UnlockerType) -> Optional[Path]:
+        """Get local resource directory for an unlocker (bundled with application)
+        
+        Args:
+            unlocker_type: Type of unlocker to find
+            
+        Returns:
+            Path to local resource directory, or None if not found
+        """
         # Local resources are in sff/dlc_unlockers/resources/
         from sff.utils import root_folder
         
@@ -212,6 +252,15 @@ class GitHubReleaseDownloader:
         return None
     
     def get_dll(self, unlocker_type: UnlockerType, architecture: str) -> Optional[Path]:
+        """Get a specific DLL file for an unlocker
+        
+        Args:
+            unlocker_type: Type of unlocker
+            architecture: "32" or "64" for 32-bit or 64-bit
+            
+        Returns:
+            Path to the DLL file, or None if not found
+        """
         # Get the directory containing DLLs
         dll_dir = self.get_cached_dll(unlocker_type)
         if not dll_dir:

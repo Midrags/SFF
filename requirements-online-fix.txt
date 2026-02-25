@@ -1,3 +1,3 @@
-# Multiplayer fix (online-fix.me) – Selenium + Chrome
+# Multiplayer fix (online-fix.me) – Selenium + Chrome (like MainMango)
 selenium>=4.15.0
 # Chrome browser must be installed

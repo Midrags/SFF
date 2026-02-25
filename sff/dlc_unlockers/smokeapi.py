@@ -23,6 +23,13 @@ logger = logging.getLogger(__name__)
 
 
 class InstallLocation(NamedTuple):
+    """Represents a single installation location for SmokeAPI
+    
+    Attributes:
+        path: Directory containing the steam_api DLL
+        dll_name: Name of the DLL file (steam_api.dll or steam_api64.dll)
+        architecture: Architecture string ("32" or "64")
+    """
     path: Path
     dll_name: str
     architecture: str
@@ -46,17 +53,35 @@ class SmokeAPIUnlocker(UnlockerBase):
     
     @property
     def unlocker_type(self) -> UnlockerType:
+        """Returns the type of this unlocker"""
         return UnlockerType.SMOKEAPI
     
     @property
     def supported_platforms(self) -> list[Platform]:
+        """Returns platforms this unlocker supports"""
         return [Platform.STEAM]
     
     @property
     def display_name(self) -> str:
+        """Human-readable name for UI"""
         return "SmokeAPI"
     
     def is_installed(self, game_dir: Path) -> bool:
+        """Check if SmokeAPI is currently installed in any location
+        
+        Args:
+            game_dir: Game installation directory
+            
+        Returns:
+            True if SmokeAPI is installed (backup files exist), False otherwise
+            
+        Enhanced Algorithm:
+            1. Search recursively for backup files (*_o.dll)
+            2. If any backup found, return True
+            3. Otherwise return False
+            
+        Note: Config file presence is not required for detection
+        """
         # Search for backup files recursively
         for backup_path in game_dir.rglob(f"*{self.BACKUP_SUFFIX}.dll"):
             # Check if this is a steam_api backup
@@ -68,9 +93,11 @@ class SmokeAPIUnlocker(UnlockerBase):
         return False
     
     def _detect_architecture(self, game_dir: Path) -> Optional[str]:
+        """Detect game architecture (32/64) using shared steam_dll_utils."""
         return detect_steam_architecture(game_dir, self.BACKUP_SUFFIX)
 
     def _find_all_installation_locations(self, game_dir: Path) -> list[InstallLocation]:
+        """Discover all steam_api DLL locations using shared steam_dll_utils."""
         raw = find_all_steam_api_locations(game_dir, self.BACKUP_SUFFIX)
         return [InstallLocation(path=p, dll_name=name, architecture=arch) for p, name, arch in raw]
     
@@ -81,6 +108,23 @@ class SmokeAPIUnlocker(UnlockerBase):
         config: Optional[dict],
         game_dir: Path
     ) -> bool:
+        """Install SmokeAPI to a single location
+        
+        Args:
+            location: Target installation location
+            smokeapi_dll_path: Path to SmokeAPI DLL to copy
+            config: Configuration dict (None to skip config creation)
+            game_dir: Game directory for relative path calculation
+            
+        Returns:
+            True if installation succeeded, False otherwise
+            
+        Steps:
+            1. Create backup of original DLL if not exists
+            2. Copy SmokeAPI DLL to location
+            3. Write config file if config is not None
+            4. Log all operations with relative paths
+        """
         try:
             # Construct paths
             original_dll_path = location.path / location.dll_name
@@ -143,6 +187,22 @@ class SmokeAPIUnlocker(UnlockerBase):
             return False
     
     def _uninstall_from_location(self, location: InstallLocation, game_dir: Path) -> bool:
+        """Uninstall SmokeAPI from a single location
+        
+        Args:
+            location: Installation location to clean up
+            game_dir: Game directory for relative path calculation
+            
+        Returns:
+            True if uninstallation succeeded, False otherwise
+            
+        Steps:
+            1. Check for backup file
+            2. Restore backup to original DLL name
+            3. Delete backup file after restoration
+            4. Delete config file if exists
+            5. Log all operations
+        """
         try:
             # Construct paths
             original_dll_path = location.path / location.dll_name
@@ -192,6 +252,15 @@ class SmokeAPIUnlocker(UnlockerBase):
             return False
     
     def _find_steam_api_dll(self, game_dir: Path, dll_name: str) -> Optional[Path]:
+        """Find the steam_api DLL in the game directory or subdirectories
+        
+        Args:
+            game_dir: Game installation directory
+            dll_name: Name of the DLL to find (steam_api.dll or steam_api64.dll)
+            
+        Returns:
+            Path to the DLL, or None if not found
+        """
         # Check root directory first
         dll_path = game_dir / dll_name
         if dll_path.exists():
@@ -206,6 +275,30 @@ class SmokeAPIUnlocker(UnlockerBase):
 
     def install(self, game_dir: Path, dlc_ids: list[int], app_id: int, 
                 smokeapi_dir: Optional[Path] = None) -> bool:
+        """Install SmokeAPI to all locations in game directory
+        
+        Args:
+            game_dir: Game installation directory
+            dlc_ids: List of DLC IDs to unlock (empty list = unlock all by default)
+            app_id: Steam App ID of the game
+            smokeapi_dir: Directory containing SmokeAPI DLLs (optional, for testing)
+            
+        Returns:
+            True if all installations succeeded, False if any failed
+            
+        Enhanced Algorithm:
+            1. Validate inputs (game_dir, app_id, dlc_ids)
+            2. Check write permissions and disk space
+            3. Detect proxy mode installations
+            4. If proxy mode found, uninstall it first
+            5. Find all installation locations
+            6. Generate config (CreamInstaller always creates)
+            7. For each location:
+               a. Install SmokeAPI DLL
+               b. Create config
+            8. Log summary of installations
+            9. Return True if all succeeded, False if any failed
+        """
         # Pre-installation validation
         valid, error = validate_game_directory(game_dir)
         if not valid:
@@ -330,6 +423,22 @@ class SmokeAPIUnlocker(UnlockerBase):
             return False
     
     def uninstall(self, game_dir: Path) -> bool:
+        """Remove SmokeAPI from all locations and restore backups
+        
+        Args:
+            game_dir: Game installation directory
+            
+        Returns:
+            True if all uninstallations succeeded, False if any failed
+            
+        Enhanced Algorithm:
+            1. Find all installation locations (by searching for backups)
+            2. For each location:
+               a. Restore backup
+               b. Delete config file
+            3. Log summary of uninstallations
+            4. Return True if all succeeded, False if any failed
+        """
         try:
             # Step 1: Find all installation locations by searching for backup files
             locations = []
@@ -412,6 +521,19 @@ class SmokeAPIUnlocker(UnlockerBase):
             return False
     
     def generate_config(self, dlc_ids: list[int], app_id: int) -> dict:
+        """Generate SmokeAPI configuration (CreamInstaller-compatible format).
+        
+        Matches exact format from https://github.com/FroggMaster/CreamInstaller
+        Populates extra_dlcs with all known DLC IDs so DLCs added via LUA/GreenLuma
+        remain visible and are not "removed" when the unlocker is installed.
+        
+        Args:
+            dlc_ids: List of DLC IDs to include as unlocked (so game sees them)
+            app_id: Steam App ID of the game
+            
+        Returns:
+            Configuration dictionary for SmokeAPI.config.json
+        """
         # Include all DLCs in extra_dlcs so they show as available (avoids hiding LUA/GreenLuma DLCs)
         extra_dlcs = {str(dlc_id): {} for dlc_id in dlc_ids} if dlc_ids else {}
         return {
@@ -427,9 +549,34 @@ class SmokeAPIUnlocker(UnlockerBase):
         }
     
     def has_locked_dlcs(self, dlc_ids: list[int]) -> bool:
+        """Determine if any DLCs require explicit configuration
+
+        Args:
+            dlc_ids: List of DLC IDs to check
+
+        Returns:
+            True if locked DLCs exist (config needed), False otherwise
+
+        Notes:
+            - Empty list means no locked DLCs (default_app_status="unlocked")
+            - Non-empty list means config file is needed
+        """
         return len(dlc_ids) > 0
 
     def detect_proxy_mode(self, game_dir: Path) -> list[Path]:
+        """Detect existing proxy mode installation files
+        
+        Args:
+            game_dir: Game installation directory
+            
+        Returns:
+            List of proxy mode files found (empty if none)
+            
+        Detection Strategy:
+            1. Check for Koaloader config files (koaloader_config.json, etc.)
+            2. Check for common proxy DLL names (version.dll, winmm.dll, etc.)
+            3. Parse Koaloader configs to verify SmokeAPI references
+        """
         proxy_files = []
         
         # Koaloader configuration file names to check

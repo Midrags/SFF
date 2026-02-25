@@ -49,7 +49,6 @@ class MainMenu(Enum):
     ANALYTICS = "View analytics dashboard"
     CHECK_UPDATES = "Check for updates"
     INSTALL_MENU = "Install/Uninstall Context Menu"
-    SYNC_LUA_TO_STEAM = "Sync saved LUAs to Steam (work without DLLInjector)"
     SETTINGS = "Settings"
     EXIT = "Exit"
 

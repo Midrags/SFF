@@ -1,32 +1,6 @@
 # SteamForge Fetcher (SFF) User Guide - How to Use
 
-SFF has two interfaces: the **CLI** (terminal) and the **GUI** (graphical window). Both give you access to the same features.
-
-## GUI Version
-
-Run `python Main_gui.py` or `SFF_GUI.exe` to open the graphical interface.
-
-**Game selection** — At the top, pick "Steam games" to choose from a dropdown of all your installed games (all Steam libraries are scanned), or pick "Games outside of Steam" to enter a folder path, game name, and App ID manually.
-
-**Game Actions** — Buttons for: Crack game (gbe_fork), Remove SteamStub (Steamless), UserGameStats, DLC check, Workshop item, Multiplayer fix, DLC Unlockers. Select a game first, then click any button.
-
-**Lua / Manifest Processing** — Buttons for: Process .lua file, Download manifests only, Recent .lua files, Update all manifests. These don't require a game to be selected.
-
-**Library & Steam Tools** — Buttons for: Manage AppList IDs, Sync LUAs to Steam, Offline mode fix. On Windows you also get: Patch/Unpatch Steam, Remove game from library, Context menu install/uninstall.
-
-**Settings** — Click "Settings" in the menu bar to open the settings dialog. You can edit any setting (booleans, paths, passwords, enums), delete settings, and export/import settings to JSON.
-
-**Theme** — Switch between Light (black text) and Dark (white text) from the Theme menu.
-
-**Help** — About, Check for updates, Scan game library, and Analytics dashboard are in the Help menu.
-
-**Log** — All action output shows in the log panel at the bottom. Click "Clear log" to reset it.
-
-Any prompt that would normally ask for input in the terminal (select from a list, confirm yes/no, enter text, pick a folder) shows up as a dialog box in the GUI.
-
----
-
-## CLI Menu Navigation
+## Menu Navigation
 
 You might find it difficult to navigate the menu options, so here's what each one does.
 
@@ -85,6 +59,9 @@ GreenLuma has a bug where if you launch Steam while in Offline Mode, it gets stu
 
 ### Manage AppList IDs
 You can view and delete IDs that have been added to the AppList folder here.
+
+### Patch / Unpatch Steam (DLL)
+On Windows, SFF can patch Steam so it reads the game data SFF prepares (Lua files and related folders) without replacing Steam. The two files (xinput1_4.dll and hid.dll) are included in the steam_patch folder. Choose this menu option and pick "Patch Steam". To remove the patch, choose "Unpatch Steam" and restart Steam.
 
 ### Check for updates
 You can update SFF using this. It's a bit funky though.

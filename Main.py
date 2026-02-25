@@ -129,9 +129,6 @@ def main(ui: UI, args: argparse.Namespace) -> MainReturnCode:
     if menu_choice == MainMenu.INSTALL_MENU:
         return ui.manage_context_menu()
 
-    if menu_choice == MainMenu.SYNC_LUA_TO_STEAM:
-        return ui.sync_lua_to_steam_menu()
-
     remove_game_opt = getattr(MainMenu, "REMOVE_GAME", None)
     if remove_game_opt and menu_choice == remove_game_opt:
         return ui.remove_game_menu()
@@ -151,78 +148,55 @@ def main(ui: UI, args: argparse.Namespace) -> MainReturnCode:
     return ui.process_lua_full()
 
 
-def _show_crash_gui(msg: str) -> None:
-    """Show error in a message box when running as frozen exe (no console)."""
-    if not (getattr(sys, "frozen", False) and sys.platform == "win32"):
-        return
-    try:
-        import ctypes
-        ctypes.windll.user32.MessageBoxW(  # type: ignore[attr-defined]
-            0, msg[:3000], "SFF Error", 0x10
-        )
-    except Exception:
-        pass
-
-
 if __name__ == "__main__":
-    try:
-        os.chdir(root_folder(outside_internal=True))
-    except Exception as e:
-        dump_crash()
-        _show_crash_gui(f"Failed to set working directory:\n{e}\n\nSee crash.log")
-        try:
-            input("Press Enter to exit...")
-        except EOFError:
-            pass
-        sys.exit(1)
-    try:
-        logger.debug(f"CWD is {str(Path.cwd().resolve())}")
-        logger.debug(f"exe is {sys.executable}")
-        start_time = time.time()
-        parser = argparse.ArgumentParser(
-                            prog='SFF',
-                            description='SteamForge Fetcher - set up games for Steam with Lua scripts, manifests, and GreenLuma',
-                            epilog='Modified from original SMD by jericjan. https://github.com/Midrags/SFF')
-        parser.add_argument(
-            "-f", "--file", help="A .lua file or ZIP file you want to process"
-        )
-        parser.add_argument(
-            "-v", "--version", action="store_true", help="Show version and exit"
-        )
-        parser.add_argument(
-            "-b", "--batch", nargs="+", help="Process multiple lua files in batch mode"
-        )
-        parser.add_argument(
-            "-q", "--quiet", action="store_true", help="Suppress non-error output"
-        )
-        parser.add_argument(
-            "--auto-update", action="store_true", help="Automatically update manifests without user interaction"
-        )
-        parser.add_argument(
-            "--export-ids", help="Export AppList IDs to specified file"
-        )
-        parser.add_argument(
-            "--dry-run", action="store_true", help="Preview operations without executing them"
-        )
-        args = parser.parse_args()
-        
-        # Handle --version flag
-        if args.version:
-            print(f"SteamForge Fetcher (SFF) version {VERSION}")
-            sys.exit(0)
-        
-        logger.debug(f"Received args: {args}")
-        
-        # Setup quiet mode if requested
-        if args.quiet:
-            # Redirect stdout to null, but keep stderr for errors
-            sys.stdout = open(os.devnull, 'w')
-        
-        color_init()
-        version_txt = f"Version: {VERSION}"
-        print(
-            Fore.GREEN
-            + f"""  ____  _____  _____
+    os.chdir(root_folder(outside_internal=True))
+    logger.debug(f"CWD is {str(Path.cwd().resolve())}")
+    logger.debug(f"exe is {sys.executable}")
+    start_time = time.time()
+    parser = argparse.ArgumentParser(
+                        prog='SFF',
+                        description='SteamForge Fetcher - set up games for Steam with Lua scripts, manifests, and GreenLuma',
+                        epilog='https://github.com/Midrags/SMD_2')
+    parser.add_argument(
+        "-f", "--file", help="A .lua file or ZIP file you want to process"
+    )
+    parser.add_argument(
+        "-v", "--version", action="store_true", help="Show version and exit"
+    )
+    parser.add_argument(
+        "-b", "--batch", nargs="+", help="Process multiple lua files in batch mode"
+    )
+    parser.add_argument(
+        "-q", "--quiet", action="store_true", help="Suppress non-error output"
+    )
+    parser.add_argument(
+        "--auto-update", action="store_true", help="Automatically update manifests without user interaction"
+    )
+    parser.add_argument(
+        "--export-ids", help="Export AppList IDs to specified file"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview operations without executing them"
+    )
+    args = parser.parse_args()
+    
+    # Handle --version flag
+    if args.version:
+        print(f"SteamForge Fetcher (SFF) version {VERSION}")
+        sys.exit(0)
+    
+    logger.debug(f"Received args: {args}")
+    
+    # Setup quiet mode if requested
+    if args.quiet:
+        # Redirect stdout to null, but keep stderr for errors
+        sys.stdout = open(os.devnull, 'w')
+    
+    color_init()
+    version_txt = f"Version: {VERSION}"
+    print(
+        Fore.GREEN
+        + f"""  ____  _____  _____
  / ___|  \\ \\  / / __|
  \\___ \\   \\ \\/ /| _|
   ___) |   \\  / | |__
@@ -233,84 +207,67 @@ if __name__ == "__main__":
 ┌────────────────────────────────────────┐
 │{version_txt.center(40)}│
 └────────────────────────────────────────┘ """
-            + Style.RESET_ALL
-        )
-        sys.stdout.flush()
-        sys.stderr.flush()
-        # When running as frozen exe, console/prompt may not show until focused
-        if sys.platform == "win32":
-            try:
-                import ctypes
-                kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-                user32 = ctypes.windll.user32  # type: ignore[attr-defined]
-                hwnd = kernel32.GetConsoleWindow()
-                if hwnd:
-                    user32.SetForegroundWindow(hwnd)
-            except Exception:
-                pass
-
-        os_type = (
-            OSType.WINDOWS
-            if sys.platform == "win32"
-            else (OSType.LINUX if sys.platform == "linux" else OSType.OTHER)
-        )
-
+        + Style.RESET_ALL
+    )
+    sys.stdout.flush()
+    sys.stderr.flush()
+    # When running as frozen exe, console/prompt may not show until focused
+    if sys.platform == "win32":
         try:
-            client = SteamClient()
-            logger.debug(f"Steam client init in {time.time() - start_time}s")
-            provider = SteamInfoProvider(client)
-            steam_path = init_steam_path(os_type)
-            logger.debug(f"Steam path init in {time.time() - start_time}s")
-            ui = UI(provider, steam_path, os_type)
+            import ctypes
+            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+            user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+            hwnd = kernel32.GetConsoleWindow()
+            if hwnd:
+                user32.SetForegroundWindow(hwnd)
         except Exception:
-            dump_crash()
-            with Path("crash.log").open("r", encoding="utf-8") as f:
-                _show_crash_gui(f.read())
-            try:
-                input("Press Enter to exit the program...")
-            except EOFError:
-                pass
-            sys.exit(1)
-        logger.debug(f"Init finished in {time.time() - start_time}s")
-        return_code = None
-        first_launch = True
-        while True:
-            try:
-                return_code = main(ui, args)
-                first_launch = False
-            except KeyboardInterrupt:
-                print(Fore.RED + "\nWait, don't go—\n" + Style.RESET_ALL)
-                return_code = None
-                break
-            except Exception:
-                dump_crash()
-                input("Press Enter to restart the program...")
-                continue
+            pass
 
-            if return_code == MainReturnCode.EXIT:
-                break
-            elif return_code == MainReturnCode.LOOP_NO_PROMPT:
-                continue
-            elif return_code == MainReturnCode.LOOP:
-                # Use native confirm to avoid WNDPROC/WPARAM error (prompt_select cleanup on Windows)
-                go_back = inquirer.confirm(
-                    message="Go back to the Main Menu?",
-                    default=True,
-                    transformer=lambda x: "Yes" if x else "No (Exit)",
-                ).execute()
-                if not go_back:
-                    break
-        if return_code is not None:
-            print(Fore.GREEN + "\nSee You Next Time!\n" + Style.RESET_ALL)
+    os_type = (
+        OSType.WINDOWS
+        if sys.platform == "win32"
+        else (OSType.LINUX if sys.platform == "linux" else OSType.OTHER)
+    )
+
+    try:
+        client = SteamClient()
+        logger.debug(f"Steam client init in {time.time() - start_time}s")
+        provider = SteamInfoProvider(client)
+        steam_path = init_steam_path(os_type)
+        logger.debug(f"Steam path init in {time.time() - start_time}s")
+        ui = UI(provider, steam_path, os_type)
     except Exception:
         dump_crash()
+        input("Press Enter to exit the program...")
+        sys.exit()
+    logger.debug(f"Init finished in {time.time() - start_time}s")
+    return_code = None
+    first_launch = True
+    while True:
         try:
-            with Path("crash.log").open("r", encoding="utf-8") as f:
-                _show_crash_gui(f.read())
+            return_code = main(ui, args)
+            first_launch = False
+        except KeyboardInterrupt:
+            print(Fore.RED + "\nWait, don't go—\n" + Style.RESET_ALL)
+            return_code = None
+            break
         except Exception:
-            _show_crash_gui(traceback.format_exc())
-        try:
-            input("Press Enter to exit the program...")
-        except EOFError:
-            pass  # No console (e.g. double-clicked exe); message box was already shown
-        sys.exit(1)
+            dump_crash()
+            input("Press Enter to restart the program...")
+            continue
+
+        if return_code == MainReturnCode.EXIT:
+            break
+        elif return_code == MainReturnCode.LOOP_NO_PROMPT:
+            continue
+        elif return_code == MainReturnCode.LOOP:
+            # Use native confirm to avoid WNDPROC/WPARAM error (prompt_select cleanup on Windows)
+            go_back = inquirer.confirm(
+                message="Go back to the Main Menu?",
+                default=True,
+                transformer=lambda x: "Yes" if x else "No (Exit)",
+            ).execute()
+            if not go_back:
+                break
+    if return_code is not None:
+        print(Fore.GREEN + "\nSee You Next Time!\n" + Style.RESET_ALL)

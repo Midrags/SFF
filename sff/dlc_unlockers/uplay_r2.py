@@ -27,17 +27,28 @@ class UplayR2Unlocker(UnlockerBase):
     
     @property
     def unlocker_type(self) -> UnlockerType:
+        """Returns the type of this unlocker"""
         return UnlockerType.UPLAY_R2
     
     @property
     def supported_platforms(self) -> list[Platform]:
+        """Returns platforms this unlocker supports"""
         return [Platform.UBISOFT]
     
     @property
     def display_name(self) -> str:
+        """Human-readable name for UI"""
         return "Uplay R2 Unlocker"
     
     def is_installed(self, game_dir: Path) -> bool:
+        """Check if Uplay R2 Unlocker is currently installed
+        
+        Args:
+            game_dir: Game installation directory
+            
+        Returns:
+            True if Uplay R2 Unlocker DLL and config are present
+        """
         has_config = (game_dir / self.CONFIG_FILENAME).exists()
         
         # Check for backup file as an indicator of installation
@@ -47,6 +58,17 @@ class UplayR2Unlocker(UnlockerBase):
     
     def install(self, game_dir: Path, dlc_ids: list[int], app_id: int,
                 unlocker_dir: Optional[Path] = None) -> bool:
+        """Install Uplay R2 Unlocker to game directory
+        
+        Args:
+            game_dir: Game installation directory
+            dlc_ids: List of DLC IDs to unlock (not used by Uplay R2, unlocks all)
+            app_id: Ubisoft App ID of the game
+            unlocker_dir: Directory containing Uplay R2 Unlocker DLL (optional, for testing)
+            
+        Returns:
+            True if installation succeeded, False otherwise
+        """
         try:
             target_dll_path = game_dir / self.TARGET_DLL
             backup_dll_path = game_dir / f"{self.TARGET_DLL.replace('.dll', '')}{self.BACKUP_SUFFIX}.dll"
@@ -105,6 +127,14 @@ class UplayR2Unlocker(UnlockerBase):
             return False
     
     def uninstall(self, game_dir: Path) -> bool:
+        """Remove Uplay R2 Unlocker and restore backups
+        
+        Args:
+            game_dir: Game installation directory
+            
+        Returns:
+            True if uninstallation succeeded, False otherwise
+        """
         try:
             # Remove config file
             config_path = game_dir / self.CONFIG_FILENAME
@@ -152,6 +182,15 @@ class UplayR2Unlocker(UnlockerBase):
             return False
     
     def generate_config(self, dlc_ids: list[int], app_id: int) -> dict:
+        """Generate Uplay R2 Unlocker configuration
+        
+        Args:
+            dlc_ids: List of DLC IDs (not used, Uplay R2 unlocks all by default)
+            app_id: Ubisoft App ID of the game
+            
+        Returns:
+            Configuration dictionary for Uplay R2 Unlocker
+        """
         return {
             "logging": False,
             "lang": "default",

@@ -13,8 +13,7 @@ SFF helps you set up games to work with Steam using Lua scripts, manifests, and 
 
 1. Read the [Setup Guide](SETUP_GUIDE.md) to install what you need (including GreenLuma).  
 2. Read the [User Guide](USER_GUIDE.md) to see how each menu option works.  
-3. Use the [Quick Reference](QUICK_REFERENCE.md) for commands and shortcuts.  
-4. For the GUI version, run `python Main_gui.py` or build `SFF_GUI.exe` with `build_simple_gui.bat`.
+3. Use the [Quick Reference](QUICK_REFERENCE.md) for commands and shortcuts.
 
 **Guides**
 
@@ -22,13 +21,13 @@ SFF helps you set up games to work with Steam using Lua scripts, manifests, and 
 What to install: GreenLuma, Python (if needed), optional Steam patch, and multiplayer fix requirements.
 
 [User Guide](USER_GUIDE.md)  
-What each menu option does and how to add games step by step. Includes GUI usage.
+What each menu option does and how to add games step by step.
 
 [Quick Reference](QUICK_REFERENCE.md)  
 Command line options, keyboard shortcuts, and where important files are stored.
 
 [Feature Guide](FEATURE_USAGE_GUIDE.md)  
-Parallel downloads, settings backup, library scanner, GUI, and other features.
+Parallel downloads, settings backup, library scanner, and other features.
 
 [Multiplayer Fix](MULTIPLAYER_FIX.md)  
 How to use the online fix feature for multiplayer games.

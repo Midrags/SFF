@@ -75,6 +75,16 @@ def resolve_advanced_mode() -> bool:
 
 
 def export_settings(export_path: Path, include_sensitive: bool = False) -> bool:
+    """
+    Export settings to a JSON file.
+    
+    Args:
+        export_path: Path where the JSON file will be saved
+        include_sensitive: If True, includes encrypted sensitive data
+        
+    Returns:
+        True if export succeeded, False otherwise
+    """
     try:
         settings = load_all_settings()
         export_data = {
@@ -87,9 +97,11 @@ def export_settings(export_path: Path, include_sensitive: bool = False) -> bool:
             if key in settings:
                 value = settings[key]
                 
+                # Skip sensitive settings unless explicitly requested
                 if setting.hidden and not include_sensitive:
                     continue
                 
+                # Handle encrypted bytes - decrypt them for export
                 if setting.hidden:
                     if isinstance(value, bytes):
                         try:
@@ -98,9 +110,11 @@ def export_settings(export_path: Path, include_sensitive: bool = False) -> bool:
                             logger.warning(f"Failed to decrypt {key}: {e}")
                             continue
                     elif isinstance(value, str):
+                        # Already decrypted or plain string
                         try:
                             value = keyring_decrypt(value)
                         except Exception as e:
+                            # If decryption fails, it might already be plain text
                             pass
                     
                 export_data["settings"][key] = value
@@ -117,6 +131,15 @@ def export_settings(export_path: Path, include_sensitive: bool = False) -> bool:
 
 
 def import_settings(import_path: Path) -> tuple[bool, str]:
+    """
+    Import settings from a JSON file.
+    
+    Args:
+        import_path: Path to the JSON file to import
+        
+    Returns:
+        Tuple of (success: bool, message: str)
+    """
     try:
         if not import_path.exists():
             return False, f"File not found: {import_path}"
@@ -124,16 +147,19 @@ def import_settings(import_path: Path) -> tuple[bool, str]:
         with import_path.open("r", encoding="utf-8") as f:
             import_data = json.load(f)
         
+        # Validate structure
         if "version" not in import_data or "settings" not in import_data:
             return False, "Invalid settings file format: missing version or settings"
         
         if not isinstance(import_data["settings"], dict):
             return False, "Invalid settings file format: settings must be a dictionary"
         
+        # Validate and import each setting
         imported_count = 0
         errors = []
         
         for key, value in import_data["settings"].items():
+            # Find the corresponding Settings enum
             setting = None
             for s in Settings:
                 if s.key_name == key:
@@ -144,6 +170,7 @@ def import_settings(import_path: Path) -> tuple[bool, str]:
                 errors.append(f"Unknown setting: {key}")
                 continue
             
+            # Validate type
             if setting.type == bool and not isinstance(value, bool):
                 errors.append(f"{key}: expected bool, got {type(value).__name__}")
                 continue
@@ -151,6 +178,7 @@ def import_settings(import_path: Path) -> tuple[bool, str]:
                 errors.append(f"{key}: expected str, got {type(value).__name__}")
                 continue
             
+            # Import the setting
             try:
                 set_setting(setting, value)
                 imported_count += 1
@@ -173,14 +201,35 @@ def import_settings(import_path: Path) -> tuple[bool, str]:
 
 
 def migrate_settings(settings: dict[Any, Any]) -> dict[Any, Any]:
+    """
+    Migrate settings from older versions to current format.
+    
+    Args:
+        settings: The settings dictionary to migrate
+        
+    Returns:
+        Migrated settings dictionary
+    """
+    # Check if migration is needed
     current_version = settings.get("_version", "0.0.0")
     
     if current_version == SETTINGS_VERSION:
         return settings
     
     logger.info(f"Migrating settings from version {current_version} to {SETTINGS_VERSION}")
+    
+    # Add migration logic here as needed in future versions
+    # Example:
+    # if current_version < "1.1.0":
+    #     # Migrate from 1.0.0 to 1.1.0
+    #     settings["new_key"] = "default_value"
+    
+    # Update version
     settings["_version"] = SETTINGS_VERSION
+    
+    # Save migrated settings
     with SETTINGS_FILE.open("wb") as f:
         f.write(msgpack.packb(settings))  # type: ignore
     
+    logger.info("Settings migration completed")
     return settings

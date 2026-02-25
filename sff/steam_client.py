@@ -19,6 +19,14 @@ def get_product_info(provider: "SteamInfoProvider", app_ids: list[int]) -> Produ
     return ProductInfo({"apps": provider.get_app_info(app_ids), "packages": {}})
 
 
+def create_provider_for_current_thread() -> "SteamInfoProvider":
+    """Create SteamClient and SteamInfoProvider in the current thread.
+    Use when running Steam/gevent operations from a worker thread (e.g. GUI).
+    Gevent requires the client to be used from the thread that created it."""
+    client = SteamClient()
+    return SteamInfoProvider(client)
+
+
 _MAX_APP_INFO_RETRIES = 3
 
 

@@ -24,12 +24,9 @@ If you run SFF with Python instead of the EXE:
 3. Optional (Windows notifications):  
    `pip install -r requirements-optional.txt`
 
-**Building the EXE**
+**Optional: Steam patch (Windows only)**
 
-- CLI version: run `build_simple.bat` to get `dist\SFF.exe`  
-- GUI version: run `build_simple_gui.bat` to get `dist\SFF_GUI.exe`
-
-The GUI exe runs without a console window. All prompts show up as dialog boxes.
+If you want Steam to read the game data SFF prepares without using an extra injector, you can use the Steam patch. The two files (`xinput1_4.dll` and `hid.dll`) are included in the `steam_patch` folder. In SFF choose **Patch / Unpatch Steam (DLL)** from the main menu and pick **Patch Steam**. Restart Steam when done.
 
 **Multiplayer fix (online-fix.me)**
 
@@ -44,6 +41,7 @@ If the project includes a batch file for online-fix requirements, run it. Otherw
 **If something doesn't work**
 
 - "Steam path not found" — Choose the folder that contains steam.exe.  
+- "DLLs not found" — The two DLLs should be in the steam_patch folder; if they're missing, make sure you have the full SFF package.  
 - "Selenium not installed" — Run the pip install command above.  
 - "Login failed" — Check your online-fix.me username and password on their website.
 

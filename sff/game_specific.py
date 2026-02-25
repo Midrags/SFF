@@ -49,7 +49,6 @@ logger = logging.getLogger(__name__)
 class ACFInfo(NamedTuple):
     app_id: str
     path: Path
-    name: Optional[str] = None  # optional display/search name (e.g. for games outside Steam)
 
 
 AppName = str
@@ -69,35 +68,43 @@ class GameHandler:
         self.provider = provider
         self.injection_manager = injection_manager
 
-    def get_game_list(self) -> list[tuple[AppName, ACFInfo]]:
-        """Return list of (display_name, ACFInfo) from all Steam libraries. For GUI use."""
+    def _scan_games(self) -> list[tuple[AppName, ACFInfo]]:
+        """Scan all Steam libraries and return list of (name, ACFInfo). No prompts."""
         games: list[tuple[AppName, ACFInfo]] = []
-        seen_app_ids: set[int] = set()
-
+        seen_app_ids: set[str] = set()
+        
+        # Get all Steam libraries (including from all drives)
         try:
             from sff.storage.vdf import get_steam_libs
             steam_libs = get_steam_libs(self.steam_root)
-
-            if os.name == "nt":
+            
+            # Also scan all drives for additional libraries
+            if os.name == 'nt':  # Windows
                 from string import ascii_uppercase
                 for drive_letter in ascii_uppercase:
                     drive = Path(f"{drive_letter}:/")
                     if not drive.exists():
                         continue
-                    for path in [
+                    
+                    potential_paths = [
                         drive / "SteamLibrary",
                         drive / "Steam",
                         drive / "Program Files (x86)" / "Steam",
                         drive / "Program Files" / "Steam",
                         drive / "Games" / "Steam",
-                    ]:
-                        if (path / "steamapps").exists() and path not in steam_libs:
+                    ]
+                    
+                    for path in potential_paths:
+                        steamapps = path / "steamapps"
+                        if steamapps.exists() and path not in steam_libs:
                             steam_libs.append(path)
-
+            
+            # Scan all libraries
             for lib in steam_libs:
                 steamapps = lib / "steamapps"
                 if not steamapps.exists():
                     continue
+                
                 for acf_path in steamapps.glob("*.acf"):
                     try:
                         app_acf = vdf_load(acf_path)
@@ -105,19 +112,32 @@ class GameHandler:
                         name = app_state.get("name")
                         installdir = app_state.get("installdir")
                         app_id = app_state.get("appid")
+                        
+                        # Skip games with missing required fields
                         if not app_id or not installdir:
+                            logger.warning(f"Skipping {acf_path.name}: missing appid or installdir")
                             continue
+                        
+                        # Skip duplicates (same game in multiple libraries)
                         if app_id in seen_app_ids:
                             continue
+                        
                         seen_app_ids.add(app_id)
+                        
+                        # Check if game is actually installed
                         game_path = steamapps / "common" / installdir
                         if not game_path.exists():
                             continue
-                        games.append((name, ACFInfo(app_id, game_path)))
+                        
+                        games.append(
+                            (name, ACFInfo(app_id, game_path))
+                        )
                     except Exception as e:
                         logger.debug(f"Failed to parse {acf_path}: {e}")
+        
         except Exception as e:
             logger.error(f"Failed to scan Steam libraries: {e}")
+            # Fallback to original behavior
             for path in self.steamapps_path.glob("*.acf"):
                 try:
                     app_acf = vdf_load(path)
@@ -125,19 +145,26 @@ class GameHandler:
                     name = app_state.get("name")
                     installdir = app_state.get("installdir")
                     app_id = app_state.get("appid")
+                    
                     if not app_id or not installdir:
+                        logger.warning(f"Skipping {path.name}: missing appid or installdir")
                         continue
+                    
                     games.append(
                         (name, ACFInfo(app_id, self.steamapps_path / "common" / installdir))
                     )
                 except Exception as e:
                     logger.debug(f"Failed to parse {path}: {e}")
-
+        
         return games
 
+    def get_game_list(self) -> list[tuple[AppName, ACFInfo]]:
+        """Return list of (name, ACFInfo) for all installed games. Used by GUI."""
+        return self._scan_games()
+
     def get_game(self) -> Optional[ACFInfo]:
-        """Get game from all Steam libraries across all drives"""
-        games = self.get_game_list()
+        """Get game from all Steam libraries across all drives (interactive prompt)."""
+        games = self._scan_games()
         if not games:
             print(Fore.RED + "No games found in any Steam library!" + Style.RESET_ALL)
             return None
@@ -414,10 +441,8 @@ class GameHandler:
         print("This will download and apply a multiplayer fix for the selected game.")
         print("The fix will be extracted directly to the game folder.\n")
 
-        # Get game name: ACF, optional ACFInfo.name (outside Steam), or folder name
+        # Get game name: ACF from the same library as the game folder (not default steamapps)
         game_name = "Unknown"
-        if app_info.name:
-            game_name = app_info.name
         steamapps_for_game = app_info.path.parent.parent  # path is .../steamapps/common/GameName
         acf_path = steamapps_for_game / f"appmanifest_{app_info.app_id}.acf"
         if acf_path.exists():
@@ -435,8 +460,6 @@ class GameHandler:
                     game_name = details["name"].strip()
             except Exception as e:
                 logger.debug("Steam Store API fallback for game name: %s", e)
-        if not game_name or game_name == "Unknown":
-            game_name = app_info.path.name
 
         print(f"Game: {Fore.YELLOW}{game_name}{Style.RESET_ALL}")
         print(f"Folder: {Fore.YELLOW}{app_info.path}{Style.RESET_ALL}\n")
@@ -653,30 +676,17 @@ class GameHandler:
         print(f"{Fore.CYAN}{'='*45}{Style.RESET_ALL}\n")
 
     def execute_choice(
-        self, choice: GameSpecificChoices, override_game: Optional[ACFInfo] = None
+        self, choice: GameSpecificChoices, *, override_game: Optional[ACFInfo] = None
     ) -> MainReturnCode:
         app_info = override_game if override_game is not None else self.get_game()
         if app_info is None:
             return MainReturnCode.LOOP_NO_PROMPT
-
-        if app_info.app_id is None and override_game is None:
+        
+        # Validate app_id is not None
+        if app_info.app_id is None:
             print(Fore.RED + "Error: Game has no App ID. The ACF file may be corrupted." + Style.RESET_ALL)
             return MainReturnCode.LOOP
-
-        # Features that require a real Steam App ID
-        if app_info.app_id in (None, "0"):
-            if choice in (
-                MainMenu.DL_USER_GAME_STATS,
-                MainMenu.DLC_CHECK,
-                MainMenu.DL_WORKSHOP_ITEM,
-            ):
-                print(
-                    Fore.YELLOW
-                    + "This feature requires a Steam App ID. Use \"Steam games\" or enter an App ID for games outside of Steam."
-                    + Style.RESET_ALL
-                )
-                return MainReturnCode.LOOP
-
+            
         if choice == MainMenu.CRACK_GAME:
             dll = self.find_steam_dll(app_info.path)
             if dll is None:
