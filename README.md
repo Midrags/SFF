@@ -4,7 +4,7 @@ Quick thing before we start remember to exclude the SFF folder from Windows Secu
 
 SFF helps you set up games to work with Steam using Lua scripts, manifests, and GreenLuma. It writes the right files into your Steam folder so games and DLC can run. It does not replace or crack Steam itself.
 
-**Need help?** Check the [documentation](docs/README.md) or reach out to jericjan on the discord server and we'll sort it out: https://discord.gg/bK667akcjn
+**Need help?** Check the [documentation](docs/README.md) or the discord server: https://discord.gg/bK667akcjn
 
 ## Quick start
 
@@ -34,8 +34,8 @@ Extract the ZIP and use the AppList folder from GreenLuma when SFF asks for it. 
 
 ## Download
 
-- **HTTPS:** `git clone https://github.com/Midrags/SMD_2.git`
-- **GitHub CLI:** `gh repo clone Midrags/SMD_2`
+- **HTTPS:** `git clone https://github.com/Midrags/SFF.git`
+- **GitHub CLI:** `gh repo clone Midrags/SFF`
 
 Then go into the project folder and see [Quick start](#quick-start) below.
 

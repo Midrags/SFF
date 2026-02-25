@@ -50,7 +50,7 @@ class Updater:
 
     @staticmethod
     def get_latest_stable() -> Optional[dict[str, Any]]:
-        """Fetch the latest stable release from Midrags/SMD_2. Returns None on error."""
+        """Fetch the latest stable release from Midrags/SFF. Returns None on error."""
         resp = asyncio.run(
             get_request(
                 Updater._LATEST_URL,
@@ -96,7 +96,7 @@ class Updater:
     @staticmethod
     def update_available() -> tuple[bool, Optional[dict[str, Any]]]:
         """
-        Check if an update is available from Midrags/SMD_2.
+        Check if an update is available from Midrags/SFF.
         Returns (is_newer, latest_release_dict).
         If fetch fails, returns (False, None). If current >= latest, returns (False, release_dict).
         """

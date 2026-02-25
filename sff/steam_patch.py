@@ -2,7 +2,7 @@
 Steam patch via two DLLs (xinput1_4.dll, hid.dll).
 
 Places them in the Steam directory so the client reads config\\stplug-in
-and related folders that SMD prepares, without replacing Steam.exe.
+and related folders that SFF prepares, without replacing Steam.exe.
 Windows only. DLLs must be placed in the steam_patch folder.
 """
 

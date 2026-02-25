@@ -790,7 +790,7 @@ class UI:
         release_url = resp.get("html_url") or RELEASE_PAGE_URL
         is_frozen = getattr(sys, "frozen", False)
         assets = resp.get("assets") or []
-        # Prefer OS-specific package for frozen Windows; else use any release .zip (e.g. SMD_2-vX.Y.Z.zip)
+        # Prefer OS-specific package for frozen Windows; else use any release .zip (e.g. SFF-vX.Y.Z.zip)
         download_url = None
         asset_name = None
         use_os_package = False
@@ -839,7 +839,7 @@ class UI:
             tmp_update.mkdir(parents=True, exist_ok=True)
             with zipfile.ZipFile(update_zip) as zf:
                 zf.extractall(tmp_update)
-            # If zip had a single top-level folder (e.g. SMD_2-v4.5.3/), flatten so copy source is the contents
+            # If zip had a single top-level folder (e.g. SFF-v4.5.3/), flatten so copy source is the contents
             entries = list(tmp_update.iterdir())
             if len(entries) == 1 and entries[0].is_dir():
                 inner = entries[0]

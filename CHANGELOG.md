@@ -1,6 +1,6 @@
 # Changelog
 
-## v4.5.5 (latest)
+## v4.6.1 (latest)
 
 ### Multiplayer fix (online-fix.me) – Selenium login fix
 

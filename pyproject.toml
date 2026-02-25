@@ -1,6 +1,6 @@
 [project]
 name = "steam-manifest-decrypt"
-version = "4.5.5"
+version = "4.6.1"
 description = "Decrypt steam manifest files"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -50,7 +50,7 @@ changelog_incremental = true
 gpg_sign = true
 changelog_start_rev = "4.2.0"
 version_files = [
-    "smd/strings.py:VERSION"
+    "sff/strings.py:VERSION"
 ]
 
 [dependency-groups]

@@ -156,7 +156,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
                         prog='SFF',
                         description='SteamForge Fetcher - set up games for Steam with Lua scripts, manifests, and GreenLuma',
-                        epilog='https://github.com/Midrags/SMD_2')
+                        epilog='https://github.com/Midrags/SFF')
     parser.add_argument(
         "-f", "--file", help="A .lua file or ZIP file you want to process"
     )
