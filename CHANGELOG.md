@@ -1,6 +1,16 @@
 # Changelog
 
-## v4.6.1 (latest)
+## v4.6.2 (latest)
+
+### Removed features
+
+- **Steam patch removed:** The Steam patch feature (xinput1_4.dll, hid.dll) has been removed from all variants.
+- **Sync Lua removed:** The option to sync saved Lua files and manifests into Steam's config has been removed.
+- Version bump to 4.6.2.
+
+---
+
+## v4.6.1
 
 ### Multiplayer fix (online-fix.me) – Selenium login fix
 
