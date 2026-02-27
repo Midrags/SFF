@@ -1,0 +1,50 @@
+# Sensitive data (paths, passwords, local output)
+settings.bin
+settings_export.json
+credentials.json
+debug.log
+crash.log
+recent_files.json
+api_cache.json
+analytics.json
+
+# Build artifacts and caches
+greenluma/
+build/
+dist/
+.hypothesis/
+.pytest_cache/
+htmlcov/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Virtual environments & user-specific data
+.venv/
+venv/
+GreenLuma/
+dlc_unlocker_cache/
+backups/
+saved_lua/
+
+# Test / temp folders
+tmp/
+
+# Docs & special files
+docs/REPO_SETTINGS_AND_CONTRIBUTORS*
+scripts/git-hooks/prepare-commit-msg
+UPLOAD_AND_PRIVACY.md
+
+# Archives & large files
+*.zip
+*.7z
+*.rar
+SteaMidra-*.zip
+
+# Tools & cleanup artifacts
+*.jar
+.git.bfg-report/
+bfg-report/
+uv.lock
+notes.txt
