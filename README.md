@@ -14,6 +14,8 @@ Before doing anything after you install it first thing to do just to make sure e
 
 ```batch
 pip install -r requirements.txt
+pip install -r requirements-consumer.txt
+pip install -r requirements-online-fix.txt
 ```
 
 **If that fails with a grpcio-tools build error** (common on Windows): use `pip install -r requirements-consumer.txt` instead.
