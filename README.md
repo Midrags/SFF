@@ -1,4 +1,4 @@
-# SteaMidra
+# SteaMidra (Education purposes only)
 
 Made by Midrag and my brother!
 
