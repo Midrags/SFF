@@ -14,8 +14,6 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 
 ```batch
 pip install -r requirements.txt
-pip install -r requirements-consumer.txt
-pip install -r requirements-online-fix.txt
 ```
 
 If that fails with a grpcio-tools build error (common on Windows), use:
@@ -80,6 +78,18 @@ The CLI version (`Main.py` / `SteaMidra.exe`) still works exactly the same as be
 - Write Lua and manifest data into Steam's config so games work with or without an extra injector.  
 - Other features: multiplayer fixes (online-fix.me), DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).  
 - Parallel downloads, backups, recent files, and settings export/import.
+
+### AppList profiles (GreenLuma limit workaround)
+
+GreenLuma has a hard limit of 130–134 App IDs. To use more games, use AppList profiles:
+
+1. **Manage AppList IDs** → **AppList Profiles** (CLI) or the profiles option in the GUI
+2. **Create profile** – creates an empty profile. Switch to it before adding more games.
+3. **Switch to profile** – loads that profile's IDs into the AppList folder (truncated to the limit).
+4. **Save current AppList to profile** – saves your current IDs into a profile (new or existing).
+5. **Delete / Rename** – manage profile names and remove unused profiles.
+
+When you reach 130 IDs, SteaMidra will remind you to create a new profile. Create an empty profile, switch to it, then add more games.
 
 ## What's new
 

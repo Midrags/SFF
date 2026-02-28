@@ -80,6 +80,15 @@ GAME_SPECIFIC_CHOICES = (
 class AppListChoice(Enum):
     ADD = "Add IDs"
     DELETE = "View/Delete IDs"
+    PROFILES = "AppList Profiles (create, switch, save)"
+
+
+class AppListProfileChoice(Enum):
+    CREATE = "Create profile"
+    SWITCH = "Switch to profile"
+    SAVE = "Save current AppList to profile"
+    DELETE = "Delete profile"
+    RENAME = "Rename profile"
 
 
 class LuaEndpoint(Enum):

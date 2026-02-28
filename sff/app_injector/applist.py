@@ -9,6 +9,16 @@ from colorama import Fore, Style
 from rich.console import Console
 from rich.table import Column, Table
 
+from sff.app_injector.applist_profiles import (
+    get_profile_limit,
+    list_profiles,
+    load_profile,
+    save_profile,
+    delete_profile,
+    rename_profile,
+    switch_profile as profile_switch,
+    profile_exists,
+)
 from sff.app_injector.base import AppInjectionManager
 from sff.lua.writer import ConfigVDFWriter
 from sff.manifest.downloader import ManifestDownloader
@@ -20,6 +30,7 @@ from sff.structs import (
     AppIDInfo,
     AppListChoice,
     AppListPathAndID,
+    AppListProfileChoice,
     DepotOrAppID,
     DLCTypes,
     LuaParsedInfo,
@@ -31,6 +42,8 @@ from sff.structs import (
 from sff.utils import enter_path
 
 logger = logging.getLogger(__name__)
+
+APPLIST_LIMIT_WARNING = 130  # GreenLuma 1.7.0; recommend creating a profile at this point
 
 
 class AppListManager(AppInjectionManager):
@@ -151,11 +164,18 @@ class AppListManager(AppInjectionManager):
         if not new_ids:
             # All IDs already exist
             return
-        
+
+        if current_count >= APPLIST_LIMIT_WARNING:
+            print(
+                Fore.YELLOW
+                + "You have reached the AppList limit. Create a new AppList profile before adding more games."
+                + Style.RESET_ALL
+            )
+
         # Calculate how many IDs will be added
         new_count = len(new_ids)
         projected_total = current_count + new_count
-        
+
         # Check limit upfront before adding any IDs (only if limit is set)
         if self.max_id_limit is not None:
             # Calculate how many need to be removed (account for current over-limit state)
@@ -572,13 +592,189 @@ class AppListManager(AppInjectionManager):
                             "decryption keys for them."
                         )
 
+    def _profile_menu(self) -> None:
+        """Handle AppList profiles: create, switch, save, delete, rename."""
+        choice: Optional[AppListProfileChoice] = prompt_select(
+            "AppList Profiles:", list(AppListProfileChoice), cancellable=True
+        )
+        if choice is None:
+            return
+
+        if choice == AppListProfileChoice.CREATE:
+            self._profile_create()
+        elif choice == AppListProfileChoice.SWITCH:
+            self._profile_switch()
+        elif choice == AppListProfileChoice.SAVE:
+            self._profile_save()
+        elif choice == AppListProfileChoice.DELETE:
+            self._profile_delete()
+        elif choice == AppListProfileChoice.RENAME:
+            self._profile_rename()
+
+    def _profile_create(self) -> None:
+        """Create a new empty profile."""
+        name = prompt_text("Profile name:", validator=lambda x: len(x.strip()) > 0)
+        if not name:
+            return
+        name = name.strip()
+        if profile_exists(name):
+            print(
+                Fore.YELLOW
+                + f"Profile '{name}' already exists. Use Save to overwrite."
+                + Style.RESET_ALL
+            )
+            return
+        if save_profile(name, []):
+            print(
+                Fore.GREEN
+                + f"Created empty profile '{name}'. Switch to it to add more games."
+                + Style.RESET_ALL
+            )
+            if prompt_confirm("Switch to this profile now?", default=True):
+                success, count = profile_switch(name, self.applist_folder)
+                if success:
+                    print(
+                        Fore.GREEN
+                        + f"Switched to profile '{name}' ({count} IDs in AppList)."
+                        + Style.RESET_ALL
+                    )
+                else:
+                    print(Fore.RED + "Failed to switch profile." + Style.RESET_ALL)
+        else:
+            print(Fore.RED + "Failed to create profile." + Style.RESET_ALL)
+
+    def _profile_switch(self) -> None:
+        """Switch to a profile (overwrites AppList folder)."""
+        profiles = list_profiles()
+        if not profiles:
+            print(
+                Fore.YELLOW
+                + "No profiles exist. Create one first (Create profile or Save current AppList to profile)."
+                + Style.RESET_ALL
+            )
+            return
+        selected = prompt_select(
+            "Switch to profile:", [(p, p) for p in profiles], cancellable=True
+        )
+        if selected is None:
+            return
+        success, count = profile_switch(selected, self.applist_folder)
+        if success:
+            limit = get_profile_limit()
+            full_ids = load_profile(selected)
+            truncated = full_ids is not None and count < len(full_ids)
+            msg = f"Switched to profile '{selected}' ({count} IDs written to AppList)."
+            if truncated:
+                msg += f" Truncated to {limit} (GreenLuma limit)."
+            print(Fore.GREEN + msg + Style.RESET_ALL)
+        else:
+            print(Fore.RED + "Failed to switch profile." + Style.RESET_ALL)
+
+    def _profile_save(self) -> None:
+        """Save current AppList to an existing or new profile."""
+        ids = [x.app_id for x in self.get_local_ids(sort=True)]
+        if not ids:
+            print(
+                Fore.YELLOW + "AppList is empty. Nothing to save." + Style.RESET_ALL
+            )
+            return
+        profiles = list_profiles()
+        options: list[tuple[str, Optional[str]]] = [("Create new profile", "__new__")]
+        for p in profiles:
+            options.append((p, p))
+        selected = prompt_select("Save to profile:", options, cancellable=True)
+        if selected is None:
+            return
+        if selected == "__new__":
+            name = prompt_text(
+                "New profile name:", validator=lambda x: len(x.strip()) > 0
+            )
+            if not name:
+                return
+            name = name.strip()
+        else:
+            assert selected is not None
+            if not prompt_confirm(
+                f"Overwrite profile '{selected}' with current AppList ({len(ids)} IDs)?",
+                default=False,
+            ):
+                return
+            name = selected
+        if save_profile(name, ids):
+            print(
+                Fore.GREEN
+                + f"Saved {len(ids)} ID(s) to profile '{name}'."
+                + Style.RESET_ALL
+            )
+        else:
+            print(Fore.RED + "Failed to save profile." + Style.RESET_ALL)
+
+    def _profile_delete(self) -> None:
+        """Delete a profile."""
+        profiles = list_profiles()
+        if not profiles:
+            print(Fore.YELLOW + "No profiles to delete." + Style.RESET_ALL)
+            return
+        selected = prompt_select(
+            "Delete profile:", [(p, p) for p in profiles], cancellable=True
+        )
+        if selected is None:
+            return
+        if prompt_confirm(
+            f"Delete profile '{selected}'? This cannot be undone.", default=False
+        ):
+            if delete_profile(selected):
+                print(
+                    Fore.GREEN + f"Deleted profile '{selected}'." + Style.RESET_ALL
+                )
+            else:
+                print(Fore.RED + "Failed to delete profile." + Style.RESET_ALL)
+
+    def _profile_rename(self) -> None:
+        """Rename a profile."""
+        profiles = list_profiles()
+        if not profiles:
+            print(Fore.YELLOW + "No profiles to rename." + Style.RESET_ALL)
+            return
+        selected = prompt_select(
+            "Rename profile:", [(p, p) for p in profiles], cancellable=True
+        )
+        if selected is None:
+            return
+        new_name = prompt_text(
+            "New profile name:", validator=lambda x: len(x.strip()) > 0
+        )
+        if not new_name:
+            return
+        new_name = new_name.strip()
+        if new_name == selected:
+            print(Fore.YELLOW + "Name unchanged." + Style.RESET_ALL)
+            return
+        if profile_exists(new_name):
+            print(
+                Fore.YELLOW
+                + f"Profile '{new_name}' already exists."
+                + Style.RESET_ALL
+            )
+            return
+        if rename_profile(selected, new_name):
+            print(
+                Fore.GREEN
+                + f"Renamed '{selected}' to '{new_name}'."
+                + Style.RESET_ALL
+            )
+        else:
+            print(Fore.RED + "Failed to rename profile." + Style.RESET_ALL)
+
     def display_menu(self, provider: SteamInfoProvider) -> MainReturnCode:
         applist_choice: Optional[AppListChoice] = prompt_select(
             "Choose:", list(AppListChoice), cancellable=True
         )
         if applist_choice is None:
             return MainReturnCode.LOOP_NO_PROMPT
-        if applist_choice == AppListChoice.DELETE:
+        if applist_choice == AppListChoice.PROFILES:
+            self._profile_menu()
+        elif applist_choice == AppListChoice.DELETE:
             self.prompt_id_deletion()
         elif applist_choice == AppListChoice.ADD:
             validator: Callable[[str], bool] = lambda x: all(
