@@ -43,7 +43,7 @@ pip install -r requirements-gui.txt
 
 ### Step 3: GreenLuma
 
-Download GreenLuma and set it up: https://www.up-4ever.net/h3vt78x7jdap
+Download GreenLuma and set it up: https://www.up-4ever dot net/h3vt78x7jdap
 
 Extract the ZIP and use the AppList folder from GreenLuma when SteaMidra asks for it. Full steps are in the [Setup Guide](docs/SETUP_GUIDE.md).
 
@@ -135,3 +135,5 @@ Credit to RedPaper for the Broken Moon MIDI cover, originally arranged by U2 Aki
 **CreamInstaller** – The DLC Unlockers feature in SteaMidra is inspired by and compatible with CreamInstaller. SteaMidra does not ship CreamInstaller; it provides its own implementation that follows similar behavior.
 
 Made by Midrag. Use SteaMidra at your own risk.
+
+Hey, we’re not responsible if you use this tool for nefarious purposes or break some Terms of Service. Remember, use it responsibly, or at least don’t tell us if you don’t.
