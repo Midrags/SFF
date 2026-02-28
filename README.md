@@ -14,6 +14,8 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 
 ```batch
 pip install -r requirements.txt
+pip install -r requirements-consumer.txt
+pip install -r requirements-online-fix.txt
 ```
 
 If that fails with a grpcio-tools build error (common on Windows), use:
