@@ -1,6 +1,17 @@
 # Changelog
 
-## v4.6.2 (latest)
+## v4.6.3 (latest)
+
+### New features
+
+- **Embedded Workshop browser:** Open Workshop from the GUI to browse Steam Workshop in an embedded web view. Login to Steam, browse workshop pages, copy links, and download items without leaving SteaMidra. Uses a persistent profile so your session is kept.
+- **Workshop item download:** Paste a workshop URL or item/collection ID to download manifests. Supports single items and full collections.
+- **Check mod updates:** Track workshop items and check for newer versions, then update outdated mods in one go.
+- **Check for updates – automatic install:** When a newer version is available, download and update automatically. SteaMidra fetches the release, extracts it, and replaces files in your install folder.
+
+---
+
+## v4.6.2
 
 ### Removed features
 

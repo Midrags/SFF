@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+import PyQt6.QtWebEngineWidgets  # noqa: F401 - must import before QCoreApplication
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from sff.steam_path import validate_steam_path

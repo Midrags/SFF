@@ -2,6 +2,19 @@
 
 Made by Midrag.
 
+## Avoid Dependency Conflicts (Recommended)
+
+If you get dependency conflicts with other projects (fastapi, grpcio-tools, spotdl, etc.), use a virtual environment:
+
+```batch
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements-consumer.txt
+pip install -r requirements-gui.txt
+```
+
+Then run or build from that environment.
+
 ## Quick Install (Recommended)
 
 Run the installation script:
@@ -17,6 +30,20 @@ If you prefer to install manually:
 
 ```batch
 pip install httpx beautifulsoup4 lxml
+```
+
+## GUI Build Requirements
+
+For building the GUI executable (`build_simple_gui.bat`):
+
+```batch
+pip install -r requirements-gui.txt
+```
+
+Or if you already have the full project installed:
+
+```batch
+pip install PyQt6 PyQt6-WebEngine PyInstaller
 ```
 
 ## What Gets Installed
@@ -51,7 +78,22 @@ python -c "import httpx; import bs4; print('All dependencies installed!')"
 
 If you see "All dependencies installed!", you're good to go!
 
+## Requirements Files
+
+- **requirements.txt** – Full project (from pyproject.toml)
+- **requirements-consumer.txt** – Runtime only, no grpcio-tools (use if grpcio-tools fails)
+- **requirements-gui.txt** – GUI build only (PyQt6, PyQt6-WebEngine, PyInstaller)
+
 ## Troubleshooting
+
+### Dependency conflicts with fastapi, grpcio-tools, spotdl, etc.
+Use a virtual environment so SteaMidra dependencies do not affect other projects:
+```batch
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements-consumer.txt
+pip install -r requirements-gui.txt
+```
 
 ### grpcio-tools build error
 If pip fails with "Failed to build grpcio-tools when getting requirements to build wheel", use:
@@ -82,4 +124,4 @@ After installing dependencies, rebuild the EXE:
 build_simple.bat
 ```
 
-The new EXE will include all dependencies and work without Chrome/ChromeDriver.
+For the GUI build: `build_simple_gui.bat`. Install GUI deps first: `pip install -r requirements-gui.txt`

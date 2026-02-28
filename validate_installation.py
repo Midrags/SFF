@@ -15,7 +15,7 @@ def print_header(text):
     print(f"{'='*80}{Style.RESET_ALL}")
 
 def print_check(name, passed, details=""):
-    status = f"{Fore.GREEN}✓{Style.RESET_ALL}" if passed else f"{Fore.RED}✗{Style.RESET_ALL}"
+    status = f"{Fore.GREEN}PASS{Style.RESET_ALL}" if passed else f"{Fore.RED}FAIL{Style.RESET_ALL}"
     print(f"{status} {name}")
     if details:
         print(f"  {Fore.YELLOW}{details}{Style.RESET_ALL}")
@@ -141,7 +141,6 @@ def check_file_structure():
         ("requirements.txt", "Dependencies list"),
         ("sff/ui.py", "UI module"),
         ("sff/structs.py", "Data structures"),
-        ("tests/test_all_features.py", "Test suite"),
     ]
     
     required_folders = [
@@ -150,7 +149,6 @@ def check_file_structure():
         ("sff/lua", "Lua modules"),
         ("sff/manifest", "Manifest modules"),
         ("docs", "Documentation"),
-        ("tests", "Test suites"),
     ]
     
     all_passed = True
@@ -358,14 +356,14 @@ def main():
     print(f"{Fore.CYAN}{'='*80}{Style.RESET_ALL}\n")
     
     if failed == 0:
-        print(f"{Fore.GREEN}✓ All validation checks passed!{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}✓ SteaMidra is properly installed and configured.{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}✓ Ready to build and use!{Style.RESET_ALL}\n")
+        print(f"{Fore.GREEN}All validation checks passed!{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}SteaMidra is properly installed and configured.{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}Ready to build and use!{Style.RESET_ALL}\n")
         return 0
     else:
-        print(f"{Fore.YELLOW}⚠ Some validation checks failed.{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}⚠ Review the errors above and fix them.{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}⚠ Run 'pip install -r requirements.txt' to install missing dependencies.{Style.RESET_ALL}\n")
+        print(f"{Fore.YELLOW}Some validation checks failed.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Review the errors above and fix them.{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Run 'pip install -r requirements.txt' to install missing dependencies.{Style.RESET_ALL}\n")
         return 1
 
 if __name__ == "__main__":

@@ -23,8 +23,8 @@ if errorlevel 1 (
     echo ========================================
     echo BUILD FAILED!
     echo ========================================
-    echo Make sure PyInstaller and PyQt6 are installed:
-    echo   pip install pyinstaller PyQt6
+    echo Make sure PyInstaller, PyQt6 and PyQt6-WebEngine are installed:
+    echo   pip install pyinstaller PyQt6 PyQt6-WebEngine
     pause
     exit /b 1
 )

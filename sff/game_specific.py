@@ -13,13 +13,18 @@ from typing import Literal, NamedTuple, Optional, overload
 from colorama import Fore, Style
 
 from sff.app_injector.base import AppInjectionManager
+from sff.manifest.collections import get_collection_children
 from sff.manifest.downloader import ManifestDownloader
+from sff.manifest.workshop_tracker import add as tracker_add
+from sff.manifest.workshop_tracker import get_all as tracker_get_all
+from sff.manifest.workshop_tracker import update_time as tracker_update_time
 from sff.manifest.ugc_resolver import (
     DirectDownloadUrl,
     IUgcIdStrategy,
     StandardUgcIdStrategy,
     UgcIDResolver,
     WorkshopItemContext,
+    get_workshop_time_updated,
 )
 from sff.online_fix import apply_multiplayer_fix as apply_online_fix
 from sff.prompts import (
@@ -29,6 +34,7 @@ from sff.prompts import (
     prompt_select,
     prompt_text,
 )
+
 from sff.steam_client import SteamInfoProvider, get_product_info
 from sff.steam_store import get_app_details_from_store
 from sff.storage.settings import get_setting, set_setting
@@ -41,6 +47,7 @@ from sff.structs import (
     ProductInfo,
     Settings,
 )
+from sff.strings import STEAM_WEB_API_KEY
 from sff.utils import enter_path, root_folder
 
 logger = logging.getLogger(__name__)
@@ -408,32 +415,103 @@ class GameHandler:
         def validate(x: str) -> bool:
             return bool(regex.search(x))
 
-        def filter(x: str) -> int:
+        def filter_id(x: str) -> int:
             match = regex.search(x)
             assert match is not None  # lmao
             return int(match.group())
 
         workshop_id: int = prompt_text(
-            "Paste workshop item URL or item ID:",
+            "Paste workshop item or collection URL, or item ID:",
             validator=validate,
-            filter=filter
+            filter=filter_id,
         )
-        ctx = WorkshopItemContext(self.provider.client, workshop_id)
-        content, method = ugc_resolver.resolve(ctx)
-        if isinstance(content, DirectDownloadUrl):
-            print("This is a legacy workshop item. "
-                  "It can be directly downloaded through"
-                  " the following URL. It's just a ZIP file:\n"
-                  f"{Fore.BLUE + content.url + Style.RESET_ALL}")
-        else:  # HContentFile type
-            print(f"Found UGC ID via {method} method: {content.ugc_id}")
+
+        api_key = get_setting(Settings.STEAM_WEB_API_KEY) or STEAM_WEB_API_KEY
+        children = get_collection_children(workshop_id, api_key or "")
+
+        if children:
+            print(f"Collection with {len(children)} items. Downloading...")
             downloader = ManifestDownloader(self.provider, self.steam_root)
-            downloader.download_workshop_item(app_id, str(content.ugc_id))
+            ok = 0
+            for i, child_id in enumerate(children, 1):
+                try:
+                    ctx = WorkshopItemContext(self.provider.client, child_id)
+                    content, method, details = ugc_resolver.resolve_with_details(ctx)
+                    if isinstance(content, DirectDownloadUrl):
+                        print(
+                            f"  [{i}/{len(children)}] Item {child_id}: legacy (direct URL) - skip"
+                        )
+                        continue
+                    downloader.download_workshop_item(app_id, str(content.ugc_id))
+                    if details and hasattr(details, "time_updated"):
+                        tracker_add(app_id, child_id, details.time_updated)
+                    ok += 1
+                    print(f"  [{i}/{len(children)}] Item {child_id}: OK")
+                except Exception as e:
+                    print(f"  [{i}/{len(children)}] Item {child_id}: {e}")
             print(
                 Fore.GREEN
-                + "Workshop item manifest downloaded! Try downloading it now."
+                + f"Collection download complete. {ok}/{len(children)} items."
                 + Style.RESET_ALL
             )
+        else:
+            ctx = WorkshopItemContext(self.provider.client, workshop_id)
+            content, method, details = ugc_resolver.resolve_with_details(ctx)
+            if isinstance(content, DirectDownloadUrl):
+                print(
+                    "This is a legacy workshop item. "
+                    "It can be directly downloaded through"
+                    " the following URL. It's just a ZIP file:\n"
+                    f"{Fore.BLUE + content.url + Style.RESET_ALL}"
+                )
+            else:
+                print(f"Found UGC ID via {method} method: {content.ugc_id}")
+                downloader = ManifestDownloader(self.provider, self.steam_root)
+                downloader.download_workshop_item(app_id, str(content.ugc_id))
+                if details and hasattr(details, "time_updated"):
+                    tracker_add(app_id, workshop_id, details.time_updated)
+                print(
+                    Fore.GREEN
+                    + "Workshop item manifest downloaded! Try downloading it now."
+                    + Style.RESET_ALL
+                )
+
+    def check_mod_updates(self, app_id: str) -> None:
+        """Check tracked workshop items for updates and re-download if newer."""
+        items = [(a, w, t) for a, w, t in tracker_get_all() if a == app_id]
+        if not items:
+            print("No tracked workshop items for this game. Download items first to track them.")
+            return
+        print(f"Checking {len(items)} tracked workshop item(s) for updates...")
+        downloader = ManifestDownloader(self.provider, self.steam_root)
+        ugc_resolver = UgcIDResolver([StandardUgcIdStrategy()])
+        updated = 0
+        for _app_id, workshop_id, stored_time in items:
+            ctx = WorkshopItemContext(self.provider.client, workshop_id)
+            current = get_workshop_time_updated(ctx)
+            if current is None:
+                print(f"  Item {workshop_id}: could not fetch (skip)")
+                continue
+            if current <= stored_time:
+                print(f"  Item {workshop_id}: up to date")
+                continue
+            try:
+                content, _method, details = ugc_resolver.resolve_with_details(ctx)
+                if isinstance(content, DirectDownloadUrl):
+                    print(f"  Item {workshop_id}: legacy item (skip)")
+                    continue
+                downloader.download_workshop_item(app_id, str(content.ugc_id))
+                if details and hasattr(details, "time_updated"):
+                    tracker_update_time(app_id, workshop_id, details.time_updated)
+                updated += 1
+                print(f"  Item {workshop_id}: updated")
+            except Exception as e:
+                print(f"  Item {workshop_id}: {e}")
+        print(
+            Fore.GREEN
+            + f"Done. {updated} item(s) updated."
+            + Style.RESET_ALL
+        )
 
     def apply_multiplayer_fix(self, app_info: ACFInfo) -> None:
         """Apply multiplayer fix from online-fix.me"""
@@ -704,6 +782,8 @@ class GameHandler:
             self.injection_manager.dlc_check(self.provider, int(app_info.app_id))
         elif choice == MainMenu.DL_WORKSHOP_ITEM:
             self.download_workshop_manifest(app_info.app_id)
+        elif choice == MainMenu.CHECK_MOD_UPDATES:
+            self.check_mod_updates(app_info.app_id)
         elif choice == MainMenu.MULTIPLAYER_FIX:
             self.apply_multiplayer_fix(app_info)
         elif choice == MainMenu.MANAGE_DLC_UNLOCKERS:

@@ -1,4 +1,4 @@
-# SteaMidra
+# SteaMidra (Education purposes only)
 
 Made by Midrag and my brother!
 
@@ -10,37 +10,56 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 
 ## Quick start
 
-Before doing anything after you install it first thing to do just to make sure everything works run:
+### Step 1: Install dependencies
 
 ```batch
 pip install -r requirements.txt
 ```
 
-**If that fails with a grpcio-tools build error** (common on Windows): use `pip install -r requirements-consumer.txt` instead.
+If that fails with a grpcio-tools build error (common on Windows), use:
 
-**If you have or want to get the EXE**  
-- **CLI version:** Run `build_simple.bat` and after its finished run `SteaMidra.exe` (administrator preferred to not face any issues) and follow the prompts.  
-- **GUI version:** Run `build_simple_gui.bat` and after its finished run `SteaMidra_GUI.exe`. No terminal needed, everything is point and click.
+```batch
+pip install -r requirements-consumer.txt
+```
 
-You'll need GreenLuma installed; see the Setup Guide for the download link.
+If you get dependency conflicts with other projects on your system, use a virtual environment:
 
-**If you use Python**  
-1. Install dependencies: `pip install -r requirements.txt` (or `pip install -r requirements-consumer.txt` if the main install fails with grpcio-tools)
-2. CLI: `python Main.py`  
-3. GUI: `python Main_gui.py`  
-4. Optional (Windows desktop notifications): `pip install -r requirements-optional.txt`
-2. Run: `python Main.py`  or use `simple_build.bat` to get exe instead of using python everytime.
-3. Optional (Windows desktop notifications): `pip install -r requirements-optional.txt`
+```batch
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements-consumer.txt
+pip install -r requirements-gui.txt
+```
 
-**GreenLuma**  
-SteaMidra works with GreenLuma. You need to download and set up GreenLuma yourself:  
-(https://www.up-4ever.net/h3vt78x7jdap)
+### Step 2: Run SteaMidra
+
+**With Python:**
+- CLI: `python Main.py`
+- GUI: `python Main_gui.py`
+
+**With the EXE:**
+- CLI: Run `build_simple.bat`, then run `SteaMidra.exe` (administrator preferred).
+- GUI: Run `pip install -r requirements-gui.txt`, then `build_simple_gui.bat`, then run `SteaMidra_GUI.exe`.
+
+### Step 3: GreenLuma
+
+Download GreenLuma and set it up: https://www.up-4ever.net/h3vt78x7jdap
 
 Extract the ZIP and use the AppList folder from GreenLuma when SteaMidra asks for it. Full steps are in the [Setup Guide](docs/SETUP_GUIDE.md).
 
+**Optional:** Windows desktop notifications: `pip install -r requirements-optional.txt`
+
 ## GUI Version
 
-SteaMidra now has a full graphical interface. Run `python Main_gui.py` or build `SteaMidra_GUI.exe` with `build_simple_gui.bat`.
+SteaMidra has a full graphical interface.
+
+**Run with Python:** `python Main_gui.py`
+
+**Build the GUI EXE:**
+1. Install dependencies: `pip install -r requirements-consumer.txt` (or `requirements.txt`)
+2. Install GUI deps: `pip install -r requirements-gui.txt`
+3. Run `build_simple_gui.bat`
+4. Run `dist\SteaMidra_GUI.exe`
 
 **What the GUI gives you:**  
 - Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.  
@@ -79,21 +98,21 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in the latest update.
 
 [DLC Unlockers](docs/dlc_unlockers/README.md) – Using DLC unlockers (CreamInstaller-style).
 
+## Requirements files
+
+- **requirements.txt** – Full project
+- **requirements-consumer.txt** – Runtime only, no grpcio-tools (use if grpcio-tools fails)
+- **requirements-gui.txt** – GUI build only (PyQt6, PyQt6-WebEngine, PyInstaller)
+
+More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
+
 ## Troubleshooting
 
-### grpcio-tools build error when installing
+**grpcio-tools build error** – Use `pip install -r requirements-consumer.txt` instead.
 
-If `pip install -r requirements.txt` fails with "Failed to build grpcio-tools when getting requirements to build wheel", use the consumer requirements instead:
+**Dependency conflicts** – Use a virtual environment (see Step 1 above).
 
-```batch
-pip install -r requirements-consumer.txt
-```
-
-This installs all runtime dependencies without grpcio-tools (a dev-only build tool) and avoids the need for C++ compilers on Windows.
-
-### ModuleNotFoundError (e.g. colorama)
-
-If you see `ModuleNotFoundError: No module named 'colorama'` when running `python Main.py` or the exe, dependencies are not fully installed. Run `pip install -r requirements-consumer.txt` (or `requirements.txt` if that works for you), then try again.
+**ModuleNotFoundError** – Dependencies are not installed. Run `pip install -r requirements-consumer.txt`.
 
 ## Credits
 

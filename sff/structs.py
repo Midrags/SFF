@@ -32,6 +32,7 @@ class MainMenu(Enum):
     else:
         DL_MANIFEST_ONLY = "Download manifests"
     DL_WORKSHOP_ITEM = "Download workshop item manifest"
+    CHECK_MOD_UPDATES = "Check for mod updates"
     DLC_CHECK = "Check DLC status of a game"
     MANAGE_DLC_UNLOCKERS = "DLC Unlockers (CreamInstaller)"
     CRACK_GAME = "Crack a game (gbe_fork)"
@@ -59,6 +60,7 @@ GameSpecificChoices = Literal[
     MainMenu.DL_USER_GAME_STATS,
     MainMenu.DLC_CHECK,
     MainMenu.DL_WORKSHOP_ITEM,
+    MainMenu.CHECK_MOD_UPDATES,
     MainMenu.MULTIPLAYER_FIX,
     MainMenu.MANAGE_DLC_UNLOCKERS
 ]
@@ -69,6 +71,7 @@ GAME_SPECIFIC_CHOICES = (
     MainMenu.DL_USER_GAME_STATS,
     MainMenu.DLC_CHECK,
     MainMenu.DL_WORKSHOP_ITEM,
+    MainMenu.CHECK_MOD_UPDATES,
     MainMenu.MULTIPLAYER_FIX,
     MainMenu.MANAGE_DLC_UNLOCKERS
 )

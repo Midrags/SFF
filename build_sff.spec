@@ -72,6 +72,8 @@ a = Analysis(
         'steam',
         'steam.client',
         'gevent',
+        'sff.manifest.collections',
+        'sff.manifest.workshop_tracker',
         'psutil',
         'colorama',
         'httpx',

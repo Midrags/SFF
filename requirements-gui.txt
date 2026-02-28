@@ -1,0 +1,3 @@
+PyQt6>=6.4.0
+PyQt6-WebEngine>=6.4.0
+PyInstaller>=6.16.0

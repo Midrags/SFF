@@ -1,6 +1,6 @@
 [project]
 name = "steam-manifest-decrypt"
-version = "4.6.2"
+version = "4.6.3"
 description = "Decrypt steam manifest files"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -29,6 +29,8 @@ dependencies = [
     "steam[client]>=1.4.4",
     "gevent-eventemitter>=2.1",  # required by steam; do NOT install the "eventemitter" package (name collision)
     "tqdm>=4.67.1",
+    "PyQt6>=6.4.0",
+    "PyQt6-WebEngine>=6.4.0",
     "vdf>=3.4",
 ]
 

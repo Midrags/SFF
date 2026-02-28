@@ -117,14 +117,23 @@ class StandardUgcIdStrategy(IUgcIdStrategy):
             raise last_error
         raise RuntimeError("Unexpected: no response and no error")
 
+    def _content_from_details(self, details: Any) -> Optional[WorkshopContent]:
+        if not details:
+            return None
+        if details.file_url:
+            return DirectDownloadUrl(details.file_url)
+        return HContentFile(details.hcontent_file)
+
     def get_content(self, ctx: WorkshopItemContext) -> Optional[WorkshopContent]:
         details = self._get_workshop_items_details(ctx)
-        if details:
-            if details.file_url:
-                # details.file_url is used for older workshop items
-                # (it's also not a manifest but a direct DL)
-                return DirectDownloadUrl(details.file_url)
-            return HContentFile(details.hcontent_file)
+        return self._content_from_details(details)
+
+    def get_content_and_details(
+        self, ctx: WorkshopItemContext
+    ) -> tuple[Optional[WorkshopContent], Optional[Any]]:
+        """Get content and raw details in one call (avoids duplicate GetDetails)."""
+        details = self._get_workshop_items_details(ctx)
+        return self._content_from_details(details), details
 
 
 class UgcIDResolver:
@@ -133,10 +142,31 @@ class UgcIDResolver:
 
     def resolve(self, ctx: WorkshopItemContext) -> tuple[WorkshopContent, str]:
         """Iterates strategies until a UGC ID is found.
-        Returns UGC ID and strategy name"""
-        for strategy in self.strategies:
-            content = strategy.get_content(ctx)
-            if content is not None:
-                return content, strategy.name
+        Returns content and strategy name."""
+        content, _method, _details = self.resolve_with_details(ctx)
+        return content, _method
 
+    def resolve_with_details(
+        self, ctx: WorkshopItemContext
+    ) -> tuple[WorkshopContent, str, Optional[Any]]:
+        """Resolve and return content, method name, and raw details (for time_updated)."""
+        for strategy in self.strategies:
+            if isinstance(strategy, StandardUgcIdStrategy):
+                content, details = strategy.get_content_and_details(ctx)
+                if content is not None:
+                    return content, strategy.name, details
+            else:
+                content = strategy.get_content(ctx)
+                if content is not None:
+                    return content, strategy.name, None
         raise Exception(f"Unable to resolve manifest for depot {ctx.workshop_id}")
+
+
+def get_workshop_time_updated(ctx: WorkshopItemContext) -> Optional[int]:
+    """Get time_updated for a workshop item. Returns None on failure."""
+    strategy = StandardUgcIdStrategy()
+    try:
+        details = strategy._get_workshop_items_details(ctx)
+        return getattr(details, "time_updated", None) if details else None
+    except Exception:
+        return None

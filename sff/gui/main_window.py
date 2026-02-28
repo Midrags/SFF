@@ -215,11 +215,16 @@ class SFFMainWindow(QMainWindow):
         row2 = QHBoxLayout()
         for label, choice in [
             ("Workshop item", MainMenu.DL_WORKSHOP_ITEM),
+            ("Open Workshop", None),
+            ("Check mod updates", MainMenu.CHECK_MOD_UPDATES),
             ("Multiplayer fix", MainMenu.MULTIPLAYER_FIX),
             ("DLC Unlockers", MainMenu.MANAGE_DLC_UNLOCKERS),
         ]:
             btn = QPushButton(label)
-            btn.clicked.connect(lambda checked=False, c=choice: self._run_game_action(c))
+            if choice is not None:
+                btn.clicked.connect(lambda checked=False, c=choice: self._run_game_action(c))
+            else:
+                btn.clicked.connect(self._open_workshop)
             row2.addWidget(btn)
         row2.addStretch()
         ga_layout.addLayout(row2)
@@ -393,6 +398,24 @@ class SFFMainWindow(QMainWindow):
         self._worker.error.connect(lambda msg: self._append_log(f"Error: {msg}\n"))
         self._worker_thread.started.connect(self._worker.run)
         self._worker_thread.start()
+
+    def _open_workshop(self) -> None:
+        """Open the Steam Workshop page for the selected game in the embedded browser."""
+        acf = self._get_selected_acf()
+        if acf is None:
+            QMessageBox.warning(
+                self,
+                "No game selected",
+                "Select a Steam game from the list or set a path for a game outside of Steam.",
+            )
+            return
+        app_id = acf.app_id
+        if not app_id:
+            QMessageBox.warning(self, "No app ID", "Could not determine the game's App ID.")
+            return
+        from sff.gui.workshop_browser import open_workshop_browser
+
+        open_workshop_browser(app_id, self)
 
     def _run_game_action(self, choice: Any) -> None:
         acf = self._get_selected_acf()
