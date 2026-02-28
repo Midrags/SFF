@@ -45,7 +45,7 @@ pip install -r requirements-gui.txt
 
 ### Step 3: GreenLuma
 
-Download GreenLuma and set it up: https://www.up-4ever.net/h3vt78x7jdap
+Download GreenLuma and set it up: https://www.up-4ever dot net/h3vt78x7jdap
 
 Extract the ZIP and use the AppList folder from GreenLuma when SteaMidra asks for it. Full steps are in the [Setup Guide](docs/SETUP_GUIDE.md).
 
