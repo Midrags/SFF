@@ -52,7 +52,6 @@ a = Analysis(
         'PyQt6.sip',
         'PyQt6.QtWebEngineCore',
         'PyQt6.QtWebEngineWidgets',
-        'InquirerPy',
         'prompt_toolkit',
         'selenium',
         'selenium.webdriver',

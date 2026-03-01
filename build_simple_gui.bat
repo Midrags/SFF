@@ -23,8 +23,10 @@ if errorlevel 1 (
     echo ========================================
     echo BUILD FAILED!
     echo ========================================
-    echo Make sure PyInstaller, PyQt6 and PyQt6-WebEngine are installed:
-    echo   pip install pyinstaller PyQt6 PyQt6-WebEngine
+    echo Install full requirements first:
+    echo   pip install -r requirements.txt
+    echo Or if grpcio-tools fails:
+    echo   pip install -r requirements-consumer.txt
     pause
     exit /b 1
 )

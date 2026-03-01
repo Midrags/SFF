@@ -2,7 +2,21 @@
 
 Made by Midrag.
 
-## Avoid Dependency Conflicts (Recommended)
+## Quick Install (Recommended)
+
+Install all dependencies (CLI, GUI, and online-fix) with a single command:
+
+```batch
+pip install -r requirements.txt
+```
+
+If that fails with a grpcio-tools build error (common on Windows):
+
+```batch
+pip install -r requirements-consumer.txt
+```
+
+## Avoid Dependency Conflicts
 
 If you get dependency conflicts with other projects (fastapi, grpcio-tools, spotdl, etc.), use a virtual environment:
 
@@ -10,41 +24,25 @@ If you get dependency conflicts with other projects (fastapi, grpcio-tools, spot
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements-consumer.txt
-pip install -r requirements-gui.txt
 ```
 
 Then run or build from that environment.
 
-## Quick Install (Recommended)
-
-Run the installation script:
-```batch
-install_online_fix_requirements.bat
-```
-
-This will install all required dependencies for the multiplayer fix feature.
-
-## Manual Install
-
-If you prefer to install manually:
-
-```batch
-pip install httpx beautifulsoup4 lxml
-```
-
 ## GUI Build Requirements
 
-For building the GUI executable (`build_simple_gui.bat`):
+For building the GUI executable (`build_simple_gui.bat`), install the full requirements first:
 
 ```batch
-pip install -r requirements-gui.txt
+pip install -r requirements.txt
 ```
 
-Or if you already have the full project installed:
+Or if grpcio-tools fails:
 
 ```batch
-pip install PyQt6 PyQt6-WebEngine PyInstaller
+pip install -r requirements-consumer.txt
 ```
+
+Then run `build_simple_gui.bat`.
 
 ## What Gets Installed
 
@@ -60,11 +58,9 @@ The multiplayer fix feature uses HTTP requests to download fixes from online-fix
 - HTML parsing to find download links
 - Fast and reliable downloads
 
-## Multiplayer fix (online-fix.me) – HTTP only (no Chrome)
+## Multiplayer fix (online-fix.me)
 
-The **Apply multiplayer fix** option uses HTTP requests only: no browser, Chrome, or ChromeDriver needed. It uses **httpx** and **beautifulsoup4** to search, log in, and download from online-fix.me.
-
-If you use the main install (`pip install -e .` or `pip install -r requirements.txt`), these are already included. To install only the online-fix extras: `pip install -r requirements-online-fix.txt`.
+The **Apply multiplayer fix** option uses HTTP requests to download fixes from online-fix.me. It uses **httpx**, **beautifulsoup4**, and **selenium**. All of these are included in the main requirements.
 
 **If `pip install -r requirements.txt` fails with a grpcio-tools build error** (common on Windows): use `pip install -r requirements-consumer.txt` instead. This skips grpcio-tools (a dev-only package) and installs all runtime dependencies.
 
@@ -80,9 +76,8 @@ If you see "All dependencies installed!", you're good to go!
 
 ## Requirements Files
 
-- **requirements.txt** – Full project (from pyproject.toml)
+- **requirements.txt** – Full project (CLI, GUI, online-fix in one)
 - **requirements-consumer.txt** – Runtime only, no grpcio-tools (use if grpcio-tools fails)
-- **requirements-gui.txt** – GUI build only (PyQt6, PyQt6-WebEngine, PyInstaller)
 
 ## Troubleshooting
 
@@ -92,7 +87,6 @@ Use a virtual environment so SteaMidra dependencies do not affect other projects
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements-consumer.txt
-pip install -r requirements-gui.txt
 ```
 
 ### grpcio-tools build error
@@ -124,4 +118,4 @@ After installing dependencies, rebuild the EXE:
 build_simple.bat
 ```
 
-For the GUI build: `build_simple_gui.bat`. Install GUI deps first: `pip install -r requirements-gui.txt`
+For the GUI build: `build_simple_gui.bat`. Install full requirements first: `pip install -r requirements-consumer.txt`

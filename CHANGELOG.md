@@ -34,7 +34,7 @@
 ### Multiplayer fix (online-fix.me) – Selenium login fix
 
 - **Login now works:** The multiplayer fix no longer uses HTTP-only login, which often failed with "Login failed (form still visible)". It now uses **Selenium with Chrome**: a headless browser opens the game page, fills in your credentials, clicks the login button, and handles cookies and JavaScript like a real browser. Login and download should work reliably.
-- **What you need:** Chrome browser must be installed. Install Selenium with: `pip install -r requirements-online-fix.txt` or `pip install selenium`.
+- **What you need:** Chrome browser must be installed. Selenium is in the main requirements: `pip install -r requirements.txt`.
 - Search, match, download button, and archive extraction flow are unchanged; only the login step is now browser-based.
 
 ---

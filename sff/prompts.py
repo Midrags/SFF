@@ -1,13 +1,15 @@
+from __future__ import annotations
+
 import gc
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
-from InquirerPy import inquirer
-from InquirerPy.base import BaseComplexPrompt, BaseListPrompt
-from InquirerPy.base.control import Choice
-from InquirerPy.prompts.input import InputPrompt
-from InquirerPy.utils import InquirerPyValidate
+if TYPE_CHECKING:
+    from InquirerPy.base import BaseComplexPrompt, BaseListPrompt
+    from InquirerPy.base.control import Choice
+    from InquirerPy.prompts.input import InputPrompt
+    from InquirerPy.utils import InquirerPyValidate
 
 _gui_backend: Any = None
 
@@ -21,8 +23,11 @@ def convert_to_path(x: str):
     return Path(x.strip("\"' "))
 
 
-def _clean_prompt(prompt: Union[BaseComplexPrompt, InputPrompt]):
+def _clean_prompt(prompt: Any) -> None:
     """Dark voodoo I cooked that actually works??? `prompt_select` leaks way less now"""
+    from InquirerPy.base import BaseComplexPrompt, BaseListPrompt
+    from InquirerPy.prompts.input import InputPrompt
+
     if isinstance(prompt, BaseComplexPrompt):
         prompt.application.reset()  # pyright: ignore[reportUnknownMemberType]
         prompt.application = None  # type: ignore
@@ -47,6 +52,9 @@ def prompt_select(
             msg, choices, default=default, fuzzy=fuzzy,
             cancellable=cancellable, exclude=exclude, **kwargs,
         )
+    from InquirerPy import inquirer
+    from InquirerPy.base.control import Choice
+
     new_choices: list[Choice] = []
     for c in choices:
         if isinstance(c, Enum):
@@ -117,7 +125,7 @@ def prompt_file(msg: str, allow_blank: bool = False) -> Path:
 
 def prompt_text(
     msg: str,
-    validator: Optional[InquirerPyValidate] = None,
+    validator: Optional["InquirerPyValidate"] = None,
     invalid_msg: str = "Invalid input",
     instruction: str = "",
     long_instruction: str = "",
@@ -129,6 +137,8 @@ def prompt_text(
             instruction=instruction, long_instruction=long_instruction,
             filter=filter,
         )
+    from InquirerPy import inquirer
+
     obj = inquirer.text(
         msg,
         validate=validator,
@@ -144,7 +154,7 @@ def prompt_text(
 
 def prompt_secret(
     msg: str,
-    validator: Optional[InquirerPyValidate] = None,
+    validator: Optional["InquirerPyValidate"] = None,
     invalid_msg: str = "Invalid input",
     instruction: str = "",
     long_instruction: str = "",
@@ -154,6 +164,8 @@ def prompt_secret(
             msg, validator=validator, invalid_msg=invalid_msg,
             instruction=instruction, long_instruction=long_instruction,
         )
+    from InquirerPy import inquirer
+
     obj = inquirer.secret(
         message=msg,
         transformer=lambda _: "[hidden]",

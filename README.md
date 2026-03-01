@@ -28,7 +28,6 @@ If you get dependency conflicts with other projects on your system, use a virtua
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements-consumer.txt
-pip install -r requirements-gui.txt
 ```
 
 ### Step 2: Run SteaMidra
@@ -39,11 +38,11 @@ pip install -r requirements-gui.txt
 
 **With the EXE:**
 - CLI: Run `build_simple.bat`, then run `SteaMidra.exe` (administrator preferred).
-- GUI: Run `pip install -r requirements-gui.txt`, then `build_simple_gui.bat`, then run `SteaMidra_GUI.exe`.
+- GUI: Run `pip install -r requirements-consumer.txt` (or `requirements.txt`), then `build_simple_gui.bat`, then run `SteaMidra_GUI.exe`.
 
 ### Step 3: GreenLuma
 
-Download GreenLuma and set it up: https://www.up-4ever dot net/h3vt78x7jdap
+Download GreenLuma and set it up: https://www.up-4ever.net/h3vt78x7jdap
 
 Extract the ZIP and use the AppList folder from GreenLuma when SteaMidra asks for it. Full steps are in the [Setup Guide](docs/SETUP_GUIDE.md).
 
@@ -57,9 +56,8 @@ SteaMidra has a full graphical interface.
 
 **Build the GUI EXE:**
 1. Install dependencies: `pip install -r requirements-consumer.txt` (or `requirements.txt`)
-2. Install GUI deps: `pip install -r requirements-gui.txt`
-3. Run `build_simple_gui.bat`
-4. Run `dist\SteaMidra_GUI.exe`
+2. Run `build_simple_gui.bat`
+3. Run `dist\SteaMidra_GUI.exe`
 
 **What the GUI gives you:**  
 - Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.  
@@ -112,9 +110,8 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in the latest update.
 
 ## Requirements files
 
-- **requirements.txt** – Full project
+- **requirements.txt** – Full project (CLI, GUI, online-fix in one)
 - **requirements-consumer.txt** – Runtime only, no grpcio-tools (use if grpcio-tools fails)
-- **requirements-gui.txt** – GUI build only (PyQt6, PyQt6-WebEngine, PyInstaller)
 
 More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
@@ -135,5 +132,3 @@ Credit to RedPaper for the Broken Moon MIDI cover, originally arranged by U2 Aki
 **CreamInstaller** – The DLC Unlockers feature in SteaMidra is inspired by and compatible with CreamInstaller. SteaMidra does not ship CreamInstaller; it provides its own implementation that follows similar behavior.
 
 Made by Midrag. Use SteaMidra at your own risk.
-
-Hey, we’re not responsible if you use this tool for nefarious purposes or break some Terms of Service. Remember, use it responsibly, or at least don’t tell us if you don’t.
