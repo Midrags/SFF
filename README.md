@@ -1,6 +1,6 @@
 # SteaMidra (Education purposes only)
 
-Made by Midrag and my brother!
+Made by Midrag (me) and my brother!
 
 Quick thing before we start remember to exclude the SteaMidra folder from Windows Security or at least the folder in this path for Creaminstaller Resources to work! `sff\dlc_unlockers\resources`
 
