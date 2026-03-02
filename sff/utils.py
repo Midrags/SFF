@@ -11,15 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 def root_folder(outside_internal: bool = False):
-    """Returns the executable's root folder
-    
-    When running as EXE (frozen), returns the directory where the EXE is located.
-    When running as script, returns the project root directory.
-    
-    Args:
-        outside_internal: When True, returns the directory containing settings.bin
-                         When False, returns the directory containing sff package
-    """
     is_frozen = getattr(sys, "frozen", False)
     
     if is_frozen:

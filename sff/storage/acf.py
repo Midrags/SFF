@@ -72,7 +72,6 @@ class ACFParser:
     
     @property
     def install_dir(self):
-        """Get the installation directory name"""
         raw_install_dir: Optional[str] = enter_path(
             self.data, "AppState", "installdir", default=None
         )

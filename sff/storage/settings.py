@@ -16,7 +16,6 @@ SETTINGS_VERSION = "1.0.0"  # For migration tracking
 
 
 def load_all_settings() -> dict[Any, Any]:
-    """Returns all saved settings as a dict"""
     SETTINGS_FILE.touch(exist_ok=True)
     with SETTINGS_FILE.open("rb") as f:
         data = f.read()
@@ -75,16 +74,6 @@ def resolve_advanced_mode() -> bool:
 
 
 def export_settings(export_path: Path, include_sensitive: bool = False) -> bool:
-    """
-    Export settings to a JSON file.
-    
-    Args:
-        export_path: Path where the JSON file will be saved
-        include_sensitive: If True, includes encrypted sensitive data
-        
-    Returns:
-        True if export succeeded, False otherwise
-    """
     try:
         settings = load_all_settings()
         export_data = {
@@ -131,15 +120,6 @@ def export_settings(export_path: Path, include_sensitive: bool = False) -> bool:
 
 
 def import_settings(import_path: Path) -> tuple[bool, str]:
-    """
-    Import settings from a JSON file.
-    
-    Args:
-        import_path: Path to the JSON file to import
-        
-    Returns:
-        Tuple of (success: bool, message: str)
-    """
     try:
         if not import_path.exists():
             return False, f"File not found: {import_path}"
@@ -201,16 +181,6 @@ def import_settings(import_path: Path) -> tuple[bool, str]:
 
 
 def migrate_settings(settings: dict[Any, Any]) -> dict[Any, Any]:
-    """
-    Migrate settings from older versions to current format.
-    
-    Args:
-        settings: The settings dictionary to migrate
-        
-    Returns:
-        Migrated settings dictionary
-    """
-    # Check if migration is needed
     current_version = settings.get("_version", "0.0.0")
     
     if current_version == SETTINGS_VERSION:

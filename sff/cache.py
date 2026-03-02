@@ -17,14 +17,12 @@ DEFAULT_TTL = 3600  # 1 hour in seconds
 
 
 class APICache:
-    """Simple file-based cache for API responses"""
     
     def __init__(self):
         self.cache: dict[str, dict[str, Any]] = {}
         self.load()
     
     def load(self):
-        """Load cache from disk"""
         try:
             if CACHE_FILE.exists():
                 with CACHE_FILE.open("r", encoding="utf-8") as f:
@@ -35,7 +33,6 @@ class APICache:
             self.cache = {}
     
     def save(self):
-        """Save cache to disk"""
         try:
             with CACHE_FILE.open("w", encoding="utf-8") as f:
                 json.dump(self.cache, f)
@@ -44,7 +41,6 @@ class APICache:
             logger.error(f"Failed to save cache: {e}", exc_info=True)
     
     def get(self, key: str) -> Optional[Any]:
-        """Get cached value if not expired"""
         if key not in self.cache:
             return None
         
@@ -62,7 +58,6 @@ class APICache:
         return entry.get("data")
     
     def set(self, key: str, data: Any, ttl: Optional[int] = None):
-        """Set cached value with TTL"""
         if ttl is None:
             ttl = DEFAULT_TTL
         
@@ -75,7 +70,6 @@ class APICache:
         self.save()
     
     def invalidate(self, key: Optional[str] = None):
-        """Invalidate cache entry or entire cache"""
         if key is None:
             # Clear entire cache
             self.cache = {}
@@ -86,7 +80,6 @@ class APICache:
         self.save()
     
     def cleanup_expired(self):
-        """Remove all expired entries"""
         current_time = time.time()
         expired_keys = []
         
@@ -109,7 +102,6 @@ _cache_instance: Optional[APICache] = None
 
 
 def get_cache() -> APICache:
-    """Get or create global cache instance"""
     global _cache_instance
     if _cache_instance is None:
         _cache_instance = APICache()

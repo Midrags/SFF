@@ -13,8 +13,6 @@ KEYNAME = "master_key"
 
 
 def get_secret_box():
-    """Reads or generates the master key stored in keyring and then
-    returns a SecretBox with that key"""
     b64 = keyring.get_password(SERVICE, KEYNAME)
     if b64:
         return SecretBox(base64.b64decode(b64))
@@ -24,14 +22,12 @@ def get_secret_box():
 
 
 def keyring_encrypt(data: str):
-    """Encrypts text"""
     box = get_secret_box()
     blob = box.encrypt(data.encode())  # type: ignore
     return blob
 
 
 def keyring_decrypt(data: bytes):
-    """Returns none if it failed to decrypt (e.g. master key changed)"""
     box = get_secret_box()
     try:
         return box.decrypt(data).decode()

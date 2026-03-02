@@ -31,7 +31,6 @@ class SteamProcess:
         self.wait_time = 3
 
     def kill(self):
-        """Kill Steam process using taskkill (most reliable method)"""
         print(" ", end="", flush=True)
         
         # Use taskkill - works without elevation and is very reliable

@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class GameInfo:
-    """Information about an installed game"""
     app_id: int
     name: str
     install_dir: str
@@ -30,28 +29,13 @@ class GameInfo:
 
 
 class LibraryScanner:
-    """Scans Steam library for installed games and manifest status"""
     
     def __init__(self, steam_path: Path, lua_backup_path: Path, applist_folder: Optional[Path] = None):
-        """
-        Initialize library scanner
-        
-        Args:
-            steam_path: Path to Steam installation
-            lua_backup_path: Path to lua backup directory
-            applist_folder: Path to GreenLuma AppList folder (optional)
-        """
         self.steam_path = steam_path
         self.lua_backup_path = lua_backup_path
         self.applist_folder = applist_folder
     
     def _get_applist_ids(self) -> Set[int]:
-        """
-        Get all App IDs from GreenLuma AppList folder
-        
-        Returns:
-            Set of App IDs found in AppList
-        """
         app_ids: Set[int] = set()
         
         if not self.applist_folder or not self.applist_folder.exists():
@@ -76,12 +60,6 @@ class LibraryScanner:
         return app_ids
     
     def _scan_all_drives(self) -> List[Path]:
-        """
-        Scan all drives for Steam library folders
-        
-        Returns:
-            List of potential Steam library paths
-        """
         steam_libs = []
         
         # Get libraries from Steam's config
@@ -118,21 +96,10 @@ class LibraryScanner:
         return steam_libs
     
     def scan_all_games(self, scan_all_drives: bool = True) -> List[GameInfo]:
-        """
-        Scan all Steam libraries for installed games
-        
-        Args:
-            scan_all_drives: If True, scan all drives for Steam libraries
-        
-        Returns:
-            List of GameInfo objects
-        """
         logger.info("Starting comprehensive library scan...")
         
-        # Get AppList IDs
         applist_ids = self._get_applist_ids()
         
-        # Get Steam libraries
         if scan_all_drives:
             steam_libs = self._scan_all_drives()
         else:
@@ -161,17 +128,6 @@ class LibraryScanner:
         return all_games
     
     def _scan_library(self, library_path: Path, applist_ids: Set[int], seen_app_ids: Set[int]) -> List[GameInfo]:
-        """
-        Scan a single Steam library
-        
-        Args:
-            library_path: Path to Steam library
-            applist_ids: Set of App IDs in AppList
-            seen_app_ids: Set to track which App IDs we've already seen
-            
-        Returns:
-            List of GameInfo objects
-        """
         games: List[GameInfo] = []
         steamapps = library_path / "steamapps"
         
@@ -185,7 +141,6 @@ class LibraryScanner:
             try:
                 acf = ACFParser(acf_file)
                 
-                # Get app info
                 app_id = acf.id
                 app_name = acf.name
                 app_install_dir = acf.install_dir
@@ -236,16 +191,6 @@ class LibraryScanner:
         return games
     
     def _check_orphaned_applist_ids(self, applist_ids: Set[int], seen_app_ids: Set[int]) -> List[GameInfo]:
-        """
-        Check for App IDs in AppList that don't have ACF files
-        
-        Args:
-            applist_ids: Set of App IDs in AppList
-            seen_app_ids: Set of App IDs that have ACF files
-            
-        Returns:
-            List of GameInfo objects for orphaned IDs
-        """
         orphaned_games: List[GameInfo] = []
         orphaned_ids = applist_ids - seen_app_ids
         
@@ -272,39 +217,12 @@ class LibraryScanner:
         return orphaned_games
     
     def filter_needs_manifest(self, games: List[GameInfo]) -> List[GameInfo]:
-        """
-        Filter games that need manifest updates
-        
-        Args:
-            games: List of all games
-            
-        Returns:
-            List of games needing manifests
-        """
         return [g for g in games if g.needs_manifest]
     
     def filter_downloaded_only(self, games: List[GameInfo]) -> List[GameInfo]:
-        """
-        Filter to show only games that are actually downloaded
-        
-        Args:
-            games: List of all games
-            
-        Returns:
-            List of downloaded games (have ACF and install directory)
-        """
         return [g for g in games if g.has_acf and g.install_dir]
     
     def generate_report_text(self, games: List[GameInfo]) -> str:
-        """
-        Generate a text report of scanned games
-        
-        Args:
-            games: List of games
-            
-        Returns:
-            Formatted text report
-        """
         needs_manifest = self.filter_needs_manifest(games)
         downloaded_only = self.filter_downloaded_only(games)
         
@@ -344,15 +262,6 @@ class LibraryScanner:
         return "\n".join(report)
     
     def generate_report_json(self, games: List[GameInfo]) -> dict:
-        """
-        Generate a JSON report of scanned games
-        
-        Args:
-            games: List of games
-            
-        Returns:
-            Dictionary suitable for JSON export
-        """
         needs_manifest = self.filter_needs_manifest(games)
         downloaded_only = self.filter_downloaded_only(games)
         
@@ -402,17 +311,6 @@ class LibraryScanner:
         output_path: Path,
         format: str = "json"
     ) -> bool:
-        """
-        Export scan report to file
-        
-        Args:
-            games: List of games
-            output_path: Output file path
-            format: Output format ('json' or 'text')
-            
-        Returns:
-            True if successful, False otherwise
-        """
         try:
             if format == "json":
                 report = self.generate_report_json(games)

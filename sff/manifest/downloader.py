@@ -71,7 +71,6 @@ class ManifestDownloader:
     def get_manifest_ids(
         self, lua: LuaParsedInfo, auto: bool = False
     ) -> DepotManifestMap:
-        """Returns a dict of depot IDs mapped to manifest IDs"""
         # A dict of Depot IDs mapped to Manifest IDs
         manifest_ids: dict[str, str] = {}
         app_id = int(lua.app_id)
@@ -123,7 +122,6 @@ class ManifestDownloader:
         return DepotManifestMap(manifest_ids)
 
     def get_cdn_client(self, max_retries: int = 5):
-        """Obtain CDN client with retry on timeout."""
         for attempt in range(max_retries):
             try:
                 cdn = CDNClient(self.provider.client)
@@ -137,7 +135,6 @@ class ManifestDownloader:
     def download_single_manifest(
         self, depot_id: str, manifest_id: str, cdn_client: Optional[CDNClient] = None
     ):
-        """Returns an encrypted manifest file as bytes"""
         if cdn_client is None:
             cdn_client = self.get_cdn_client()
         req_code = self.resolve_gmrc(manifest_id)
@@ -186,7 +183,6 @@ class ManifestDownloader:
     def download_manifests(
         self, lua: LuaParsedInfo, decrypt: bool = False, auto_manifest: bool = False
     ):
-        """Gets latest manifest IDs and downloads respective manifests"""
         cdn = self.get_cdn_client()
         manifest_ids = self.get_manifest_ids(lua, auto_manifest)
 
@@ -241,11 +237,9 @@ class ManifestDownloader:
     def download_manifests_parallel(
         self, lua: LuaParsedInfo, decrypt: bool = False, auto_manifest: bool = False
     ):
-        """Downloads manifests in parallel using ThreadPoolExecutor"""
         import time
         start_time = time.time()
         
-        # Get worker count from settings, default to 4
         worker_count_str = get_setting(Settings.PARALLEL_DOWNLOADS)
         try:
             worker_count = int(worker_count_str) if worker_count_str else 4
@@ -286,7 +280,6 @@ class ManifestDownloader:
         depotcache.mkdir(exist_ok=True)
         
         def download_task(task):
-            """Worker function for downloading a single manifest"""
             depot_id = task['depot_id']
             manifest_id = task['manifest_id']
             dec_key = task['dec_key']
@@ -295,12 +288,10 @@ class ManifestDownloader:
             try:
                 final_manifest_loc = depotcache / f"{depot_id}_{manifest_id}.manifest"
                 
-                # Check if already exists
                 if final_manifest_loc.exists():
                     sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
                     return (True, depot_id, manifest_id, final_manifest_loc, "Already exists")
                 
-                # Check for saved manifest
                 possible_saved_manifest = Path.cwd() / f"manifests/{depot_id}_{manifest_id}.manifest"
                 if possible_saved_manifest.exists():
                     shutil.move(possible_saved_manifest, final_manifest_loc)

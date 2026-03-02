@@ -19,7 +19,6 @@ from sff.utils import root_folder
 
 
 def _get_workshop_profile() -> QWebEngineProfile:
-    """Create or return a persistent WebEngine profile for Steam Workshop."""
     profile = QWebEngineProfile("SteaMidraWorkshop")
     base_path = root_folder(outside_internal=True) / "webengine_profile"
     storage_path = base_path / "storage"
@@ -36,7 +35,6 @@ def _get_workshop_profile() -> QWebEngineProfile:
 
 
 def open_workshop_browser(app_id: str, parent=None) -> None:
-    """Open an embedded browser dialog showing the Steam Workshop for the given app."""
     profile = _get_workshop_profile()
     page = QWebEnginePage(profile)
     view = QWebEngineView()

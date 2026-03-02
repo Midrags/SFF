@@ -59,7 +59,6 @@ def prompt_select(
     for c in choices:
         if isinstance(c, Enum):
             if exclude and c in exclude:
-                # Skip excluded choice
                 continue
             new_choices.append(Choice(value=c, name=c.value))
         elif isinstance(c, Choice):

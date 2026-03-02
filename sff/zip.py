@@ -23,8 +23,6 @@ def read_lua_from_zip(
 
 
 def read_lua_from_zip(path: Union[Path, BytesIO], decode: bool = True):
-    """Given a zip path, return the string contents,
-    None if it can't be found"""
     lua_contents = None
     try:
         with zipfile.ZipFile(path) as f:
@@ -50,7 +48,6 @@ def read_lua_from_zip(path: Union[Path, BytesIO], decode: bool = True):
 
 
 def read_file_from_zip_bytes(filename: Union[str, zipfile.ZipInfo], bytes: bytes):
-    """Returns none if it's an invalid ZIP file"""
     try:
         with zipfile.ZipFile(BytesIO(bytes)) as f:
             return BytesIO(f.read(filename))
@@ -59,7 +56,6 @@ def read_file_from_zip_bytes(filename: Union[str, zipfile.ZipInfo], bytes: bytes
 
 
 def read_nth_file_from_zip_bytes(nth: int, bytes: bytes):
-    """Returns none if it's an invalid ZIP file"""
     try:
         with zipfile.ZipFile(BytesIO(bytes)) as f:
             return BytesIO(f.read(f.filelist[nth].filename))
@@ -68,7 +64,6 @@ def read_nth_file_from_zip_bytes(nth: int, bytes: bytes):
 
 
 def zip_folder(folder_path: Path, output_path: Path):
-    """ZIPs to a BytesIO then to the actual file to prevent infinite recursion"""
     tmp = BytesIO()
     with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for file in folder_path.rglob('*'):

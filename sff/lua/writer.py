@@ -59,7 +59,6 @@ class ConfigVDFWriter:
     steam_path: Path
 
     def add_decryption_keys_to_config(self, lua: LuaParsedInfo):
-        """Adds decryption keys from parsed lua to config.vdf"""
         vdf_file = self.steam_path / "config/config.vdf"
         shutil.copyfile(vdf_file, (self.steam_path / "config/config.vdf.backup"))
         with VDFLoadAndDumper(vdf_file) as vdf_data:
@@ -91,8 +90,6 @@ class ConfigVDFWriter:
                     print("Already in config.vdf.")
 
     def ids_in_config(self, ids: list[int]):
-        """Checks if IDs are in config.vdf and returns a
-        dict mapping IDs to their existence"""
         vdf_file = self.steam_path / "config/config.vdf"
         data = vdf_load(vdf_file)
         depots = enter_path(

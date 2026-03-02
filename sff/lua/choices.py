@@ -26,15 +26,6 @@ from sff.zip import read_lua_from_zip
 
 
 def select_from_saved_luas(saved_lua: Path, named_ids: NamedIDs) -> LuaResult:
-    """Prompt the user to select a saved lua file
-
-    Args:
-        saved_lua (Path): Path to the folder with saved lua files
-        named_ids (dict[str, str]): A dict of (game_id, game_name)
-
-    Returns:
-        LuaResult:
-    """
     if len(named_ids) == 0:
         print("You don't have any saved .lua files. Try adding some first.")
         return LuaResult(None, None, LuaChoice.ADD_LUA)
@@ -51,11 +42,6 @@ def select_from_saved_luas(saved_lua: Path, named_ids: NamedIDs) -> LuaResult:
 
 
 def add_new_lua(file: Optional[Path] = None) -> LuaResult:
-    """Prompts user to add a new .lua or ZIP file
-
-    Returns:
-        LuaResult:
-    """
     lua_path = file if file else prompt_file(
         "Drag a .lua file (or .zip w/ .lua inside) into here "
         "then press Enter.\n"
@@ -77,7 +63,6 @@ def add_new_lua(file: Optional[Path] = None) -> LuaResult:
 
 
 def search_game(os_type: OSType) -> Optional[str]:
-    """Using fzf, lets a user search for a game, then returns game ID"""
     all_games_file = (root_folder() / "all_games.txt")
     if all_games_file.exists():
         mtime = all_games_file.stat().st_mtime
@@ -131,8 +116,6 @@ def search_game(os_type: OSType) -> Optional[str]:
 
 
 def download_lua(dest: Path, os_type: OSType) -> LuaResult:
-    """Downloads a lua file from the available endpoints"""
-
     reg = re.compile(r"(?<=store\.steampowered\.com\/app\/)\d+|\d+")
 
     def validate_app_id(x: str) -> bool:

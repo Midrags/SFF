@@ -65,7 +65,6 @@ class GenericWorker(QObject):
 
 
 def _arrow_style_url(path: Path) -> str:
-    """Return a stylesheet-ready url() string. Uses forward slashes for Windows Qt."""
     s = str(path.resolve()).replace("\\", "/")
     return f'"{s}"' if " " in s else s
 
@@ -400,7 +399,6 @@ class SFFMainWindow(QMainWindow):
         self._worker_thread.start()
 
     def _open_workshop(self) -> None:
-        """Open the Steam Workshop page for the selected game in the embedded browser."""
         acf = self._get_selected_acf()
         if acf is None:
             QMessageBox.warning(

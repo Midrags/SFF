@@ -23,15 +23,6 @@ PROTOBUF_ENDOFMANIFEST_MAGIC = 0x32C415AB
 
 
 def decrypt_filename(b64_encrypted_name: str, key_bytes: bytes) -> str:
-    """Decrypts a filename
-
-    Args:
-        b64_encrypted_name (str): The encrypted filename
-        key_bytes (bytes): The decryption key in bytes
-
-    Returns:
-        str: The decrypted filename
-    """
     try:
         decoded_data = base64.b64decode(b64_encrypted_name)
 
@@ -56,14 +47,6 @@ def decrypt_filename(b64_encrypted_name: str, key_bytes: bytes) -> str:
 
 
 def view_manifest(manifest_file: bytes):
-    """Decrypts a manifest file, given a decryption key
-
-    Args:
-        encrypted_file (io.BytesIO): The encrypted manifest file
-        output_filepath (Path): Where you want the decrypted file to go
-        dec_key (str): The decryption key as a hex string
-    """
-
     stream = io.BytesIO(manifest_file)
 
     magic, payload_length = struct.unpack("<II", stream.read(8))
@@ -126,13 +109,6 @@ def view_manifest(manifest_file: bytes):
 def decrypt_and_save_manifest(
     encrypted_file: bytes, output_filepath: Path, dec_key: str
 ):
-    """Decrypts a manifest file, given a decryption key
-
-    Args:
-        encrypted_file (io.BytesIO): The encrypted manifest file
-        output_filepath (Path): Where you want the decrypted file to go
-        dec_key (str): The decryption key as a hex string
-    """
     # Check if it's a ZIP file, then extract the first file
     if x := read_nth_file_from_zip_bytes(0, encrypted_file):
         stream = x

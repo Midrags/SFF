@@ -36,7 +36,6 @@ def _key(app_id: str, workshop_id: int) -> str:
 
 
 def add(app_id: str, workshop_id: int, time_updated: int) -> None:
-    """Record a downloaded workshop item."""
     data = _load()
     key = _key(app_id, workshop_id)
     items = {_key(str(i.get("app_id", "")), int(i.get("workshop_id", 0))): i for i in data.get("items", [])}
@@ -50,7 +49,6 @@ def add(app_id: str, workshop_id: int, time_updated: int) -> None:
 
 
 def get_all() -> list[tuple[str, int, int]]:
-    """Return all tracked items as (app_id, workshop_id, time_updated)."""
     data = _load()
     result = []
     for item in data.get("items", []):
@@ -66,12 +64,10 @@ def get_all() -> list[tuple[str, int, int]]:
 
 
 def update_time(app_id: str, workshop_id: int, time_updated: int) -> None:
-    """Update the stored time_updated for an item."""
     add(app_id, workshop_id, time_updated)
 
 
 def remove(app_id: str, workshop_id: int) -> None:
-    """Remove an item from tracking."""
     data = _load()
     key = _key(app_id, workshop_id)
     items = [

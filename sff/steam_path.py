@@ -89,7 +89,6 @@ class SteamPathService:
 
 
 def init_steam_path(os_type: OSType):
-    """Finds steam path and saves it to settings if it's new"""
     settings_strat = SettingsFinder()
     os_specific_finder: list[PathFinderStrategy] = []
     if os_type == OSType.WINDOWS:

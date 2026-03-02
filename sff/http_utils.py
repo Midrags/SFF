@@ -108,14 +108,6 @@ def get_base_domain(url: str):
 # Lowkey don't remember why i wrote it like this.
 # It uses a default timeout of 10s but i think it still got stuck?
 async def get_gmrc(manifest_id: Union[str, int]) -> Union[str, None]:
-    """Gets a manifest request code, given a manifest ID
-
-    Args:
-        manifest_id (Union[str, int]): The manifest ID
-
-    Returns:
-        str: The request code
-    """
     # Yes, I'm aware it's not actually "encrypted" since I included the password
     # Shut up.
     template_url = b64_decrypt(
@@ -162,7 +154,6 @@ async def get_gmrc(manifest_id: Union[str, int]) -> Union[str, None]:
 
 
 def get_game_name(app_id: str) -> str:
-    """Converts an App ID to a game name"""
     official_info = asyncio.run(
         get_request(
             f"https://store.steampowered.com/api/appdetails/?appids={app_id}",
@@ -188,7 +179,6 @@ def download_to_tempfile(
     params: Optional[dict[str, str]] = None,
     chunk_size: int = (1024**2) // 2,
 ) -> Generator[Union["_TemporaryFileWrapper[bytes]", None], None, None]:
-    """Downloads and yields a tempfile, Defaults to 0.5MiB for chunk size"""
     temp_f = TemporaryFile()
     try:
         with httpx.stream(
@@ -232,7 +222,6 @@ def download_to_path(
     headers: Optional[dict[str, str]] = None,
     chunk_size: int = (1024**2) // 2,
 ) -> bool:
-    """Download url to the given path. Shows progress with tqdm. Returns True on success."""
     try:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)

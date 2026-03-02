@@ -56,14 +56,6 @@ class VDFLoadAndDumper:
 
 
 def get_steam_libs(steam_path: Path):
-    """Get list of Steam library paths by the user
-
-    Args:
-        steam_path (Path): Steam install path
-
-    Returns:
-        list[Path]: list of Steam library paths
-    """
     lib_folders = steam_path / "config/libraryfolders.vdf"
 
     vdf_data = vdf_load(lib_folders)
@@ -78,17 +70,6 @@ def get_steam_libs(steam_path: Path):
 
 
 def ensure_library_has_app(steam_path: Path, library_path: Path, app_id: str) -> bool:
-    """Ensure the library is in libraryfolders.vdf and the app is registered there.
-    This prevents Steam from showing PURCHASE after restart (game stays in library).
-
-    Args:
-        steam_path: Steam install path (e.g. C:\\Program Files (x86)\\Steam)
-        library_path: Full path to the Steam library (e.g. K:\\SteamLibrary)
-        app_id: Steam App ID as string (e.g. "268910")
-
-    Returns:
-        True if registration was updated, False otherwise
-    """
     lib_folders = steam_path / "config/libraryfolders.vdf"
     if not lib_folders.exists():
         return False

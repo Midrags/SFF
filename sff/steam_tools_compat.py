@@ -18,18 +18,6 @@ CONFIG_DEPOTCACHE_SUBDIR = ("config", "depotcache")
 
 
 def install_lua_to_steam(steam_path: Path, app_id: str, lua_source_path: Path) -> bool:
-    """
-    Copy a LUA file into Steam's config/stplug-in so the Steam client can use it
-    (Steam Tools / LuaTools style). Works with or without DLLInjector.
-
-    Args:
-        steam_path: Steam install path (e.g. C:\\Program Files (x86)\\Steam)
-        app_id: App ID string (e.g. "268910")
-        lua_source_path: Full path to the .lua file (e.g. saved_lua/268910.lua)
-
-    Returns:
-        True if copy succeeded or target already up to date, False on error.
-    """
     if not lua_source_path.exists():
         logger.debug("LUA source not found: %s", lua_source_path)
         return False
@@ -46,17 +34,6 @@ def install_lua_to_steam(steam_path: Path, app_id: str, lua_source_path: Path) -
 
 
 def sync_manifest_to_config_depotcache(steam_path: Path, manifest_path: Path) -> bool:
-    """
-    Copy a manifest from Steam/depotcache to Steam/config/depotcache so both
-    locations are populated (Steam Tools uses config/depotcache in some setups).
-
-    Args:
-        steam_path: Steam install path
-        manifest_path: Path to the manifest file (e.g. .../depotcache/123_456.manifest)
-
-    Returns:
-        True if copy succeeded or already present, False on error.
-    """
     if not manifest_path.exists():
         return False
     try:
@@ -73,12 +50,6 @@ def sync_manifest_to_config_depotcache(steam_path: Path, manifest_path: Path) ->
 
 
 def remove_lua_from_steam(steam_path: Path, app_id: str | int) -> bool:
-    """
-    Remove a game's LUA file from Steam config/stplug-in (reverse of install_lua_to_steam).
-    Deletes config/stplug-in/{app_id}.lua so the game no longer appears in the library.
-
-    Returns True if the file was removed or did not exist, False on error.
-    """
     dest_dir = steam_path / "config" / STPLUGIN_DIR
     dest_file = dest_dir / f"{app_id}.lua"
     try:

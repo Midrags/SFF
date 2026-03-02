@@ -76,7 +76,6 @@ class GameHandler:
         self.injection_manager = injection_manager
 
     def _scan_games(self) -> list[tuple[AppName, ACFInfo]]:
-        """Scan all Steam libraries and return list of (name, ACFInfo). No prompts."""
         games: list[tuple[AppName, ACFInfo]] = []
         seen_app_ids: set[str] = set()
         
@@ -166,11 +165,9 @@ class GameHandler:
         return games
 
     def get_game_list(self) -> list[tuple[AppName, ACFInfo]]:
-        """Return list of (name, ACFInfo) for all installed games. Used by GUI."""
         return self._scan_games()
 
     def get_game(self) -> Optional[ACFInfo]:
-        """Get game from all Steam libraries across all drives (interactive prompt)."""
         games = self._scan_games()
         if not games:
             print(Fore.RED + "No games found in any Steam library!" + Style.RESET_ALL)
@@ -392,7 +389,6 @@ class GameHandler:
         ]
 
     def select_executable(self, app_info: ACFInfo) -> Path:
-        """Selects EXE to get used for Steamless"""
         info = get_product_info(self.provider, [int(app_info.app_id)])
 
         windows_exes = self._get_windows_execs(info, int(app_info.app_id))
@@ -477,7 +473,6 @@ class GameHandler:
                 )
 
     def check_mod_updates(self, app_id: str) -> None:
-        """Check tracked workshop items for updates and re-download if newer."""
         items = [(a, w, t) for a, w, t in tracker_get_all() if a == app_id]
         if not items:
             print("No tracked workshop items for this game. Download items first to track them.")
@@ -514,7 +509,6 @@ class GameHandler:
         )
 
     def apply_multiplayer_fix(self, app_info: ACFInfo) -> None:
-        """Apply multiplayer fix from online-fix.me"""
         print("\n" + Fore.CYAN + "Multiplayer Fix (online-fix.me)" + Style.RESET_ALL)
         print("This will download and apply a multiplayer fix for the selected game.")
         print("The fix will be extracted directly to the game folder.\n")
@@ -556,11 +550,6 @@ class GameHandler:
             print("Check the error messages above for details.")
 
     def manage_dlc_unlockers(self, app_info: ACFInfo) -> None:
-        """Manage DLC unlockers (CreamInstaller-compatible) for a game.
-        
-        For Steam: Installs SmokeAPI OR CreamAPI (user preference). Koaloader proxy mode
-        is optional. Matches CreamInstaller behavior exactly.
-        """
         from sff.dlc_unlockers.manager import UnlockerManager
         from sff.dlc_unlockers.downloader import GitHubReleaseDownloader
         from sff.dlc_unlockers.base import Platform, UnlockerType

@@ -20,9 +20,6 @@ def get_product_info(provider: "SteamInfoProvider", app_ids: list[int]) -> Produ
 
 
 def create_provider_for_current_thread() -> "SteamInfoProvider":
-    """Create SteamClient and SteamInfoProvider in the current thread.
-    Use when running Steam/gevent operations from a worker thread (e.g. GUI).
-    Gevent requires the client to be used from the thread that created it."""
     client = SteamClient()
     return SteamInfoProvider(client)
 
@@ -68,14 +65,10 @@ def _get_product_info(client: SteamClient, app_ids: list[int]) -> ProductInfo:
 
 
 class SteamInfoProvider:
-    """Wrapper for SteamClient to handle API calls and caching."""
 
     def __init__(self, client: SteamClient):
         self.client = client
         self._cache: dict[int, Any] = {}
-        """A cache of app IDs and their data taken
-        from the `apps` key of `get_product_info`.
-        Values are False if it's not a base app ID"""
         self._persistent_cache = get_cache()
 
     def get_app_info(self, app_ids: list[int]) -> dict[int, Any]:

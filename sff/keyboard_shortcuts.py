@@ -19,16 +19,9 @@ else:
 
 
 class KeyboardHandler:
-    """Handles keyboard shortcuts for menu navigation"""
     
     @staticmethod
     def check_for_keypress() -> Optional[str]:
-        """
-        Check if a key has been pressed (non-blocking)
-        
-        Returns:
-            Key character if pressed, None otherwise
-        """
         if not KEYBOARD_AVAILABLE:
             return None
         
@@ -50,12 +43,6 @@ class KeyboardHandler:
     
     @staticmethod
     def wait_for_key() -> str:
-        """
-        Wait for a key press (blocking)
-        
-        Returns:
-            Key character
-        """
         if not KEYBOARD_AVAILABLE:
             return input()
         
@@ -74,44 +61,16 @@ class KeyboardHandler:
     
     @staticmethod
     def is_number_key(key: str) -> bool:
-        """
-        Check if key is a number (1-9)
-        
-        Args:
-            key: Key character
-            
-        Returns:
-            True if number key
-        """
         return key in ['1', '2', '3', '4', '5', '6', '7', '8', '9']
     
     @staticmethod
     def get_number_from_key(key: str) -> Optional[int]:
-        """
-        Convert key to number
-        
-        Args:
-            key: Key character
-            
-        Returns:
-            Number (1-9) or None
-        """
         if KeyboardHandler.is_number_key(key):
             return int(key)
         return None
 
 
 def format_menu_with_shortcuts(items: list, start_index: int = 1) -> str:
-    """
-    Format menu items with keyboard shortcuts
-    
-    Args:
-        items: List of menu items
-        start_index: Starting index for numbering
-        
-    Returns:
-        Formatted menu string
-    """
     lines = []
     for i, item in enumerate(items, start=start_index):
         if i <= 9:

@@ -11,7 +11,6 @@ from sff.strings import VERSION
 
 
 def _parse_version(tag: str) -> tuple[int, ...]:
-    """Normalize version tag to a tuple of integers for comparison (e.g. '4.5' -> (4, 5), '4.5.0' -> (4, 5, 0))."""
     # Strip leading 'v' if present (e.g. v4.5.0)
     s = tag.strip().lstrip("vV")
     parts = re.split(r"[.\-]", s)
@@ -25,7 +24,6 @@ def _parse_version(tag: str) -> tuple[int, ...]:
 
 
 def is_newer_version(remote_tag: str, current: str) -> bool:
-    """Return True if remote_tag is a newer version than current (e.g. 4.6 > 4.5.0)."""
     r = _parse_version(remote_tag)
     c = _parse_version(current)
     # Pad with zeros so (4, 5) compares equal to (4, 5, 0)
@@ -36,7 +34,6 @@ def is_newer_version(remote_tag: str, current: str) -> bool:
 
 
 class Updater:
-    """Checks and fetches updates from https://github.com/Midrags/SFF/releases/"""
 
     _LATEST_URL = "https://api.github.com/repos/Midrags/SFF/releases/latest"
     _RELEASES_URL = "https://api.github.com/repos/Midrags/SFF/releases"
@@ -44,7 +41,6 @@ class Updater:
 
     @staticmethod
     def get_latest_stable() -> Optional[dict[str, Any]]:
-        """Fetch the latest stable release from Midrags/SFF. Returns None on error."""
         resp = asyncio.run(
             get_request(
                 Updater._LATEST_URL,
@@ -72,7 +68,6 @@ class Updater:
 
     @staticmethod
     def get_latest_prerelease() -> Optional[dict[str, Any]]:
-        """Returns first prerelease newer than current version, or None."""
         url = Updater._RELEASES_URL
         while True:
             resp = httpx.get(url, headers=Updater._HEADERS)
@@ -89,11 +84,6 @@ class Updater:
 
     @staticmethod
     def update_available() -> tuple[bool, Optional[dict[str, Any]]]:
-        """
-        Check if an update is available from Midrags/SFF.
-        Returns (is_newer, latest_release_dict).
-        If fetch fails, returns (False, None). If current >= latest, returns (False, release_dict).
-        """
         release = Updater.get_latest_stable()
         if not release:
             return False, None

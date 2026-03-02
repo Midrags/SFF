@@ -60,7 +60,6 @@ class LuaManager:
     def get_raw_lua(
         self, choice: LuaChoice, override: Optional[Path] = None
     ) -> Optional[RawLua]:
-        """Return the lua path and contents"""
         while True:
             if choice == LuaChoice.SELECT_SAVED_LUA:
                 result = select_from_saved_luas(self.saved_lua, self.named_ids)
@@ -96,7 +95,6 @@ class LuaManager:
         override_choice: Optional[LuaChoice] = None,
         override_path: Optional[Path] = None,
     ) -> Optional[LuaParsedInfo]:
-        """Depending on the choice, fetch a lua file then parse the contents"""
         while True:
             choice: Optional[LuaChoice] = (
                 override_choice
@@ -119,7 +117,6 @@ class LuaManager:
             return parsed
 
     def backup_lua(self, lua: LuaParsedInfo):
-        """Saves the lua file for later use"""
         target = self.saved_lua / f"{lua.app_id}.lua"
         if lua.path.suffix == ".zip":
             with target.open("w", encoding="utf-8") as f:

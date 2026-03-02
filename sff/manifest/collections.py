@@ -17,19 +17,6 @@ def get_collection_children(
     api_key: str,
     timeout: float = 15.0,
 ) -> list[int]:
-    """Fetch child workshop item IDs from a Steam Workshop collection.
-
-    Uses Steam Web API GetCollectionDetails. No login required.
-
-    Args:
-        collection_id: The published file ID of the collection.
-        api_key: Steam Web API key.
-        timeout: Request timeout in seconds.
-
-    Returns:
-        List of publishedfileid for each child. Empty if not a collection,
-        API error, or no children.
-    """
     if not api_key:
         logger.warning("No Steam Web API key provided for GetCollectionDetails")
         return []

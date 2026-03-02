@@ -18,16 +18,6 @@ def _save_named_ids(file: Path, data: NamedIDs):
 
 
 def get_named_ids(folder: Path) -> NamedIDs:
-    """Gets names of games from lua files.
-    Try to read saved names first, then request names of newer files.
-    If there are untracked files, update `names.json` accordingly
-
-    Args:
-        folder (Path): Folder with .lua files in it
-
-    Returns:
-        dict: a dict in the format (game_id, game_name)
-    """
     if not folder.exists():
         folder.mkdir()
         return NamedIDs({})

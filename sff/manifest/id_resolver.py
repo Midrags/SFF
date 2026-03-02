@@ -23,7 +23,6 @@ class ManifestContext:
 
     @property
     def dlc_data(self) -> dict[int, Any]:
-        """Lazy loads DLC info"""
         if self._dlc_data is None:
             extended = self.app_data.get("extended", {})
             dlc_list_str = extended.get("listofdlc", "")
@@ -39,7 +38,6 @@ class IManifestStrategy(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Clean name of the strategy"""
         pass
 
     @abstractmethod
@@ -48,7 +46,6 @@ class IManifestStrategy(ABC):
 
 
 class StandardManifestStrategy(IManifestStrategy):
-    """Just get the manifest directly from initial request"""
 
     @property
     def name(self):
@@ -63,7 +60,6 @@ class StandardManifestStrategy(IManifestStrategy):
 
 
 class SharedDepotManifestStrategy(IManifestStrategy):
-    """Usually stuff like vcredist"""
 
     @property
     def name(self):
@@ -87,7 +83,6 @@ class SharedDepotManifestStrategy(IManifestStrategy):
 
 
 class InnerDepotManifestStrategy(IManifestStrategy):
-    """Inner depot DLC"""
 
     @property
     def name(self):
@@ -128,8 +123,6 @@ class ManifestIDResolver:
         self.strategies = strategies
 
     def resolve(self, ctx: ManifestContext, depot_id: str) -> tuple[str, str]:
-        """Iterates strategies until a manifest is found.
-        Returns manifest and strategy name"""
         for strategy in self.strategies:
             manifest = strategy.get_manifest_id(ctx, depot_id)
             if manifest is not None:

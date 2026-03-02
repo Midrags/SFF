@@ -110,8 +110,6 @@ class AppListManager(AppInjectionManager):
         return files
 
     def get_local_ids(self, sort: bool = False) -> list[AppListPathAndID]:
-        """Returns a list of tuple(path, app_id) and
-        updates self.last_idx to the filename with the largest number"""
         self.last_idx = -1
         ids: list[AppListPathAndID] = []
         for file in self.applist_folder.glob("*.txt"):
@@ -140,7 +138,6 @@ class AppListManager(AppInjectionManager):
     def add_ids(
         self, data: Union[int, list[int], LuaParsedInfo], skip_check: bool = False
     ):
-        """Adds IDs to the AppList folder"""
         if isinstance(data, int):
             app_ids = [data]
         elif isinstance(data, LuaParsedInfo):
@@ -250,8 +247,6 @@ class AppListManager(AppInjectionManager):
                 remaining_id.path.rename(new_name)
 
     def delete_paths(self, paths_to_delete: list[Path], all_paths: list[Path]):
-        """Deletes all paths_to_delete and renames remaining files.
-        Assumes all_paths is already sorted in ascending order"""
         remaining_paths = [*all_paths]
         for path in paths_to_delete:
             path.unlink(missing_ok=True)
@@ -271,7 +266,6 @@ class AppListManager(AppInjectionManager):
                 old_path.rename(new_name)
 
     def _handle_id_limit_exceeded(self, excess_count: int):
-        """Removes the oldest IDs to bring the count back under the limit"""
         if self.max_id_limit is None:
             return  # No limit set, nothing to do
         
@@ -315,7 +309,6 @@ class AppListManager(AppInjectionManager):
         return int("".join(chars))
 
     def _update_depot_info(self, product_info: ProductInfo):
-        """Updates `self.id_map` with data from `product_info`"""
         apps_data = enter_path(product_info, "apps")
 
         for app_id, app_details in apps_data.items():
@@ -351,7 +344,6 @@ class AppListManager(AppInjectionManager):
             self._update_depot_info(info)
 
     def _organize_ids(self, ids: list[int]):
-        """Organize Depot IDs inside parent App IDs"""
         organized: OrganizedAppIDs = {}
 
         for app_id in ids:
@@ -377,7 +369,6 @@ class AppListManager(AppInjectionManager):
         return organized
 
     def _menu_items_from_organized(self, organized: OrganizedAppIDs):
-        """Convert organized IDs into menu items for prompt_select"""
         menu_items: list[tuple[str, int]] = []
 
         for app_id, info in organized.items():
@@ -392,8 +383,6 @@ class AppListManager(AppInjectionManager):
     def _prompt_include_depots(
         self, selected_ids: set[int], organized: OrganizedAppIDs
     ):
-        """Prompts to select depots related to selected parent IDs.
-        Modified selected_ids in-place."""
         selected_base_ids = [
             x for x in selected_ids if x in organized and organized[x].depots
         ]
@@ -409,7 +398,6 @@ class AppListManager(AppInjectionManager):
     def _get_paths_from_ids(
         self, app_ids: set[int], path_and_ids: list[AppListPathAndID]
     ):
-        """Converts IDs to Paths"""
         file_map: defaultdict[int, list[Path]] = defaultdict(list)
         # app id mapped to files that have that ID
         for x in path_and_ids:
@@ -421,7 +409,6 @@ class AppListManager(AppInjectionManager):
         return paths_to_delete
 
     def prompt_id_deletion(self):
-        """Show all AppList IDs and let the user delete them"""
 
         path_and_ids = self.get_local_ids(sort=True)
         if not path_and_ids:
@@ -593,7 +580,6 @@ class AppListManager(AppInjectionManager):
                         )
 
     def _profile_menu(self) -> None:
-        """Handle AppList profiles: create, switch, save, delete, rename."""
         choice: Optional[AppListProfileChoice] = prompt_select(
             "AppList Profiles:", list(AppListProfileChoice), cancellable=True
         )
@@ -612,7 +598,6 @@ class AppListManager(AppInjectionManager):
             self._profile_rename()
 
     def _profile_create(self) -> None:
-        """Create a new empty profile."""
         name = prompt_text("Profile name:", validator=lambda x: len(x.strip()) > 0)
         if not name:
             return
@@ -644,7 +629,6 @@ class AppListManager(AppInjectionManager):
             print(Fore.RED + "Failed to create profile." + Style.RESET_ALL)
 
     def _profile_switch(self) -> None:
-        """Switch to a profile (overwrites AppList folder)."""
         profiles = list_profiles()
         if not profiles:
             print(
@@ -671,7 +655,6 @@ class AppListManager(AppInjectionManager):
             print(Fore.RED + "Failed to switch profile." + Style.RESET_ALL)
 
     def _profile_save(self) -> None:
-        """Save current AppList to an existing or new profile."""
         ids = [x.app_id for x in self.get_local_ids(sort=True)]
         if not ids:
             print(
@@ -710,7 +693,6 @@ class AppListManager(AppInjectionManager):
             print(Fore.RED + "Failed to save profile." + Style.RESET_ALL)
 
     def _profile_delete(self) -> None:
-        """Delete a profile."""
         profiles = list_profiles()
         if not profiles:
             print(Fore.YELLOW + "No profiles to delete." + Style.RESET_ALL)
@@ -731,7 +713,6 @@ class AppListManager(AppInjectionManager):
                 print(Fore.RED + "Failed to delete profile." + Style.RESET_ALL)
 
     def _profile_rename(self) -> None:
-        """Rename a profile."""
         profiles = list_profiles()
         if not profiles:
             print(Fore.YELLOW + "No profiles to rename." + Style.RESET_ALL)

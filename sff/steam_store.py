@@ -26,7 +26,6 @@ _USER_AGENT = (
 
 
 def _store_get_json(url: str) -> Optional[dict]:
-    """GET URL and return JSON. None on failure."""
     try:
         resp = httpx.get(
             url,

@@ -121,7 +121,6 @@ class UI:
             SLSManager(steam_path, provider) if os_type == OSType.LINUX else None
         )
         
-        # Initialize new services
         self.notification_service = get_notification_service()
         self.recent_files_manager = get_recent_files_manager()
         self.analytics_tracker = get_analytics_tracker()
@@ -129,7 +128,6 @@ class UI:
         self.init_midi_player()
 
     def _steam_provider(self) -> SteamInfoProvider:
-        """Provider for Steam API. Uses thread-local client when not in main thread."""
         import threading
         if threading.current_thread() is threading.main_thread():
             return self.provider
@@ -154,7 +152,6 @@ class UI:
 
     @music_toggle_decorator
     def edit_settings_menu(self) -> MainReturnCode:
-        """Settings management menu with export/import functionality"""
         while True:
             choice: Optional[SettingsManagementOptions] = prompt_select(
                 "Settings Management:",
@@ -175,7 +172,6 @@ class UI:
         return MainReturnCode.LOOP_NO_PROMPT
     
     def _edit_settings_submenu(self) -> None:
-        """Original settings editing functionality"""
         win_only = [Settings.APPLIST_FOLDER, Settings.GL_VERSION]
         linux_only = [Settings.SLS_CONFIG_LOCATION]
         if self.os_type == OSType.WINDOWS:
@@ -273,7 +269,6 @@ class UI:
                     self.app_list_man = AppListManager(self.steam_path, self.provider)
 
     def _get_applist_ids(self) -> Optional[list[int]]:
-        """Get AppList/SLS IDs. Returns None if OS unsupported."""
         if self.app_list_man is None and self.sls_man is None:
             return None
         if self.app_list_man:
@@ -283,7 +278,6 @@ class UI:
         return None
 
     def _export_settings_submenu(self) -> None:
-        """Export settings to JSON file"""
         print(Fore.CYAN + "\n=== Export Settings ===" + Style.RESET_ALL)
         
         # Ask if user wants to include sensitive data
@@ -321,7 +315,6 @@ class UI:
             print(Fore.RED + "✗ Failed to export settings. Check debug.log for details." + Style.RESET_ALL)
     
     def _import_settings_submenu(self) -> None:
-        """Import settings from JSON file"""
         print(Fore.CYAN + "\n=== Import Settings ===" + Style.RESET_ALL)
         print(Fore.YELLOW + "Warning: This will overwrite existing settings!" + Style.RESET_ALL)
         
@@ -409,7 +402,6 @@ class UI:
         return self.app_list_man.display_menu(self.provider)
 
     def remove_game_menu(self) -> MainReturnCode:
-        """Remove a game from library: delete stplug-in LUA and optionally AppList entry. User can choose from list or type App ID."""
         stplug_in = self.steam_path / "config" / "stplug-in"
         if not stplug_in.exists():
             print(
@@ -550,7 +542,6 @@ class UI:
     def run_game_action_with_selection(
         self, choice: GameSpecificChoices, acf_info: ACFInfo
     ) -> MainReturnCode:
-        """Run a game-specific action with a pre-selected game (for GUI)."""
         injection_manager = self.app_list_man or self.sls_man
         if injection_manager is None:
             print("Unsupported OS for this action.")
@@ -565,8 +556,6 @@ class UI:
 
     @music_toggle_decorator
     def process_lua_minimal(self) -> MainReturnCode:
-        """Processes a .lua file but only does the lua input, lua backup, and manifest
-        download steps"""
 
         if self.os_type == OSType.WINDOWS:
             print(
@@ -667,7 +656,6 @@ class UI:
 
     @music_toggle_decorator
     def process_lua_full(self, file: Optional[Path] = None) -> MainReturnCode:
-        """Processes a .lua file and goes through all the usual steps"""
         import time
         start_time = time.time()
         
@@ -828,7 +816,6 @@ class UI:
         tmp_update = app_dir / "tmp_update"
 
         def _do_auto_update() -> bool:
-            """Download zip, extract to tmp_update, run updater script that replaces app dir and relaunches. Returns True if started."""
             if not download_url or not asset_name:
                 return False
             print(f"Downloading {asset_name}...")
@@ -1049,7 +1036,6 @@ class UI:
         return MainReturnCode.LOOP
 
     def export_applist_ids(self, export_path: Path) -> MainReturnCode:
-        """Export AppList IDs to a file"""
         try:
             ids = self._get_applist_ids()
             if ids is None:
@@ -1069,7 +1055,6 @@ class UI:
             return MainReturnCode.EXIT
     
     def process_batch_lua_files(self, file_paths: list[str], dry_run: bool = False) -> MainReturnCode:
-        """Process multiple lua files in batch mode"""
         print(Fore.CYAN + f"\n=== Batch Processing {len(file_paths)} files ===" + Style.RESET_ALL)
         
         if dry_run:
@@ -1119,7 +1104,6 @@ class UI:
         return MainReturnCode.EXIT
     
     def auto_update_manifests(self) -> MainReturnCode:
-        """Automatically update manifests without user interaction"""
         print(Fore.CYAN + "\n=== Auto-Update Manifests ===" + Style.RESET_ALL)
 
         applist_ids = self._get_applist_ids()
@@ -1175,7 +1159,6 @@ class UI:
     
     @music_toggle_decorator
     def recent_files_menu(self) -> MainReturnCode:
-        """Display and process recent lua files"""
         recent_files = self.recent_files_manager.get_all()
         
         if not recent_files:
@@ -1211,7 +1194,6 @@ class UI:
     
     @music_toggle_decorator
     def scan_library_menu(self) -> MainReturnCode:
-        """Scan game library and generate report"""
         print(Fore.CYAN + "\n=== Library Scanner ===" + Style.RESET_ALL)
         
         lua_manager = LuaManager(self.os_type)
@@ -1259,7 +1241,6 @@ class UI:
     
     @music_toggle_decorator
     def analytics_dashboard_menu(self) -> MainReturnCode:
-        """Display analytics dashboard"""
         print(Fore.CYAN + "\n=== Analytics Dashboard ===" + Style.RESET_ALL)
         
         dashboard = self.analytics_tracker.generate_dashboard_text()

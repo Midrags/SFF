@@ -23,13 +23,11 @@ class WorkshopItemContext:
 
 @dataclass
 class HContentFile:
-    """Modern workshop items with manifest"""
     ugc_id: int
 
 
 @dataclass
 class DirectDownloadUrl:
-    """Legacy workshop items with direct download URL"""
     url: str
 
 
@@ -40,7 +38,6 @@ class IUgcIdStrategy(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Clean name of the strategy"""
         pass
 
     @abstractmethod
@@ -131,7 +128,6 @@ class StandardUgcIdStrategy(IUgcIdStrategy):
     def get_content_and_details(
         self, ctx: WorkshopItemContext
     ) -> tuple[Optional[WorkshopContent], Optional[Any]]:
-        """Get content and raw details in one call (avoids duplicate GetDetails)."""
         details = self._get_workshop_items_details(ctx)
         return self._content_from_details(details), details
 
@@ -141,15 +137,12 @@ class UgcIDResolver:
         self.strategies = strategies
 
     def resolve(self, ctx: WorkshopItemContext) -> tuple[WorkshopContent, str]:
-        """Iterates strategies until a UGC ID is found.
-        Returns content and strategy name."""
         content, _method, _details = self.resolve_with_details(ctx)
         return content, _method
 
     def resolve_with_details(
         self, ctx: WorkshopItemContext
     ) -> tuple[WorkshopContent, str, Optional[Any]]:
-        """Resolve and return content, method name, and raw details (for time_updated)."""
         for strategy in self.strategies:
             if isinstance(strategy, StandardUgcIdStrategy):
                 content, details = strategy.get_content_and_details(ctx)
@@ -163,7 +156,6 @@ class UgcIDResolver:
 
 
 def get_workshop_time_updated(ctx: WorkshopItemContext) -> Optional[int]:
-    """Get time_updated for a workshop item. Returns None on failure."""
     strategy = StandardUgcIdStrategy()
     try:
         details = strategy._get_workshop_items_details(ctx)

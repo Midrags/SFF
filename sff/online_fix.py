@@ -26,12 +26,10 @@ ONLINE_FIX_BASE_URL = "https://online-fix.me"
 
 
 def _get_credentials_path() -> Path:
-    """Get path to credentials file"""
     return root_folder() / CREDENTIALS_FILE
 
 
 def _read_credentials() -> Tuple[Optional[str], Optional[str]]:
-    """Read credentials from file or settings"""
     # Try settings first
     username = get_setting(Settings.ONLINE_FIX_USER)
     password = get_setting(Settings.ONLINE_FIX_PASS)
@@ -54,7 +52,6 @@ def _read_credentials() -> Tuple[Optional[str], Optional[str]]:
 
 
 def _save_credentials(username: str, password: str) -> bool:
-    """Save credentials to settings"""
     try:
         set_setting(Settings.ONLINE_FIX_USER, username)
         set_setting(Settings.ONLINE_FIX_PASS, password)
@@ -65,7 +62,6 @@ def _save_credentials(username: str, password: str) -> bool:
 
 
 def _detect_archiver() -> Tuple[Optional[str], Optional[str]]:
-    """Detect available archiver (WinRAR or 7-Zip)"""
     import shutil as sh
 
     # Check for WinRAR
@@ -90,15 +86,6 @@ def _detect_archiver() -> Tuple[Optional[str], Optional[str]]:
 
 
 def _wait_for_download(folder: Path, max_wait: int = 600) -> Optional[Path]:
-    """
-    Wait for download to complete with enhanced progress tracking
-    
-    Features:
-    - Real-time size display with progress bar
-    - Stall detection (warns if no progress for 10s, fails after 30s)
-    - Antivirus blocking detection (fails if no file appears after 5s)
-    - Stable file detection (file size unchanged for 3 seconds)
-    """
     start = time.time()
     exts = (".rar", ".zip", ".7z")
     sizes = {}
@@ -216,7 +203,6 @@ def _wait_for_download(folder: Path, max_wait: int = 600) -> Optional[Path]:
 def _extract_archive(
     archive_path: Path, target_dir: Path, atype: str, apath: str, password: str = "online-fix.me"
 ) -> bool:
-    """Extract archive to target directory with progress feedback"""
     try:
         archive_size_mb = archive_path.stat().st_size / (1024 * 1024)
         
@@ -555,7 +541,6 @@ def _apply_multiplayer_fix_selenium(
 
 
 def prompt_credentials() -> Tuple[Optional[str], Optional[str]]:
-    """Prompt user for online-fix.me credentials"""
     print("\n" + Fore.CYAN + "Online-fix.me Credentials" + Style.RESET_ALL)
     print("Enter your online-fix.me login credentials.")
     print("These will be saved securely for future use.\n")
@@ -572,16 +557,6 @@ def prompt_credentials() -> Tuple[Optional[str], Optional[str]]:
 
 
 def apply_multiplayer_fix(game_name: str, game_folder: Path) -> bool:
-    """
-    Download and apply multiplayer fix from online-fix.me (Selenium).
-
-    Args:
-        game_name: Name of the game to search for
-        game_folder: Path to game installation folder
-
-    Returns:
-        True if fix was successfully applied
-    """
     username, password = _read_credentials()
     if not username or not password:
         username, password = prompt_credentials()
@@ -610,7 +585,6 @@ def apply_multiplayer_fix(game_name: str, game_folder: Path) -> bool:
 
 
 def manage_credentials() -> None:
-    """Manage online-fix.me credentials"""
     username, password = _read_credentials()
 
     if username:

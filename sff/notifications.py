@@ -28,7 +28,6 @@ except ImportError:
 
 
 class NotificationType(Enum):
-    """Types of notifications"""
     SUCCESS = "Success"
     ERROR = "Error"
     INFO = "Information"
@@ -36,10 +35,8 @@ class NotificationType(Enum):
 
 
 class NotificationService:
-    """Service for displaying Windows toast notifications"""
     
     def __init__(self):
-        """Initialize the notification service"""
         self.toaster: Optional[ToastNotifier] = None
         self.enabled = True
         self.last_notification_time = 0
@@ -53,7 +50,6 @@ class NotificationService:
                 self.enabled = False
     
     def is_enabled(self) -> bool:
-        """Check if notifications are enabled in settings"""
         # For now, always return True if available
         # Can be extended to check Settings in the future
         return self.enabled and NOTIFICATIONS_AVAILABLE and self.toaster is not None
@@ -65,18 +61,6 @@ class NotificationService:
         notification_type: NotificationType = NotificationType.INFO,
         duration: int = 5
     ) -> bool:
-        """
-        Display a toast notification
-        
-        Args:
-            title: Notification title
-            message: Notification message
-            notification_type: Type of notification
-            duration: Duration in seconds
-            
-        Returns:
-            True if notification was shown, False otherwise
-        """
         if not self.is_enabled():
             logger.debug(f"Notifications disabled. Would show: {title} - {message}")
             return False
@@ -112,19 +96,15 @@ class NotificationService:
             return False
     
     def show_success(self, title: str, message: str) -> bool:
-        """Show a success notification"""
         return self.show(title, message, NotificationType.SUCCESS)
     
     def show_error(self, title: str, message: str) -> bool:
-        """Show an error notification"""
         return self.show(title, message, NotificationType.ERROR, duration=10)
     
     def show_info(self, title: str, message: str) -> bool:
-        """Show an info notification"""
         return self.show(title, message, NotificationType.INFO)
     
     def show_update_available(self, version: str) -> bool:
-        """Show an update available notification"""
         return self.show(
             "Update Available",
             f"Version {version} is available for download",
@@ -138,7 +118,6 @@ _notification_service: Optional[NotificationService] = None
 
 
 def get_notification_service() -> NotificationService:
-    """Get or create global notification service instance"""
     global _notification_service
     if _notification_service is None:
         _notification_service = NotificationService()
