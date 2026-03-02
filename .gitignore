@@ -48,3 +48,13 @@ SteaMidra-*.zip
 bfg-report/
 uv.lock
 notes.txt
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
