@@ -1,3 +1,6 @@
+# Imporant Update!!! 
+Steam has updated and if you accidently update your stime client to a version after 10/03/2026 then GreenLuma wont work!!! Use this to "revert" steam version: "C:\Program Files (x86)\Steam\steam.exe" -forcesteamupdate -forcepackagedownload -overridepackageurl http://web.archive.org/web/20260122074724if_/media.steampowered.com/client -exitsteam
+
 # SteaMidra (Education purposes only)
 
 "Made/modifed" by Midrag (me) and my brother!
