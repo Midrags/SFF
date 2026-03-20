@@ -50,7 +50,7 @@ Download gbe_fork_tools (https://github.com/Detanup01/gbe_fork_tools/releases) (
 - CLI: Run `build_simple.bat`, then run `SteaMidra.exe` (administrator preferred).
 - GUI: Run `pip install -r requirements-consumer.txt` (or `requirements.txt`), then `build_simple_gui.bat`, then run `SteaMidra_GUI.exe`.
 
-### Step 3: GreenLuma
+### Step 4: GreenLuma
 
 Download GreenLuma and set it up: https://www.up-4ever. net/h3vt78x7jdap
 
