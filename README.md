@@ -37,7 +37,10 @@ venv\Scripts\activate
 pip install -r requirements-consumer.txt
 ```
 
-### Step 2: Run SteaMidra
+### step 2: Download GBE
+Download gbe_fork_tools (https://github.com/Detanup01/gbe_fork_tools/releases) (compiled) and paste the generate_emu_config folder inside \third_party\gbe_fork_tools. It should look something like this now:
+
+### Step 3: Run SteaMidra
 
 **With Python:**
 - CLI: `python Main.py`
