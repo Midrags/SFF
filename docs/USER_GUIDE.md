@@ -1,0 +1,120 @@
+# SteaMidra User Guide
+
+## Menu options
+
+### Process a .lua file
+The main way to add a game. Goes through these steps:
+
+**1. Input**
+- Add a .lua file — manually pick a .lua file you have
+- Choose from saved .lua files — every file you process gets saved, find it here (useful for updates)
+- Automatically download a .lua file — download one from oureveryday or Morrenus
+
+**2. GreenLuma achievement tracking**
+"Would you like GreenLuma (normal mode) to track achievements?"
+GreenLuma can store achievements in the registry. They can be viewed with Achievement Watcher (use darktakayanagi's fork for GL2025 support).
+
+**3. Adding AppList IDs**
+IDs from the .lua file are added to the AppList folder.
+
+**4. DLC Check**
+Runs the DLC check automatically (see Check DLC section below).
+
+**5. Config VDF writing**
+Decryption keys from each depot are written into Steam's config.vdf.
+
+**6. Lua backup**
+The .lua file is saved to the `saved_lua` folder.
+
+**7. ACF writing**
+Creates or overwrites the .acf file for the game. ACF files tell Steam the state of a game installation. If SteaMidra asks "Are you updating a game you already have installed or is this a new installation?", choose "I'm updating a game" to skip rewriting it, or "New installation" to overwrite it.
+
+**8. Manifest downloading**
+Manifests are downloaded and moved to Steam's depotcache folder.
+
+### Process a .lua file (Manifest downloads only)
+Like the main option but skips AppList, config.vdf, and ACF steps — only does the .lua input, backup, and manifest downloads. Has an extra prompt asking if you want to move the manifest files to a different folder (useful for sending to a Linux machine via ACCELA). Hidden by default; enable Advanced Mode in Settings to see it.
+
+### Process recent .lua file
+Opens a list of the last .lua files you processed so you can run one again quickly without browsing for the file.
+
+### Update manifests for all outdated games
+Scans your Steam library for games that have outdated manifests and updates them in one go.
+
+### Scan game library
+Scans all your Steam libraries and lists your installed games. Shows which ones have Lua backups saved and which might need manifest updates.
+
+### Download workshop item manifest
+Paste a Steam Workshop URL or item/collection ID to download its manifest. Supports both single items and full collections.
+
+### Check for mod updates
+Tracks workshop items you have and checks if newer versions are available. You can update outdated mods from here.
+
+### Check DLC status of a game
+Shows all DLC for a game and whether each one is available to you. There are two types:
+- **DOWNLOAD REQUIRED** — has a depot, you need a .lua file that contains keys for that DLC
+- **PRE-INSTALLED** — no depot needed, just add the DLC ID to your AppList folder (SteaMidra can do this for you)
+
+### DLC Unlockers (CreamInstaller)
+Install DLC unlockers for Steam or Ubisoft games. For Steam games you can use SmokeAPI or CreamAPI (with optional Koaloader). For Ubisoft games, older and newer Ubisoft Connect unlockers are supported. The menu will guide you through choosing the game and which DLC to unlock.
+
+### Crack a game (gbe_fork)
+Uses gbe_fork to disconnect a game from Steam so it can run offline/independently. gbe_fork can also track achievements locally and has its own in-game overlay.
+
+### Remove SteamStub DRM (Steamless)
+Some games have SteamStub DRM that causes them to fail when launched without Steam's DRM validation. Run this to strip it using Steamless.
+
+### Download UserGameStatsSchema
+Downloads the achievements schema for a game. Uncracked games can use Steam's own achievement system when running in Offline Mode. Use this to create the files needed for that.
+
+### Apply multiplayer fix (online-fix.me)
+Logs into online-fix.me, finds the fix for your game, downloads it, and extracts it into the game folder. You need an account on online-fix.me. SteaMidra stores your credentials securely after the first use. See [Multiplayer Fix](MULTIPLAYER_FIX.md) for more detail.
+
+### Offline Mode Fix
+GreenLuma has a bug where Steam gets stuck if launched in Offline Mode. This toggles the Offline Mode flag in Steam's loginusers.vdf for the selected user so you can get back to Online Mode.
+
+### Manage AppList IDs
+View and delete IDs that have been added to your AppList folder. Also lets you manage AppList profiles if you need to work around GreenLuma's 130–134 ID limit (see README for how profiles work).
+
+### Remove a game from library (stplug-in)
+Removes a game's Lua from the stplug-in folder and cleans up its AppList entry. Choose from a list of games or type an App ID. Restart Steam afterward for changes to take effect.
+
+### View analytics dashboard
+Shows local usage stats — how many operations you ran, which features you used most, and success rates. Nothing is sent online; it's all stored locally.
+
+### Check for updates
+Checks GitHub for the latest SteaMidra release and compares it to your version. If a newer version is available you can download and update automatically (source installs will relaunch; EXE users need to rebuild).
+
+### Install/Uninstall Context Menu
+Adds or removes a right-click option on .lua and .zip files in Windows Explorer that opens SteaMidra directly into the "Process a .lua file" step with that file already loaded.
+
+### SteamAutoCrack
+Runs the SteamAutoCrack CLI on a game. Choose a Steam game from your library or point to any game folder outside Steam. Requires the SteamAutoCrack repo placed in `third_party/SteamAutoCrack` with the CLI built into `third_party/SteamAutoCrack/cli/`.
+
+### Settings
+Edit, export, or import SteaMidra settings. Settings are usually set automatically as you use the tool, but you can change Steam path, GreenLuma folder, API keys, credentials, and feature toggles here. Export saves your config to a JSON file; import loads it back.
+
+---
+
+## File locations
+
+| File | Purpose |
+|---|---|
+| `settings.bin` | All SteaMidra settings (encrypted where needed) |
+| `saved_lua/` | Backup of every .lua file you have processed |
+| `debug.log` | Detailed log of the last run |
+| `recent_files.json` | List of recently processed .lua files |
+| `Steam/config/config.vdf` | Where decryption keys are written |
+| `Steam/steamapps/depotcache/` | Where manifests are placed |
+| `Steam/steamapps/appmanifest_*.acf` | Game state file written by the ACF step |
+
+---
+
+## Tips
+
+- **Use full game names** when searching online-fix.me (e.g. "Counter-Strike: Global Offensive" not "CS:GO").
+- **Credentials** for online-fix.me are stored encrypted after the first use. Update them in Settings if they change.
+- **If Steam path is wrong**, go to Settings → Steam Installation Path and set it manually to the folder containing steam.exe.
+- **Antivirus** may flag files downloaded by SteaMidra (false positives are common with game-related tools). Exclude the SteaMidra folder and `sff\dlc_unlockers\resources` from Windows Security if needed.
+- **Run as administrator** if you get permission errors.
+- For more detail on specific features, see the [Feature Guide](FEATURE_USAGE_GUIDE.md). For problems, see [Troubleshooting](TROUBLESHOOTING.md).
