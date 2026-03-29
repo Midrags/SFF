@@ -157,7 +157,7 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 **fzf** – Used for fuzzy search in menus (CLI). License in `third_party_licenses/fzf.LICENSE`.
 
-**SteamAutoCrack** – The SteamAutoCrack feature uses the **SteamAutoCrack CLI** by oureveryday. Must be placed in `third_party/SteamAutoCrack` by the user. Not shipped with SteaMidra.
+**SteamAutoCrack** – The SteamAutoCrack feature uses the **SteamAutoCrack CLI** by oureveryday. License in `third_party_licenses/SteamAutoCrack.LICENSE`.
 
 **CreamInstaller** – The DLC Unlockers feature is inspired by and compatible with CreamInstaller. SteaMidra does not ship CreamInstaller; it provides its own implementation that follows similar behavior.
 
