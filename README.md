@@ -11,7 +11,7 @@ Quick thing before we start remember to exclude the SteaMidra folder from Window
 
 SteaMidra helps you set up games to work with Steam using Lua scripts, manifests, and GreenLuma. It writes the right files into your Steam folder so games and DLC can run. It does not replace or crack Steam itself.
 
-**Need help?** Check the [documentation](docs/README.md) or reach out to me Merium0 on the discord and we'll sort it out. Just made a new discord server people could join: https://discord.gg/YyDgW8U3NR
+**Need help?** Check the [documentation](docs/README.md) or reach out to me Merium0 on the discord and we'll sort it out. Just made a new discord server people could join: https://discord.gg/yp3UA6QdBC
 
 **Small video about SteaMidra** https://youtu.be/HwAKjOGBfCc
 
