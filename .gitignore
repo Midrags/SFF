@@ -20,6 +20,8 @@ __pycache__/
 *.pyo
 *.egg-info/
 Codestouse/
+typings/
+typings/steam/
 
 # Virtual environments & user-specific data
 .venv/
