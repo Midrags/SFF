@@ -2,6 +2,19 @@
 # Versions taken from requirements-consumer.txt (more recent); gui + online-fix merged in.
 #
 # ---------------------------------------------------------------
+# INSTALLATION (two commands required due to steam urllib3 conflict)
+#
+#   Step 1:  pip install -r requirements.txt
+#   Step 2:  pip install steam==1.4.4 --no-deps
+#
+# Why? steam==1.4.4 metadata declares urllib3<2, but selenium 4.x
+# needs urllib3>=2.x. Steam only uses `requests` at runtime and works
+# fine with urllib3 2.x — the constraint is just stale. Installing
+# steam with --no-deps bypasses the check; all its deps are already
+# installed by Step 1.
+# ---------------------------------------------------------------
+#
+# ---------------------------------------------------------------
 # OPTIONAL: Tor Expert Bundle  (not a Python package, not via pip)
 #
 # Used as automatic fallback when the primary GMRC endpoint
@@ -229,8 +242,13 @@ sniffio==1.3.1
     #   trio
 sortedcontainers==2.4.0
     # via trio
-steam==1.4.4
-    # via steam-manifest-decrypt (pyproject.toml)
+# steam==1.4.4 has an overly conservative urllib3<2 constraint that conflicts with
+# selenium 4.x (needs urllib3>=2.x). Steam only uses `requests` at runtime and
+# works fine with urllib3 2.x. Install it AFTER pip install -r requirements.txt:
+#   pip install steam==1.4.4 --no-deps
+# All of steam's transitive deps (gevent, six, protobuf, etc.) are already above.
+# steam==1.4.4
+#     # via steam-manifest-decrypt (pyproject.toml)
 tomli==2.4.0
     # via black
 torpy==1.1.6
@@ -253,6 +271,9 @@ urllib3==2.6.3
     # via
     #   requests
     #   selenium
+    # NOTE: steam==1.4.4 has urllib3<2 in its setup.py but only uses requests
+    # at runtime — works fine with urllib3 2.x. Install steam with --no-deps
+    # (see steam comment above) to bypass the constraint check.
 vdf==3.4
     # via
     #   steam-manifest-decrypt (pyproject.toml)

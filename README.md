@@ -24,8 +24,11 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 
 ### Step 1: Install dependencies
 
+**Two commands are required** (steam has a stale `urllib3<2` constraint that conflicts with Selenium; `--no-deps` bypasses it — steam works fine at runtime with urllib3 2.x):
+
 ```batch
 pip install -r requirements.txt
+pip install steam==1.4.4 --no-deps
 ```
 
 If you get dependency conflicts with other projects on your system, use a virtual environment:
@@ -34,6 +37,7 @@ If you get dependency conflicts with other projects on your system, use a virtua
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
+pip install steam==1.4.4 --no-deps
 ```
 
 ### Step 2: Download gbe_fork_tools
@@ -120,13 +124,21 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in the latest update.
 
 ## Requirements
 
-`requirements.txt` covers everything: CLI, GUI (PyQt6), online-fix (Selenium), and Tor fallback. One file, one command.
+`requirements.txt` covers everything: CLI, GUI (PyQt6), online-fix (Selenium), and Tor fallback.
+
+**Install with two commands:**
+```batch
+pip install -r requirements.txt
+pip install steam==1.4.4 --no-deps
+```
+
+The second command is needed because `steam==1.4.4` has a stale `urllib3<2` constraint that conflicts with Selenium 4.x. Steam only uses `requests` at runtime and works perfectly with urllib3 2.x — `--no-deps` simply skips the outdated constraint check.
 
 More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 ## Troubleshooting
 
-**Dependency conflicts** – Use a virtual environment (see Step 1 above).
+**Dependency conflicts / urllib3 error** – Run both install commands from Step 1 above (requirements.txt first, then `pip install steam==1.4.4 --no-deps`). If conflicts persist with other projects on your system, use a virtual environment.
 
 **ModuleNotFoundError** – Dependencies are not installed. Run `pip install -r requirements.txt`.
 

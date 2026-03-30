@@ -1083,7 +1083,11 @@ class UI:
                     + "\nDownloading Manifests:"
                     + Style.RESET_ALL
                 )
-                downloader.download_manifests(parsed_lua, auto_manifest=True)
+                use_parallel = get_setting(Settings.USE_PARALLEL_DOWNLOADS)
+                if use_parallel:
+                    downloader.download_manifests_parallel(parsed_lua, auto_manifest=True)
+                else:
+                    downloader.download_manifests(parsed_lua, auto_manifest=True)
         if steam_proc:
             steam_proc.prompt_launch_or_restart()
         print(
@@ -1209,7 +1213,11 @@ class UI:
                     str(parsed_lua.app_id),
                     lua_manager.saved_lua / f"{parsed_lua.app_id}.lua",
                 )
-                downloader.download_manifests(parsed_lua, auto_manifest=True)
+                use_parallel = get_setting(Settings.USE_PARALLEL_DOWNLOADS)
+                if use_parallel:
+                    downloader.download_manifests_parallel(parsed_lua, auto_manifest=True)
+                else:
+                    downloader.download_manifests(parsed_lua, auto_manifest=True)
                 updated_count += 1
         
         print(Fore.GREEN + f"\n✓ Updated {updated_count} games" + Style.RESET_ALL)
