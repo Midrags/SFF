@@ -67,11 +67,10 @@ async def get_request(
             except ValueError:
                 return
         else:
-            print(f"Error {response.status_code}")
-            print(f"Response: {response.text}")
+            logger.debug(f"Error {response.status_code}: {response.text[:200]}")
 
     except httpx.RequestError as e:
-        print(f"An error occurred: {repr(e)}")
+        logger.debug(f"Request error: {repr(e)}")
 
 
 def get_request_raw(url: str):
@@ -138,26 +137,34 @@ def _fetch_gmrc_via_tor(manifest_id: Union[str, int]) -> Union[str, None]:
     # Note: torpy only supports v2 hidden services; the KurO onion is v3, so
     # this path will raise an exception for that address.  It is included so
     # that the feature works if a v2 or clearnet fallback URL is ever added.
-    try:
-        from torpy.http.requests import TorRequests  # type: ignore
-        print("  Trying pure-Python Tor (torpy) — building circuit...")
-        with TorRequests() as tor_req:
-            with tor_req.get_session() as sess:
-                resp = sess.get(onion_url, timeout=60)
-                if resp.status_code == 200 and resp.text.strip():
-                    logger.debug("torpy GMRC fetch succeeded")
-                    return resp.text.strip()
-    except ImportError:
-        logger.debug("torpy not installed; skipping pure-Python Tor path")
-    except Exception as e:
-        logger.debug(f"torpy failed (v3 onion not supported by torpy): {e}")
+    #
+    # torpy uses ssl.wrap_socket which was removed in Python 3.12.  When run
+    # on 3.12+ it catches the resulting AttributeError internally and retries
+    # with hundreds of different guard nodes before eventually giving up —
+    # causing a multi-minute hang per manifest worker.  Skip it entirely.
+    if sys.version_info >= (3, 12):
+        logger.debug("torpy: skipping — ssl.wrap_socket removed in Python 3.12+; use Tor Expert Bundle instead")
+    else:
+        try:
+            from torpy.http.requests import TorRequests  # type: ignore
+            print("  Trying pure-Python Tor (torpy) — building circuit...")
+            with TorRequests() as tor_req:
+                with tor_req.get_session() as sess:
+                    resp = sess.get(onion_url, timeout=60)
+                    if resp.status_code == 200 and resp.text.strip():
+                        logger.debug("torpy GMRC fetch succeeded")
+                        return resp.text.strip()
+        except ImportError:
+            logger.debug("torpy not installed; skipping pure-Python Tor path")
+        except Exception as e:
+            logger.debug(f"torpy failed (v3 onion not supported by torpy): {e}")
 
     return None
 
 
 # Lowkey don't remember why i wrote it like this.
 # It uses a default timeout of 10s but i think it still got stuck?
-async def get_gmrc(manifest_id: Union[str, int]) -> Union[str, None]:
+async def get_gmrc(manifest_id: Union[str, int], silent: bool = False, try_tor: bool = True) -> Union[str, None]:
     # Yes, I'm aware it's not actually "encrypted" since I included the password
     # Shut up.
     template_url = b64_decrypt(
@@ -204,6 +211,9 @@ async def get_gmrc(manifest_id: Union[str, int]) -> Union[str, None]:
     if result is not None:
         return result
 
+    if not try_tor:
+        return None
+
     # --- Fallback 1: Auto-Tor via local SOCKS5 proxy (no Tor Browser needed) ---
     onion_url = f"http://xmctrpypzbmakjquef3ph3l3coqfmhbrp6gerqymhmlj2bg7473gmyd.onion/{manifest_id}"
     print("\nMain endpoint unavailable. Trying Tor network automatically...")
@@ -213,6 +223,9 @@ async def get_gmrc(manifest_id: Union[str, int]) -> Union[str, None]:
     if result is not None:
         print("✅ Got request code via Tor!")
         return result
+
+    if silent:
+        return None
 
     print("Tor unavailable (no local Tor daemon on 9050/9150).")
     print("Install Tor daemon: https://www.torproject.org/download/#tor-downloads")

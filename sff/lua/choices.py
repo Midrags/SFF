@@ -154,4 +154,4 @@ def download_lua(dest: Path, os_type: OSType) -> LuaResult:
     if lua_path is None:
         return LuaResult(None, None, LuaChoiceReturnCode.LOOP)
 
-    return LuaResult(lua_path, None, LuaChoiceReturnCode.LOOP)
+    return LuaResult(lua_path, None, LuaChoiceReturnCode.LOOP, endpoint=source)

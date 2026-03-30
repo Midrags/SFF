@@ -224,6 +224,8 @@ class LuaResult(NamedTuple):
     "The string contents of the lua file"
     switch_choice: Union["LuaChoice", "LuaChoiceReturnCode"]
     "A LuaChoice to switch to."
+    endpoint: Optional["LuaEndpoint"] = None
+    "The LuaEndpoint used to download this lua, if applicable"
 
 
 class GenEmuMode(Enum):

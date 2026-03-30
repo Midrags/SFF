@@ -5,6 +5,7 @@
 ### Fixes & Improvements
 
 - **ACF installdir fix:** Fixed a bug where `write_acf` could write an empty `installdir` to the ACF file if the Steam Store API request failed and no name was entered. An empty installdir causes Steam to report "not enough free disk space" even when plenty of space is available, because Steam cannot figure out where to commit the staged download. SteaMidra now falls back to the App ID as the folder name and prints a warning so you know to rename it if needed.
+- **oureveryday fallback fix:** Fixed the oureveryday option incorrectly falling back to Morrenus when manifests couldn't be fetched directly. The oureveryday path now uses this exact order: (1) encrypted site (`st-gmrc.kur0.deno.dev`) → Steam CDN, (2) Tor onion link → Steam CDN (if Tor Expert Bundle is running on port 9050/9150), (3) ManifestHub API (always up-to-date, needs API key in Settings), (4) ManifestHub GitHub direct (free, no key, may be a few weeks old), (5) interactive CDN prompt as absolute last resort. Morrenus is now only used when you explicitly chose the Morrenus option.
 
 ---
 
