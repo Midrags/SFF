@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import httpx
+
 from colorama import Fore, Style
 
 from sff.http_utils import download_to_tempfile, get_request
@@ -25,6 +27,16 @@ def get_oureverday(dest: Path, app_id: str):
         )
     )
     if lua_contents is None:
+        print(
+            Fore.RED
+            + f"\nFailed to download Lua for App ID {app_id} from oureveryday."
+            + Style.RESET_ALL
+        )
+        print(
+            Fore.YELLOW
+            + "The game may not be available on this source, or there is a network error."
+            + Style.RESET_ALL
+        )
         return
     lua_path = dest / f"{app_id}.lua"
     with lua_path.open("w", encoding="utf-8") as f:
@@ -52,25 +64,42 @@ def get_morrenus(dest: Path, app_id: str) -> Optional[Path]:
             "Authorization": f"Bearer {morrenus_key}",
         }
 
-        data = asyncio.run(
-            get_request(
+        try:
+            stats_resp = httpx.get(
                 "https://manifest.morrenus.xyz/api/v1/user/stats",
-                type="json",
                 headers=headers,
+                timeout=15,
+                follow_redirects=True,
             )
-        )
-        
-        if data is None:
-            print(Fore.RED + "\nError: Failed to authenticate with Morrenus API" + Style.RESET_ALL)
-            print(Fore.YELLOW + "Your API key may be invalid or expired." + Style.RESET_ALL)
-            
+        except httpx.ConnectError:
+            print(
+                Fore.RED
+                + "\nNetwork error: Cannot reach Morrenus API."
+                  " Check your internet connection."
+                + Style.RESET_ALL
+            )
+            return None
+        except httpx.RequestError as e:
+            print(Fore.RED + f"\nNetwork error connecting to Morrenus: {e}" + Style.RESET_ALL)
+            return None
+
+        if stats_resp.status_code == 401:
+            print(Fore.RED + "\nMorrenus API key is invalid or expired." + Style.RESET_ALL)
             if prompt_confirm("Do you want to enter a new API key?"):
                 set_setting(Settings.MORRENUS_KEY, "")
                 continue
             else:
                 print(Fore.YELLOW + "\nYou can update your API key in Settings later." + Style.RESET_ALL)
                 return None
-        
+        elif stats_resp.status_code != 200:
+            print(
+                Fore.RED
+                + f"\nMorrenus API returned HTTP {stats_resp.status_code}."
+                + Style.RESET_ALL
+            )
+            return None
+
+        data = stats_resp.json()
         break
             
     usage = data.get("daily_usage")
