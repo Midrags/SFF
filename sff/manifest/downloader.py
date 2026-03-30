@@ -40,9 +40,10 @@ logger = logging.getLogger(__name__)
 
 
 class ManifestDownloader:
-    def __init__(self, provider: SteamInfoProvider, steam_path: Path):
+    def __init__(self, provider: SteamInfoProvider, steam_path: Path, use_morrenus: bool = False):
         self.steam_path = steam_path
         self.provider = provider
+        self.use_morrenus = use_morrenus
 
     def get_dlc_manifest_status(self, depot_ids: list[int]):
         manifest_ids: dict[int, bool] = {}
@@ -165,6 +166,115 @@ class ManifestDownloader:
             logger.debug(f"Morrenus request failed: {e}")
         return None
 
+    def _try_github_manifest_direct(
+        self, app_id: str, depot_id: str, manifest_id: str, target: Path
+    ) -> bool:
+        url = (
+            f"https://raw.githubusercontent.com/qwe213312/k25FCdfEOoEJ42S6"
+            f"/main/{depot_id}_{manifest_id}.manifest"
+        )
+        try:
+            resp = httpx.get(url, timeout=30, follow_redirects=True)
+            if resp.status_code == 200 and resp.content:
+                target.write_bytes(resp.content)
+                print(
+                    Fore.GREEN
+                    + f"\u2705 GitHub mirror: got manifest for depot {depot_id}"
+                    + Style.RESET_ALL
+                )
+                return True
+            if resp.status_code == 404:
+                logger.debug(f"GitHub mirror: manifest not found for depot {depot_id}")
+            else:
+                logger.debug(f"GitHub mirror returned HTTP {resp.status_code} for depot {depot_id}")
+        except Exception as e:
+            logger.debug(f"GitHub mirror download failed for depot {depot_id}: {e}")
+        return False
+
+    def _try_github_manifest_bytes(
+        self, app_id: str, depot_id: str, manifest_id: str
+    ) -> Optional[bytes]:
+        url = (
+            f"https://raw.githubusercontent.com/qwe213312/k25FCdfEOoEJ42S6"
+            f"/main/{depot_id}_{manifest_id}.manifest"
+        )
+        try:
+            resp = httpx.get(url, timeout=30, follow_redirects=True)
+            if resp.status_code == 200 and resp.content:
+                print(
+                    Fore.GREEN
+                    + f"\u2705 GitHub mirror: got manifest for depot {depot_id}"
+                    + Style.RESET_ALL
+                )
+                return resp.content
+            if resp.status_code == 404:
+                logger.debug(f"GitHub mirror: manifest not found for depot {depot_id}")
+            else:
+                logger.debug(f"GitHub mirror returned HTTP {resp.status_code} for depot {depot_id}")
+        except Exception as e:
+            logger.debug(f"GitHub mirror fetch failed for depot {depot_id}: {e}")
+        return None
+
+    def _try_manifesthub_combined(
+        self, depot_id: str, manifest_id: str, app_id: str
+    ) -> Optional[bytes]:
+        """
+        Fire ManifestHub API and GitHub mirror simultaneously.
+        API is preferred when both return data (same manifest_id → identical content).
+        Falls back to mirror if API misses, and vice-versa.
+        """
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f_api    = pool.submit(self._try_manifesthub, depot_id, manifest_id)
+            f_github = pool.submit(
+                self._try_github_manifest_bytes, app_id, depot_id, manifest_id
+            )
+            api_bytes    = f_api.result()
+            github_bytes = f_github.result()
+
+        if api_bytes is not None and github_bytes is not None:
+            logger.debug(
+                f"Depot {depot_id}: ManifestHub API and GitHub both returned data "
+                f"for manifest {manifest_id} — versions match (same manifest_id). Using API."
+            )
+            return api_bytes
+
+        if api_bytes is not None:
+            return api_bytes
+
+        if github_bytes is not None:
+            return github_bytes
+
+        return None
+
+    def _log_mirror_coverage(
+        self, app_id: str, depot_manifest_pairs: list[tuple[str, str]]
+    ) -> int:
+        """
+        Queries GitHub API for the mirror repo and counts how many of the needed
+        {depot_id}_{manifest_id}.manifest files it has. Purely informational.
+        """
+        needed = {f"{d}_{m}.manifest" for d, m in depot_manifest_pairs}
+        try:
+            resp = httpx.get(
+                "https://api.github.com/repos/qwe213312/k25FCdfEOoEJ42S6/git/trees/main?recursive=1",
+                timeout=15,
+                headers={"Accept": "application/vnd.github.v3+json"},
+                follow_redirects=True,
+            )
+            if resp.status_code == 200:
+                files = {item["path"] for item in resp.json().get("tree", []) if item.get("type") == "blob"}
+                count = len(needed & files)
+                print(
+                    Fore.CYAN
+                    + f"GitHub mirror coverage: {count}/{len(needed)} manifests available"
+                    + Style.RESET_ALL
+                )
+                return count
+            logger.debug(f"GitHub mirror API returned HTTP {resp.status_code}")
+        except Exception as e:
+            logger.debug(f"GitHub mirror coverage check failed: {e}")
+        return 0
+
     def _try_manifesthub(self, depot_id: str, manifest_id: str) -> Optional[bytes]:
         # Hits the ManifestHub API; key is auto-fetched and renewed as needed.
         api_key = get_manifesthub_api_key()
@@ -199,28 +309,71 @@ class ManifestDownloader:
         return None
 
     def download_single_manifest(
-        self, depot_id: str, manifest_id: str, cdn_client: Optional[CDNClient] = None
+        self,
+        depot_id: str,
+        manifest_id: str,
+        cdn_client: Optional[CDNClient] = None,
+        app_id: str = "",
     ):
-        # Morrenus on-demand: fastest when key is set (cached after first gen)
-        morrenus_result = self._try_morrenus_generate(depot_id, manifest_id)
-        if morrenus_result is not None:
-            return morrenus_result
+        if cdn_client is None:
+            cdn_client = self.get_cdn_client()
 
-        mh_result = self._try_manifesthub(depot_id, manifest_id)
+        if self.use_morrenus:
+            # Morrenus path: Morrenus → ManifestHub API → CDN (interactive)
+            morrenus_result = self._try_morrenus_generate(depot_id, manifest_id)
+            if morrenus_result is not None:
+                return morrenus_result
+            mh_result = self._try_manifesthub(depot_id, manifest_id)
+            if mh_result is not None:
+                return mh_result
+            req_code = self.resolve_gmrc(manifest_id)
+            if req_code is None:
+                return None
+            cdn_server = cast(ContentServer, cdn_client.get_content_server())
+            cdn_server_name = f"http{'s' if cdn_server.https else ''}://{cdn_server.host}"
+            manifest_url = urljoin(
+                cdn_server_name, f"depot/{depot_id}/manifest/{manifest_id}/5/{req_code}"
+            )
+            logger.debug(f"Download manifest from {manifest_url}")
+            return get_request_raw(manifest_url)
+
+        # oureveryday path ─────────────────────────────────────────────────────
+        # Step 1: clearnet endpoint only (no Tor yet — ManifestHub runs next)
+        req_code = asyncio.run(get_gmrc(manifest_id, silent=True, try_tor=False))
+        if req_code is not None:
+            cdn_server = cast(ContentServer, cdn_client.get_content_server())
+            cdn_server_name = f"http{'s' if cdn_server.https else ''}://{cdn_server.host}"
+            manifest_url = urljoin(
+                cdn_server_name, f"depot/{depot_id}/manifest/{manifest_id}/5/{req_code}"
+            )
+            logger.debug(f"Download manifest from {manifest_url}")
+            result = get_request_raw(manifest_url)
+            if result is not None:
+                return result
+
+        # Step 2: ManifestHub API + GitHub simultaneously (API preferred)
+        if app_id:
+            mh_result = self._try_manifesthub_combined(depot_id, manifest_id, app_id)
+        else:
+            mh_result = self._try_manifesthub(depot_id, manifest_id)
         if mh_result is not None:
             return mh_result
 
-        if cdn_client is None:
-            cdn_client = self.get_cdn_client()
-        req_code = self.resolve_gmrc(manifest_id)
-        cdn_server = cast(ContentServer, cdn_client.get_content_server())
-        cdn_server_name = f"http{'s' if cdn_server.https else ''}://{cdn_server.host}"
-        manifest_url = urljoin(
-            cdn_server_name, f"depot/{depot_id}/manifest/{manifest_id}/5/{req_code}"
-        )
+        # Step 3: Tor SOCKS5 (only tried after ManifestHub fully fails)
+        req_code = asyncio.run(get_gmrc(manifest_id, silent=True))
+        if req_code is not None:
+            cdn_server = cast(ContentServer, cdn_client.get_content_server())
+            cdn_server_name = f"http{'s' if cdn_server.https else ''}://{cdn_server.host}"
+            manifest_url = urljoin(
+                cdn_server_name, f"depot/{depot_id}/manifest/{manifest_id}/5/{req_code}"
+            )
+            logger.debug(f"Download manifest from {manifest_url}")
+            result = get_request_raw(manifest_url)
+            if result is not None:
+                return result
 
-        logger.debug(f"Download manifest from {manifest_url}")
-        return get_request_raw(manifest_url)
+        # Step 4 (interactive CDN) handled by the caller
+        return None
 
     def resolve_gmrc(self, manifest_id: str):
         while True:
@@ -261,6 +414,11 @@ class ManifestDownloader:
         cdn = self.get_cdn_client()
         manifest_ids = self.get_manifest_ids(lua, auto_manifest)
 
+        if not self.use_morrenus and lua.app_id:
+            pairs = [(d, m) for d, m in manifest_ids.items() if m]
+            if pairs:
+                self._log_mirror_coverage(lua.app_id, pairs)
+
         manifest_paths: list[Path] = []
         for pair in lua.depots:
             depot_id = pair.depot_id
@@ -292,20 +450,57 @@ class ManifestDownloader:
                     shutil.move(possible_saved_manifest, final_manifest_loc)
                 sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
                 continue
-            manifest = self.download_single_manifest(depot_id, manifest_id, cdn)
+
+            if final_manifest_loc.exists():
+                sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
+                continue
+
+            # Steps 1-4 for oureveryday (silent), or full Morrenus chain
+            manifest = self.download_single_manifest(
+                depot_id, manifest_id, cdn, app_id=lua.app_id
+            )
 
             if manifest:
                 if decrypt:
                     decrypt_and_save_manifest(manifest, final_manifest_loc, dec_key)
                 else:
                     extracted = read_nth_file_from_zip_bytes(0, manifest)
-                    if not extracted:
-                        raise Exception("File isn't a ZIP. This shouldn't happen.")
-                    with final_manifest_loc.open("wb") as f:
-                        f.write(extracted.read())
-
+                    if extracted:
+                        with final_manifest_loc.open("wb") as f:
+                            f.write(extracted.read())
+                    else:
+                        # ManifestHub (API or GitHub) returns raw bytes, not ZIP-wrapped
+                        final_manifest_loc.write_bytes(manifest)
                 manifest_paths.append(final_manifest_loc)
                 sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
+                continue
+
+            if not self.use_morrenus:
+                # Step 5: Interactive CDN – prompt user for request code as last resort
+                print(
+                    Fore.YELLOW
+                    + f"\nAll automated sources failed for depot {depot_id}. Trying interactive CDN..."
+                    + Style.RESET_ALL
+                )
+                req_code = self.resolve_gmrc(manifest_id)
+                if req_code is not None:
+                    cdn_server = cast(ContentServer, cdn.get_content_server())
+                    cdn_server_name = f"http{'s' if cdn_server.https else ''}://{cdn_server.host}"
+                    manifest_url = urljoin(
+                        cdn_server_name, f"depot/{depot_id}/manifest/{manifest_id}/5/{req_code}"
+                    )
+                    last_resort = get_request_raw(manifest_url)
+                    if last_resort:
+                        if decrypt:
+                            decrypt_and_save_manifest(last_resort, final_manifest_loc, dec_key)
+                        else:
+                            extracted = read_nth_file_from_zip_bytes(0, last_resort)
+                            if extracted:
+                                with final_manifest_loc.open("wb") as f:
+                                    f.write(extracted.read())
+                                manifest_paths.append(final_manifest_loc)
+                                sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
+
         return manifest_paths
     
     def download_manifests_parallel(
@@ -323,6 +518,11 @@ class ManifestDownloader:
         
         cdn = self.get_cdn_client()
         manifest_ids = self.get_manifest_ids(lua, auto_manifest)
+
+        if not self.use_morrenus and lua.app_id:
+            pairs = [(d, m) for d, m in manifest_ids.items() if m]
+            if pairs:
+                self._log_mirror_coverage(lua.app_id, pairs)
         
         download_tasks = []
         for pair in lua.depots:
@@ -339,7 +539,8 @@ class ManifestDownloader:
                 'depot_id': depot_id,
                 'manifest_id': manifest_id,
                 'dec_key': dec_key,
-                'decrypt': decrypt
+                'decrypt': decrypt,
+                'app_id': lua.app_id,
             })
         
         if not download_tasks:
@@ -357,6 +558,7 @@ class ManifestDownloader:
             manifest_id = task['manifest_id']
             dec_key = task['dec_key']
             decrypt_flag = task['decrypt']
+            app_id = task.get('app_id', '')
             
             try:
                 final_manifest_loc = depotcache / f"{depot_id}_{manifest_id}.manifest"
@@ -370,22 +572,28 @@ class ManifestDownloader:
                     shutil.move(possible_saved_manifest, final_manifest_loc)
                     sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
                     return (True, depot_id, manifest_id, final_manifest_loc, "Moved from saved")
-                
-                manifest = self.download_single_manifest(depot_id, manifest_id, cdn)
-                
+
+                # Steps 1-4 for oureveryday (silent), or full Morrenus chain
+                manifest = self.download_single_manifest(
+                    depot_id, manifest_id, cdn, app_id=app_id
+                )
+
                 if manifest:
                     if decrypt_flag:
                         decrypt_and_save_manifest(manifest, final_manifest_loc, dec_key)
                     else:
                         extracted = read_nth_file_from_zip_bytes(0, manifest)
-                        if not extracted:
-                            return (False, depot_id, manifest_id, None, "Not a ZIP file")
-                        with final_manifest_loc.open("wb") as f:
-                            f.write(extracted.read())
+                        if extracted:
+                            with final_manifest_loc.open("wb") as f:
+                                f.write(extracted.read())
+                        else:
+                            # ManifestHub (API or GitHub) returns raw bytes, not ZIP-wrapped
+                            final_manifest_loc.write_bytes(manifest)
                     sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
                     return (True, depot_id, manifest_id, final_manifest_loc, "Downloaded")
-                else:
-                    return (False, depot_id, manifest_id, None, "Download failed")
+
+                # Step 5 (interactive CDN) cannot run in parallel mode; report failure
+                return (False, depot_id, manifest_id, None, "Download failed")
                     
             except Exception as e:
                 logger.error(f"Error downloading {depot_id}_{manifest_id}: {e}", exc_info=True)

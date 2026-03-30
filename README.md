@@ -28,18 +28,12 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 pip install -r requirements.txt
 ```
 
-If that fails with a grpcio-tools build error (common on Windows), use:
-
-```batch
-pip install -r requirements-consumer.txt
-```
-
 If you get dependency conflicts with other projects on your system, use a virtual environment:
 
 ```batch
 python -m venv venv
 venv\Scripts\activate
-pip install -r requirements-consumer.txt
+pip install -r requirements.txt
 ```
 
 ### Step 2: Download gbe_fork_tools
@@ -54,7 +48,7 @@ Download [gbe_fork_tools](https://github.com/Detanup01/gbe_fork_tools/releases) 
 
 **With the EXE:**
 - CLI: Run `build_simple.bat`, then run `SteaMidra.exe` (administrator preferred).
-- GUI: Run `pip install -r requirements-consumer.txt` (or `requirements.txt`), then `build_simple_gui.bat`, then run `SteaMidra_GUI.exe`.
+- GUI: Run `pip install -r requirements.txt`, then `build_simple_gui.bat`, then run `SteaMidra_GUI.exe`.
 
 ### Step 4: GreenLuma
 
@@ -71,7 +65,7 @@ SteaMidra has a full graphical interface.
 **Run with Python:** `python Main_gui.py`
 
 **Build the GUI EXE:**
-1. Install dependencies: `pip install -r requirements-consumer.txt` (or `requirements.txt`)
+1. Install dependencies: `pip install -r requirements.txt`
 2. Run `build_simple_gui.bat`
 3. Run `dist\SteaMidra_GUI.exe`
 
@@ -124,20 +118,17 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in the latest update.
 
 [DLC Unlockers](docs/dlc_unlockers/README.md) – Using DLC unlockers (CreamInstaller-style).
 
-## Requirements files
+## Requirements
 
-- **requirements.txt** – Full project (CLI, GUI, online-fix in one)
-- **requirements-consumer.txt** – Runtime only, no grpcio-tools (use if grpcio-tools fails)
+`requirements.txt` covers everything: CLI, GUI (PyQt6), online-fix (Selenium), and Tor fallback. One file, one command.
 
 More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 ## Troubleshooting
 
-**grpcio-tools build error** – Use `pip install -r requirements-consumer.txt` instead.
-
 **Dependency conflicts** – Use a virtual environment (see Step 1 above).
 
-**ModuleNotFoundError** – Dependencies are not installed. Run `pip install -r requirements-consumer.txt`.
+**ModuleNotFoundError** – Dependencies are not installed. Run `pip install -r requirements.txt`.
 
 ## Credits
 
@@ -157,7 +148,7 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 **fzf** – Used for fuzzy search in menus (CLI). License in `third_party_licenses/fzf.LICENSE`.
 
-**SteamAutoCrack** – The SteamAutoCrack feature uses the **SteamAutoCrack CLI** by oureveryday. License in `third_party_licenses/SteamAutoCrack.LICENSE`.
+**SteamAutoCrack** – The SteamAutoCrack feature uses the **SteamAutoCrack CLI** by oureveryday. Must be placed in `third_party/SteamAutoCrack` by the user. Not shipped with SteaMidra.
 
 **CreamInstaller** – The DLC Unlockers feature is inspired by and compatible with CreamInstaller. SteaMidra does not ship CreamInstaller; it provides its own implementation that follows similar behavior.
 

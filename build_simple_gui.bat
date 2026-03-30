@@ -42,8 +42,6 @@ if errorlevel 1 (
     echo ========================================
     echo Install full requirements first:
     echo   pip install -r requirements.txt
-    echo Or if grpcio-tools fails:
-    echo   pip install -r requirements-consumer.txt
     pause
     exit /b 1
 )

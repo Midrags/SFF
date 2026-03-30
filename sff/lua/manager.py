@@ -13,6 +13,7 @@ from sff.structs import (
     DepotKeyPair,
     LuaChoice,
     LuaChoiceReturnCode,
+    LuaEndpoint,
     LuaParsedInfo,
     OSType,
     RawLua,
@@ -56,6 +57,7 @@ class LuaManager:
         self.saved_lua = Path().cwd() / "saved_lua"
         self.named_ids = get_named_ids(self.saved_lua)
         self.os_type = os_type
+        self.last_endpoint: Optional[LuaEndpoint] = None
 
     def get_raw_lua(
         self, choice: LuaChoice, override: Optional[Path] = None
@@ -67,6 +69,8 @@ class LuaManager:
                 result = add_new_lua(override)
             elif choice == LuaChoice.AUTO_DOWNLOAD:
                 result = download_lua(self.saved_lua, self.os_type)
+                if result.endpoint is not None:
+                    self.last_endpoint = result.endpoint
 
             switch = result.switch_choice
             if isinstance(switch, LuaChoice):

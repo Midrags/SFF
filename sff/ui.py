@@ -56,6 +56,7 @@ from sff.structs import (
     GameSpecificChoices,
     LoggedInUser,
     LuaChoice,
+    LuaEndpoint,
     MainReturnCode,
     MidiFiles,
     OSType,
@@ -733,6 +734,7 @@ class UI:
         )
         if parsed_lua is None:
             return MainReturnCode.LOOP_NO_PROMPT
+        downloader.use_morrenus = (lua_manager.last_endpoint == LuaEndpoint.MORRENUS)
         
         # Track recent file
         if parsed_lua.path:
