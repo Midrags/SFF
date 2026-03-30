@@ -152,6 +152,6 @@ def download_lua(dest: Path, os_type: OSType) -> LuaResult:
         lua_path = get_morrenus(dest, app_id)
 
     if lua_path is None:
-        return LuaResult(None, None, LuaChoiceReturnCode.LOOP)
+        return LuaResult(None, None, LuaChoiceReturnCode.GO_BACK)
 
     return LuaResult(lua_path, None, LuaChoiceReturnCode.LOOP, endpoint=source)

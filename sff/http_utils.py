@@ -301,8 +301,11 @@ def download_to_tempfile(
                     pbar.update(len(chunk))
         temp_f.seek(0)
         yield temp_f
+    except httpx.ConnectError:
+        print("Network error: Cannot connect to server. Check your internet connection.")
+        yield None
     except httpx.HTTPError as e:
-        print(f"Network error: {repr(e)}")
+        print(f"Network error: {e}")
         yield None
     finally:
         temp_f.close()
