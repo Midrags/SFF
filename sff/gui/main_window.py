@@ -419,6 +419,7 @@ class SFFMainWindow(QMainWindow):
         open_workshop_browser(app_id, self)
 
     def _run_game_action(self, choice: Any) -> None:
+        from sff.structs import MainMenu
         acf = self._get_selected_acf()
         if acf is None:
             QMessageBox.warning(
@@ -428,6 +429,24 @@ class SFFMainWindow(QMainWindow):
             )
             return
         label = str(getattr(choice, "value", choice))
+
+        # Steamless: ask user to pick the exe directly so we never touch the Steam API
+        # on a background thread (that's what causes WinError 2)
+        if choice == MainMenu.REMOVE_DRM:
+            exe_path_str, _ = QFileDialog.getOpenFileName(
+                self,
+                "Select game executable",
+                str(acf.path),
+                "Executables (*.exe)",
+            )
+            if not exe_path_str:
+                return
+            exe_path = Path(exe_path_str)
+            self._start_worker(
+                lambda: self.ui.run_steamless_direct(acf, exe_path), label
+            )
+            return
+
         self._start_worker(
             lambda: self.ui.run_game_action_with_selection(choice, acf), label
         )

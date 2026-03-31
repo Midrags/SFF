@@ -540,6 +540,16 @@ class UI:
         )
         return handler.execute_choice(choice)
 
+    def run_steamless_direct(self, acf_info: ACFInfo, exe_path: Path) -> None:
+        from sff.game_specific import GameHandler
+        from sff.storage.vdf import get_steam_libs
+        injection_manager = self.app_list_man or self.sls_man
+        steam_libs = get_steam_libs(self.steam_path)
+        lib_path = steam_libs[0] if steam_libs else self.steam_path
+        provider = self._steam_provider()
+        handler = GameHandler(self.steam_path, lib_path, provider, injection_manager)
+        handler.apply_steamless(acf_info, exe_path=exe_path)
+
     def run_game_action_with_selection(
         self, choice: GameSpecificChoices, acf_info: ACFInfo
     ) -> MainReturnCode:
@@ -1089,6 +1099,8 @@ class UI:
                 else:
                     downloader.download_manifests(parsed_lua, auto_manifest=True)
         if steam_proc:
+            # pre-seed depotcache before Steam starts so it finds manifests locally
+            downloader._preseed_depotcache()
             steam_proc.prompt_launch_or_restart()
         print(
             Fore.GREEN + "\nSuccess! All game manifests have been updated!\n"

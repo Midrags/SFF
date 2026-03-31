@@ -349,8 +349,8 @@ class GameHandler:
                 app_id, GenEmuMode.STEAM_SETTINGS, dll_path.parent / "steam_settings"
             )
 
-    def apply_steamless(self, app_info: ACFInfo):
-        game_exe = self.select_executable(app_info)
+    def apply_steamless(self, app_info: ACFInfo, exe_path: Optional[Path] = None):
+        game_exe = exe_path if exe_path is not None else self.select_executable(app_info)
 
         steamless_exe = root_folder() / "third_party/steamless/Steamless.CLI.exe"
 

