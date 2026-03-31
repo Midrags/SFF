@@ -21,6 +21,23 @@ if errorlevel 1 (
 
 echo.
 echo ========================================
+echo  Step 2: Installing steam (no-deps)
+echo ========================================
+echo.
+echo  steam==1.4.4 has a stale urllib3 ^<2 constraint that conflicts
+echo  with Selenium. Installing with --no-deps bypasses this check.
+echo  steam works fine with urllib3 2.x at runtime.
+echo.
+pip install steam==1.4.4 --no-deps
+if errorlevel 1 (
+    echo.
+    echo  Warning: steam install failed. Check the error above.
+    pause
+    exit /b 1
+)
+
+echo.
+echo ========================================
 echo  OPTIONAL: Tor Expert Bundle
 echo ========================================
 echo.

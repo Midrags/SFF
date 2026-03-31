@@ -30,13 +30,13 @@ def get_win10toast_data():
 
 # Collect data files
 datas = [
-    # Include static files
     ('static', 'static'),
-    # Include third party tools
-    ('third_party', 'third_party'),
-    # Include C folder (music/MIDI files and DLLs)
-    ('c', 'c'),
 ]
+
+# Include third_party tools if present
+third_party_dir = os.path.join(spec_root, 'third_party')
+if os.path.exists(third_party_dir):
+    datas.append((third_party_dir, 'third_party'))
 
 # Add icon assets if they exist
 if os.path.exists(os.path.join(spec_root, 'sff.png')):

@@ -10,13 +10,16 @@ Made by Midrag.
 install_online_fix_requirements.bat
 ```
 
-Or run pip directly (skips the Tor prompt):
+Or run pip directly (two commands — both needed):
 
 ```batch
 pip install -r requirements.txt
+pip install steam==1.4.4 --no-deps
 ```
 
-`requirements.txt` now covers everything in one file: CLI, GUI (PyQt6), online-fix (Selenium), and Tor fallback (`torpy`). No separate requirements files needed.
+Why two commands? `steam==1.4.4` has a stale `urllib3<2` constraint that conflicts with Selenium 4.x. Using `--no-deps` skips that outdated check — steam works fine with urllib3 2.x at runtime.
+
+`requirements.txt` covers everything in one file: CLI, GUI (PyQt6), online-fix (Selenium), and Tor fallback (`torpy`).
 
 ## Avoid Dependency Conflicts
 
@@ -26,6 +29,7 @@ If you get conflicts with other projects, use a virtual environment:
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
+pip install steam==1.4.4 --no-deps
 ```
 
 ## What Gets Installed
@@ -76,7 +80,12 @@ Make sure Python 3.12 is installed and added to PATH.
 
 ## Building EXE
 
+Install requirements first (both commands), then build:
+
 ```batch
-build_simple.bat       # CLI build
-build_simple_gui.bat   # GUI build (requires PyQt6 — already in requirements.txt)
+pip install -r requirements.txt
+pip install steam==1.4.4 --no-deps
+
+build_simple.bat        # CLI build
+build_simple_gui.bat    # GUI build (requires PyQt6 — already in requirements.txt)
 ```

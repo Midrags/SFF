@@ -52,7 +52,7 @@ Download [gbe_fork_tools](https://github.com/Detanup01/gbe_fork_tools/releases) 
 
 **With the EXE:**
 - CLI: Run `build_simple.bat`, then run `SteaMidra.exe` (administrator preferred).
-- GUI: Run `pip install -r requirements.txt`, then `build_simple_gui.bat`, then run `SteaMidra_GUI.exe`.
+- GUI: Run both install commands from Step 1, then `build_simple_gui.bat`, then run `SteaMidra_GUI.exe`.
 
 ### Step 4: GreenLuma
 
@@ -69,7 +69,11 @@ SteaMidra has a full graphical interface.
 **Run with Python:** `python Main_gui.py`
 
 **Build the GUI EXE:**
-1. Install dependencies: `pip install -r requirements.txt`
+1. Install dependencies (two commands — both required):
+   ```batch
+   pip install -r requirements.txt
+   pip install steam==1.4.4 --no-deps
+   ```
 2. Run `build_simple_gui.bat`
 3. Run `dist\SteaMidra_GUI.exe`
 

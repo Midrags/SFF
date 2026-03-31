@@ -19,8 +19,12 @@ SteaMidra works with GreenLuma. You need to download GreenLuma yourself and set 
 If you run SteaMidra with Python instead of the EXE:
 
 1. Install Python (from python.org).  
-2. Open a command prompt in the SteaMidra folder and run:  
-   `pip install -r requirements.txt`  
+2. Open a command prompt in the SteaMidra folder and run both commands:  
+   ```batch
+   pip install -r requirements.txt
+   pip install steam==1.4.4 --no-deps
+   ```
+   The second command is needed because `steam==1.4.4` has a stale urllib3 constraint that conflicts with Selenium — `--no-deps` skips it. Steam works fine at runtime.  
 3. Optional (Windows notifications):  
    `pip install -r requirements-optional.txt`
 

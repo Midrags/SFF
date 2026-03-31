@@ -41,7 +41,12 @@ if errorlevel 1 (
     echo ========================================
     echo BUILD FAILED!
     echo ========================================
-    echo Make sure PyInstaller is installed: pip install pyinstaller
+    echo.
+    echo Install requirements first (two steps):
+    echo   1. pip install -r requirements.txt
+    echo   2. pip install steam==1.4.4 --no-deps
+    echo.
+    echo Or just run: install_online_fix_requirements.bat
     pause
     exit /b 1
 )
