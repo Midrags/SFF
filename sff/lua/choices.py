@@ -149,7 +149,10 @@ def download_lua(dest: Path, os_type: OSType) -> LuaResult:
     if source == LuaEndpoint.OUREVERYDAY:
         lua_path = get_oureverday(dest, app_id)
     elif source == LuaEndpoint.MORRENUS:
-        lua_path = get_morrenus(dest, app_id)
+        # Pass depotcache so manifests from the ZIP land in Steam immediately
+        steam_root = get_setting(Settings.STEAM_PATH)
+        depotcache = (Path(steam_root) / "depotcache") if steam_root else None
+        lua_path = get_morrenus(dest, app_id, depotcache=depotcache)
 
     if lua_path is None:
         return LuaResult(None, None, LuaChoiceReturnCode.GO_BACK)

@@ -1,0 +1,32 @@
+# IDE
+**/.vs
+**/.vscode
+
+# PYTHON
+**/.venv
+**/__pycache__
+
+# PROTOBUF
+/proto_gen
+
+# SPECIFIC
+/build
+/third-party
+
+# TOOLS
+
+# generate_emu_config
+/tools/generate_emu_config/.py*/
+/tools/generate_emu_config/.env*/
+/tools/generate_emu_config/bin
+
+/tools/generate_emu_config/backup/
+/tools/generate_emu_config/login_temp/
+/tools/generate_emu_config/output/
+/tools/generate_emu_config/**/my_login.txt
+/tools/generate_emu_config/top_owners_ids.txt
+
+# migrate_gse
+/tools/migrate_gse/.py*/
+/tools/migrate_gse/.env*/
+/tools/migrate_gse/bin

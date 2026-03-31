@@ -33,7 +33,7 @@ from sff.structs import (  # type: ignore
     ManifestGetModes,
     Settings,
 )
-from sff.zip import read_nth_file_from_zip_bytes
+from sff.zip import read_nth_file_from_zip_bytes, extract_manifests_from_zip_bytes
 from sff.steam_tools_compat import sync_manifest_to_config_depotcache
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,55 @@ class ManifestDownloader:
         self.steam_path = steam_path
         self.provider = provider
         self.use_morrenus = use_morrenus
+
+    def _preseed_depotcache(self) -> int:
+        # Move anything sitting in ./manifests/ into depotcache right now.
+        # This is the key fix: Steam checks depotcache before calling the
+        # SteamTools GMRC endpoint — if the file is already there it skips
+        # the network call entirely and avoids the 'no internet' error.
+        manifests_dir = Path.cwd() / "manifests"
+        if not manifests_dir.exists():
+            return 0
+        depotcache = self.steam_path / "depotcache"
+        depotcache.mkdir(exist_ok=True)
+        moved = 0
+        for mf in manifests_dir.glob("*.manifest"):
+            dest = depotcache / mf.name
+            if not dest.exists():
+                shutil.copy2(mf, dest)
+                sync_manifest_to_config_depotcache(self.steam_path, dest)
+                moved += 1
+                logger.debug("Pre-seeded depotcache: %s", mf.name)
+        if moved:
+            print(
+                Fore.CYAN
+                + f"Pre-seeded {moved} manifest(s) into depotcache."
+                + Style.RESET_ALL
+            )
+        return moved
+
+    def _write_manifest_to_depotcache(
+        self, raw: bytes, depot_id: str, manifest_id: str, decrypt: bool = False, dec_key: str = ""
+    ) -> Optional[Path]:
+        # Write raw manifest bytes to depotcache and config/depotcache.
+        # Handles both ZIP-wrapped (CDN) and raw (ManifestHub/GitHub) formats.
+        depotcache = self.steam_path / "depotcache"
+        depotcache.mkdir(exist_ok=True)
+        dest = depotcache / f"{depot_id}_{manifest_id}.manifest"
+        if decrypt and dec_key:
+            decrypt_and_save_manifest(raw, dest, dec_key)
+        else:
+            extracted = read_nth_file_from_zip_bytes(0, raw)
+            if extracted:
+                # CDN response is ZIP-wrapped
+                dest.write_bytes(extracted.read())
+            else:
+                # ManifestHub / GitHub already return raw manifest bytes
+                dest.write_bytes(raw)
+        if dest.exists():
+            sync_manifest_to_config_depotcache(self.steam_path, dest)
+            return dest
+        return None
 
     def get_dlc_manifest_status(self, depot_ids: list[int]):
         manifest_ids: dict[int, bool] = {}
@@ -133,13 +182,18 @@ class ManifestDownloader:
                 else:
                     raise RuntimeError("CDN Client timed out after maximum retries.") from None
 
-    def _try_morrenus_generate(self, depot_id: str, manifest_id: str) -> Optional[bytes]:
-        # Morrenus on-demand generation: first request generates, every request after is cached.
-        # Daily limit: 1500 single manifests. Key stored in Settings.MORRENUS_KEY.
+    def _try_morrenus_generate(
+        self, depot_id: str, manifest_id: str
+    ) -> Optional[bytes]:
+        # Morrenus on-demand API: generates per-manifest, cached after first hit.
+        # Limit: 1500/day. Returns raw manifest bytes (NOT zip-wrapped).
         api_key = get_setting(Settings.MORRENUS_KEY)
         if not api_key:
             return None
-        url = f"https://manifest.morrenus.xyz/api/v1/generate/manifest?depot_id={depot_id}&manifest_id={manifest_id}"
+        url = (
+            f"https://manifest.morrenus.xyz/api/v1/generate/manifest"
+            f"?depot_id={depot_id}&manifest_id={manifest_id}"
+        )
         try:
             resp = httpx.get(
                 url,
@@ -150,18 +204,22 @@ class ManifestDownloader:
             if resp.status_code == 200 and resp.content:
                 print(
                     Fore.GREEN
-                    + f"✅ Morrenus: got manifest for depot {depot_id}"
+                    + f"✅ Morrenus on-demand: got manifest for depot {depot_id}"
                     + Style.RESET_ALL
                 )
                 return resp.content
             if resp.status_code == 401:
-                logger.debug("Morrenus: invalid or missing API key")
+                logger.debug("Morrenus on-demand: invalid or missing API key")
             elif resp.status_code == 429:
                 print(Fore.YELLOW + "Morrenus: daily limit reached (1500/day)." + Style.RESET_ALL)
             elif resp.status_code == 404:
-                logger.debug(f"Morrenus: depot {depot_id} manifest {manifest_id} not found")
+                logger.debug(
+                    f"Morrenus: depot {depot_id} manifest {manifest_id} not found"
+                )
             else:
-                logger.debug(f"Morrenus returned HTTP {resp.status_code}: {resp.text[:200]}")
+                logger.debug(
+                    f"Morrenus returned HTTP {resp.status_code}: {resp.text[:200]}"
+                )
         except Exception as e:
             logger.debug(f"Morrenus request failed: {e}")
         return None
@@ -414,6 +472,12 @@ class ManifestDownloader:
         cdn = self.get_cdn_client()
         manifest_ids = self.get_manifest_ids(lua, auto_manifest)
 
+        # Pre-seed depotcache from anything already in ./manifests/
+        # (e.g. extracted from a Morrenus ZIP earlier in the session).
+        # Steam checks depotcache first — if files are there it never
+        # touches the SteamTools GMRC endpoint at all.
+        self._preseed_depotcache()
+
         if not self.use_morrenus and lua.app_id:
             pairs = [(d, m) for d, m in manifest_ids.items() if m]
             if pairs:
@@ -435,48 +499,42 @@ class ManifestDownloader:
                 + Style.RESET_ALL
             )
 
-            possible_saved_manifest = (
-                Path.cwd() / f"manifests/{depot_id}_{manifest_id}.manifest"
-            )
             depotcache = self.steam_path / "depotcache"
             depotcache.mkdir(exist_ok=True)
-            final_manifest_loc = (
-                depotcache / f"{depot_id}_{manifest_id}.manifest"
-            )
+            final_manifest_loc = depotcache / f"{depot_id}_{manifest_id}.manifest"
+            possible_saved_manifest = Path.cwd() / f"manifests/{depot_id}_{manifest_id}.manifest"
 
-            if possible_saved_manifest.exists():
-                print("One of the endpoints had a manifest. Skipping download...")
-                if not final_manifest_loc.exists():
-                    shutil.move(possible_saved_manifest, final_manifest_loc)
-                sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
-                continue
-
+            # Already in depotcache — done
             if final_manifest_loc.exists():
+                print(Fore.GREEN + f"  Already in depotcache: {final_manifest_loc.name}" + Style.RESET_ALL)
                 sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
+                manifest_paths.append(final_manifest_loc)
                 continue
 
-            # Steps 1-4 for oureveryday (silent), or full Morrenus chain
+            # In ./manifests/ (from Morrenus ZIP) — move straight to depotcache
+            if possible_saved_manifest.exists():
+                print(Fore.GREEN + f"  Moving from saved manifests: {possible_saved_manifest.name}" + Style.RESET_ALL)
+                shutil.move(str(possible_saved_manifest), final_manifest_loc)
+                sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
+                manifest_paths.append(final_manifest_loc)
+                continue
+
+            # Fetch from network (Morrenus on-demand → ManifestHub → GMRC → CDN)
             manifest = self.download_single_manifest(
                 depot_id, manifest_id, cdn, app_id=lua.app_id
             )
 
             if manifest:
-                if decrypt:
-                    decrypt_and_save_manifest(manifest, final_manifest_loc, dec_key)
-                else:
-                    extracted = read_nth_file_from_zip_bytes(0, manifest)
-                    if extracted:
-                        with final_manifest_loc.open("wb") as f:
-                            f.write(extracted.read())
-                    else:
-                        # ManifestHub (API or GitHub) returns raw bytes, not ZIP-wrapped
-                        final_manifest_loc.write_bytes(manifest)
-                manifest_paths.append(final_manifest_loc)
-                sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
+                # Write to depotcache using the unified helper (handles ZIP + raw)
+                written = self._write_manifest_to_depotcache(
+                    manifest, depot_id, manifest_id, decrypt, dec_key
+                )
+                if written:
+                    manifest_paths.append(written)
                 continue
 
             if not self.use_morrenus:
-                # Step 5: Interactive CDN – prompt user for request code as last resort
+                # Last resort: ask user for GMRC code interactively
                 print(
                     Fore.YELLOW
                     + f"\nAll automated sources failed for depot {depot_id}. Trying interactive CDN..."
@@ -487,19 +545,16 @@ class ManifestDownloader:
                     cdn_server = cast(ContentServer, cdn.get_content_server())
                     cdn_server_name = f"http{'s' if cdn_server.https else ''}://{cdn_server.host}"
                     manifest_url = urljoin(
-                        cdn_server_name, f"depot/{depot_id}/manifest/{manifest_id}/5/{req_code}"
+                        cdn_server_name,
+                        f"depot/{depot_id}/manifest/{manifest_id}/5/{req_code}",
                     )
                     last_resort = get_request_raw(manifest_url)
                     if last_resort:
-                        if decrypt:
-                            decrypt_and_save_manifest(last_resort, final_manifest_loc, dec_key)
-                        else:
-                            extracted = read_nth_file_from_zip_bytes(0, last_resort)
-                            if extracted:
-                                with final_manifest_loc.open("wb") as f:
-                                    f.write(extracted.read())
-                                manifest_paths.append(final_manifest_loc)
-                                sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
+                        written = self._write_manifest_to_depotcache(
+                            last_resort, depot_id, manifest_id, decrypt, dec_key
+                        )
+                        if written:
+                            manifest_paths.append(written)
 
         return manifest_paths
     

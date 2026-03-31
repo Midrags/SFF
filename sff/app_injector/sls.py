@@ -95,23 +95,26 @@ class SLSManager(AppInjectionManager):
         print(f"Found {len(dlc_ids)} DLC(s). Fetching names...")
         names = get_dlc_names_from_store(dlc_ids)
         local_ids = set(self.get_local_ids())
-        console = Console()
-        table = Table(
-            "ID",
-            "Name",
-            Column(header="In config?", justify="center"),
-        )
         not_in_config: list[int] = []
+        rows_store = []
         for app_id in dlc_ids:
             in_list = app_id in local_ids
             if not in_list:
                 not_in_config.append(app_id)
-            table.add_row(
-                str(app_id),
-                names.get(app_id, f"DLC {app_id}"),
-                "[green]O[/green]" if in_list else "[red]X[/red]",
+            rows_store.append((str(app_id), names.get(app_id, f"DLC {app_id}"), in_list))
+        try:
+            console = Console()
+            table = Table(
+                "ID",
+                "Name",
+                Column(header="In config?", justify="center"),
             )
-        console.print(table)
+            for _id, _name, _in in rows_store:
+                table.add_row(_id, _name, "[green]O[/green]" if _in else "[red]X[/red]")
+            console.print(table)
+        except Exception:
+            for _id, _name, _in in rows_store:
+                print(f"  {_id} | {_name} | Config: {'O' if _in else 'X'}")
         if not_in_config:
             print("Some DLCs are not in the SLSSteam config.")
             if prompt_confirm("Do you want to add these to the config?"):
@@ -157,34 +160,38 @@ class SLSManager(AppInjectionManager):
                     manifest.get_dlc_manifest_status(depot_dlcs) if depot_dlcs else {}
                 )
                 non_depot_dlc_count = 0
-                console = Console()
-                table = Table(
-                    "ID",
-                    "Name",
-                    "Type",
-                    Column(header="In AppList?", justify="center"),
-                    Column(header="Has Key?", justify="center"),
-                    Column(header="Has Manifest?", justify="center"),
-                )
                 bool_map: dict[Optional[bool], str] = {
                     True: "[green]O[/green]",
                     False: "[red]X[/red]",
                     None: "N/A",
                 }
+                bool_plain: dict[Optional[bool], str] = {
+                    True: "O", False: "X", None: "N/A"
+                }
+                rows_dlc = []
                 for dlc in parsed_dlcs:
                     if dlc.type == DLCTypes.NOT_DEPOT:
                         non_depot_dlc_count += 1
                         if not dlc.in_applist:
                             unowned_non_depot_dlcs.append(dlc.id)
-                    table.add_row(
-                        str(dlc.id),
-                        dlc.name,
-                        dlc.type.value,
-                        bool_map[dlc.in_applist],
-                        bool_map[key_map.get(dlc.id)],
-                        bool_map[manifest_map.get(dlc.id)],
+                    rows_dlc.append((
+                        str(dlc.id), dlc.name, dlc.type.value,
+                        dlc.in_applist, key_map.get(dlc.id), manifest_map.get(dlc.id),
+                    ))
+                try:
+                    console = Console()
+                    table = Table(
+                        "ID", "Name", "Type",
+                        Column(header="In AppList?", justify="center"),
+                        Column(header="Has Key?", justify="center"),
+                        Column(header="Has Manifest?", justify="center"),
                     )
-                console.print(table)
+                    for _id, _nm, _tp, _al, _hk, _hm in rows_dlc:
+                        table.add_row(_id, _nm, _tp, bool_map[_al], bool_map[_hk], bool_map[_hm])
+                    console.print(table)
+                except Exception:
+                    for _id, _nm, _tp, _al, _hk, _hm in rows_dlc:
+                        print(f"  {_id} | {_nm} | {_tp} | AppList:{bool_plain[_al]} Key:{bool_plain[_hk]} Manifest:{bool_plain[_hm]}")
                 print(
                     Fore.YELLOW + "NOTE: Pre-installed DLCs don't need "
                     "decryption key & manifest\n"

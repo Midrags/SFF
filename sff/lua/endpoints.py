@@ -44,7 +44,7 @@ def get_oureverday(dest: Path, app_id: str):
     return lua_path
 
 
-def get_morrenus(dest: Path, app_id: str) -> Optional[Path]:
+def get_morrenus(dest: Path, app_id: str, depotcache: Optional[Path] = None) -> Optional[Path]:
     url = f"https://manifest.morrenus.xyz/api/v1/manifest/{app_id}"
 
     # Loop to allow retry with new API key
@@ -129,7 +129,7 @@ def get_morrenus(dest: Path, app_id: str) -> Optional[Path]:
                     + f"Morrenus Daily Limit: {usage+1}/{limit}"
                     + Style.RESET_ALL
                 )
-                lua_bytes = read_lua_from_zip(io.BytesIO(data), decode=False)
+                lua_bytes = read_lua_from_zip(io.BytesIO(data), decode=False, depotcache=depotcache)
                 if lua_bytes is None:
                     tf.seek(0)
                     try:
