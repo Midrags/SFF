@@ -44,11 +44,7 @@ pip install steam==1.4.4 --no-deps
 Also run the install_online_fix_requirements.bat
 ```
 
-### Step 2: Download gbe_fork_tools
-
-Download [gbe_fork_tools](https://github.com/Detanup01/gbe_fork_tools/releases) (compiled) and paste the `generate_emu_config` folder inside `third_party\gbe_fork_tools`.
-
-### Step 3: Run SteaMidra
+### Step 2: Run SteaMidra
 
 **With Python:**
 - CLI: `python Main.py`
@@ -58,7 +54,7 @@ Download [gbe_fork_tools](https://github.com/Detanup01/gbe_fork_tools/releases) 
 - CLI: Run `build_simple.bat`, then run `SteaMidra.exe` (administrator preferred).
 - GUI: Run both install commands from Step 1, then `build_simple_gui.bat`, then run `SteaMidra_GUI.exe`.
 
-### Step 4: GreenLuma
+### Step 3: GreenLuma
 
 Download GreenLuma and set it up: https://www.up-4ever.net/h3vt78x7jdap
 
