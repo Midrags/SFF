@@ -1,3 +1,0 @@
-dlls_subdir\3_my_third_dll.dll
-2_my_second_dll.dll
-
