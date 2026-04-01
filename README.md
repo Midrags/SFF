@@ -10,7 +10,7 @@ Steam has updated and if you accidentally update your Steam client to a version 
 
 # SteaMidra (Education purposes only)
 
-"Made/modified" by Midrag (me) and my brother!
+"Made" by Midrag and his brother!
 
 Quick thing before we start remember to exclude the SteaMidra folder from Windows Security or at least the folder in this path for Creaminstaller Resources to work! `sff\dlc_unlockers\resources`
 
@@ -165,8 +165,6 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 **Made by Midrag and his brother.**
 
-**Original SMD** – SteaMidra is built on top of the original **SMD (Steam Manifest Downloader)** by **jericjan**. SMD remains the original project; SteaMidra extends it with more features.
-
 **GreenLuma** – SteaMidra works alongside GreenLuma for AppList injection. GreenLuma is a separate tool and must be downloaded and set up independently.
 
 **gbe_fork** – The "Crack a game" feature uses **gbe_fork**, a Steam emulator for running games offline. License in `third_party_licenses/gbe_fork.LICENSE`.
@@ -187,4 +185,6 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 **RedPaper** – Credit to RedPaper for the Broken Moon MIDI cover, originally arranged by U2 Akiyama and used in Touhou 7.5: Immaterial and Missing Power. Touhou 7.5 and its assets are owned by Team Shanghai Alice and Twilight Frontier. SteaMidra is not affiliated with or endorsed by either party. All trademarks belong to their respective owners.
 
-Use SteaMidra at your own risk.
+SteaMidra is licensed under the GNU General Public License v3.0 (see LICENSE file).
+
+Use at your own risk. For educational purposes only.
