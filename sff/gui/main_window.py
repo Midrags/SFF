@@ -15,7 +15,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
-from sff.i18n import T
 import re
 import sys
 from pathlib import Path
@@ -48,6 +47,7 @@ from PyQt6.QtWidgets import (
 )
 
 from sff.gui.themes import THEMES
+from sff.i18n import T
 from sff.structs import MainMenu, MainReturnCode
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
