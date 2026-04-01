@@ -1,4 +1,21 @@
-# owner: Midrag
+# SteaMidra - Steam game setup and manifest tool (SFF)
+# Copyright (c) 2025-2026 Midrag (https://github.com/Midrags)
+#
+# This file is part of SteaMidra.
+#
+# SteaMidra is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SteaMidra is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
+from sff.i18n import T
 import re
 import sys
 from pathlib import Path
@@ -135,14 +152,14 @@ class SFFMainWindow(QMainWindow):
         root_layout.addWidget(scroll, stretch=1)
 
         # ── Game / path ──────────────────────────────────────────
-        path_group = QGroupBox("Game / path")
+        path_group = QGroupBox(T("Game / path"))
         path_layout = QVBoxLayout(path_group)
 
         path_row = QHBoxLayout()
-        path_row.addWidget(QLabel("Path:"))
+        path_row.addWidget(QLabel(T("Path:")))
         self.path_edit = QLineEdit()
         self.path_edit.setPlaceholderText(
-            "Game folder (for outside Steam) or leave empty for Steam games"
+            T("Game folder (for outside Steam) or leave empty for Steam games")
         )
         path_row.addWidget(self.path_edit)
         browse_btn = QPushButton("...")
@@ -152,9 +169,9 @@ class SFFMainWindow(QMainWindow):
         path_layout.addLayout(path_row)
 
         source_row = QHBoxLayout()
-        self.radio_steam = QRadioButton("Steam games")
+        self.radio_steam = QRadioButton(T("Steam games"))
         self.radio_steam.setChecked(True)
-        self.radio_outside = QRadioButton("Games outside of Steam")
+        self.radio_outside = QRadioButton(T("Games outside of Steam"))
         self.radio_steam.toggled.connect(self._on_source_changed)
         self.radio_outside.toggled.connect(self._on_source_changed)
         source_row.addWidget(self.radio_steam)
@@ -163,11 +180,11 @@ class SFFMainWindow(QMainWindow):
         path_layout.addLayout(source_row)
 
         game_row = QHBoxLayout()
-        game_row.addWidget(QLabel("Game:"))
+        game_row.addWidget(QLabel(T("Game:")))
         self.game_combo = GameComboBox()
         self.game_combo.setMinimumWidth(280)
         game_row.addWidget(self.game_combo)
-        refresh_btn = QPushButton("Refresh list")
+        refresh_btn = QPushButton(T("Refresh list"))
         refresh_btn.clicked.connect(self._refresh_game_list)
         game_row.addWidget(refresh_btn)
         game_row.addStretch()
@@ -197,14 +214,14 @@ class SFFMainWindow(QMainWindow):
         layout.addWidget(path_group)
 
         # ── Game Actions (need selected game) ────────────────────
-        game_actions_group = QGroupBox("Game Actions")
+        game_actions_group = QGroupBox(T("Game Actions"))
         ga_layout = QVBoxLayout(game_actions_group)
         row1 = QHBoxLayout()
         for label, choice in [
-            ("Crack game (gbe_fork)", MainMenu.CRACK_GAME),
-            ("Remove SteamStub (Steamless)", MainMenu.REMOVE_DRM),
-            ("UserGameStats", MainMenu.DL_USER_GAME_STATS),
-            ("DLC check", MainMenu.DLC_CHECK),
+            (T("Crack game (gbe_fork)"), MainMenu.CRACK_GAME),
+            (T("Remove SteamStub (Steamless)"), MainMenu.REMOVE_DRM),
+            (T("UserGameStats"), MainMenu.DL_USER_GAME_STATS),
+            (T("DLC check"), MainMenu.DLC_CHECK),
         ]:
             btn = QPushButton(label)
             btn.clicked.connect(lambda checked=False, c=choice: self._run_game_action(c))
@@ -213,17 +230,18 @@ class SFFMainWindow(QMainWindow):
         ga_layout.addLayout(row1)
         row2 = QHBoxLayout()
         for label, choice in [
-            ("Workshop item", MainMenu.DL_WORKSHOP_ITEM),
-            ("Open Workshop", None),
-            ("Check mod updates", MainMenu.CHECK_MOD_UPDATES),
-            ("Multiplayer fix", MainMenu.MULTIPLAYER_FIX),
-            ("DLC Unlockers", MainMenu.MANAGE_DLC_UNLOCKERS),
-            ("SteamAutoCrack", None),
+            (T("Workshop item"), MainMenu.DL_WORKSHOP_ITEM),
+            (T("Open Workshop"), None),
+            (T("Check mod updates"), MainMenu.CHECK_MOD_UPDATES),
+            (T("Multiplayer fix"), MainMenu.MULTIPLAYER_FIX),
+            (T("Fixes/Bypasses (Ryuu)"), MainMenu.RYUU_FIX),
+            (T("DLC Unlockers"), MainMenu.MANAGE_DLC_UNLOCKERS),
+            (T("SteamAutoCrack"), None),
         ]:
             btn = QPushButton(label)
             if choice is not None:
                 btn.clicked.connect(lambda checked=False, c=choice: self._run_game_action(c))
-            elif label == "SteamAutoCrack":
+            elif label == T("SteamAutoCrack"):
                 btn.clicked.connect(self._run_steam_auto_gui)
             else:
                 btn.clicked.connect(self._open_workshop)
@@ -233,14 +251,14 @@ class SFFMainWindow(QMainWindow):
         layout.addWidget(game_actions_group)
 
         # ── Lua / Manifest Processing ────────────────────────────
-        lua_group = QGroupBox("Lua / Manifest Processing")
+        lua_group = QGroupBox(T("Lua / Manifest Processing"))
         lua_layout = QVBoxLayout(lua_group)
         lua_row = QHBoxLayout()
         for label, func in [
-            ("Process .lua file", lambda: self.ui.process_lua_full()),
-            ("Download manifests only", lambda: self.ui.process_lua_minimal()),
-            ("Recent .lua files", lambda: self.ui.recent_files_menu()),
-            ("Update all manifests", lambda: self.ui.update_all_manifests()),
+            (T("Process .lua file"), lambda: self.ui.process_lua_full()),
+            (T("Download manifests only"), lambda: self.ui.process_lua_minimal()),
+            (T("Recent .lua files"), lambda: self.ui.recent_files_menu()),
+            (T("Update all manifests"), lambda: self.ui.update_all_manifests()),
         ]:
             btn = QPushButton(label)
             btn.clicked.connect(lambda checked=False, f=func: self._run_tool(f))
@@ -250,12 +268,12 @@ class SFFMainWindow(QMainWindow):
         layout.addWidget(lua_group)
 
         # ── Library & Steam Tools ────────────────────────────────
-        tools_group = QGroupBox("Library && Steam Tools")
+        tools_group = QGroupBox(T("Library & Steam Tools"))
         tools_layout = QVBoxLayout(tools_group)
         tools_row1 = QHBoxLayout()
         for label, func in [
-            ("Manage AppList IDs", lambda: self.ui.applist_menu()),
-            ("Offline mode fix", lambda: self.ui.offline_fix_menu()),
+            (T("Manage AppList IDs"), lambda: self.ui.applist_menu()),
+            (T("Offline mode fix"), lambda: self.ui.offline_fix_menu()),
         ]:
             btn = QPushButton(label)
             btn.clicked.connect(lambda checked=False, f=func: self._run_tool(f))
@@ -266,8 +284,8 @@ class SFFMainWindow(QMainWindow):
         if sys.platform == "win32":
             tools_row2 = QHBoxLayout()
             for label, func in [
-                ("Remove game from library", lambda: self.ui.remove_game_menu()),
-                ("Context menu", lambda: self.ui.manage_context_menu()),
+                (T("Remove game from library"), lambda: self.ui.remove_game_menu()),
+                (T("Context menu"), lambda: self.ui.manage_context_menu()),
             ]:
                 btn = QPushButton(label)
                 btn.clicked.connect(lambda checked=False, f=func: self._run_tool(f))
@@ -277,34 +295,34 @@ class SFFMainWindow(QMainWindow):
         layout.addWidget(tools_group)
 
         # ── Log ──────────────────────────────────────────────────
-        log_group = QGroupBox("Log")
+        log_group = QGroupBox(T("Log"))
         log_layout = QVBoxLayout(log_group)
         self.log_text = QPlainTextEdit()
         self.log_text.setReadOnly(True)
         self.log_text.setMinimumHeight(160)
         log_layout.addWidget(self.log_text)
-        clear_btn = QPushButton("Clear log")
+        clear_btn = QPushButton(T("Clear log"))
         clear_btn.clicked.connect(self.log_text.clear)
         log_layout.addWidget(clear_btn)
         layout.addWidget(log_group)
 
         # ── Menu bar ─────────────────────────────────────────────
         menubar = self.menuBar()
-        settings_action = menubar.addAction("Settings")
+        settings_action = menubar.addAction(T("Settings"))
         settings_action.triggered.connect(self._show_settings)
-        theme_menu = menubar.addMenu("Theme")
+        theme_menu = menubar.addMenu(T("Theme"))
         for key, (name, _) in THEMES.items():
             action = theme_menu.addAction(name)
             action.triggered.connect(lambda checked=False, k=key: self._set_theme(k))
-        help_menu = menubar.addMenu("Help")
-        help_menu.addAction("About").triggered.connect(self._show_about)
-        help_menu.addAction("Check for updates").triggered.connect(
+        help_menu = menubar.addMenu(T("Help"))
+        help_menu.addAction(T("About")).triggered.connect(self._show_about)
+        help_menu.addAction(T("Check for updates")).triggered.connect(
             lambda: self._run_tool(lambda: self.ui.check_updates(self.ui.os_type))
         )
-        help_menu.addAction("Scan game library").triggered.connect(
+        help_menu.addAction(T("Scan game library")).triggered.connect(
             lambda: self._run_tool(lambda: self.ui.scan_library_menu())
         )
-        help_menu.addAction("Analytics dashboard").triggered.connect(
+        help_menu.addAction(T("Analytics dashboard")).triggered.connect(
             lambda: self._run_tool(lambda: self.ui.analytics_dashboard_menu())
         )
 

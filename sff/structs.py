@@ -1,3 +1,21 @@
+# SteaMidra - Steam game setup and manifest tool (SFF)
+# Copyright (c) 2025-2026 Midrag (https://github.com/Midrags)
+#
+# This file is part of SteaMidra.
+#
+# SteaMidra is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SteaMidra is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
+
 """Aliases, Enums, NamedTuples, etc go here"""
 
 import sys
@@ -39,6 +57,7 @@ class MainMenu(Enum):
     REMOVE_DRM = "Remove SteamStub DRM (Steamless)"
     DL_USER_GAME_STATS = "Download UserGameStatsSchema (achievements w/o gbe_fork)"
     MULTIPLAYER_FIX = "Apply multiplayer fix (online-fix.me)"
+    RYUU_FIX = "Fixes/bypasses (generator.ryuu.lol)"
     OFFLINE_FIX = "Offline Mode Fix"
     if sys.platform == "win32":
         MANAGE_APPLIST = "Manage AppList IDs"
@@ -63,6 +82,7 @@ GameSpecificChoices = Literal[
     MainMenu.DL_WORKSHOP_ITEM,
     MainMenu.CHECK_MOD_UPDATES,
     MainMenu.MULTIPLAYER_FIX,
+    MainMenu.RYUU_FIX,
     MainMenu.MANAGE_DLC_UNLOCKERS
 ]
 
@@ -74,6 +94,7 @@ GAME_SPECIFIC_CHOICES = (
     MainMenu.DL_WORKSHOP_ITEM,
     MainMenu.CHECK_MOD_UPDATES,
     MainMenu.MULTIPLAYER_FIX,
+    MainMenu.RYUU_FIX,
     MainMenu.MANAGE_DLC_UNLOCKERS
 )
 
@@ -120,6 +141,11 @@ class SettingCustomTypes(Enum):
     FILE = auto()
 
 
+class SupportedLanguages(Enum):
+    EN = "en"
+    PT = "pt"
+    AUTO = "Auto"
+    
 SettingType = Union[type, list[Enum], SettingCustomTypes]
 
 
@@ -175,6 +201,7 @@ class Settings(Enum):
     APPLIST_ID_LIMIT = SettingItem("applist_id_limit", "AppList ID Limit (0 = unlimited)", False, str)
     MANIFESTHUB_API_KEY = SettingItem("manifesthub_api_key", "ManifestHub API Key (manifesthub1.filegear-sg.me, 24h)", True, str)
     MANIFESTHUB_KEY_EXPIRY = SettingItem("manifesthub_key_expiry", "ManifestHub Key Expiry (UTC epoch, managed automatically)", False, str)
+    LANGUAGE = SettingItem("language", "Language (Requires Restart)", False, list(SupportedLanguages))
 
     @property
     def key_name(self) -> str:

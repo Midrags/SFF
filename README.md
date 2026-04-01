@@ -10,7 +10,7 @@ Steam has updated and if you accidentally update your Steam client to a version 
 
 # SteaMidra (Education purposes only)
 
-"Made/modified" by Midrag (me) and my brother!
+"Made" by Midrag and his brother!
 
 Quick thing before we start remember to exclude the SteaMidra folder from Windows Security or at least the folder in this path for Creaminstaller Resources to work! `sff\dlc_unlockers\resources`
 
@@ -79,10 +79,11 @@ SteaMidra has a full graphical interface.
 
 **What the GUI gives you:**  
 - Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.  
-- All actions as buttons: crack, DRM removal, DLC check, workshop items, multiplayer fix, DLC unlockers, and more.  
+- All actions as buttons: crack, DRM removal, DLC check, workshop items, multiplayer fix, **Fixes/Bypasses (Ryuu)**, DLC unlockers, and more.  
 - Lua/manifest processing, AppList management, Steam patching, and library tools all accessible from buttons.  
 - Full settings dialog where you can edit, delete, export, and import all settings.  
 - Light and dark themes.  
+- **Multi-language support** — switch between English and Portuguese in Settings (more locales can be added).  
 - Log output shown in the window so you can see what's happening.  
 - Any prompts that would normally appear in the terminal show up as dialog boxes instead.
 
@@ -92,7 +93,8 @@ The CLI version (`Main.py` / `SteaMidra.exe`) still works exactly the same as be
 
 - Download and use Lua files for games, download manifests, and set up GreenLuma.  
 - Write Lua and manifest data into Steam's config so games work with or without an extra injector.  
-- Other features: multiplayer fixes (online-fix.me), DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).  
+- Other features: multiplayer fixes (online-fix.me), **game fixes/bypasses (Ryuu)**, DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).  
+- **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
 
 ### AppList profiles (GreenLuma limit workaround)
@@ -123,6 +125,8 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in the latest update.
 [Feature Guide](docs/FEATURE_USAGE_GUIDE.md) – Parallel downloads, backups, library scanner, and more.
 
 [Multiplayer Fix](docs/MULTIPLAYER_FIX.md) – Using the online-fix.me multiplayer fix.
+
+[Fixes/Bypasses (Ryuu)](docs/RYUU_FIX.md) – Using Ryuu as a free, no-account alternative fix source.
 
 [DLC Unlockers](docs/dlc_unlockers/README.md) – Using DLC unlockers (CreamInstaller-style).
 
@@ -165,8 +169,6 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 **Made by Midrag and his brother.**
 
-**Original SMD** – SteaMidra is built on top of the original **SMD (Steam Manifest Downloader)** by **jericjan**. SMD remains the original project; SteaMidra extends it with more features.
-
 **GreenLuma** – SteaMidra works alongside GreenLuma for AppList injection. GreenLuma is a separate tool and must be downloaded and set up independently.
 
 **gbe_fork** – The "Crack a game" feature uses **gbe_fork**, a Steam emulator for running games offline. License in `third_party_licenses/gbe_fork.LICENSE`.
@@ -187,4 +189,6 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 **RedPaper** – Credit to RedPaper for the Broken Moon MIDI cover, originally arranged by U2 Akiyama and used in Touhou 7.5: Immaterial and Missing Power. Touhou 7.5 and its assets are owned by Team Shanghai Alice and Twilight Frontier. SteaMidra is not affiliated with or endorsed by either party. All trademarks belong to their respective owners.
 
-Use SteaMidra at your own risk.
+SteaMidra is licensed under the GNU General Public License v3.0 (see LICENSE file).
+
+Use at your own risk. For educational purposes only.

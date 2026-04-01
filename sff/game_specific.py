@@ -1,3 +1,21 @@
+# SteaMidra - Steam game setup and manifest tool (SFF)
+# Copyright (c) 2025-2026 Midrag (https://github.com/Midrags)
+#
+# This file is part of SteaMidra.
+#
+# SteaMidra is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SteaMidra is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
+
 """gbe_fork and Steamless stuff in here"""
 
 import hashlib
@@ -504,14 +522,10 @@ class GameHandler:
             + Style.RESET_ALL
         )
 
-    def apply_multiplayer_fix(self, app_info: ACFInfo) -> None:
-        print("\n" + Fore.CYAN + "Multiplayer Fix (online-fix.me)" + Style.RESET_ALL)
-        print("This will download and apply a multiplayer fix for the selected game.")
-        print("The fix will be extracted directly to the game folder.\n")
-
-        # Get game name: ACF from the same library as the game folder (not default steamapps)
+    def _resolve_game_name(self, app_info: ACFInfo) -> str:
+        """Helper: resolve game name from ACF or Steam Store fallback."""
         game_name = "Unknown"
-        steamapps_for_game = app_info.path.parent.parent  # path is .../steamapps/common/GameName
+        steamapps_for_game = app_info.path.parent.parent
         acf_path = steamapps_for_game / f"appmanifest_{app_info.app_id}.acf"
         if acf_path.exists():
             try:
@@ -519,8 +533,6 @@ class GameHandler:
                 game_name = acf_data.get("AppState", {}).get("name", "Unknown")
             except Exception as e:
                 logger.warning(f"Failed to read game name from ACF: {e}")
-
-        # Fallback: fetch official name from Steam Store API so search finds the right game
         if not game_name or game_name == "Unknown":
             try:
                 details = get_app_details_from_store(int(app_info.app_id))
@@ -528,21 +540,44 @@ class GameHandler:
                     game_name = details["name"].strip()
             except Exception as e:
                 logger.debug("Steam Store API fallback for game name: %s", e)
+        return game_name
 
+    def apply_multiplayer_fix(self, app_info: ACFInfo) -> None:
+        print("\n" + Fore.CYAN + "Multiplayer Fix (online-fix.me)" + Style.RESET_ALL)
+        print("This will download and apply a multiplayer fix for the selected game.")
+        print("The fix will be extracted directly to the game folder.\n")
+
+        game_name = self._resolve_game_name(app_info)
         print(f"Game: {Fore.YELLOW}{game_name}{Style.RESET_ALL}")
         print(f"Folder: {Fore.YELLOW}{app_info.path}{Style.RESET_ALL}\n")
 
-        if not prompt_confirm("Continue with multiplayer fix?"):
+        if not prompt_confirm("Continue with multiplayer fix via online-fix.me?"):
             return
 
-        # Apply the fix
         success = apply_online_fix(game_name, app_info.path)
-        
         if success:
             print("\n" + Fore.GREEN + "Multiplayer fix applied successfully!" + Style.RESET_ALL)
             print("You can now launch the game and try multiplayer features.")
         else:
             print("\n" + Fore.RED + "Failed to apply multiplayer fix." + Style.RESET_ALL)
+            print("Check the error messages above for details.")
+
+    def apply_ryuu_fix(self, app_info: ACFInfo) -> None:
+        print("\n" + Fore.CYAN + "Fixes/Bypasses (generator.ryuu.lol)" + Style.RESET_ALL)
+        print("This will search and apply a game fix or bypass from Ryuu's repository.")
+        print("The fix will be extracted directly to the game folder.\n")
+
+        game_name = self._resolve_game_name(app_info)
+        print(f"Game: {Fore.YELLOW}{game_name}{Style.RESET_ALL}")
+        print(f"Folder: {Fore.YELLOW}{app_info.path}{Style.RESET_ALL}\n")
+
+        from sff.ryuu_fix import apply_ryuu_fix as _apply_ryuu
+        success = _apply_ryuu(game_name, app_info.path)
+        if success:
+            print("\n" + Fore.GREEN + "Ryuu fix applied successfully!" + Style.RESET_ALL)
+            print("You can now launch the game.")
+        else:
+            print("\n" + Fore.RED + "Failed to apply Ryuu fix." + Style.RESET_ALL)
             print("Check the error messages above for details.")
 
     def manage_dlc_unlockers(self, app_info: ACFInfo) -> None:
@@ -768,6 +803,8 @@ class GameHandler:
             self.check_mod_updates(app_info.app_id)
         elif choice == MainMenu.MULTIPLAYER_FIX:
             self.apply_multiplayer_fix(app_info)
+        elif choice == MainMenu.RYUU_FIX:
+            self.apply_ryuu_fix(app_info)
         elif choice == MainMenu.MANAGE_DLC_UNLOCKERS:
             self.manage_dlc_unlockers(app_info)
         return MainReturnCode.LOOP

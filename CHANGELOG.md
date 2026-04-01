@@ -1,6 +1,17 @@
 # Changelog
 
-## v4.7 (latest)
+## v4.7.1 (latest)
+
+### New features
+
+- **Fixes/Bypasses (Ryuu):** A new second fix button is now available alongside the existing multiplayer fix. It connects to [generator.ryuu.lol](https://generator.ryuu.lol/fixes), fetches the full list of available fixes, and lets you search and pick the one for your game using fuzzy search. Once selected, the fix is downloaded and extracted directly into your game folder using Python's built-in zip support — no WinRAR or 7-Zip required. This gives a second source of game fixes that is often more up to date and has broader coverage than online-fix.me. The existing **Multiplayer fix (online-fix.me)** button is unchanged.
+
+- **Multi-language interface (i18n):** SteaMidra now supports multiple display languages for the GUI. English and Portuguese are included out of the box. You can add more by dropping a new locale JSON file into `sff/locales/`. The active language is set in Settings and takes effect immediately on the next GUI launch.
+
+---
+
+## v4.7
+
 
 ### Fixes & Improvements
 

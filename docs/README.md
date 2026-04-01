@@ -31,11 +31,11 @@ Parallel downloads, settings backup, library scanner, and other features.
 [Multiplayer Fix](MULTIPLAYER_FIX.md)  
 How to use the online fix feature for multiplayer games.
 
+[Fixes/Bypasses (Ryuu)](RYUU_FIX.md)  
+Using the Ryuu fix source as an alternative or supplement to online-fix.me. No account required.
+
 [DLC Unlockers](dlc_unlockers/README.md)  
 Using SteaMidra to install DLC unlockers (CreamInstaller-style). Credits for CreamInstaller are on that page.
-
-[Troubleshooting](TROUBLESHOOTING.md)  
-Common problems and what to do about them.
 
 **Credits**
 

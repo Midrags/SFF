@@ -1,0 +1,92 @@
+import json
+import locale
+import os
+from pathlib import Path
+from sff.utils import root_folder
+
+# Find the locales folder relative to this file
+LOCALES_DIR = root_folder() / "sff/locales"
+
+def _load_language_file(language: str) -> dict:
+    file_path = LOCALES_DIR / f"{language}.json"
+    if not file_path.exists():
+        return {}
+    
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading translation for {language}: {e}")
+        return {}
+
+
+class Translator:
+    def __init__(self, language: str = None):
+        if not LOCALES_DIR.exists():
+            LOCALES_DIR.mkdir(parents=True, exist_ok=True)
+            
+        if language in ["Auto", None, ""]:
+            try:
+                language_sys = locale.getdefaultlocale()[0]
+                language_code = language_sys.split("_")[0] if language_sys else "en"
+                language = language_code
+            except Exception:
+                language = "en"
+
+        if not language:
+            language = "en"
+
+        # Check if full locale exists (e.g. pt_BR.json)
+        if not (LOCALES_DIR / f"{language}.json").exists():
+            # Try simple language code (e.g. pt.json)
+            if "_" in language:
+                language = language.split("_")[0]
+            
+            # If still not found, default to en
+            if not (LOCALES_DIR / f"{language}.json").exists():
+                language = "en"
+        
+        self.language = language
+        self.language_map = _load_language_file(language)
+        
+        # Load English as fallback for missing keys
+        if language != "en":
+            self.fallback_map = _load_language_file("en")
+        else:
+            self.fallback_map = {}
+
+    @property
+    def locale(self):
+        return self.language
+
+    def __call__(self, key: str) -> str:
+        if not key:
+            return ""
+            
+        # Try primary language
+        if key in self.language_map:
+            return self.language_map[key]
+            
+        # Try fallback
+        if key in self.fallback_map:
+            return self.fallback_map[key]
+            
+        # Return key itself
+        return key
+
+    def __repr__(self):
+        return "Translator Language: " + self.language
+
+# Global instance initialized below, but can be updated on App start
+_T = Translator("en")
+
+def get_translator() -> Translator:
+    return _T
+
+def set_language(lang: str) -> None:
+    global _T
+    _T = Translator(lang)
+
+def T(key: str) -> str:
+    """Short-hand for translation calls"""
+    return _T(key)
