@@ -493,7 +493,7 @@ def _apply_multiplayer_fix_selenium(
             btn = wait.until(EC.presence_of_element_located((By.XPATH, uploads_btn_xpath)))
             target_url = btn.get_attribute("href")
             
-            # --- INTERACTION FLOW (Mango Method) ---
+            # --- INTERACTION FLOW
             print("Initiating Click-Until-Open traversal...")
             target_handle = None
             
@@ -543,7 +543,7 @@ def _apply_multiplayer_fix_selenium(
                 driver.get(curr)
                 time.sleep(3)
 
-            # Identification (Mango Style)
+            # Identification
             print("Checking for 'Fix Repair' folders and archives...")
             final_link = None
             try:
