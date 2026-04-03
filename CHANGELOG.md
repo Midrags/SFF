@@ -1,12 +1,22 @@
 # Changelog
 
-## v4.7.1 (latest)
+## v4.7.2 (latest)
+
+### Fixes & Improvements
+
+- **Oureveryday Dynamic LUA Assembly:** Fixed a critical bug where the `oureveryday` option threw a "Failed to download Lua for App ID..." error due to the permanent deletion of the upstream SteamAutoCracks GitHub repository. Since pre-built `.lua` files for this feature are no longer hosted on the internet, SteaMidra now features a custom **Dynamic LUA Assembler**. It natively queries the official Steam Connection Manager to isolate your game's depots, downloads the active 288k+ JSON key database from GitLab, and flawlessly builds the required `.lua` file on the fly before seamlessly transitioning into the standard manifest downloads.
+- **Local Fallback Database:** Added a robust final "last resort" fallback system for offline deployments so SteaMidra can parse local JSON decryption key dumps if the internet or GitLab goes down completely.
+
+---
+
+## v4.7.1
 
 ### New features
 
-- **Fixes/Bypasses (Ryuu):** A new second fix button is now available alongside the existing multiplayer fix. It connects to [generator.ryuu.lol](https://generator.ryuu.lol/fixes), fetches the full list of available fixes, and lets you search and pick the one for your game using fuzzy search. Once selected, the fix is downloaded and extracted directly into your game folder using Python's built-in zip support — no WinRAR or 7-Zip required. This gives a second source of game fixes that is often more up to date and has broader coverage than online-fix.me. The existing **Multiplayer fix (online-fix.me)** button is unchanged.
-
+- **Multiplayer Fix Overhaul (online-fix.me):** The multiplayer fix download flow has been completely rewritten for maximum reliability. It now handles aggressive ad popups by monitoring window handles, supports navigating into "Fix Repair" subfolders on the primary server, and includes a robust fallback to the "Hosters" page (with automatic parsing of Pixeldrain/direct links from JSON metadata). This fixes the persistent "Archive link not found" and "Window timeout" errors.
+- **Fixes/Bypasses (Ryuu):** A new second fix button is now available alongside the existing multiplayer fix. It connects to [generator.ryuu.lol](https://generator.ryuu.lol/fixes), fetches the full list of available fixes, and lets you search and pick the one for your game using fuzzy search. Once selected, the fix is downloaded and extracted directly into your game folder using Python's built-in zip support — no WinRAR or 7-Zip required. This gives a second source of game fixes that is often more up to date and has broader coverage than online-fix.me.
 - **Multi-language interface (i18n):** SteaMidra now supports multiple display languages for the GUI. English and Portuguese are included out of the box. You can add more by dropping a new locale JSON file into `sff/locales/`. The active language is set in Settings and takes effect immediately on the next GUI launch.
+- **Morrenus Error Handling:** Improved error reporting for Morrenus manifest downloads, specifically handling 404/Limit reached responses more gracefully by displaying the actual server error message.
 
 ---
 

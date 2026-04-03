@@ -1,3 +1,21 @@
+# SteaMidra - Steam game setup and manifest tool (SFF)
+# Copyright (c) 2025-2026 Midrag (https://github.com/Midrags)
+#
+# This file is part of SteaMidra.
+#
+# SteaMidra is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SteaMidra is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
+
 import asyncio
 import logging
 import shutil
@@ -278,30 +296,30 @@ class ManifestDownloader:
     ) -> Optional[bytes]:
         """
         Fire ManifestHub API and GitHub mirror simultaneously.
-        API is preferred when both return data (same manifest_id → identical content).
-        Falls back to mirror if API misses, and vice-versa.
+        Returns the data from whichever endpoint finishes fastest and succeeds.
         """
+        from concurrent.futures import as_completed
+
         with ThreadPoolExecutor(max_workers=2) as pool:
-            f_api    = pool.submit(self._try_manifesthub, depot_id, manifest_id)
-            f_github = pool.submit(
-                self._try_github_manifest_bytes, app_id, depot_id, manifest_id
-            )
-            api_bytes    = f_api.result()
-            github_bytes = f_github.result()
-
-        if api_bytes is not None and github_bytes is not None:
-            logger.debug(
-                f"Depot {depot_id}: ManifestHub API and GitHub both returned data "
-                f"for manifest {manifest_id} — versions match (same manifest_id). Using API."
-            )
-            return api_bytes
-
-        if api_bytes is not None:
-            return api_bytes
-
-        if github_bytes is not None:
-            return github_bytes
-
+            futures = {
+                pool.submit(self._try_manifesthub, depot_id, manifest_id): "API",
+                pool.submit(self._try_github_manifest_bytes, app_id, depot_id, manifest_id): "GitHub"
+            }
+            
+            for future in as_completed(futures):
+                name = futures[future]
+                try:
+                    result = future.result()
+                    if result is not None:
+                        logger.debug(f"Depot {depot_id}: {name} returned manifest {manifest_id} fastest.")
+                        # cancel the other one (though ThreadPoolExecutor doesn't strictly cancel running threads,
+                        # python futures will be marked to not execute if they haven't started)
+                        for f in futures:
+                            f.cancel()
+                        return result
+                except Exception as e:
+                    logger.debug(f"{name} failed in _try_manifesthub_combined: {e}")
+                    
         return None
 
     def _log_mirror_coverage(

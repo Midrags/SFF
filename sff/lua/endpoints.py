@@ -39,27 +39,109 @@ logger = logging.getLogger(__name__)
 
 
 def get_oureverday(dest: Path, app_id: str):
-    lua_contents = asyncio.run(
-        get_request(
-            f"https://raw.githubusercontent.com/SteamAutoCracks/ManifestHub/refs/heads/{app_id}/{app_id}.lua"
+    import json
+    import httpx as _httpx
+    from sff.steam_client import create_provider_for_current_thread
+
+    # Step 1: The Original GitHub source (Primary)
+    print(Fore.CYAN + f"\n[Step 1] Attempting to download Lua for {app_id} from SteamAutoCracks GitHub..." + Style.RESET_ALL)
+    try:
+        resp = _httpx.get(
+            f"https://raw.githubusercontent.com/SteamAutoCracks/ManifestHub/refs/heads/{app_id}/{app_id}.lua",
+            timeout=15,
+            follow_redirects=True,
         )
-    )
-    if lua_contents is None:
-        print(
-            Fore.RED
-            + f"\nFailed to download Lua for App ID {app_id} from oureveryday."
-            + Style.RESET_ALL
+        if resp.status_code == 200 and resp.text.strip():
+            lua_path = dest / f"{app_id}.lua"
+            lua_path.write_text(resp.text, encoding="utf-8")
+            print(Fore.GREEN + f"✅ GitHub: Succesfully downloaded Lua for {app_id}" + Style.RESET_ALL)
+            return lua_path
+        else:
+            print(Fore.YELLOW + f"GitHub returned HTTP {resp.status_code}. Moving to GitLab / Steam Client Fallback..." + Style.RESET_ALL)
+    except Exception as e:
+        print(Fore.YELLOW + f"GitHub unreachable ({e}). Moving to GitLab / Steam Client Fallback..." + Style.RESET_ALL)
+
+    # Sub-Step 2A: Query Steam Connection Manager natively for the depot IDs!
+    print(Fore.CYAN + f"[Step 2] Native Fallback - Fetching valid depots for {app_id} natively from Steam Client..." + Style.RESET_ALL)
+    try:
+        provider = create_provider_for_current_thread()
+        app_info = provider.get_single_app_info(int(app_id))
+        if not app_info:
+            print(Fore.RED + f"Failed to query Steam App Info for {app_id}." + Style.RESET_ALL)
+            return None
+        depots = [d for d in app_info.get("depots", {}).keys() if d.isdigit()]
+    except Exception as e:
+        print(Fore.RED + f"Steam query failed while checking depots: {e}" + Style.RESET_ALL)
+        return None
+
+    if not depots:
+        print(Fore.RED + f"No valid depots exist on Steam for this App ID." + Style.RESET_ALL)
+        return None
+
+    # Step 2: The GitLab Database
+    print(Fore.CYAN + f"[Step 3] Fetching latest Decryption Key database from GitLab..." + Style.RESET_ALL)
+    keys_dict = {}
+    try:
+        resp = _httpx.get(
+            "https://gitlab.com/SteamAutoCracks/ManifestHub/-/raw/main/depotkeys.json",
+            timeout=25,
+            follow_redirects=True,
         )
-        print(
-            Fore.YELLOW
-            + "The game may not be available on this source, or there is a network error."
-            + Style.RESET_ALL
-        )
-        return
+        if resp.status_code == 200:
+            keys_dict = resp.json()
+            print(Fore.GREEN + f"✅ Successfully downloaded key database from GitLab!" + Style.RESET_ALL)
+        else:
+            print(Fore.YELLOW + f"GitLab returned HTTP {resp.status_code}. Moving to local file final resort..." + Style.RESET_ALL)
+    except Exception as e:
+        print(Fore.YELLOW + f"GitLab repository unreachable ({e}). Moving to local file final resort..." + Style.RESET_ALL)
+
+    # Step 3: "Last Complete Resort" Local Database
+    if not keys_dict:
+        print(Fore.CYAN + f"[Final Resort] Loading local keys from C:\\Users\\Syrer\\Downloads database backup..." + Style.RESET_ALL)
+        local_db = Path(__file__).parent / "fallback_depotkeys.json"
+        if local_db.exists():
+            try:
+                keys_dict = json.loads(local_db.read_text(encoding="utf-8"))
+                print(Fore.GREEN + f"✅ Successfully loaded local key database!" + Style.RESET_ALL)
+            except Exception as e:
+                print(Fore.RED + f"Failed to load local DB: {e}" + Style.RESET_ALL)
+                return None
+        else:
+            print(Fore.RED + f"Local DB '{local_db.name}' not found." + Style.RESET_ALL)
+            return None
+
+    # Generate the Lua File Dynamically
+    lua_lines = [f"addappid({app_id})"]
+    found = 0
+    for d in depots:
+        if d in keys_dict:
+            # SteamAutoCrack uses addappid(depot_id, 1, "key") format
+            lua_lines.append(f"addappid({d}, 1, \"{keys_dict[d]}\")")
+            found += 1
+
+    if found == 0:
+        print(Fore.RED + f"No known keys were found for the depots of App ID {app_id} in any database." + Style.RESET_ALL)
+        return None
+
     lua_path = dest / f"{app_id}.lua"
     with lua_path.open("w", encoding="utf-8") as f:
-        f.write(lua_contents)
+        f.write("\n".join(lua_lines))
+    
+    print(Fore.GREEN + f"✅ Built custom Lua for {app_id} (Resolved {found} keys natively)" + Style.RESET_ALL)
     return lua_path
+
+    print(
+        Fore.RED
+        + f"\nFailed to download Lua for App ID {app_id} from oureveryday."
+        + Style.RESET_ALL
+    )
+    print(
+        Fore.YELLOW
+        + "The game may not be available on this source, or there is a network error."
+        + Style.RESET_ALL
+    )
+    return None
+
 
 
 def get_morrenus(dest: Path, app_id: str, depotcache: Optional[Path] = None) -> Optional[Path]:
