@@ -8,7 +8,7 @@ Steam has updated and if you accidentally update your Steam client to a version 
 
 ---
 
-# SteaMidra (Education purposes only)
+# SteaMidra v4.7.2 (Education purposes only)
 
 "Made" by Midrag and his brother!
 
