@@ -1,290 +1,84 @@
-# Single requirements file — covers CLI, GUI (PyQt6), online-fix (Selenium), and Tor fallback.
-# Versions taken from requirements-consumer.txt (more recent); gui + online-fix merged in.
-#
-# ---------------------------------------------------------------
-# INSTALLATION (two commands required due to steam urllib3 conflict)
-#
-#   Step 1:  pip install -r requirements.txt
-#   Step 2:  pip install steam==1.4.4 --no-deps
-#
-# Why? steam==1.4.4 metadata declares urllib3<2, but selenium 4.x
-# needs urllib3>=2.x. Steam only uses `requests` at runtime and works
-# fine with urllib3 2.x — the constraint is just stale. Installing
-# steam with --no-deps bypasses the check; all its deps are already
-# installed by Step 1.
-# ---------------------------------------------------------------
-#
-# ---------------------------------------------------------------
-# OPTIONAL: Tor Expert Bundle  (not a Python package, not via pip)
-#
-# Used as automatic fallback when the primary GMRC endpoint
-# (st-gmrc.kur0.deno.dev) is unreachable. Without it the Tor path
-# is silently skipped and you fall back to ManifestHub API or
-# manual code entry.
-#
-# Easiest way: run install_online_fix_requirements.bat — it will
-# offer to open the Tor download page automatically after pip install.
-# Or manually:
-#   1. https://www.torproject.org/download/#tor-downloads
-#   2. Download "Expert Bundle" (no browser, just the daemon)
-#   3. Unzip anywhere, run tor.exe once — it listens on :9050
-#   4. Leave it running while using the tool; no other config needed
-#
-# pysocks (already listed below) handles the SOCKS5 connection.
-# ---------------------------------------------------------------
 altgraph==0.17.5
-    # via pyinstaller
 anyio==4.12.1
-    # via httpx
 attrs==25.4.0
-    # via
-    #   flake8-bugbear
-    #   outcome
-    #   trio
 backports-tarfile==1.2.0
-    # via jaraco-context
 beautifulsoup4==4.12.3
-    # via steam-manifest-decrypt (pyproject.toml)
 black==25.11.0
-    # via steam-manifest-decrypt (pyproject.toml)
 cachetools==6.2.6
-    # via steam
 certifi==2026.2.25
-    # via
-    #   httpcore
-    #   httpx
-    #   requests
-    #   selenium
 cffi==2.0.0
-    # via
-    #   gevent
-    #   pynacl
-    #   trio
 charset-normalizer==3.4.4
-    # via requests
 click==8.1.8
-    # via black
 colorama==0.4.6
-    # via
-    #   steam-manifest-decrypt (pyproject.toml)
-    #   click
-    #   tqdm
 configupdater==3.2
-    # via steam-manifest-decrypt (pyproject.toml)
 exceptiongroup==1.3.1
-    # via
-    #   anyio
-    #   trio
-    #   trio-websocket
 flake8==7.3.0
-    # via
-    #   steam-manifest-decrypt (pyproject.toml)
-    #   flake8-bugbear
 flake8-bugbear==24.12.12
-    # via steam-manifest-decrypt (pyproject.toml)
 gevent==25.9.1
-    # via
-    #   gevent-eventemitter
-    #   steam
 gevent-eventemitter==2.1
-    # via
-    #   steam-manifest-decrypt (pyproject.toml)
-    #   steam
 greenlet==3.2.4
-    # via gevent
-    # NOTE: 3.2.5 has no pre-built wheel for Python 3.12 on Windows;
-    #       pinned to 3.2.4 which ships a cp312 wheel and installs without MSVC.
 h11==0.16.0
-    # via
-    #   httpcore
-    #   wsproto
 httpcore==1.0.9
-    # via httpx
 httpx==0.28.1
-    # via steam-manifest-decrypt (pyproject.toml)
 idna==3.11
-    # via
-    #   anyio
-    #   httpx
-    #   requests
-    #   trio
 importlib-metadata==8.7.1
-    # via
-    #   isort
-    #   keyring
-    #   pyinstaller
-    #   pyinstaller-hooks-contrib
 inquirerpy @ git+https://github.com/kazhala/InquirerPy@714d9068896c1a1f9f4d1354f43f922cd5cfe16d
-    # via steam-manifest-decrypt (pyproject.toml)
 isort==6.1.0
-    # via steam-manifest-decrypt (pyproject.toml)
 jaraco-classes==3.4.0
-    # via
-    #   keyring
-    #   keyrings-alt
 jaraco-context==6.1.0
-    # via
-    #   keyring
-    #   keyrings-alt
 jaraco-functools==4.4.0
-    # via keyring
 keyring==25.7.0
-    # via steam-manifest-decrypt (pyproject.toml)
 keyrings-alt==5.0.2
-    # via steam-manifest-decrypt (pyproject.toml)
 lxml==6.0.2
-    # via steam-manifest-decrypt (pyproject.toml)
 markdown-it-py==3.0.0
-    # via rich
 mccabe==0.7.0
-    # via flake8
 mdurl==0.1.2
-    # via markdown-it-py
 more-itertools==10.8.0
-    # via
-    #   jaraco-classes
-    #   jaraco-functools
 msgpack==1.1.2
-    # via steam-manifest-decrypt (pyproject.toml)
 mypy-extensions==1.1.0
-    # via black
 outcome==1.3.0.post0
-    # via
-    #   trio
-    #   trio-websocket
 packaging==26.0
-    # via
-    #   black
-    #   pyinstaller
-    #   pyinstaller-hooks-contrib
 pathspec==1.0.4
-    # via black
 pathvalidate==3.3.1
-    # via steam-manifest-decrypt (pyproject.toml)
 pefile==2024.8.26
-    # via pyinstaller
 pfzy==0.3.4
-    # via inquirerpy
 Pillow==11.2.1
-    # via steam-manifest-decrypt (pyproject.toml)
 platformdirs==4.4.0
-    # via black
 prompt-toolkit==3.0.52
-    # via inquirerpy
 protobuf==3.20.3
-    # via
-    #   steam-manifest-decrypt (pyproject.toml)
-    #   steam
 psutil==7.2.2
-    # via steam-manifest-decrypt (pyproject.toml)
 pycodestyle==2.14.0
-    # via flake8
 pycparser==2.23
-    # via cffi
 pycryptodome==3.23.0
-    # via steam-manifest-decrypt (pyproject.toml)
 pycryptodomex==3.23.0
-    # via steam
 pyflakes==3.4.0
-    # via flake8
 pygments==2.19.2
-    # via rich
 pyinstaller==6.19.0
-    # via steam-manifest-decrypt (pyproject.toml)
 pyinstaller-hooks-contrib==2026.1
-    # via pyinstaller
 pynacl==1.6.2
-    # via steam-manifest-decrypt (pyproject.toml)
 pyperclip==1.11.0
-    # via steam-manifest-decrypt (pyproject.toml)
 pyqt6==6.10.2
-    # via
-    #   steam-manifest-decrypt (pyproject.toml)
 pyqt6-qt6==6.10.2
-    # via pyqt6
-pyqt6-sip==13.10.2
-    # via pyqt6
-# pyqt6-webengine removed: openlua.cloud automation was removed from tool
-# pyqt6-webengine==6.10.0
-# pyqt6-webengine-qt6==6.10.2
+PyQt6-WebEngine==6.10.0
+PyQt6-WebEngine-Qt6==6.10.2
 pysocks==1.7.1
-    # via
-    #   torpy
-    #   urllib3
-pytokens==0.4.1
-    # via black
+pytest==8.3.5
+python-dateutil==2.9.0.post0
+pywin32==310
 pywin32-ctypes==0.2.3
-    # via
-    #   keyring
-    #   pyinstaller
-pyyaml==6.0.3
-    # via steam-manifest-decrypt (pyproject.toml)
-requests==2.32.5
-    # via steam
-rich==13.9.4
-    # via steam-manifest-decrypt (pyproject.toml)
-selenium==4.36.0
-    # via steam-manifest-decrypt (pyproject.toml)
-setuptools==82.0.0
-    # via
-    #   pyinstaller
-    #   pyinstaller-hooks-contrib
-    #   zope-event
+PyYAML==6.0.2
+requests==2.32.3
+rich==14.0.0
+selenium==4.29.0
+setuptools==78.1.0
 six==1.17.0
-    # via steam
 sniffio==1.3.1
-    # via
-    #   anyio
-    #   trio
 sortedcontainers==2.4.0
-    # via trio
-# steam==1.4.4 has an overly conservative urllib3<2 constraint that conflicts with
-# selenium 4.x (needs urllib3>=2.x). Steam only uses `requests` at runtime and
-# works fine with urllib3 2.x. Install it AFTER pip install -r requirements.txt:
-#   pip install steam==1.4.4 --no-deps
-# All of steam's transitive deps (gevent, six, protobuf, etc.) are already above.
-# steam==1.4.4
-#     # via steam-manifest-decrypt (pyproject.toml)
-tomli==2.4.0
-    # via black
-torpy==1.1.6
-    # via steam-manifest-decrypt (pyproject.toml)
-tqdm==4.67.3
-    # via steam-manifest-decrypt (pyproject.toml)
-trio==0.31.0
-    # via
-    #   selenium
-    #   trio-websocket
+steam-manifest-decrypt @ git+https://github.com/Midrags/steam-manifest-decrypt.git
+trio==0.29.0
 trio-websocket==0.12.2
-    # via selenium
-typing-extensions==4.15.0
-    # via
-    #   anyio
-    #   black
-    #   exceptiongroup
-    #   selenium
-urllib3==2.6.3
-    # via
-    #   requests
-    #   selenium
-    # NOTE: steam==1.4.4 has urllib3<2 in its setup.py but only uses requests
-    # at runtime — works fine with urllib3 2.x. Install steam with --no-deps
-    # (see steam comment above) to bypass the constraint check.
-vdf==3.4
-    # via
-    #   steam-manifest-decrypt (pyproject.toml)
-    #   steam
-wcwidth==0.6.0
-    # via prompt-toolkit
-websocket-client==1.9.0
-    # via selenium
-win10toast==0.9
-    # via steam-manifest-decrypt (pyproject.toml)
+tqdm==4.67.1
+trio-websocket==0.12.2
+urllib3==2.4.0
+webdriver-manager==4.0.2
 wsproto==1.2.0
-    # via trio-websocket
-zipp==3.23.0
-    # via importlib-metadata
-zope-event==6.0
-    # via gevent
-zope-interface==8.0.1
-    # via gevent
