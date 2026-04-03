@@ -1,4 +1,0 @@
-﻿## v4.7.2 (latest)
-### Fixes & Improvements
-- **Oureveryday Dynamic LUA Assembly:** Fixed a critical bug where the oureveryday option threw a "Failed to download Lua for App ID..." error due to the permanent deletion of the upstream SteamAutoCracks GitHub repository. Since pre-built .lua files for this feature are no longer hosted on the internet, SteaMidra now features a custom **Dynamic LUA Assembler**. It natively queries the official Steam Connection Manager to isolate your game's depots, downloads the active 288k+ JSON key database from GitLab, and flawlessly builds the required .lua file on the fly before seamlessly transitioning into the standard manifest downloads.
-- **Local Fallback Database:** Added a robust final "last resort" fallback system for offline deployments so SteaMidra can parse local JSON decryption key dumps if the internet or GitLab goes down completely.
