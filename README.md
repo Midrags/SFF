@@ -6,6 +6,8 @@ Steam has updated and if you accidentally update your Steam client to a version 
 "C:\Program Files (x86)\Steam\steam.exe" -forcesteamupdate -forcepackagedownload -overridepackageurl http://web.archive.org/web/20260122074724if_/media.steampowered.com/client -exitsteam
 ```
 
+Just so people know online-fix has updated their site and it is very annoying when they do that, since multiplayer fix is not working no more as it did before. Use Bypass/fix option instead it should have all the needed files etc for multiplayer and fixes for games.
+
 ---
 
 # SteaMidra v4.7.2 (Education purposes only)
