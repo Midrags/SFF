@@ -10,7 +10,7 @@ Just so people know online-fix has updated their site and it is very annoying wh
 
 ---
 
-# SteaMidra v4.7.2 (Education purposes only)
+# SteaMidra (Education purposes only)
 
 "Made" by Midrag and his brother!
 
