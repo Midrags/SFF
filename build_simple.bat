@@ -10,18 +10,18 @@ echo Cleaning old build files...
 if exist "build" rmdir /s /q "build"
 if exist "dist" rmdir /s /q "dist"
 
-if exist "third_party\SteamAuto Code\SteamAuto\SteamAutoCrack.CLI\SteamAutoCrack.CLI.csproj" (
+if exist "third_party\SteamAutoCrack\Steam-auto-crack-3.5.0.3\Steam-auto-crack-3.5.0.3\SteamAutoCrack.CLI\SteamAutoCrack.CLI.csproj" (
     where dotnet >nul 2>&1
     if not errorlevel 1 (
         echo.
-        echo Building SteamAutoCrack CLI...
-        dotnet build "third_party\SteamAuto Code\SteamAuto\SteamAutoCrack.CLI\SteamAutoCrack.CLI.csproj" -c Release
-        if exist "third_party\SteamAuto Code\SteamAuto\SteamAutoCrack.CLI\bin\Release\net9.0-windows\SteamAutoCrack.CLI.dll" (
+        echo Building SteamAutoCrack CLI v3.5.0.3...
+        dotnet publish "third_party\SteamAutoCrack\Steam-auto-crack-3.5.0.3\Steam-auto-crack-3.5.0.3\SteamAutoCrack.CLI\SteamAutoCrack.CLI.csproj" -c Release -r win-x86 --self-contained true -p:PublishSingleFile=false -p:ErrorOnDuplicatePublishOutputFiles=false
+        if exist "third_party\SteamAutoCrack\Steam-auto-crack-3.5.0.3\Steam-auto-crack-3.5.0.3\SteamAutoCrack.CLI\bin\Release\net10.0-windows\win-x86\publish\SteamAutoCrack.CLI.exe" (
             if not exist "third_party\SteamAutoCrack\cli" mkdir "third_party\SteamAutoCrack\cli"
-            copy /y "third_party\SteamAuto Code\SteamAuto\SteamAutoCrack.CLI\bin\Release\net9.0-windows\SteamAutoCrack.CLI.*" "third_party\SteamAutoCrack\cli" >nul
-            if exist "third_party\SteamAuto Code\SteamAuto\SteamAutoCrack.Core\bin\Release\net9.0-windows\SteamAutoCrack.Core.dll" (
-                copy /y "third_party\SteamAuto Code\SteamAuto\SteamAutoCrack.Core\bin\Release\net9.0-windows\SteamAutoCrack.Core.*" "third_party\SteamAutoCrack\cli" >nul
-            )
+            xcopy /E /Y /I "third_party\SteamAutoCrack\Steam-auto-crack-3.5.0.3\Steam-auto-crack-3.5.0.3\SteamAutoCrack.CLI\bin\Release\net10.0-windows\win-x86\publish\*" "third_party\SteamAutoCrack\cli" >nul
+            echo SteamAutoCrack CLI v3.5.0.3 built successfully.
+        ) else (
+            echo WARNING: SteamAutoCrack CLI build did not produce expected output.
         )
         echo.
     )
