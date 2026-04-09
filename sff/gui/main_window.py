@@ -255,7 +255,7 @@ class SFFMainWindow(QMainWindow):
         lua_layout = QVBoxLayout(lua_group)
         lua_row = QHBoxLayout()
         for label, func in [
-            (T("Process .lua file"), lambda: self.ui.process_lua_full()),
+            (T("Download games"), lambda: self.ui.process_lua_full()),
             (T("Download manifests only"), lambda: self.ui.process_lua_minimal()),
             (T("Recent .lua files"), lambda: self.ui.recent_files_menu()),
             (T("Update all manifests"), lambda: self.ui.update_all_manifests()),
