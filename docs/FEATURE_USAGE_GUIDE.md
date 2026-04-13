@@ -34,6 +34,22 @@ Before changing important files, SteaMidra can make backups. How many backups to
 
 In menus you can often press a number to choose an option. Escape or Back goes back. Ctrl+C exits SteaMidra.
 
+**Download tracking (GUI)**
+
+When you use "Download Games" in the GUI, the download is tracked in the Downloads tab. You can see which game is downloading and when it completes. This works for the main game download flow (manifest downloads + ACF writing).
+
+**Store browser (GUI)**
+
+The Store tab lets you search the Morrenus manifest library by game name or App ID. You need a Morrenus API key (set it in Settings). Results are paginated and show available manifests for each game.
+
+**Themes (GUI)**
+
+SteaMidra has 11+ themes including Dracula, Nord, Cyberpunk, and more. Change your theme from the Theme menu in the GUI.
+
+**System tray icon (GUI)**
+
+SteaMidra shows a system tray icon. Right-click it to show/hide the window or exit.
+
 **Command line**
 
 You can run SteaMidra with extra options: for example `--batch file1.lua file2.lua` to process several files, or `--dry-run` to see what would happen without doing it. Run `python Main.py --help` to see all options.

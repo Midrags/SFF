@@ -44,6 +44,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QVBoxLayout,
     QWidget,
+    QTabWidget,
 )
 
 from sff.gui.themes import THEMES
@@ -144,12 +145,47 @@ class SFFMainWindow(QMainWindow):
         self.setCentralWidget(central)
         root_layout = QVBoxLayout(central)
 
+        self.tabs = QTabWidget()
+        root_layout.addWidget(self.tabs)
+
+        main_tab_widget = QWidget()
+        main_tab_layout = QVBoxLayout(main_tab_widget)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll_widget = QWidget()
         layout = QVBoxLayout(scroll_widget)
         scroll.setWidget(scroll_widget)
-        root_layout.addWidget(scroll, stretch=1)
+        main_tab_layout.addWidget(scroll, stretch=1)
+
+        self.tabs.addTab(main_tab_widget, "Main")
+
+        from sff.gui.store_tab import StoreTab
+        from sff.gui.downloads_tab import DownloadsTab
+        from sff.gui.fix_game_tab import FixGameTab
+        from sff.gui.tools_tab import ToolsTab
+        from sff.gui.cloud_saves_tab import CloudSavesTab
+        from sff.download_manager import DownloadManager
+
+        # Shared download manager — used by both the tracking tab and
+        # the backend (process_lua_full) so downloads show up in the UI.
+        self._download_manager = DownloadManager()
+        self.ui.download_manager = self._download_manager
+
+        self.store_tab = StoreTab()
+        self.tabs.addTab(self.store_tab, "Store")
+
+        self.downloads_tab = DownloadsTab(download_manager=self._download_manager)
+        self.tabs.addTab(self.downloads_tab, "Download Tracking")
+
+        self.fix_game_tab = FixGameTab()
+        self.tabs.addTab(self.fix_game_tab, "Fix Game")
+
+        self.tools_tab = ToolsTab(steam_path)
+        self.tabs.addTab(self.tools_tab, "Tools")
+
+        self.cloud_saves_tab = CloudSavesTab(steam_path)
+        self.tabs.addTab(self.cloud_saves_tab, "Cloud Saves")
 
         # ── Game / path ──────────────────────────────────────────
         path_group = QGroupBox(T("Game / path"))
@@ -255,7 +291,7 @@ class SFFMainWindow(QMainWindow):
         lua_layout = QVBoxLayout(lua_group)
         lua_row = QHBoxLayout()
         for label, func in [
-            (T("Download games"), lambda: self.ui.process_lua_full()),
+            (T("Download Games"), lambda: self.ui.process_lua_full()),
             (T("Download manifests only"), lambda: self.ui.process_lua_minimal()),
             (T("Recent .lua files"), lambda: self.ui.recent_files_menu()),
             (T("Update all manifests"), lambda: self.ui.update_all_manifests()),

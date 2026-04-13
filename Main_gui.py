@@ -131,6 +131,18 @@ def main() -> None:
 
     window = SFFMainWindow(ui, steam_path)
     window.show()
+
+    from sff.tray_icon import TrayIcon
+    tray = TrayIcon()
+    tray.show_requested.connect(window.showNormal)
+    tray.show_requested.connect(window.activateWindow)
+    tray.exit_requested.connect(app.quit)
+    tray.show()
+
+    from sff.uri_handler import UriHandler
+    if not UriHandler.is_registered():
+        UriHandler.register()
+
     sys.exit(app.exec())
 
 

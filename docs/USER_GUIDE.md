@@ -99,6 +99,30 @@ Edit, export, or import SteaMidra settings. Settings are usually set automatical
 
 ---
 
+## GUI Tabs (v4.8.0+)
+
+The GUI uses a tabbed interface. All CLI features are on the **Main** tab. The other tabs are:
+
+### Store Tab
+Search and browse the Morrenus manifest library. Enter your API key in Settings first. Search by game name or App ID, paginate through results, and view available manifests.
+
+### Downloads Tab
+View and manage active and queued downloads. When you use "Download Games" on the Main tab, downloads appear here with progress tracking.
+
+### Fix Game Tab
+Automate the emulator application pipeline. Choose an emulator mode (Regular Goldberg, ColdClient Loader, or ColdLoader DLL), toggle SteamStub auto-unpack, and configure generation options. Select a game and click Fix to apply.
+
+### Tools Tab
+- **GBE Token Generator** — Generate full Goldberg emulator configs (achievements, DLCs, stats, icons) for a game. Requires a Steam Web API key.
+- **VDF Depot Key Extractor** — Extract decryption keys from Steam's config.vdf and display them in a table.
+
+### Cloud Saves Tab
+Two modes:
+- **STFixer Mode** — Patches broken save behavior in Capcom games (based on STFixer by Selectively11). Enable Cloud Fix and Morrenus Fallback.
+- **Backup/Restore Mode** — Create, list, restore, and delete save backups per game.
+
+---
+
 ## File locations
 
 | File | Purpose |

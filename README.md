@@ -10,7 +10,7 @@ Just so people know online-fix has updated their site and it is very annoying wh
 
 ---
 
-# SteaMidra v4.7.2 (Education purposes only)
+# SteaMidra (Education purposes only)
 
 "Made" by Midrag and his brother!
 
@@ -80,11 +80,18 @@ SteaMidra has a full graphical interface.
 3. Run `dist\SteaMidra_GUI.exe`
 
 **What the GUI gives you:**  
+- **Tabbed interface** — Main, Store, Downloads, Fix Game, Tools, and Cloud Saves tabs.  
 - Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.  
 - All actions as buttons: crack, DRM removal, DLC check, workshop items, multiplayer fix, **Fixes/Bypasses (Ryuu)**, DLC unlockers, and more.  
-- Lua/manifest processing, AppList management, Steam patching, and library tools all accessible from buttons.  
+- **Store browser** — search and browse the Morrenus manifest library with pagination.  
+- **Fix Game pipeline** — automate emulator application (Goldberg, ColdClient, ColdLoader) with SteamStub unpacking.  
+- **GBE Token Generator** — generate full Goldberg emulator configs with achievements, DLCs, stats, and icons.  
+- **Cloud Saves** — STFixer mode for Capcom save fixes + manual backup/restore of game saves.  
+- **VDF Key Extractor** — extract depot decryption keys from Steam's config.vdf.  
+- Lua/manifest processing, AppList management, and library tools all accessible from buttons.  
 - Full settings dialog where you can edit, delete, export, and import all settings.  
-- Light and dark themes.  
+- **11+ themes** including Dracula, Nord, Cyberpunk, and more.  
+- **System tray icon** for quick show/hide and exit.  
 - **Multi-language support** — switch between English and Portuguese in Settings (more locales can be added).  
 - Log output shown in the window so you can see what's happening.  
 - Any prompts that would normally appear in the terminal show up as dialog boxes instead.
@@ -148,9 +155,11 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 ## Troubleshooting
 
-**Steam says "No Internet Connection" when downloading** — This is a with endpoints, which SteaMidra already has "fix" for it so it should not be an issue!
+**Steam says "No Internet Connection" when downloading** — SteaMidra handles this automatically.
 
-1. **SteaMidra handles it automatically** — When you process a .lua file or use "Update all manifests", manifests are written directly to Steam's `depotcache` folder before Steam starts. Steam finds them locally and never needs to contact the endpoint.
+1. **Workshop ACF fix** — The most common cause is orphaned workshop items in `appworkshop_{id}.acf` triggering a failed Workshop update. SteaMidra patches this file to clear `NeedsDownload` when no workshop content is installed.
+2. **Manifest seeding** — When you process a .lua file or use "Update all manifests", manifests are written directly to Steam's `depotcache` folder before Steam starts. Steam finds them locally.
+3. **ACF error state** — SteaMidra clears stale `UpdateResult` and validation flags in the game ACF so Steam doesn't get stuck in a retry loop.
 
 **Dependency conflicts / urllib3 error** — Run both install commands from Step 1 above (requirements.txt first, then `pip install steam==1.4.4 --no-deps`). If conflicts persist with other projects on your system, use a virtual environment.
 
@@ -182,6 +191,13 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 **CreamInstaller** – The DLC Unlockers feature is inspired by and compatible with CreamInstaller. SteaMidra does not ship CreamInstaller; it provides its own implementation that follows similar behavior.
 
 **online-fix.me** – The multiplayer fix feature downloads fixes from online-fix.me. SteaMidra is not affiliated with online-fix.me. An account on that site is required.
+
+**STFixer** – The Cloud Saves STFixer mode is based on **STFixer v0.7.1** by Selectively11 ([GitHub](https://github.com/Selectively11/STFixer)). It patches broken save behavior in Capcom games and others.
+
+
+**GBE Token Generator** – Goldberg Emulator configuration generation based on work by **Detanup01** ([gbe_fork](https://github.com/Detanup01/gbe_fork)), **NickAntaris**, and **Oureveryday** ([generate_game_info](https://github.com/oureveryday/Goldberg-generate_game_info)).
+
+**Morrenus / Solus** – Store browser and manifest library API provided by **MorrenusGames** ([Solus-Manifest-App](https://github.com/MorrenusGames/Solus-Manifest-App)).
 
 **RedPaper** – Credit to RedPaper for the Broken Moon MIDI cover, originally arranged by U2 Akiyama and used in Touhou 7.5: Immaterial and Missing Power. Touhou 7.5 and its assets are owned by Team Shanghai Alice and Twilight Frontier. SteaMidra is not affiliated with or endorsed by either party. All trademarks belong to their respective owners.
 

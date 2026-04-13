@@ -1,3 +1,21 @@
+# SteaMidra - Steam game setup and manifest tool (SFF)
+# Copyright (c) 2025-2026 Midrag (https://github.com/Midrags)
+#
+# This file is part of SteaMidra.
+#
+# SteaMidra is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SteaMidra is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
+
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,7 +76,73 @@ class ACFWriter:
             vdf_dump(acf_file, acf_contents)
             print(f"Wrote .acf file to {acf_file}")
         else:
+            # Clear stale error state so Steam doesn't keep retrying a
+            # failed update — this is what causes "NO INTERNET CONNECTION"
+            self._patch_acf_error_state(acf_file)
+
+    @staticmethod
+    def _patch_acf_error_state(acf_file: Path):
+        try:
+            data = vdf_load(acf_file)
+            app_state = data.get("AppState", {})
+            patched = False
+            for key, clean_val in [
+                ("UpdateResult", "0"),
+                ("FullValidateAfterNextUpdate", "0"),
+                ("BytesToDownload", "0"),
+                ("BytesDownloaded", "0"),
+                ("BytesToStage", "0"),
+                ("BytesStaged", "0"),
+            ]:
+                if app_state.get(key, "0") != clean_val:
+                    app_state[key] = clean_val
+                    patched = True
+            if patched:
+                vdf_dump(acf_file, data)
+                print("Patched .acf error state (cleared UpdateResult / validation flags)")
+            else:
+                print("Skipped writing to .acf file (no stale error state)")
+        except Exception as e:
+            logger.warning("Could not patch ACF error state: %s", e)
             print("Skipped writing to .acf file")
+
+
+    def patch_workshop_acf(self, lua: LuaParsedInfo):
+        # Steam runs a Workshop update after validating the game.  If the
+        # workshop ACF has NeedsDownload=1 the update will try to fetch
+        # workshop manifests the account can't access → "NO INTERNET
+        # CONNECTION".  Clear the flag when no workshop content is
+        # actually installed (SizeOnDisk=0).
+        ws_dir = self.steam_lib_path / "steamapps" / "workshop"
+        ws_acf = ws_dir / f"appworkshop_{lua.app_id}.acf"
+        if not ws_acf.exists():
+            return
+        try:
+            data = vdf_load(ws_acf)
+            ws = data.get("AppWorkshop", {})
+            needs_dl = ws.get("NeedsDownload", "0")
+            size_on_disk = ws.get("SizeOnDisk", "0")
+
+            if needs_dl != "1":
+                return
+
+            # Only wipe when nothing is actually installed
+            if size_on_disk not in ("0", ""):
+                return
+
+            ws["NeedsDownload"] = "0"
+            ws["NeedsUpdate"] = "0"
+            # The items aren't installed (SizeOnDisk=0), so tracking
+            # them just causes repeated "Access Denied" failures.
+            if "WorkshopItemDetails" in ws:
+                ws["WorkshopItemDetails"] = {}
+            vdf_dump(ws_acf, data)
+            print(
+                f"Patched workshop ACF — cleared NeedsDownload to prevent "
+                f"'NO INTERNET CONNECTION' ({ws_acf.name})"
+            )
+        except Exception as e:
+            logger.warning("Could not patch workshop ACF: %s", e)
 
 
 @dataclass
