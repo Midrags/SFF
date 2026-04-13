@@ -1,3 +1,21 @@
+# SteaMidra - Steam game setup and manifest tool (SFF)
+# Copyright (c) 2025-2026 Midrag (https://github.com/Midrags)
+#
+# This file is part of SteaMidra.
+#
+# SteaMidra is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SteaMidra is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
+
 from io import BytesIO
 from typing import Literal, Optional, Union, overload
 import zipfile
@@ -30,7 +48,7 @@ def read_lua_from_zip(
     # Read a lua file from a ZIP. Also extracts any .manifest files found in
     # the ZIP — directly into depotcache if provided, otherwise ./manifests/.
     # Having manifests in depotcache before Steam starts the download is the
-    # key fix for the 'no internet connection' / SteamTools endpoint error.
+    # key fix for the 'no internet connection' error during downloads.
     lua_contents = None
     try:
         with zipfile.ZipFile(path) as f:
@@ -46,19 +64,25 @@ def read_lua_from_zip(
                     manifests_dir = Path.cwd() / "manifests"
                     manifests_dir.mkdir(exist_ok=True)
                     (manifests_dir / filename).write_bytes(data)
-                    # Also write directly to depotcache if we know where it is
+                    # Always write to depotcache — fresh ZIP data wins over
+                    # stale local copies (prevents 'no internet connection')
                     if depotcache is not None:
                         depotcache.mkdir(parents=True, exist_ok=True)
                         dest = depotcache / filename
-                        if not dest.exists():
-                            dest.write_bytes(data)
+                        already = dest.exists()
+                        dest.write_bytes(data)
+                        if already:
+                            print(
+                                Fore.GREEN
+                                + f"  Manifest refreshed in depotcache: {filename}"
+                                + Style.RESET_ALL
+                            )
+                        else:
                             print(
                                 Fore.GREEN
                                 + f"  Manifest seeded to depotcache: {filename}"
                                 + Style.RESET_ALL
                             )
-                        else:
-                            print(f"  Manifest already in depotcache: {filename}")
                     else:
                         print(f"Manifest found in ZIP: {filename}")
             if lua_contents is None:
@@ -75,7 +99,7 @@ def extract_manifests_from_zip_bytes(
 ) -> list[str]:
     # Extract all .manifest files from ZIP bytes directly into depotcache.
     # This is the core function that ensures manifests land in the right place
-    # before Steam starts a download, bypassing the SteamTools GMRC endpoint.
+    # before Steam starts a download, so they're already available locally.
     written = []
     try:
         with zipfile.ZipFile(BytesIO(data)) as zf:
@@ -84,18 +108,15 @@ def extract_manifests_from_zip_bytes(
                     continue
                 filename = Path(info.filename).name
                 mf_data = zf.read(info)
-                # Write to depotcache (primary)
+                # Always write to depotcache — fresh data wins over stale
                 depotcache.mkdir(parents=True, exist_ok=True)
                 dest = depotcache / filename
-                if not dest.exists():
-                    dest.write_bytes(mf_data)
-                    written.append(filename)
+                dest.write_bytes(mf_data)
+                written.append(filename)
                 # Also stage in ./manifests/ for backward compat
                 if staging is not None:
                     staging.mkdir(exist_ok=True)
-                    staged = staging / filename
-                    if not staged.exists():
-                        staged.write_bytes(mf_data)
+                    (staging / filename).write_bytes(mf_data)
     except zipfile.BadZipFile:
         pass
     return written

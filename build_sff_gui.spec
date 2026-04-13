@@ -37,6 +37,21 @@ gui_resources = os.path.join(spec_root, 'sff', 'gui', 'resources')
 if os.path.exists(gui_resources):
     datas.append((gui_resources, 'sff/gui/resources'))
 
+# Include locale files for multi-language support
+locales_dir = os.path.join(spec_root, 'sff', 'locales')
+if os.path.exists(locales_dir):
+    datas.append((locales_dir, 'sff/locales'))
+
+# Include fallback depot keys/tokens from sff/lua/
+lua_dir = os.path.join(spec_root, 'sff', 'lua')
+if os.path.exists(lua_dir):
+    datas.append((lua_dir, 'sff/lua'))
+
+# Include fallback depot keys database if present at sff/ level
+fallback_db = os.path.join(spec_root, 'sff', 'fallback_depotkeys.json')
+if os.path.exists(fallback_db):
+    datas.append((fallback_db, 'sff'))
+
 win10toast_data = get_win10toast_data()
 if win10toast_data:
     datas.append(win10toast_data)
@@ -88,6 +103,26 @@ a = Analysis(
         'pynacl',
         'cryptography',
         'win10toast',
+        'sff.store_browser',
+        'sff.image_cache',
+        'sff.download_manager',
+
+        'sff.cloud_saves',
+        'sff.tray_icon',
+        'sff.uri_handler',
+        'sff.fix_game',
+        'sff.fix_game.service',
+        'sff.fix_game.cache',
+        'sff.fix_game.goldberg_updater',
+        'sff.fix_game.config_generator',
+        'sff.fix_game.steamstub_unpacker',
+        'sff.fix_game.goldberg_applier',
+        'sff.tools',
+        'sff.tools.gbe_token_generator',
+        'sff.tools.vdf_key_extractor',
+        'sff.tools.capcom_save_fix',
+        'py7zr',
+        'pefile',
     ],
     hookspath=['hooks'],
     hooksconfig={},

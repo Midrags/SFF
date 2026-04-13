@@ -20,13 +20,13 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 What to install: GreenLuma, Python (if needed) and multiplayer fix requirements.
 
 [User Guide](USER_GUIDE.md)  
-What each menu option does and how to add games step by step.
+What each menu option does and how to add games step by step. Covers both CLI and GUI.
 
 [Quick Reference](QUICK_REFERENCE.md)  
 Command line options, keyboard shortcuts, and where important files are stored.
 
 [Feature Guide](FEATURE_USAGE_GUIDE.md)  
-Parallel downloads, settings backup, library scanner, and other features.
+Parallel downloads, download tracking, settings backup, library scanner, store browser, and other features.
 
 [Multiplayer Fix](MULTIPLAYER_FIX.md)  
 How to use the online fix feature for multiplayer games.
@@ -39,4 +39,4 @@ Using SteaMidra to install DLC unlockers (CreamInstaller-style). Credits for Cre
 
 **Credits**
 
-SteaMidra is modified from the original **SMD (Steam Manifest Downloader)** by jericjan. Made by Midrag. The DLC Unlockers feature uses ideas and compatibility from CreamInstaller. Use SteaMidra at your own risk.
+Made by Midrag and his brother. See the main [README](../README.md) for full credits including STFixer, Morrenus, gbe_fork, and all other third-party tools. Use SteaMidra at your own risk.

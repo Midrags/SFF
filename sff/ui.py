@@ -36,8 +36,9 @@ from colorama import Fore, Style
 from sff.app_injector.applist import AppListManager
 from sff.app_injector.sls import SLSManager
 from sff.analytics import get_analytics_tracker
+from sff.download_manager import DownloadManager
 from sff.game_specific import ACFInfo, GameHandler
-from sff.http_utils import download_to_path
+from sff.http_utils import download_to_path, get_game_name
 from sff.library_scanner import LibraryScanner
 from sff.lua.manager import LuaManager
 from sff.lua.writer import ACFWriter, ConfigVDFWriter
@@ -143,6 +144,9 @@ class UI:
         self.notification_service = get_notification_service()
         self.recent_files_manager = get_recent_files_manager()
         self.analytics_tracker = get_analytics_tracker()
+
+        # Set by GUI (SFFMainWindow) so process_lua_full can track downloads
+        self.download_manager: Optional["DownloadManager"] = None
 
         self.init_midi_player()
 
@@ -772,6 +776,14 @@ class UI:
         # Record analytics
         self.analytics_tracker.record_feature_usage("process_lua_full")
         
+        # Track in Download Tracking tab (if GUI is running)
+        _tracking_item = None
+        if self.download_manager:
+            game_name = get_game_name(parsed_lua.app_id)
+            _tracking_item = self.download_manager.track_external(
+                app_id=int(parsed_lua.app_id), game_name=game_name,
+            )
+
         set_stats_and_achievements(int(parsed_lua.app_id))
         if self.app_list_man:
             print(Fore.YELLOW + "\nAdding to AppList folder:" + Style.RESET_ALL)
@@ -791,6 +803,7 @@ class UI:
         )
         print(Fore.YELLOW + "\nACF Writing:" + Style.RESET_ALL)
         acf.write_acf(parsed_lua)
+        acf.patch_workshop_acf(parsed_lua)
         ensure_library_has_app(self.steam_path, lib_path, str(parsed_lua.app_id))
         print(Fore.YELLOW + "\nDownloading Manifests:" + Style.RESET_ALL)
         
@@ -801,6 +814,10 @@ class UI:
         else:
             downloader.download_manifests(parsed_lua, auto_manifest=True)
         
+        # Mark download as completed in tracking tab
+        if self.download_manager and _tracking_item:
+            self.download_manager.complete_external(_tracking_item, success=True)
+
         # Record successful operation
         duration = time.time() - start_time
         self.analytics_tracker.record_operation(
@@ -945,7 +962,7 @@ class UI:
                     "@echo off\n"
                     "cd /d " + subprocess.list2cmdline([str(app_dir.resolve())]) + "\n"
                     "timeout /t 2 /nobreak >nul\n"
-                    "robocopy " + subprocess.list2cmdline([str(tmp_update), str(app_dir)]) + " /E /MOVE >nul 2>&1\n"
+                    "robocopy " + subprocess.list2cmdline([str(tmp_update), str(app_dir)]) + " /E /MOVE /IS /IT >nul 2>&1\n"
                     "rmdir /s /q " + subprocess.list2cmdline([str(tmp_update)]) + " 2>nul\n"
                     "del /q " + subprocess.list2cmdline([str(update_zip)]) + " 2>nul\n"
                     + post_update +
@@ -1043,7 +1060,7 @@ class UI:
                         convert(["rmdir", "/s", "/q", internal_dir, *nul]) + "\n",
                         convert(["del", "/q", sff_exe, *nul]) + "\n",
                         "echo Old files deleted. Moving in new files...\n",
-                        convert(["robocopy", "/E", "/MOVE", tmp_dir, str(Path.cwd()), *nul])
+                        convert(["robocopy", "/E", "/MOVE", "/IS", "/IT", tmp_dir, str(Path.cwd()), *nul])
                         + "\n",
                         "echo UPDATE COMPLETE!!!! You can close this now\n",
                         '(goto) 2>nul & del "%~f0"',

@@ -1,6 +1,38 @@
 # Changelog
 
-## v4.7.2 (latest)
+## v4.8.0 (latest)
+
+### New features
+
+- **Tabbed GUI:** SteaMidra now uses a tabbed interface with dedicated tabs for Main, Store, Downloads, Fix Game, Tools, and Cloud Saves.
+- **Store / Library Browser:** New Store tab to search and browse the Morrenus manifest library. Enter your API key, search by name or App ID, and paginate through results.
+- **Cloud Saves — STFixer Mode:** Cloud Saves tab now has two modes. STFixer Mode patches broken save behavior in Capcom games (based on STFixer v0.7.1 by Selectively11). Backup/Restore Mode lets you manually snapshot and restore game save files.
+- **Cloud Saves — Backup/Restore:** Create, list, restore, and delete save backups per game with a full table UI.
+- **GBE Token Generator (redesigned):** Tools tab now has a full GBE Token Generator with Steam Web API Key input, App ID, output directory with browse, real-time log output, and credits. Generates complete Goldberg emulator steam_settings packages.
+- **Fix Game Tab:** Dedicated tab for the Fix Game automation pipeline with emulator mode selection (Regular Goldberg, ColdClient Loader, ColdLoader DLL), SteamStub auto-unpack, and config generation options.
+- **Downloads Tab:** Dedicated tab for managing active and queued downloads.
+- **VDF Depot Key Extractor:** Extract decryption keys from Steam's config.vdf with a table display.
+- **System Tray Icon:** SteaMidra now shows a system tray icon for quick show/hide and exit.
+- **URI Handler:** Register `midra://` protocol links for deep-linking into SteaMidra.
+- **9 New Themes:** Added Dracula, Nord, Cyberpunk, and more theme options in the Theme menu.
+
+### Fixes & Improvements
+
+- **Fixed "NO INTERNET CONNECTION" error:** Root cause identified — Steam's Workshop update was failing (not the game download itself). SteaMidra now patches the workshop ACF (`appworkshop_{id}.acf`) to clear `NeedsDownload` when no workshop content is installed, preventing orphaned workshop items from triggering Access Denied errors that cascade into "NO INTERNET CONNECTION".
+- **Always refresh depotcache manifests:** Removed stale `if-not-exists` guards so manifests from Morrenus ZIPs and network downloads always overwrite depotcache. This prevents Steam from using outdated manifests.
+- **ACF error state patch:** When updating an existing game (choosing "I'm updating"), SteaMidra now clears `UpdateResult`, `FullValidateAfterNextUpdate`, and byte counters in the game ACF to prevent Steam retry loops.
+- **Download Tracking integration:** The "Download Games" flow now pushes entries to the Downloads tab so you can see download progress in the GUI.
+- **Fixed UnicodeEncodeError:** Logging in uri_handler.py no longer crashes on Windows cp1252 consoles.
+- **Fixed Store search:** Store tab now correctly calls the API (search_library, offset-based pagination).
+- **Fixed EmuMode references:** Fix Game tab now uses correct enum values (COLDCLIENT_LOADER, COLDLOADER_DLL).
+- **Fixed TrayIcon class name:** Main_gui.py now imports the correct TrayIcon class.
+- **Fixed UriHandler calls:** Uses static methods (register/is_registered) correctly.
+- **Fixed GBE Token Generator:** Now properly accepts and passes Steam Web API key to the generator backend.
+- **Renamed button:** "Process .lua file" renamed to "Download Games" for clarity.
+
+---
+
+## v4.7.2
 
 ### Fixes & Improvements
 

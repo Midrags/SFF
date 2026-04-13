@@ -64,30 +64,27 @@ class ManifestDownloader:
         self.use_morrenus = use_morrenus
 
     def _preseed_depotcache(self) -> int:
-        # Move anything sitting in ./manifests/ into depotcache right now.
-        # This is the key fix: Steam checks depotcache before calling the
-        # SteamTools GMRC endpoint — if the file is already there it skips
-        # the network call entirely and avoids the 'no internet' error.
+        # Copy everything from ./manifests/ into depotcache now so Steam
+        # finds them locally and never needs a network call.
         manifests_dir = Path.cwd() / "manifests"
         if not manifests_dir.exists():
             return 0
         depotcache = self.steam_path / "depotcache"
         depotcache.mkdir(exist_ok=True)
-        moved = 0
+        copied = 0
         for mf in manifests_dir.glob("*.manifest"):
             dest = depotcache / mf.name
-            if not dest.exists():
-                shutil.copy2(mf, dest)
-                sync_manifest_to_config_depotcache(self.steam_path, dest)
-                moved += 1
-                logger.debug("Pre-seeded depotcache: %s", mf.name)
-        if moved:
+            shutil.copy2(mf, dest)
+            sync_manifest_to_config_depotcache(self.steam_path, dest)
+            copied += 1
+            logger.debug("Pre-seeded depotcache: %s", mf.name)
+        if copied:
             print(
                 Fore.CYAN
-                + f"Pre-seeded {moved} manifest(s) into depotcache."
+                + f"Pre-seeded {copied} manifest(s) into depotcache."
                 + Style.RESET_ALL
             )
-        return moved
+        return copied
 
     def _write_manifest_to_depotcache(
         self, raw: bytes, depot_id: str, manifest_id: str, decrypt: bool = False, dec_key: str = ""
@@ -490,10 +487,7 @@ class ManifestDownloader:
         cdn = self.get_cdn_client()
         manifest_ids = self.get_manifest_ids(lua, auto_manifest)
 
-        # Pre-seed depotcache from anything already in ./manifests/
-        # (e.g. extracted from a Morrenus ZIP earlier in the session).
-        # Steam checks depotcache first — if files are there it never
-        # touches the SteamTools GMRC endpoint at all.
+        # Pre-seed depotcache from ./manifests/ so Steam finds them locally
         self._preseed_depotcache()
 
         if not self.use_morrenus and lua.app_id:
@@ -522,22 +516,22 @@ class ManifestDownloader:
             final_manifest_loc = depotcache / f"{depot_id}_{manifest_id}.manifest"
             possible_saved_manifest = Path.cwd() / f"manifests/{depot_id}_{manifest_id}.manifest"
 
-            # Already in depotcache — done
+            # If saved manifest exists (from Morrenus ZIP), refresh depotcache
+            if possible_saved_manifest.exists():
+                shutil.copy2(str(possible_saved_manifest), final_manifest_loc)
+                print(Fore.GREEN + f"  Refreshed from saved manifests: {possible_saved_manifest.name}" + Style.RESET_ALL)
+                sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
+                manifest_paths.append(final_manifest_loc)
+                continue
+
+            # Already in depotcache and no fresher copy available
             if final_manifest_loc.exists():
                 print(Fore.GREEN + f"  Already in depotcache: {final_manifest_loc.name}" + Style.RESET_ALL)
                 sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
                 manifest_paths.append(final_manifest_loc)
                 continue
 
-            # In ./manifests/ (from Morrenus ZIP) — move straight to depotcache
-            if possible_saved_manifest.exists():
-                print(Fore.GREEN + f"  Moving from saved manifests: {possible_saved_manifest.name}" + Style.RESET_ALL)
-                shutil.move(str(possible_saved_manifest), final_manifest_loc)
-                sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
-                manifest_paths.append(final_manifest_loc)
-                continue
-
-            # Fetch from network (Morrenus on-demand → ManifestHub → GMRC → CDN)
+            # Fetch from network (Morrenus on-demand → ManifestHub → CDN)
             manifest = self.download_single_manifest(
                 depot_id, manifest_id, cdn, app_id=lua.app_id
             )
@@ -552,7 +546,7 @@ class ManifestDownloader:
                 continue
 
             if not self.use_morrenus:
-                # Last resort: ask user for GMRC code interactively
+                # Last resort: ask user for request code interactively
                 print(
                     Fore.YELLOW
                     + f"\nAll automated sources failed for depot {depot_id}. Trying interactive CDN..."
@@ -636,15 +630,16 @@ class ManifestDownloader:
             try:
                 final_manifest_loc = depotcache / f"{depot_id}_{manifest_id}.manifest"
                 
+                # Prefer saved manifest (from Morrenus ZIP) over stale depotcache
+                possible_saved_manifest = Path.cwd() / f"manifests/{depot_id}_{manifest_id}.manifest"
+                if possible_saved_manifest.exists():
+                    shutil.copy2(possible_saved_manifest, final_manifest_loc)
+                    sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
+                    return (True, depot_id, manifest_id, final_manifest_loc, "Refreshed from saved")
+
                 if final_manifest_loc.exists():
                     sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
                     return (True, depot_id, manifest_id, final_manifest_loc, "Already exists")
-                
-                possible_saved_manifest = Path.cwd() / f"manifests/{depot_id}_{manifest_id}.manifest"
-                if possible_saved_manifest.exists():
-                    shutil.move(possible_saved_manifest, final_manifest_loc)
-                    sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
-                    return (True, depot_id, manifest_id, final_manifest_loc, "Moved from saved")
 
                 # Steps 1-4 for oureveryday (silent), or full Morrenus chain
                 manifest = self.download_single_manifest(

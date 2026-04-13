@@ -1,3 +1,21 @@
+ # SteaMidra - Steam game setup and manifest tool (SFF)
+# Copyright (c) 2025-2026 Midrag (https://github.com/Midrags)
+#
+# This file is part of SteaMidra.
+#
+# SteaMidra is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SteaMidra is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
+
 import asyncio
 import logging
 import sys
@@ -180,7 +198,7 @@ async def get_gmrc(manifest_id: Union[str, int], silent: bool = False, try_tor: 
 
     result = None
 
-    # --- Primary: main Steamtools endpoint ---
+    # --- Primary endpoint ---
     if sys.platform != "win32":
         result = await get_request(url, headers=headers)
     else:
@@ -301,11 +319,8 @@ def download_to_tempfile(
                     pbar.update(len(chunk))
         temp_f.seek(0)
         yield temp_f
-    except httpx.ConnectError:
-        print("Network error: Cannot connect to server. Check your internet connection.")
-        yield None
     except httpx.HTTPError as e:
-        print(f"Network error: {e}")
+        print(f"Network error: {repr(e)}")
         yield None
     finally:
         temp_f.close()
