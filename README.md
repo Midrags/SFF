@@ -22,6 +22,10 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 
 **Small video about SteaMidra:** [Youtube Tutorial](https://youtu.be/cFfItiV8-pk)
 
+
+## I'm too lazy to edit the readme.md file not, but just so people know the release got exe file now so there is no need to do all these steps under, unless you want too though.
+
+
 ## Quick start
 
 ### Step 1: Install dependencies
