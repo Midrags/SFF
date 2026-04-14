@@ -29,6 +29,9 @@
 - **Fixed UriHandler calls:** Uses static methods (register/is_registered) correctly.
 - **Fixed GBE Token Generator:** Now properly accepts and passes Steam Web API key to the generator backend.
 - **Renamed button:** "Process .lua file" renamed to "Download Games" for clarity.
+- **Fixed standalone EXE — tools not found (Steamless / SteamAutoCrack):** `root_folder()` now correctly returns `sys._MEIPASS` when frozen so all bundled tools (`third_party/`) are found inside the EXE instead of looking beside it where they don't exist.
+- **Fixed standalone EXE — user-writable paths:** `credentials.json`, `all_games.txt`, and `dlc_unlocker_cache` now use `outside_internal=True` so they are created beside the EXE (writable) instead of in the read-only MEIPASS temp folder.
+- **Fixed "Error: lost sys.stdin" on Steam restart:** All `input()` calls in the Steam restart flow are now guarded with `if sys.stdin:` so the windowed EXE never crashes when stdin is unavailable.
 
 ---
 

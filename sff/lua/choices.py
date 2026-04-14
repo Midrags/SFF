@@ -80,7 +80,7 @@ def add_new_lua(file: Optional[Path] = None) -> LuaResult:
 
 
 def search_game(os_type: OSType) -> Optional[str]:
-    all_games_file = (root_folder() / "all_games.txt")
+    all_games_file = (root_folder(outside_internal=True) / "all_games.txt")
     if all_games_file.exists():
         mtime = all_games_file.stat().st_mtime
         mtime_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %I:%M %p")

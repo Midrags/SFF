@@ -89,6 +89,7 @@ class ACFWriter:
             for key, clean_val in [
                 ("UpdateResult", "0"),
                 ("FullValidateAfterNextUpdate", "0"),
+                ("ScheduledAutoUpdate", "0"),
                 ("BytesToDownload", "0"),
                 ("BytesDownloaded", "0"),
                 ("BytesToStage", "0"),
@@ -108,11 +109,12 @@ class ACFWriter:
 
 
     def patch_workshop_acf(self, lua: LuaParsedInfo):
-        # Steam runs a Workshop update after validating the game.  If the
-        # workshop ACF has NeedsDownload=1 the update will try to fetch
-        # workshop manifests the account can't access → "NO INTERNET
-        # CONNECTION".  Clear the flag when no workshop content is
-        # actually installed (SizeOnDisk=0).
+        # Steam runs a Workshop update after validating the game.
+        # Orphaned WorkshopItemDetails entries (items tracked but not
+        # in WorkshopItemsInstalled) cause Steam to try to verify/re-
+        # download those items → Access Denied → "NO INTERNET CONNECTION".
+        # This fix runs regardless of the NeedsDownload flag because users
+        # may have manually set it to 0 while the orphaned entries remain.
         ws_dir = self.steam_lib_path / "steamapps" / "workshop"
         ws_acf = ws_dir / f"appworkshop_{lua.app_id}.acf"
         if not ws_acf.exists():
@@ -120,27 +122,41 @@ class ACFWriter:
         try:
             data = vdf_load(ws_acf)
             ws = data.get("AppWorkshop", {})
-            needs_dl = ws.get("NeedsDownload", "0")
             size_on_disk = ws.get("SizeOnDisk", "0")
+            items_installed = ws.get("WorkshopItemsInstalled", {})
+            item_details = ws.get("WorkshopItemDetails", {})
 
-            if needs_dl != "1":
-                return
+            patched = False
 
-            # Only wipe when nothing is actually installed
-            if size_on_disk not in ("0", ""):
-                return
+            # Always clear stale download/update flags
+            for flag in ("NeedsDownload", "NeedsUpdate"):
+                if ws.get(flag, "0") != "0":
+                    ws[flag] = "0"
+                    patched = True
 
-            ws["NeedsDownload"] = "0"
-            ws["NeedsUpdate"] = "0"
-            # The items aren't installed (SizeOnDisk=0), so tracking
-            # them just causes repeated "Access Denied" failures.
-            if "WorkshopItemDetails" in ws:
+            # Clear orphaned WorkshopItemDetails entries — items that Steam
+            # tracks in Details but are not in ItemsInstalled.  These are the
+            # root cause of the NO INTERNET CONNECTION loop.
+            if size_on_disk in ("0", "") and not items_installed and item_details:
+                # Nothing is installed at all — wipe the whole details block
                 ws["WorkshopItemDetails"] = {}
-            vdf_dump(ws_acf, data)
-            print(
-                f"Patched workshop ACF — cleared NeedsDownload to prevent "
-                f"'NO INTERNET CONNECTION' ({ws_acf.name})"
-            )
+                patched = True
+            elif item_details:
+                # Some items installed — only remove the orphaned ones
+                orphaned = [k for k in list(item_details) if k not in items_installed]
+                for k in orphaned:
+                    del item_details[k]
+                if orphaned:
+                    patched = True
+
+            if patched:
+                vdf_dump(ws_acf, data)
+                print(
+                    f"Patched workshop ACF — cleared stale flags/orphaned items "
+                    f"to prevent 'NO INTERNET CONNECTION' ({ws_acf.name})"
+                )
+            else:
+                print(f"Workshop ACF already clean ({ws_acf.name})")
         except Exception as e:
             logger.warning("Could not patch workshop ACF: %s", e)
 

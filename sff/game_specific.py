@@ -672,7 +672,7 @@ class GameHandler:
             to_install = [u.unlocker_type for u in compatible_unlockers]
         
         cache_dir_val = get_setting(Settings.DLC_UNLOCKER_CACHE_DIR)
-        cache_dir = Path(cache_dir_val) if cache_dir_val and str(cache_dir_val) != "(unset)" else root_folder() / "dlc_unlocker_cache"
+        cache_dir = Path(cache_dir_val) if cache_dir_val and str(cache_dir_val) != "(unset)" else root_folder(outside_internal=True) / "dlc_unlocker_cache"
         
         downloader = GitHubReleaseDownloader(cache_dir)
         print(f"\n{Fore.CYAN}Downloading...{Style.RESET_ALL}")

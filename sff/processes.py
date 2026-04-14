@@ -1,6 +1,25 @@
+# SteaMidra - Steam game setup and manifest tool (SFF)
+# Copyright (c) 2025-2026 Midrag (https://github.com/Midrags)
+#
+# This file is part of SteaMidra.
+#
+# SteaMidra is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SteaMidra is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
+
 from functools import partial
 import logging
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -118,7 +137,8 @@ class SteamProcess:
                         time.sleep(2)
                         if is_proc_running(self.exe_name):
                             print("Could not close Steam. Please close it manually.")
-                            input("Press Enter after closing Steam...")
+                            if sys.stdin:
+                                input("Press Enter after closing Steam...")
                         break
                     else:
                         print("Skipping Steam restart.")
@@ -136,8 +156,7 @@ class SteamProcess:
         print("Launching Steam with administrator privileges...")
         try:
             import ctypes
-            import sys
-            
+
             # Use ShellExecute with 'runas' verb to run as administrator
             ret = ctypes.windll.shell32.ShellExecuteW(
                 None,                    # hwnd
@@ -171,11 +190,13 @@ class SteamProcess:
                 error_msg = error_messages.get(ret, f"Unknown error (code {ret})")
                 print(f"\nFailed to launch Steam: {error_msg}")
                 print("Please launch Steam manually from your Start Menu or Desktop.")
-                input("Press Enter after launching Steam...")
+                if sys.stdin:
+                    input("Press Enter after launching Steam...")
                 return False
                 
         except Exception as e:
             print(f"\nError launching Steam: {e}")
             print("Please launch Steam manually from your Start Menu or Desktop.")
-            input("Press Enter after launching Steam...")
+            if sys.stdin:
+                input("Press Enter after launching Steam...")
             return False
