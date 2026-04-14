@@ -330,7 +330,7 @@ class GoldbergApplier:
         # generate ColdClientLoader.ini (DllsToInjectFolder is the correct gbe_fork format)
         ini_content = f"""[SteamClient]
 Exe={exe_rel}
-ExeRunDir=.
+ExeRunDir=
 ExeCommandLine=
 AppId={app_id}
 SteamClientDll=steamclient.dll
