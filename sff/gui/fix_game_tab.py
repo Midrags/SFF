@@ -39,7 +39,8 @@ class _FixWorker(QObject):
     log_msg = pyqtSignal(str)
 
     def __init__(self, game_path: Path, app_id: str, emu_mode: EmuMode,
-                 unpack_steamstub: bool, generate_config: bool, create_launch_bat: bool):
+                 unpack_steamstub: bool, generate_config: bool, create_launch_bat: bool,
+                 goldberg_update: bool):
         super().__init__()
         self.game_path = game_path
         self.app_id = app_id
@@ -47,6 +48,7 @@ class _FixWorker(QObject):
         self.unpack_steamstub = unpack_steamstub
         self.generate_config = generate_config
         self.create_launch_bat = create_launch_bat
+        self.goldberg_update = goldberg_update
 
     def run(self):
         try:
@@ -58,6 +60,7 @@ class _FixWorker(QObject):
                 game_dir=str(self.game_path),
                 emu_mode=self.emu_mode.value,
                 skip_steamstub=not self.unpack_steamstub,
+                skip_goldberg_update=not self.goldberg_update,
                 log_func=self.log_msg.emit
             )
             
@@ -119,6 +122,10 @@ class FixGameTab(QWidget):
         mode_layout.addWidget(self._mode_combo)
         mode_layout.addStretch()
         opt_layout.addLayout(mode_layout)
+
+        self._chk_goldberg_update = QCheckBox("Auto-update Goldberg emulator")
+        self._chk_goldberg_update.setChecked(True)
+        opt_layout.addWidget(self._chk_goldberg_update)
 
         self._chk_steamstub = QCheckBox("Auto-unpack SteamStub DRM (Steamless)")
         self._chk_steamstub.setChecked(True)
@@ -189,12 +196,13 @@ class FixGameTab(QWidget):
         # Run in thread
         self._thread = QThread()
         self._worker = _FixWorker(
-            game_path, 
-            app_id, 
+            game_path,
+            app_id,
             self._mode_combo.currentData(),
             self._chk_steamstub.isChecked(),
             self._chk_config.isChecked(),
-            self._chk_launchbat.isChecked()
+            self._chk_launchbat.isChecked(),
+            self._chk_goldberg_update.isChecked(),
         )
         self._worker.moveToThread(self._thread)
         

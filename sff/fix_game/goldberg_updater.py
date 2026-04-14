@@ -278,18 +278,50 @@ class GoldbergUpdater:
     def _find_extractor(self) -> tuple[str, str]:
         """return (exe_path, tool_type) for the first usable archive extractor, or ("", "")"""
         import subprocess
+        import shutil as _shutil
         for candidate, tool_type in self._EXTRACTOR_CANDIDATES:
+            if tool_type == "winrar":
+                # never run WinRAR to probe it — WinRAR.exe -? opens a GUI dialog
+                # and blocks until dismissed, always timing out
+                if os.path.isabs(candidate):
+                    if Path(candidate).is_file():
+                        return candidate, tool_type
+                else:
+                    resolved = _shutil.which(candidate)
+                    if resolved:
+                        return resolved, tool_type
+                continue
+            # 7-Zip: safe to run --help (prints to stdout and exits cleanly)
             try:
                 result = subprocess.run(
-                    [candidate, "--help" if tool_type == "7z" else "-?"],
+                    [candidate, "--help"],
                     capture_output=True, timeout=5,
                 )
-                # 7-Zip returns 0 or 1 for --help; WinRAR returns 0
                 if result.returncode in (0, 1):
                     return candidate, tool_type
-            except (FileNotFoundError, OSError):
+            except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
                 continue
         return "", ""
+
+    _7ZR_URL = "https://github.com/ip7z/7zip/releases/latest/download/7zr.exe"
+
+    def _download_7zr(self, log) -> str:
+        """download standalone 7zr.exe to cache_dir and return its path, or "" on failure"""
+        import httpx
+        dest = self.cache_dir / "7zr.exe"
+        if dest.exists():
+            return str(dest)
+        try:
+            log("No local archive extractor found — downloading 7zr.exe (~1 MB) as fallback...")
+            with httpx.Client(timeout=60.0, follow_redirects=True) as client:
+                resp = client.get(self._7ZR_URL)
+                resp.raise_for_status()
+                dest.write_bytes(resp.content)
+            log(f"Downloaded 7zr.exe ({len(resp.content):,} bytes)")
+            return str(dest)
+        except Exception as e:
+            log(f"Failed to download 7zr.exe: {e}")
+            return ""
 
     def _extract_with_subprocess(self, archive_data: bytes, tag: str, log) -> bool:
         """fallback: write archive to cache_dir (Defender-friendly path) and extract with 7-Zip or WinRAR"""
@@ -298,7 +330,10 @@ class GoldbergUpdater:
 
         exe, tool_type = self._find_extractor()
         if not exe:
-            log("No archive extractor found — install 7-Zip or WinRAR so the Goldberg release can be extracted")
+            exe = self._download_7zr(log)
+            tool_type = "7z"
+        if not exe:
+            log("No archive extractor available — install 7-Zip or WinRAR, or check internet connection")
             return False
 
         tool_name = Path(exe).name
@@ -342,11 +377,12 @@ class GoldbergUpdater:
             log(f"Subprocess extraction failed: {e}")
             return False
         finally:
-            # clean up archive + temp extraction dir
-            try:
-                archive_path.unlink(missing_ok=True)
-            except Exception:
-                pass
+            # clean up archive, temp extraction dir, and downloaded 7zr.exe
+            for p in (archive_path, self.cache_dir / "7zr.exe"):
+                try:
+                    p.unlink(missing_ok=True)
+                except Exception:
+                    pass
             try:
                 shutil.rmtree(extract_dir, ignore_errors=True)
             except Exception:

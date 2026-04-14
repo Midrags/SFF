@@ -95,6 +95,7 @@ class FixGameService:
         emu_mode: str = "regular",
         skip_drm_check: bool = False,
         skip_steamstub: bool = False,
+        skip_goldberg_update: bool = False,
         log_func=None,
     ) -> bool:
         """
@@ -143,10 +144,16 @@ class FixGameService:
 
         # --- Step 1: Goldberg Auto-Update ---
         log("\n--- Step 1: Goldberg Update ---")
-        if not self.updater.ensure_goldberg(log_func=log):
-            log("WARNING: Could not update Goldberg — using cached version if available")
+        if not skip_goldberg_update:
+            if not self.updater.ensure_goldberg(log_func=log):
+                log("WARNING: Could not update Goldberg — using cached/bundled version")
+                if not self.cache.has_goldberg_dlls():
+                    log("ABORT: No Goldberg DLLs available")
+                    return False
+        else:
+            log("Goldberg auto-update skipped")
             if not self.cache.has_goldberg_dlls():
-                log("ABORT: No Goldberg DLLs available")
+                log("ABORT: No Goldberg DLLs available and auto-update is disabled")
                 return False
 
         # --- Step 2: Config Generation ---

@@ -298,16 +298,27 @@ class GoldbergApplier:
         else:
             return False, f"{loader_name} not found in cache"
 
-        # deploy arch-correct extra DLL to game root (loader searches same dir)
+        # deploy extra DLLs into extra_dlls/ subfolder — loader injects everything there
+        extra_dir = game_path / "extra_dlls"
+        extra_dir.mkdir(exist_ok=True)
+
+        # steamclient_extra DLL (gbe_fork companion — arch-correct)
         extra_name = "steamclient_extra_x64.dll" if is_64 else "steamclient_extra_x32.dll"
         extra_src = self.cache_dir / extra_name
         if extra_src.exists():
-            shutil.copy2(extra_src, game_path / extra_name)
-            log(f"\u2713 Deployed {extra_name}")
+            shutil.copy2(extra_src, extra_dir / extra_name)
+            log(f"\u2713 Deployed {extra_name} \u2192 extra_dlls/")
         else:
-            log(f"Warning: {extra_name} not found in cache \u2014 ColdClient may not work correctly")
+            log(f"Warning: {extra_name} not found in cache")
 
-        # prefer .unpacked.exe if present (created by Steamless or other SteamStub unpackers)
+        # steamstub avoider DLL — bypasses SteamStub protection at runtime
+        stub_name = "steamstub_x64.dll" if is_64 else "steamstub_x32.dll"
+        stub_src = self._find_tool(stub_name)
+        if stub_src:
+            shutil.copy2(stub_src, extra_dir / stub_name)
+            log(f"\u2713 Deployed {stub_name} \u2192 extra_dlls/ (SteamStub bypass)")
+
+        # prefer .unpacked.exe if present (Steamless output — SteamStub removed)
         main_exe_path = Path(main_exe)
         unpacked_path = main_exe_path.parent / (main_exe_path.name + ".unpacked.exe")
         if unpacked_path.exists():
@@ -316,7 +327,7 @@ class GoldbergApplier:
         else:
             exe_rel = os.path.relpath(main_exe, game_dir)
 
-        # generate ColdClientLoader.ini
+        # generate ColdClientLoader.ini (DllsToInjectFolder is the correct gbe_fork format)
         ini_content = f"""[SteamClient]
 Exe={exe_rel}
 ExeRunDir=.
@@ -324,9 +335,7 @@ ExeCommandLine=
 AppId={app_id}
 SteamClientDll=steamclient.dll
 SteamClient64Dll=steamclient64.dll
-
-[ExtraLibraries]
-Dll1={extra_name}
+DllsToInjectFolder=extra_dlls
 """
 
         (game_path / "ColdClientLoader.ini").write_text(ini_content, encoding="utf-8")
@@ -399,11 +408,13 @@ SteamClient={'steamclient64.dll' if is_64 else 'steamclient.dll'}
 
     def _find_tool(self, filename: str) -> Optional[str]:
         """search cache dir and third_party for a file"""
+        tp = Path(__file__).parent.parent.parent / "third_party"
         candidates = [
             self.cache_dir / filename,
             self.cache_dir / "coldloader" / filename,
-            Path(__file__).parent.parent.parent / "third_party" / filename,
-            Path(__file__).parent.parent.parent / "third_party" / "coldloader" / filename,
+            tp / filename,
+            tp / "gbe_fork" / filename,
+            tp / "coldloader" / filename,
         ]
         for p in candidates:
             if p.exists():
