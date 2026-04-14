@@ -123,8 +123,8 @@ class FixGameTab(QWidget):
         mode_layout.addStretch()
         opt_layout.addLayout(mode_layout)
 
-        self._chk_goldberg_update = QCheckBox("Auto-update Goldberg emulator")
-        self._chk_goldberg_update.setChecked(True)
+        self._chk_goldberg_update = QCheckBox("Check for Goldberg updates (downloads latest from GitHub)")
+        self._chk_goldberg_update.setChecked(False)
         opt_layout.addWidget(self._chk_goldberg_update)
 
         self._chk_steamstub = QCheckBox("Auto-unpack SteamStub DRM (Steamless)")
@@ -155,23 +155,60 @@ class FixGameTab(QWidget):
         log_layout.addWidget(self._log_area)
         layout.addWidget(log_group)
 
+    @staticmethod
+    def _detect_app_id(game_path: Path) -> str:
+        """Try to detect App ID from the game folder using multiple sources."""
+        import re
+        candidates = [
+            game_path / "steam_appid.txt",
+            game_path / "steam_settings" / "steam_appid.txt",
+        ]
+        for f in candidates:
+            try:
+                val = f.read_text(encoding="utf-8", errors="ignore").strip()
+                if val.isdigit():
+                    return val
+            except Exception:
+                pass
+
+        # ColdClientLoader.ini AppId= line
+        ini = game_path / "ColdClientLoader.ini"
+        try:
+            for line in ini.read_text(encoding="utf-8", errors="ignore").splitlines():
+                m = re.match(r'(?i)^AppId\s*=\s*(\d+)', line)
+                if m:
+                    return m.group(1)
+        except Exception:
+            pass
+
+        # appmanifest_*.acf in the parent steamapps/ directory
+        # game is usually at: <library>/steamapps/common/<GameName>
+        try:
+            steamapps = game_path.parent.parent
+            game_name = game_path.name.lower()
+            for acf in steamapps.glob("appmanifest_*.acf"):
+                try:
+                    text = acf.read_text(encoding="utf-8", errors="ignore")
+                    dir_m = re.search(r'"installdir"\s*"([^"]+)"', text)
+                    if dir_m and dir_m.group(1).lower() == game_name:
+                        id_m = re.search(r'"appid"\s*"(\d+)"', text)
+                        if id_m:
+                            return id_m.group(1)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        return ""
+
     def _browse(self):
         path = QFileDialog.getExistingDirectory(self, "Select Game Folder")
         if path:
             self._path_edit.setText(path)
-            
-            # Try to guess App ID if empty
             if not self._id_edit.text():
-                p = Path(path)
-                # Look for steam_appid.txt
-                aid_file = p / "steam_appid.txt"
-                if aid_file.exists():
-                    try:
-                        aid = aid_file.read_text().strip()
-                        if aid.isdigit():
-                            self._id_edit.setText(aid)
-                    except Exception:
-                        pass
+                detected = self._detect_app_id(Path(path))
+                if detected:
+                    self._id_edit.setText(detected)
 
     def _run_fix(self):
         game_path_str = self._path_edit.text().strip()
@@ -186,8 +223,14 @@ class FixGameTab(QWidget):
 
         app_id = self._id_edit.text().strip()
         if not app_id:
-            QMessageBox.warning(self, "Missing Input", "Please enter the App ID.")
-            return
+            app_id = self._detect_app_id(game_path)
+            if app_id:
+                self._id_edit.setText(app_id)
+                self._log_area.append(f"Auto-detected App ID: {app_id}")
+            else:
+                QMessageBox.warning(self, "Missing Input",
+                    "Could not auto-detect App ID.\nPlease enter it manually.")
+                return
 
         self._run_btn.setEnabled(False)
         self._log_area.clear()
