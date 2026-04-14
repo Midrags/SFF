@@ -298,13 +298,14 @@ class GoldbergApplier:
         else:
             return False, f"{loader_name} not found in cache"
 
-        # deploy extra DLLs
-        extra_dir = game_path / "extra_dlls"
-        extra_dir.mkdir(exist_ok=True)
-        for extra_name in ["steamclient_extra_x32.dll", "steamclient_extra_x64.dll"]:
-            src = self.cache_dir / extra_name
-            if src.exists():
-                shutil.copy2(src, extra_dir / extra_name)
+        # deploy arch-correct extra DLL to game root (loader searches same dir)
+        extra_name = "steamclient_extra_x64.dll" if is_64 else "steamclient_extra_x32.dll"
+        extra_src = self.cache_dir / extra_name
+        if extra_src.exists():
+            shutil.copy2(extra_src, game_path / extra_name)
+            log(f"✓ Deployed {extra_name}")
+        else:
+            log(f"Warning: {extra_name} not found in cache — ColdClient may not work correctly")
 
         # scan for steam_interfaces.txt before deploying
         settings_dir = game_path / "steam_settings"
@@ -325,6 +326,9 @@ ExeCommandLine=
 AppId={app_id}
 SteamClientDll=steamclient.dll
 SteamClient64Dll=steamclient64.dll
+
+[ExtraLibraries]
+Dll1={extra_name}
 """
 
         (game_path / "ColdClientLoader.ini").write_text(ini_content, encoding="utf-8")
@@ -461,6 +465,7 @@ SteamClient={'steamclient64.dll' if is_64 else 'steamclient.dll'}
             "ColdClientLoader.ini", "coldloader.ini", "coldloader.dll",
             "steamclient.dll", "steamclient64.dll",
             "steamclient_loader_x32.exe", "steamclient_loader_x64.exe",
+            "steamclient_extra_x32.dll", "steamclient_extra_x64.dll",
             "steam_interfaces.txt",
         ]:
             p = game_path / name
