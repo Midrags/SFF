@@ -38,7 +38,42 @@ def _get_cache_dir() -> Path:
     base = Path(os.environ.get("APPDATA", os.path.expanduser("~")))
     cache_dir = base / "SteaMidra" / "fix_game_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_defender_exclusion(base / "SteaMidra")
     return cache_dir
+
+
+def _ensure_defender_exclusion(path: Path) -> None:
+    """
+    Attempt to add a Windows Defender exclusion for the SteaMidra data directory.
+    First tries non-elevated; if that fails (needs admin), silently skips.
+    A flag file prevents repeated pointless attempts in the same session.
+    No-op on non-Windows or if Defender is not running.
+    """
+    import subprocess, sys
+    if sys.platform != "win32":
+        return
+
+    flag = path / ".defender_excluded"
+    if flag.exists():
+        return  # already confirmed excluded in a previous run
+
+    try:
+        result = subprocess.run(
+            [
+                "powershell", "-NonInteractive", "-WindowStyle", "Hidden",
+                "-Command",
+                f"Add-MpPreference -ExclusionPath '{path}' -ErrorAction Stop",
+            ],
+            capture_output=True, timeout=10,
+        )
+        if result.returncode == 0:
+            # write flag so we skip future attempts
+            try:
+                flag.write_text("excluded", encoding="utf-8")
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 @dataclass

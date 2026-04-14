@@ -128,6 +128,34 @@ class GoldbergUpdater:
 
         return cached != latest[0]
 
+    def _copy_bundled_fallback(self, log) -> bool:
+        """
+        Last-resort fallback: copy any Goldberg DLLs that ship inside
+        third_party/gbe_fork/ into the cache directory.
+        Returns True if at least steam_api.dll or steam_api64.dll was copied.
+        """
+        import shutil
+        # locate third_party/gbe_fork/ relative to this file
+        third_party = Path(__file__).parent.parent.parent / "third_party" / "gbe_fork"
+        if not third_party.is_dir():
+            return False
+
+        copied = 0
+        for dest_name in {**REQUIRED_FILES, **TOOLS_FILES}:
+            src = third_party / dest_name
+            if src.exists():
+                dst = self.cache_dir / dest_name
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+                copied += 1
+                logger.debug("Copied bundled %s to cache", dest_name)
+
+        if copied:
+            (self.cache_dir / "version.txt").write_text("bundled", encoding="utf-8")
+            log(f"Using {copied} bundled Goldberg file(s) from third_party/gbe_fork/")
+            return True
+        return False
+
     def ensure_goldberg(self, force_update: bool = False, log_func=None) -> bool:
         """
         Make sure we have the latest Goldberg DLLs cached.
@@ -157,7 +185,10 @@ class GoldbergUpdater:
         latest = self.get_latest_version()
         if not latest:
             log("Could not check GitHub releases")
-            return has_dlls  # if we have old DLLs, use them
+            if has_dlls:
+                return True
+            log("Trying bundled fallback...")
+            return self._copy_bundled_fallback(log)
 
         tag, download_url = latest
         cached_ver = self.get_cached_version()
@@ -167,7 +198,16 @@ class GoldbergUpdater:
             return True
 
         log(f"Downloading Goldberg {tag}...")
-        return self._download_and_extract(tag, download_url, log)
+        ok = self._download_and_extract(tag, download_url, log)
+        if ok:
+            return True
+
+        # download/extraction failed — fall back to whatever we have
+        if has_dlls:
+            log("Download failed — using previously cached DLLs")
+            return True
+        log("Download failed — trying bundled fallback...")
+        return self._copy_bundled_fallback(log)
 
     def _download_and_extract(self, tag: str, url: str, log) -> bool:
         """download the 7z archive and extract needed files"""
@@ -180,49 +220,42 @@ class GoldbergUpdater:
 
             log(f"Downloaded {len(archive_data)} bytes, extracting...")
 
-            # extract with py7zr
-            try:
-                import py7zr
-            except ImportError:
-                log("py7zr not installed, trying fallback extraction...")
-                return self._extract_with_subprocess(archive_data, tag, log)
+        except Exception as e:
+            logger.error("Failed to download Goldberg: %s", e)
+            log(f"Download failed: {e}")
+            return False
 
+        # try py7zr first; fall through to system 7z on ANY failure (e.g. BCJ2)
+        try:
+            import py7zr
+            import tempfile
+            import shutil
             with py7zr.SevenZipFile(io.BytesIO(archive_data), mode='r') as archive:
                 all_files = archive.getnames()
                 log(f"Archive contains {len(all_files)} files")
-
-                # extract everything to a temp location first
-                import tempfile
                 with tempfile.TemporaryDirectory() as tmpdir:
                     archive.extractall(path=tmpdir)
-
                     extracted_count = 0
                     tmppath = Path(tmpdir)
-
-                    # find and copy required files
-                    for dest_name, src_pattern in {**REQUIRED_FILES, **TOOLS_FILES}.items():
-                        # search for the file in extracted content
+                    for dest_name in {**REQUIRED_FILES, **TOOLS_FILES}:
                         found = self._find_file(tmppath, dest_name)
                         if found:
                             dest = self.cache_dir / dest_name
                             dest.parent.mkdir(parents=True, exist_ok=True)
-                            import shutil
                             shutil.copy2(found, dest)
                             extracted_count += 1
                         else:
                             logger.debug("File not found in archive: %s", dest_name)
-
                     log(f"Extracted {extracted_count} files")
-
-            # save version
             (self.cache_dir / "version.txt").write_text(tag, encoding="utf-8")
             log(f"Goldberg {tag} cached successfully")
             return True
-
+        except ImportError:
+            log("py7zr not installed — trying system 7z...")
         except Exception as e:
-            logger.error("Failed to download/extract Goldberg: %s", e)
-            log(f"Error: {e}")
-            return False
+            log(f"py7zr extraction failed ({e}) — trying system 7z...")
+
+        return self._extract_with_subprocess(archive_data, tag, log)
 
     def _find_file(self, search_dir: Path, filename: str) -> Optional[Path]:
         """recursively find a file by name in a directory"""
@@ -231,45 +264,90 @@ class GoldbergUpdater:
                 return path
         return None
 
+    # (executable_path, tool_type) candidates checked in order
+    # tool_type is "7z" or "winrar" — each needs different CLI syntax
+    _EXTRACTOR_CANDIDATES = [
+        ("7z",                                          "7z"),
+        (r"C:\Program Files\7-Zip\7z.exe",              "7z"),
+        (r"C:\Program Files (x86)\7-Zip\7z.exe",       "7z"),
+        (r"C:\Program Files\WinRAR\WinRAR.exe",         "winrar"),
+        (r"C:\Program Files (x86)\WinRAR\WinRAR.exe",   "winrar"),
+        ("WinRAR",                                      "winrar"),
+    ]
+
+    def _find_extractor(self) -> tuple[str, str]:
+        """return (exe_path, tool_type) for the first usable archive extractor, or ("", "")"""
+        import subprocess
+        for candidate, tool_type in self._EXTRACTOR_CANDIDATES:
+            try:
+                result = subprocess.run(
+                    [candidate, "--help" if tool_type == "7z" else "-?"],
+                    capture_output=True, timeout=5,
+                )
+                # 7-Zip returns 0 or 1 for --help; WinRAR returns 0
+                if result.returncode in (0, 1):
+                    return candidate, tool_type
+            except (FileNotFoundError, OSError):
+                continue
+        return "", ""
+
     def _extract_with_subprocess(self, archive_data: bytes, tag: str, log) -> bool:
-        """fallback: write to temp file and extract with 7z.exe"""
-        import tempfile
+        """fallback: write archive to cache_dir (Defender-friendly path) and extract with 7-Zip or WinRAR"""
         import subprocess
         import shutil
 
-        try:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                archive_path = Path(tmpdir) / RELEASE_ASSET_NAME
-                archive_path.write_bytes(archive_data)
-
-                extract_dir = Path(tmpdir) / "extracted"
-                extract_dir.mkdir()
-
-                # try 7z.exe
-                result = subprocess.run(
-                    ["7z", "x", str(archive_path), f"-o{extract_dir}", "-y"],
-                    capture_output=True, text=True, timeout=120
-                )
-
-                if result.returncode != 0:
-                    log(f"7z extraction failed: {result.stderr}")
-                    return False
-
-                extracted_count = 0
-                for dest_name in {**REQUIRED_FILES, **TOOLS_FILES}:
-                    found = self._find_file(extract_dir, dest_name)
-                    if found:
-                        dest = self.cache_dir / dest_name
-                        shutil.copy2(found, dest)
-                        extracted_count += 1
-
-                (self.cache_dir / "version.txt").write_text(tag, encoding="utf-8")
-                log(f"Extracted {extracted_count} files via 7z.exe")
-                return True
-
-        except FileNotFoundError:
-            log("7z.exe not found - install py7zr (pip install py7zr) or put 7z.exe in PATH")
+        exe, tool_type = self._find_extractor()
+        if not exe:
+            log("No archive extractor found — install 7-Zip or WinRAR so the Goldberg release can be extracted")
             return False
+
+        tool_name = Path(exe).name
+        log(f"Using {tool_name} ({tool_type}) for extraction")
+
+        # write to cache_dir instead of system temp — avoids Defender quarantine on %TEMP%
+        archive_path = self.cache_dir / RELEASE_ASSET_NAME
+        extract_dir  = self.cache_dir / "_extract_tmp"
+        try:
+            archive_path.write_bytes(archive_data)
+            extract_dir.mkdir(exist_ok=True)
+
+            # build tool-specific command
+            if tool_type == "7z":
+                cmd = [exe, "x", str(archive_path), f"-o{extract_dir}", "-y"]
+            else:  # winrar
+                # WinRAR needs a trailing backslash on the destination path
+                cmd = [exe, "x", "-y", str(archive_path), str(extract_dir) + "\\"]
+
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=120,
+            )
+
+            if result.returncode != 0:
+                log(f"{tool_name} extraction failed: {result.stderr}")
+                return False
+
+            extracted_count = 0
+            for dest_name in {**REQUIRED_FILES, **TOOLS_FILES}:
+                found = self._find_file(extract_dir, dest_name)
+                if found:
+                    dest = self.cache_dir / dest_name
+                    shutil.copy2(found, dest)
+                    extracted_count += 1
+
+            (self.cache_dir / "version.txt").write_text(tag, encoding="utf-8")
+            log(f"Extracted {extracted_count} files via {tool_name}")
+            return True
+
         except Exception as e:
             log(f"Subprocess extraction failed: {e}")
             return False
+        finally:
+            # clean up archive + temp extraction dir
+            try:
+                archive_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            try:
+                shutil.rmtree(extract_dir, ignore_errors=True)
+            except Exception:
+                pass

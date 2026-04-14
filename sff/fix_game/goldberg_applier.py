@@ -306,6 +306,16 @@ class GoldbergApplier:
             if src.exists():
                 shutil.copy2(src, extra_dir / extra_name)
 
+        # scan for steam_interfaces.txt before deploying
+        settings_dir = game_path / "steam_settings"
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        _, _, dll_paths = self.detect_steam_api(game_dir)
+        if dll_paths:
+            self.generate_interfaces_file(dll_paths[0], str(settings_dir))
+            log(f"✓ Generated steam_interfaces.txt from {Path(dll_paths[0]).name}")
+        else:
+            log("No steam_api DLL found — skipping steam_interfaces.txt")
+
         # generate ColdClientLoader.ini
         exe_rel = os.path.relpath(main_exe, game_dir)
         ini_content = f"""[SteamClient]
@@ -382,6 +392,14 @@ SteamClient={'steamclient64.dll' if is_64 else 'steamclient.dll'}
         settings_dir = game_path / "steam_settings"
         settings_dir.mkdir(exist_ok=True)
         (settings_dir / "steam_appid.txt").write_text(str(app_id), encoding="utf-8")
+
+        # scan for steam_interfaces.txt
+        _, _, dll_paths = self.detect_steam_api(game_dir)
+        if dll_paths:
+            self.generate_interfaces_file(dll_paths[0], str(settings_dir))
+            log(f"✓ Generated steam_interfaces.txt from {Path(dll_paths[0]).name}")
+        else:
+            log("No steam_api DLL found — skipping steam_interfaces.txt")
 
         return True, "ColdLoader DLL deployed — game loads Goldberg automatically via DLL proxy"
 
