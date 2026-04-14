@@ -362,29 +362,35 @@ DllsToInjectFolder=extra_dlls
 
         game_path = Path(game_dir)
 
-        # find coldloader files
-        coldloader_dll = self._find_tool("coldloader.dll")
-        proxy_dll = self._find_tool("version.dll") or self._find_tool("winmm.dll")
+        # detect bitness first so we can pick the right arch-specific bundled DLL
+        is_64 = True
+        main_exe = self.find_main_exe(game_dir)
+        if main_exe:
+            is_64 = self.is_exe_64bit(main_exe)
+            log(f"Main exe: {Path(main_exe).name} ({'64-bit' if is_64 else '32-bit'})")
+
+        arch = "x64" if is_64 else "x86"
+        coldloader_dll = (self._find_tool(f"coldloader_{arch}.dll")
+                          or self._find_tool("coldloader.dll"))
+        proxy_dll      = (self._find_tool(f"version_{arch}.dll")
+                          or self._find_tool("version.dll")
+                          or self._find_tool("winmm.dll"))
 
         if not coldloader_dll:
-            return False, "coldloader.dll not found — download from github.com/denuvosanctuary/coldloader"
+            return False, "coldloader.dll not found in third_party/coldloader/"
 
         # deploy coldloader.dll
         shutil.copy2(coldloader_dll, game_path / "coldloader.dll")
         log("✓ Deployed coldloader.dll")
 
-        # deploy proxy DLL (version.dll or winmm.dll)
+        # deploy proxy DLL — strip arch suffix so game sees version.dll / winmm.dll
         if proxy_dll:
-            proxy_name = Path(proxy_dll).name
+            raw_name = Path(proxy_dll).name
+            proxy_name = raw_name.replace("_x64", "").replace("_x86", "")
             shutil.copy2(proxy_dll, game_path / proxy_name)
             log(f"✓ Deployed {proxy_name} (DLL proxy)")
 
         # deploy steamclient DLL
-        is_64 = True  # assume 64-bit by default for cold loader
-        main_exe = self.find_main_exe(game_dir)
-        if main_exe:
-            is_64 = self.is_exe_64bit(main_exe)
-
         sc_name = "steamclient64.dll" if is_64 else "steamclient.dll"
         src = self.cache_dir / sc_name
         if src.exists():
