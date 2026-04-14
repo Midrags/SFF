@@ -303,22 +303,20 @@ class GoldbergApplier:
         extra_src = self.cache_dir / extra_name
         if extra_src.exists():
             shutil.copy2(extra_src, game_path / extra_name)
-            log(f"✓ Deployed {extra_name}")
+            log(f"\u2713 Deployed {extra_name}")
         else:
-            log(f"Warning: {extra_name} not found in cache — ColdClient may not work correctly")
+            log(f"Warning: {extra_name} not found in cache \u2014 ColdClient may not work correctly")
 
-        # scan for steam_interfaces.txt before deploying
-        settings_dir = game_path / "steam_settings"
-        settings_dir.mkdir(parents=True, exist_ok=True)
-        _, _, dll_paths = self.detect_steam_api(game_dir)
-        if dll_paths:
-            self.generate_interfaces_file(dll_paths[0], str(settings_dir))
-            log(f"✓ Generated steam_interfaces.txt from {Path(dll_paths[0]).name}")
+        # prefer .unpacked.exe if present (created by Steamless or other SteamStub unpackers)
+        main_exe_path = Path(main_exe)
+        unpacked_path = main_exe_path.parent / (main_exe_path.name + ".unpacked.exe")
+        if unpacked_path.exists():
+            exe_rel = os.path.relpath(str(unpacked_path), game_dir)
+            log(f"\u2713 Using unpacked exe: {unpacked_path.name}")
         else:
-            log("No steam_api DLL found — skipping steam_interfaces.txt")
+            exe_rel = os.path.relpath(main_exe, game_dir)
 
         # generate ColdClientLoader.ini
-        exe_rel = os.path.relpath(main_exe, game_dir)
         ini_content = f"""[SteamClient]
 Exe={exe_rel}
 ExeRunDir=.
@@ -396,14 +394,6 @@ SteamClient={'steamclient64.dll' if is_64 else 'steamclient.dll'}
         settings_dir = game_path / "steam_settings"
         settings_dir.mkdir(exist_ok=True)
         (settings_dir / "steam_appid.txt").write_text(str(app_id), encoding="utf-8")
-
-        # scan for steam_interfaces.txt
-        _, _, dll_paths = self.detect_steam_api(game_dir)
-        if dll_paths:
-            self.generate_interfaces_file(dll_paths[0], str(settings_dir))
-            log(f"✓ Generated steam_interfaces.txt from {Path(dll_paths[0]).name}")
-        else:
-            log("No steam_api DLL found — skipping steam_interfaces.txt")
 
         return True, "ColdLoader DLL deployed — game loads Goldberg automatically via DLL proxy"
 

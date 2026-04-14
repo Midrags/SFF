@@ -67,7 +67,6 @@ def _ensure_defender_exclusion(path: Path) -> None:
             capture_output=True, timeout=10,
         )
         if result.returncode == 0:
-            # write flag so we skip future attempts
             try:
                 flag.write_text("excluded", encoding="utf-8")
             except Exception:
