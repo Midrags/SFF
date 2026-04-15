@@ -51,6 +51,9 @@ REQUIRED_FILES = {
     # extra DLLs for coldclient injection
     "steamclient_extra_x32.dll": "release/extra_dlls/steamclient_extra_x32.dll",
     "steamclient_extra_x64.dll": "release/extra_dlls/steamclient_extra_x64.dll",
+    # overlay renderer — required when any overlay is enabled in steam_settings
+    "GameOverlayRenderer.dll":   "release/GameOverlayRenderer.dll",
+    "GameOverlayRenderer64.dll": "release/GameOverlayRenderer64.dll",
 }
 
 # generate_interfaces tool
