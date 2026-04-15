@@ -24,6 +24,7 @@ and provides timestamped restore points.
 """
 
 import os
+import sys
 import shutil
 import logging
 import json
@@ -33,6 +34,40 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# module-level cache for all_games.txt — parsed once per session
+_ALL_GAMES_CACHE: Optional[dict] = None
+
+
+def _load_all_games_cache() -> dict:
+    """Parse all_games.txt into {app_id: name}. Returns cached dict after first call."""
+    global _ALL_GAMES_CACHE
+    if _ALL_GAMES_CACHE is not None:
+        return _ALL_GAMES_CACHE
+    _ALL_GAMES_CACHE = {}
+    try:
+        if getattr(sys, "frozen", False):
+            base = Path(sys._MEIPASS)  # type: ignore[attr-defined]
+        else:
+            base = Path(__file__).parent.parent
+        txt = base / "all_games.txt"
+        if not txt.exists():
+            return _ALL_GAMES_CACHE
+        with txt.open(encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                # format: Game Name [ID=12345]
+                if "[ID=" in line and line.endswith("]"):
+                    idx = line.rfind("[ID=")
+                    name = line[:idx].strip()
+                    appid_str = line[idx + 4 : -1]
+                    if appid_str.isdigit() and name:
+                        _ALL_GAMES_CACHE[int(appid_str)] = name
+    except Exception as e:
+        logger.debug("all_games.txt load failed: %s", e)
+    return _ALL_GAMES_CACHE
 
 # common save file locations to scan
 SAVE_LOCATIONS = [
@@ -355,66 +390,124 @@ class CloudSaves:
         Enumerate games in Steam userdata for the given Steam32 ID.
 
         Returns a list of (app_id, game_name) sorted by game name.
-        Game names are resolved from steamapps/appmanifest_<appid>.acf when available,
-        falling back to the numeric app ID string.
+
+        Name resolution — three layers, in order:
+          1. appmanifest_*.acf across all Steam library folders (installed games)
+          2. SteaMidra fix_game_cache CachedAppInfo (previously fixed games)
+          3. Batch Steam Store API call for anything still unresolved (uninstalled games)
         """
-        results: list[tuple[int, str]] = []
         userdata_dir = Path(steam_path) / "userdata" / str(steam32_id)
         if not userdata_dir.exists():
-            return results
+            return []
 
-        # build a name lookup from appmanifest ACF files
-        name_map: dict[int, str] = {}
-        steamapps_dirs = [
-            Path(steam_path) / "steamapps",
-        ]
-        # also check library folders
-        lf_path = Path(steam_path) / "steamapps" / "libraryfolders.vdf"
-        if lf_path.exists():
-            try:
-                text = lf_path.read_text(encoding="utf-8", errors="ignore")
-                for line in text.splitlines():
-                    line = line.strip().strip('"')
-                    if line and (Path(line) / "steamapps").exists():
-                        steamapps_dirs.append(Path(line) / "steamapps")
-            except Exception:
-                pass
-
-        for sd in steamapps_dirs:
-            if not sd.exists():
-                continue
-            for acf in sd.glob("appmanifest_*.acf"):
-                try:
-                    appid_str = acf.stem.split("_", 1)[1]
-                    if not appid_str.isdigit():
-                        continue
-                    appid = int(appid_str)
-                    text = acf.read_text(encoding="utf-8", errors="ignore")
-                    for line in text.splitlines():
-                        line = line.strip()
-                        if line.startswith('"name"'):
-                            name = line.split('"name"', 1)[1].strip().strip('"')
-                            name_map[appid] = name
-                            break
-                except Exception:
-                    pass
-
+        # --- collect all app IDs that have a remote/ folder ---
+        app_ids: list[int] = []
         try:
             for item in userdata_dir.iterdir():
                 if not item.is_dir() or not item.name.isdigit():
                     continue
-                app_id = int(item.name)
-                if app_id == 0:
+                appid = int(item.name)
+                if appid == 0:
                     continue
-                remote_dir = item / "remote"
-                if not remote_dir.exists():
-                    continue
-                game_name = name_map.get(app_id, f"App {app_id}")
-                results.append((app_id, game_name))
+                if (item / "remote").exists():
+                    app_ids.append(appid)
         except PermissionError:
+            return []
+
+        if not app_ids:
+            return []
+
+        name_map: dict[int, str] = {}
+
+        # --- Layer 1: ACF files via get_steam_libs (same as main menu) ---
+        try:
+            from sff.storage.vdf import get_steam_libs, vdf_load
+            steam_root = Path(steam_path)
+            libs = get_steam_libs(steam_root)
+            if steam_root not in libs:
+                libs = [steam_root] + list(libs)
+            for lib in libs:
+                steamapps = lib / "steamapps"
+                if not steamapps.exists():
+                    continue
+                for acf in steamapps.glob("appmanifest_*.acf"):
+                    try:
+                        appid_str = acf.stem.split("_", 1)[1]
+                        if not appid_str.isdigit():
+                            continue
+                        appid = int(appid_str)
+                        if appid in name_map:
+                            continue
+                        data = vdf_load(acf)
+                        name = data.get("AppState", {}).get("name", "")
+                        if name:
+                            name_map[appid] = name
+                    except Exception:
+                        pass
+        except Exception:
             pass
 
-        results.sort(key=lambda x: x[1].lower())
+        # --- Layer 2: SteaMidra fix_game_cache (previously fixed games) ---
+        unresolved = [a for a in app_ids if a not in name_map]
+        if unresolved:
+            try:
+                from sff.fix_game.cache import FixGameCache
+                fgc = FixGameCache()
+                for appid in unresolved:
+                    info = fgc.load_app_info(appid)
+                    if info and info.name:
+                        name_map[appid] = info.name
+            except Exception:
+                pass
+
+        # --- Layer 3: all_games.txt local lookup (instant, offline) ---
+        unresolved_3 = [a for a in app_ids if a not in name_map]
+        if unresolved_3:
+            games_db = _load_all_games_cache()
+            for appid in unresolved_3:
+                n = games_db.get(appid)
+                if n:
+                    name_map[appid] = n
+
+        # --- Layer 4: Parallel Steam Store API (last resort for unlisted games) ---
+        still_unresolved = [a for a in app_ids if a not in name_map]
+        if still_unresolved:
+            try:
+                import httpx
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+
+                def _fetch_name(appid: int) -> tuple[int, str]:
+                    try:
+                        r = httpx.get(
+                            "https://store.steampowered.com/api/appdetails",
+                            params={"appids": appid, "filters": "basic"},
+                            timeout=10.0,
+                        )
+                        if r.status_code == 200:
+                            info = r.json().get(str(appid), {})
+                            if info.get("success"):
+                                name = info.get("data", {}).get("name", "")
+                                if name:
+                                    return appid, name
+                    except Exception:
+                        pass
+                    return appid, ""
+
+                with ThreadPoolExecutor(max_workers=5) as pool:
+                    futures = {pool.submit(_fetch_name, a): a for a in still_unresolved}
+                    for future in as_completed(futures):
+                        appid, name = future.result()
+                        if name:
+                            name_map[appid] = name
+            except Exception:
+                pass
+
+        results = [
+            (appid, name_map.get(appid, f"App {appid}"))
+            for appid in app_ids
+        ]
+        # resolved names first (alphabetical), unresolved "App XXXX" at the bottom
+        results.sort(key=lambda x: (x[1].startswith("App "), x[1].lower()))
         return results
 
     def backup_steam_save(

@@ -52,6 +52,11 @@ fallback_db = os.path.join(spec_root, 'sff', 'fallback_depotkeys.json')
 if os.path.exists(fallback_db):
     datas.append((fallback_db, 'sff'))
 
+# Include all_games.txt for offline game name resolution in Cloud Saves
+all_games_txt = os.path.join(spec_root, 'all_games.txt')
+if os.path.exists(all_games_txt):
+    datas.append((all_games_txt, '.'))
+
 win10toast_data = get_win10toast_data()
 if win10toast_data:
     datas.append(win10toast_data)

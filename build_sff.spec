@@ -44,6 +44,11 @@ if os.path.exists(os.path.join(spec_root, 'sff.png')):
 if os.path.exists(os.path.join(spec_root, 'sff.ico')):
     datas.append(('sff.ico', '.'))
 
+# Include all_games.txt for offline game name resolution in Cloud Saves
+all_games_txt = os.path.join(spec_root, 'all_games.txt')
+if os.path.exists(all_games_txt):
+    datas.append((all_games_txt, '.'))
+
 # Add win10toast data
 win10toast_data = get_win10toast_data()
 if win10toast_data:
