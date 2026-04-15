@@ -320,52 +320,69 @@ class GameHandler:
                 + str(dst_steam_settings_folder)
             )
 
-    def _crack_dll_core(self, app_id: str, dll_path: Path):
+    def _crack_dll_core(self, app_id: str, dll_path: Path) -> bool:
+        """Swap steam_api DLL with Goldberg. Returns False if already cracked."""
         gbe_fork_folder = root_folder() / "third_party/gbe_fork/"
+        gbe_dll = gbe_fork_folder / dll_path.name
+
+        if not gbe_dll.exists():
+            print(f"Goldberg DLL not found: {gbe_dll}")
+            return False
+
         with dll_path.open("rb") as f:
             target_hash = hashlib.md5(f.read()).hexdigest()
-        with (gbe_fork_folder / dll_path.name).open("rb") as f:
+        with gbe_dll.open("rb") as f:
             source_hash = hashlib.md5(f.read()).hexdigest()
         if source_hash == target_hash:
             print("DLL already cracked.")
-            return
+            return False
         print("DLL has not been cracked")
 
         api_folder = dll_path.parent
 
-        gse_app_folder = Path.home() / f"AppData/Roaming/GSE Saves/{app_id}"
-
+        gse_app_folder = Path.home() / "AppData" / "Roaming" / "GSE Saves" / app_id
         if not gse_app_folder.exists():
-            print("GSE Saves folder doesn't exist. Creating...")
             gse_app_folder.mkdir(parents=True)
+        print(f"Save data: {gse_app_folder}")
 
         backup_name = dll_path.parent / ("OG_" + dll_path.name)
         if backup_name.exists():
             backup_name.unlink()
         dll_path.rename(backup_name)
 
-        def ignore_other_dll(dir: str, files: list[str]) -> set[str]:
-            if dll_path.name in files:
-                api_files = {"steam_api.dll", "steam_api64.dll"}
-                api_files.remove(dll_path.name)
-                return api_files
-            return set()  # type: ignore
-
-        shutil.copytree(
-            gbe_fork_folder, api_folder, dirs_exist_ok=True, ignore=ignore_other_dll
-        )
+        shutil.copy2(gbe_dll, dll_path)
         (api_folder / "steam_appid.txt").write_text(app_id, "utf-8")
+        return True
 
     def crack_dll(self, app_id: str, dll_path: Path):
-        self._crack_dll_core(app_id, dll_path)
-        gen_achievements = prompt_confirm(
-            "Would you like to generate config files for gbe_fork? "
-            "(Contains achievement data)"
-        )
-        if gen_achievements:
-            self.run_gen_emu(
-                app_id, GenEmuMode.STEAM_SETTINGS, dll_path.parent / "steam_settings"
+        swapped = self._crack_dll_core(app_id, dll_path)
+        if not swapped:
+            return
+
+        game_dir = str(dll_path.parent)
+        settings_dir = dll_path.parent / "steam_settings"
+        settings_dir.mkdir(parents=True, exist_ok=True)
+
+        # scan steam interfaces from the original backup DLL
+        from sff.fix_game.goldberg_applier import GoldbergApplier
+        from sff.fix_game.cache import FixGameCache
+        backup_dll = dll_path.parent / ("OG_" + dll_path.name)
+        if backup_dll.exists():
+            GoldbergApplier(FixGameCache().goldberg_dir).generate_interfaces_file(
+                str(backup_dll), str(settings_dir)
             )
+            print("✓ Generated steam_interfaces.txt")
+
+        # generate steam_settings (configs, languages, depots) — no credentials needed
+        from sff.fix_game.config_generator import GoldbergConfigGenerator
+        GoldbergConfigGenerator().generate(
+            app_id=int(app_id),
+            target_dir=game_dir,
+            player_name="Player",
+            log_func=print,
+        )
+        print(f"\nCrack complete. Run the game — saves go to: "
+              f"{Path.home() / 'AppData' / 'Roaming' / 'GSE Saves' / app_id}")
 
     def apply_steamless(self, app_info: ACFInfo, exe_path: Optional[Path] = None):
         game_exe = exe_path if exe_path is not None else self.select_executable(app_info)

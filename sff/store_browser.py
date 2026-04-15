@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Morrenus manifest API client — library browsing, search, downloads."""
+"""Hubcap Manifest API client — library browsing, search, downloads."""
 
 import time
 import logging
@@ -28,10 +28,10 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # base URL for the manifest API
-BASE_URL = "https://manifest.morrenus.xyz/api/v1"
+BASE_URL = "https://hubcapmanifest.com/api/v1"
 
 # how long to cache game status responses (seconds)
-STATUS_CACHE_TTL = 300  # 5 minutes, same as Solus
+STATUS_CACHE_TTL = 300  # 5 minutes, same as Hubcap Bot
 
 
 @dataclass
@@ -258,6 +258,23 @@ class StoreApiClient:
         except Exception as e:
             logger.error("Failed to get workshop manifest for %d: %s", workshop_id, e)
             return None
+
+    # --- depot helpers ---
+
+    def get_game_depots(self, app_id: int) -> list[int]:
+        """Return depot IDs for a game using the Morrenus generate/manifest list endpoint."""
+        try:
+            resp = self._get_client().get(f"/generate/manifest/{app_id}")
+            resp.raise_for_status()
+            data = resp.json()
+            # Try known response shapes
+            if isinstance(data, list):
+                return [int(d) for d in data if str(d).isdigit()]
+            depots = data.get("depots", data.get("depot_ids", []))
+            return [int(d) for d in depots if str(d).isdigit()]
+        except Exception as e:
+            logger.debug(f"Morrenus depot list failed for {app_id}: {e}")
+            return []
 
     # --- user info ---
 

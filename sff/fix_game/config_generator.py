@@ -22,9 +22,10 @@ Goldberg emulator config generator.
 Creates the steam_settings/ folder with all config files:
 - steam_appid.txt
 - configs.app.ini (DLC, cloud save dirs)
-- configs.user.ini (account name, steamid, language)
-- configs.main.ini (connectivity settings)
 - configs.overlay.ini
+- %APPDATA%/GSE Saves/settings/configs.user.ini  (global identity — all games)
+- %APPDATA%/GSE Saves/settings/configs.main.ini  (global connectivity — all games)
+- %APPDATA%/GSE Saves/settings/account_avatar.*  (global avatar — all games)
 - achievements.json (from Steam Web API)
 - stats.json
 - supported_languages.txt
@@ -37,6 +38,7 @@ Mirrors Solus GoldbergConfigGenerator.cs + GoldbergLogic.cs
 import os
 import json
 import logging
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -97,10 +99,12 @@ class GoldbergConfigGenerator:
         dlc_list: Optional[dict] = None,
         cloud_save_paths: Optional[dict] = None,
         log_func=None,
+        avatar_path: Optional[str] = None,
+        simple_mode: bool = False,
     ) -> bool:
         """
         Generate the full steam_settings/ folder.
-        
+
         Args:
             app_id: Steam app ID
             target_dir: game directory where steam_settings/ will be created
@@ -110,7 +114,9 @@ class GoldbergConfigGenerator:
             dlc_list: optional pre-fetched DLC dict {id: name}
             cloud_save_paths: optional pre-fetched cloud save paths
             log_func: optional callback for status messages
-        
+            avatar_path: optional path to avatar image (.png/.jpg/.jpeg)
+            simple_mode: if True, skip all API calls (fast offline generation)
+
         Returns True on success.
         """
         def log(msg):
@@ -126,31 +132,34 @@ class GoldbergConfigGenerator:
             self._write_appid(app_id, target_dir, log)
 
             # configs.app.ini (DLC + cloud saves)
-            self._write_app_config(app_id, settings_dir, dlc_list, cloud_save_paths, log)
+            self._write_app_config(app_id, settings_dir, dlc_list, cloud_save_paths, log,
+                                   skip_api=simple_mode)
 
-            # configs.user.ini (account name, steamid, language)
-            self._write_user_config(settings_dir, steam_id, player_name, language, log)
-
-            # configs.main.ini (connectivity settings)
-            self._write_main_config(settings_dir, log)
-
-            # configs.overlay.ini
+            # configs.overlay.ini (per-game)
             self._write_overlay_config(settings_dir, log)
 
-            # achievements.json
-            if self.steam_web_api_key:
-                self._fetch_achievements(app_id, settings_dir, log)
+            if not simple_mode:
+                # achievements.json
+                if self.steam_web_api_key:
+                    self._fetch_achievements(app_id, settings_dir, log)
+                else:
+                    log("No Steam Web API key - skipping achievements")
+
+                # supported_languages.txt
+                self._fetch_languages(app_id, settings_dir, log)
+
+                # depots.txt
+                self._fetch_depots(app_id, settings_dir, log)
             else:
-                log("No Steam Web API key - skipping achievements")
-
-            # supported_languages.txt
-            self._fetch_languages(app_id, settings_dir, log)
-
-            # depots.txt
-            self._fetch_depots(app_id, settings_dir, log)
+                log("Simple mode: skipping API calls (achievements/languages/depots)")
 
             # controller/controls.txt
             self._write_controller_config(settings_dir, log)
+
+            # global GBE identity settings (%APPDATA%\GSE Saves\settings\) — applied to all games
+            _appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+            global_dir = Path(_appdata) / "GSE Saves" / "settings"
+            self._write_global_settings(global_dir, player_name, steam_id, language, avatar_path, log)
 
             log("Config generation complete")
             return True
@@ -164,66 +173,467 @@ class GoldbergConfigGenerator:
         """write steam_appid.txt to the game root"""
         path = Path(target_dir) / "steam_appid.txt"
         path.write_text(str(app_id), encoding="utf-8")
-        log("✓ Created steam_appid.txt")
+        log("\u2713 Created steam_appid.txt")
 
-    def _write_app_config(self, app_id, settings_dir, dlc_list, cloud_save_paths, log):
+    def _write_app_config(self, app_id, settings_dir, dlc_list, cloud_save_paths, log,
+                          skip_api: bool = False):
         """write configs.app.ini with DLC and cloud save directories"""
-        lines = ["[app::general]", f"build_id=0", ""]
-
-        # DLC section
-        lines.append("[app::dlcs]")
-        lines.append("unlock_all=0")
-
+        # DLC entries fetched/provided — listed FIRST before unlock_all (GoldbergGUI format)
+        dlc_lines: list[str] = []
         if dlc_list:
             for dlc_id, dlc_name in dlc_list.items():
-                lines.append(f"{dlc_id}={dlc_name}")
-            log(f"✓ Added {len(dlc_list)} DLCs to config")
-        else:
-            # try to fetch from SteamCMD API
+                dlc_lines.append(f"{dlc_id}={dlc_name}")
+            log(f"\u2713 Added {len(dlc_list)} DLCs to config")
+        elif not skip_api:
             fetched = self._fetch_dlcs(app_id)
             if fetched:
                 for dlc_id, dlc_name in fetched.items():
-                    lines.append(f"{dlc_id}={dlc_name}")
-                log(f"✓ Fetched {len(fetched)} DLCs from API")
+                    dlc_lines.append(f"{dlc_id}={dlc_name}")
+                log(f"\u2713 Fetched {len(fetched)} DLCs from API")
             else:
                 log("No DLCs found")
 
-        # cloud save section
+        lines = [
+            "# ################################################################################ #",
+            "# you do not have to specify everything, pick and choose the options you need only #",
+            "# ################################################################################ #",
+            "",
+            "[app::general]",
+            "# by default the emu will report a 'non-beta' branch when the game calls `Steam_Apps::GetCurrentBetaName()`",
+            "# 1=make the game/app think we're playing on a beta branch",
+            "# default=0",
+            "is_beta_branch=0",
+            "# the name of the current branch, this must also exist in 'branches.json'",
+            "# otherwise will be ignored by the emu and the default 'public' branch will be used",
+            "# default=public",
+            "branch_name=public",
+            "",
+            "[app::dlcs]",
+            *dlc_lines,
+            "",
+            "# 1=report all DLCs as unlocked",
+            "# 0=report only the DLCs mentioned",
+            "# some games check for 'hidden' DLCs, hence this should be set to 1 in that case",
+            "# but other games detect emus by querying for a fake/bad DLC, hence this should be set to 0 in that case",
+            "# default=1",
+            "unlock_all=1",
+            "# format: ID=name",
+            "#   1234=DLCNAME",
+            "#   56789=This is another example DLC name",
+            "",
+            "[app::controller]",
+            "# 1=Enable SteamInput (auto-enabled when action sets exist in steam_settings/controller/)",
+            "# default=0",
+            "steam_input=0",
+            "# Controller type: XBOX360 (default) | XBOXONE | PS3 | PS4 | PS5 | SWITCH",
+            "type=XBOX360",
+            "",
+            "[app::cloud_save::general]",
+            "# should the emu create the default userdata dir on startup",
+            "# default=0",
+            "create_default_dir=0",
+            "# should the emu create the dirs specified below on startup",
+            "# default=0",
+            "create_specific_dirs=0",
+        ]
+
         if cloud_save_paths:
-            lines.append("")
             for platform, paths in cloud_save_paths.items():
+                lines.append("")
                 lines.append(f"[app::cloud_save::{platform}]")
-                for path in paths:
-                    lines.append(f"path={path}")
-            log("✓ Added cloud save paths")
+                for p in paths:
+                    lines.append(f"dir1={p}")
+            log("\u2713 Added cloud save paths")
+        else:
+            lines += [
+                "",
+                "# Example cloud save paths (edit as needed):",
+                "# [app::cloud_save::win]",
+                "# dir1={::WinAppDataRoaming::}/PublisherName/GameName",
+                "# dir2={::WinMyDocuments::}/PublisherName/GameName/{::Steam3AccountID::}",
+                "# [app::cloud_save::linux]",
+                "# dir1={::LinuxXdgDataHome::}/PublisherName/GameName",
+            ]
 
         path = settings_dir / "configs.app.ini"
         path.write_text("\n".join(lines), encoding="utf-8")
-        log("✓ Created configs.app.ini")
+        log("\u2713 Created configs.app.ini")
 
     def _write_user_config(self, settings_dir, steam_id, player_name, language, log):
         """write configs.user.ini with account settings"""
-        content = f"""[user::general]
+        content = f"""# ##############################################################################
+# you do not have to specify everything, pick and choose the options you need only
+# ##############################################################################
+
+[user::general]
+# user account name displayed in-game
+# default=gse orca
 account_name={player_name}
+# your account ID in Steam64 format
+# if invalid, the emu will ignore it and generate a proper one
+# default=randomly generated once and saved in global settings
 account_steamid={steam_id}
+# language reported to the app/game
+# must exist in 'supported_languages.txt', otherwise ignored
+# see: https://partner.steamgames.com/doc/store/localization/languages
+# default=english
 language={language}
+# report a country IP if the game queries it (ISO 3166-1-alpha-2)
+# default=US
+ip_country=US
+
+[user::saves]
+# force the emu to use this path instead of the default global location
+# path is relative to the .dll location (or absolute)
+# when set, global settings folder is completely ignored (portable mode)
+# default= (empty = use global GSE Saves folder)
+# local_save_path=./saves
+# name of the base save folder (only used when local_save_path is NOT set)
+# default=GSE Saves
+saves_folder_name=GSE Saves
 """
         (settings_dir / "configs.user.ini").write_text(content, encoding="utf-8")
-        log("✓ Created configs.user.ini")
+        log("\u2713 Created configs.user.ini")
 
-    def _write_main_config(self, settings_dir, log):
-        """write configs.main.ini with connectivity settings"""
-        content = """[main::connectivity]
+    def _write_main_config(self, settings_dir, log, enable_avatar: bool = False):
+        """write configs.main.ini with full commented template"""
+        avatar_val = "1" if enable_avatar else "0"
+        content = f"""# ##############################################################################
+
+[main::general]
+# use new app ticket format (recommended)
+# default=1
+new_app_ticket=1
+
+# generate GC token
+# default=1
+gc_token=1
+
+# block unknown/unrecognized clients from connecting
+# default=0
+block_unknown_clients=0
+
+# report as Steam Deck
+# default=0
+steam_deck=0
+
+# enable account avatar (requires account_avatar.png/jpg in steam_settings/)
+# default=0
+enable_account_avatar={avatar_val}
+
+# enable voice chat (experimental)
+# default=0
+enable_voice_chat=0
+
+[main::stats]
+# disable creation of unknown leaderboards
+# default=0
+disable_leaderboards_create_unknown=0
+
+# allow stats not defined in stats.json to be set/read
+# default=0
+allow_unknown_stats=0
+
+# track achievement progress (fraction displayed in overlay)
+# default=1
+stat_achievement_progress_functionality=1
+
+# only save higher value for progress stats
+# default=1
+save_only_higher_stat_achievement_progress=1
+
+[main::connectivity]
+# 1=disable LAN-only networking (allows internet-style connections)
+# default=0
 disable_lan_only=1
+
+# completely disable all networking
+# default=0
+disable_networking=0
+
+# UDP listen port for local network features
+# default=47584
+listen_port=47584
+
+# run in offline mode (no network at all)
+# default=0
+offline=0
+
+# do not share stats with game servers
+# default=0
+disable_sharing_stats_with_gameserver=0
+
+# share leaderboard data over local network
+# default=0
+share_leaderboards_over_network=0
+
+# disable lobby creation
+# default=0
+disable_lobby_creation=0
+
+[main::misc]
+# bypass achievements (mark all as unlocked)
+# default=0
+achievements_bypass=0
+
+# force SteamHTTP to always return success
+# default=0
+force_steamhttp_success=0
+
+# allow downloading real HTTP requests via steamHTTP
+# default=0
+download_steamhttp_requests=0
 """
         (settings_dir / "configs.main.ini").write_text(content, encoding="utf-8")
-        log("✓ Created configs.main.ini")
+        log("\u2713 Created configs.main.ini")
 
     def _write_overlay_config(self, settings_dir, log):
-        """write configs.overlay.ini"""
-        content = "[overlay::general]\nenable_experimental_overlay=0\n"
+        """write configs.overlay.ini — full GoldbergGUI template"""
+        content = """\
+# ################################################################################ #
+#                                                                                  #
+#    USE AT YOUR OWN RISK :: This feature might cause crashes or other problems    #
+#                                                                                  #
+# ################################################################################ #
+# you do not have to specify everything, pick and choose the options you need only #
+# ################################################################################ #
+
+[overlay::general]
+# 1=enable the experimental overlay, might cause crashes
+# default=0
+enable_experimental_overlay=1
+# amount of time to wait before attempting to detect and hook the renderer (DirectX, OpenGL, Vulkan, etc...)
+# default=0
+hook_delay_sec=0
+# timeout for the renderer detector
+# default=15
+renderer_detector_timeout_sec=15
+# 1=disable the achievements notifications
+# default=0
+disable_achievement_notification=0
+# 1=disable friends invitations and messages notifications
+# default=0
+disable_friend_notification=0
+# 1=disable showing notifications for achievements progress
+# default=0
+disable_achievement_progress=0
+# 1=disable any warning in the overlay
+# default=0
+disable_warning_any=0
+# 1=disable the bad app ID warning in the overlay
+# default=0
+disable_warning_bad_appid=0
+# 1=disable the local_save warning in the overlay
+# default=0
+disable_warning_local_save=0
+# by default the overlay will attempt to upload the achievements icons to the GPU
+# so that they are displayed, in rare cases this might keep failing and cause FPS drop
+# 0=prevent the overlay from attempting to upload the icons periodically,
+#   in that case achievements icons won't be displayed
+# default=1
+upload_achievements_icons_to_gpu=1
+# amount of frames to accumulate, to eventually calculate the average frametime (in milliseconds)
+# lower values would result in instantaneous frametime/fps, but the FPS would be erratic
+# higher values would result in a more stable frametime/fps, but will be inaccurate due to averaging over long time
+# minimum allowed value=1
+# default=10
+fps_averaging_window=10
+
+[overlay::appearance]
+# load custom TrueType font from a path, it could be absolute, or relative
+# relative paths will be looked up inside the local folder 'steam_settings/fonts/' first,
+# if that wasn't found, it will be looked up inside the global folder 'GSE Saves/settings/fonts/'
+# default=
+Font_Override=
+# global font size
+# for built-in font, multiple of 16 is recommended, e.g. 16 32...
+# default=16.0
+Font_Size=16.0
+
+# achievement icon size
+Icon_Size=64.0
+
+# spacing between characters
+Font_Glyph_Extra_Spacing_x=1.0
+Font_Glyph_Extra_Spacing_y=0.0
+
+# background for all types of notifications
+Notification_R=0.12
+Notification_G=0.14
+Notification_B=0.21
+Notification_A=1.0
+
+# notifications corners roundness
+Notification_Rounding=10.0
+# horizontal (x) and vertical (y) margins for the notifications
+Notification_Margin_x=5.0
+Notification_Margin_y=5.0
+
+# duration/timing for various notification types (in seconds)
+# duration of notification animation in seconds. Set to 0 to disable
+Notification_Animation=0.35
+# duration of achievement progress indication
+Notification_Duration_Progress=6.0
+# duration of achievement unlocked
+Notification_Duration_Achievement=7.0
+# duration of friend invitation
+Notification_Duration_Invitation=8.0
+# duration of chat message
+Notification_Duration_Chat=4.0
+
+# format for the achievement unlock date/time, limited to 79 characters
+# if the output formatted string exceeded this limit, the builtin format will be used
+# look for the format here: https://en.cppreference.com/w/cpp/chrono/c/strftime
+# default=%Y/%m/%d - %H:%M:%S
+Achievement_Unlock_Datetime_Format=%Y/%m/%d - %H:%M:%S
+
+# main background when you press shift+tab
+Background_R=0.12
+Background_G=0.11
+Background_B=0.11
+Background_A=0.55
+
+Element_R=0.30
+Element_G=0.32
+Element_B=0.40
+Element_A=1.0
+
+ElementHovered_R=0.278
+ElementHovered_G=0.393
+ElementHovered_B=0.602
+ElementHovered_A=1.0
+
+ElementActive_R=-1.0
+ElementActive_G=-1.0
+ElementActive_B=-1.0
+ElementActive_A=-1.0
+
+# ############################# #
+# available options:
+# top_left
+# top_center
+# top_right
+# bot_left
+# bot_center
+# bot_right
+
+# position of achievements
+PosAchievement=bot_right
+# position of invitations
+PosInvitation=top_right
+# position of chat messages
+PosChatMsg=top_center
+# ############################# #
+
+# ############################# #
+# FPS background color
+Stats_Background_R=0.0
+Stats_Background_G=0.0
+Stats_Background_B=0.0
+Stats_Background_A=0.6
+
+# FPS text color
+Stats_Text_R=0.8
+Stats_Text_G=0.7
+Stats_Text_B=0.0
+Stats_Text_A=1.0
+
+# FPS position in percentage [0.0, 1.0]
+# X=0.0 : left
+# X=1.0 : right
+Stats_Pos_x=0.0
+
+# Y=0.0 : up
+# Y=1.0 : down
+Stats_Pos_y=0.0
+# ############################# #
+"""
         (settings_dir / "configs.overlay.ini").write_text(content, encoding="utf-8")
-        log("✓ Created configs.overlay.ini")
+        log("\u2713 Created configs.overlay.ini")
+
+    def _deploy_avatar(self, avatar_path: str, settings_dir: Path, log):
+        """copy avatar image to steam_settings/account_avatar.{ext}"""
+        src = Path(avatar_path)
+        if not src.exists():
+            log(f"Warning: avatar file not found: {avatar_path}")
+            return
+        ext = src.suffix.lower()
+        if ext not in (".png", ".jpg", ".jpeg"):
+            log(f"Warning: unsupported avatar format '{ext}' — skipping (use .png/.jpg/.jpeg)")
+            return
+        dst = settings_dir / f"account_avatar{ext}"
+        shutil.copy2(src, dst)
+        log(f"✓ Deployed avatar → {dst.name}")
+
+    def _write_global_settings(
+        self,
+        global_dir: Path,
+        player_name: str,
+        steam_id: str,
+        language: str,
+        avatar_path: Optional[str],
+        log,
+    ) -> None:
+        """Create/update %APPDATA%\\GSE Saves\\settings\\ — global GBE identity applied to all games.
+
+        Avatar priority rule: NEVER put avatar in per-game steam_settings.
+        - Explicit avatar_path → always copy to global.
+        - No avatar_path + existing global avatar → leave it alone (preserve user custom).
+        - No avatar_path + no global avatar → copy SFF.png as first-time default.
+        """
+        global_dir.mkdir(parents=True, exist_ok=True)
+
+        # --- avatar (global only, never per-game) ---
+        if avatar_path:
+            src = Path(avatar_path)
+            if src.exists():
+                ext = src.suffix.lower()
+                if ext in (".png", ".jpg", ".jpeg"):
+                    shutil.copy2(src, global_dir / f"account_avatar{ext}")
+                    log("\u2713 Deployed custom avatar \u2192 global settings")
+        else:
+            global_has_avatar = any(
+                (global_dir / f"account_avatar{e}").exists()
+                for e in (".png", ".jpg", ".jpeg")
+            )
+            if not global_has_avatar:
+                from sff.utils import root_folder
+                default = root_folder() / "SFF.png"
+                if default.exists():
+                    shutil.copy2(default, global_dir / "account_avatar.png")
+                    log("\u2713 Deployed default avatar (SFF.png) \u2192 global settings")
+
+        has_avatar = any(
+            (global_dir / f"account_avatar{e}").exists()
+            for e in (".png", ".jpg", ".jpeg")
+        )
+
+        # --- configs.main.ini (minimal, matching GoldbergGUI) ---
+        main_content = (
+            "[main::general]\n"
+            f"enable_account_avatar={'1' if has_avatar else '0'}\n\n"
+            "[main::connectivity]\n"
+            "listen_port=47584\n"
+        )
+        (global_dir / "configs.main.ini").write_text(main_content, encoding="utf-8")
+        log("\u2713 Updated global configs.main.ini")
+
+        # --- configs.user.ini (minimal, matching GoldbergGUI) ---
+        user_content = (
+            "[user::general]\n\n"
+            "# user account name\n"
+            f"account_name={player_name}\n\n"
+            "# Steam64 format\n"
+            f"account_steamid={steam_id}\n\n"
+            "# the language reported to the game, default is 'english', check 'API language code' in\n"
+            "# https://partner.steamgames.com/doc/store/localization/languages\n"
+            f"language={language}\n\n"
+            "# ISO 3166-1-alpha-2 format, use this link to get the 'Alpha-2' country code:\n"
+            "# https://www.iban.com/country-codes\n"
+            "ip_country=US\n"
+        )
+        (global_dir / "configs.user.ini").write_text(user_content, encoding="utf-8")
+        log("\u2713 Updated global configs.user.ini")
 
     def _write_controller_config(self, settings_dir, log):
         """write default controller mappings"""
@@ -306,8 +716,33 @@ disable_lan_only=1
         except Exception as e:
             log(f"Could not fetch depots: {e}")
 
+    def _fetch_dlc_names(self, dlc_ids: list) -> dict:
+        """Batch-fetch real DLC names from Steam Store appdetails — one request for all IDs."""
+        if not dlc_ids:
+            return {}
+        try:
+            with httpx.Client(timeout=20.0) as client:
+                resp = client.get(
+                    f"{STEAM_STORE_API_URL}/appdetails",
+                    params={"appids": ",".join(str(d) for d in dlc_ids)},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            result = {}
+            for dlc_id in dlc_ids:
+                app_data = data.get(str(dlc_id), {})
+                if app_data.get("success") and app_data.get("data"):
+                    name = app_data["data"].get("name") or f"DLC {dlc_id}"
+                else:
+                    name = f"DLC {dlc_id}"
+                result[str(dlc_id)] = name
+            return result
+        except Exception as e:
+            logger.warning("Could not fetch DLC names from Steam Store: %s", e)
+            return {str(d): f"DLC {d}" for d in dlc_ids}
+
     def _fetch_dlcs(self, app_id) -> dict:
-        """fetch DLC list from SteamCMD API"""
+        """fetch DLC list with real names — SteamCMD API first, Store API fallback"""
         try:
             with httpx.Client(timeout=15.0) as client:
                 resp = client.get(f"{STEAMCMD_API_URL}/{app_id}")
@@ -318,7 +753,25 @@ disable_lan_only=1
                        .get("extended", {}).get("listofdlc", ""))
             if dlc_str:
                 dlc_ids = [d.strip() for d in dlc_str.split(",") if d.strip() and d.strip().isdigit()]
-                return {dlc_id: "DLC" for dlc_id in dlc_ids}
+                if dlc_ids:
+                    return self._fetch_dlc_names(dlc_ids)
         except Exception as e:
-            logger.warning("Could not fetch DLCs: %s", e)
+            logger.warning("Could not fetch DLCs from SteamCMD: %s", e)
+
+        # fallback: Steam Store appdetails has a 'dlc' list of IDs
+        try:
+            with httpx.Client(timeout=15.0) as client:
+                resp = client.get(
+                    f"{STEAM_STORE_API_URL}/appdetails",
+                    params={"appids": str(app_id), "filters": "basic,dlc"},
+                )
+                resp.raise_for_status()
+                store_data = resp.json()
+            dlc_ids = (store_data.get(str(app_id), {})
+                       .get("data", {}).get("dlc", []))
+            if dlc_ids:
+                return self._fetch_dlc_names([str(d) for d in dlc_ids])
+        except Exception as e:
+            logger.warning("Could not fetch DLCs from Steam Store: %s", e)
+
         return {}

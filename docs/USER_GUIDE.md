@@ -8,7 +8,7 @@ The main way to add a game. Goes through these steps:
 **1. Input**
 - Add a .lua file — manually pick a .lua file you have
 - Choose from saved .lua files — every file you process gets saved, find it here (useful for updates)
-- Automatically download a .lua file — download one from oureveryday or Morrenus
+- Automatically download a .lua file — download one from oureveryday or Hubcap Manifest
 
 **2. GreenLuma achievement tracking**
 "Would you like GreenLuma (normal mode) to track achievements?"

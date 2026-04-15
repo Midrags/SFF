@@ -58,10 +58,10 @@ logger = logging.getLogger(__name__)
 
 
 class ManifestDownloader:
-    def __init__(self, provider: SteamInfoProvider, steam_path: Path, use_morrenus: bool = False):
+    def __init__(self, provider: SteamInfoProvider, steam_path: Path, use_hubcap: bool = False):
         self.steam_path = steam_path
         self.provider = provider
-        self.use_morrenus = use_morrenus
+        self.use_hubcap = use_hubcap
 
     def _preseed_depotcache(self) -> int:
         # Copy everything from ./manifests/ into depotcache now so Steam
@@ -197,16 +197,16 @@ class ManifestDownloader:
                 else:
                     raise RuntimeError("CDN Client timed out after maximum retries.") from None
 
-    def _try_morrenus_generate(
+    def _try_hubcap_generate(
         self, depot_id: str, manifest_id: str
     ) -> Optional[bytes]:
-        # Morrenus on-demand API: generates per-manifest, cached after first hit.
+        # Hubcap Manifest on-demand API: generates per-manifest, cached after first hit.
         # Limit: 1500/day. Returns raw manifest bytes (NOT zip-wrapped).
-        api_key = get_setting(Settings.MORRENUS_KEY)
+        api_key = get_setting(Settings.HUBCAP_KEY)
         if not api_key:
             return None
         url = (
-            f"https://manifest.morrenus.xyz/api/v1/generate/manifest"
+            f"https://hubcapmanifest.com/api/v1/generate/manifest"
             f"?depot_id={depot_id}&manifest_id={manifest_id}"
         )
         try:
@@ -219,24 +219,24 @@ class ManifestDownloader:
             if resp.status_code == 200 and resp.content:
                 print(
                     Fore.GREEN
-                    + f"✅ Morrenus on-demand: got manifest for depot {depot_id}"
+                    + f"✅ Hubcap on-demand: got manifest for depot {depot_id}"
                     + Style.RESET_ALL
                 )
                 return resp.content
             if resp.status_code == 401:
-                logger.debug("Morrenus on-demand: invalid or missing API key")
+                logger.debug("Hubcap on-demand: invalid or missing API key")
             elif resp.status_code == 429:
-                print(Fore.YELLOW + "Morrenus: daily limit reached (1500/day)." + Style.RESET_ALL)
+                print(Fore.YELLOW + "Hubcap: daily limit reached (1500/day)." + Style.RESET_ALL)
             elif resp.status_code == 404:
                 logger.debug(
-                    f"Morrenus: depot {depot_id} manifest {manifest_id} not found"
+                    f"Hubcap: depot {depot_id} manifest {manifest_id} not found"
                 )
             else:
                 logger.debug(
-                    f"Morrenus returned HTTP {resp.status_code}: {resp.text[:200]}"
+                    f"Hubcap returned HTTP {resp.status_code}: {resp.text[:200]}"
                 )
         except Exception as e:
-            logger.debug(f"Morrenus request failed: {e}")
+            logger.debug(f"Hubcap request failed: {e}")
         return None
 
     def _try_github_manifest_direct(
@@ -391,11 +391,11 @@ class ManifestDownloader:
         if cdn_client is None:
             cdn_client = self.get_cdn_client()
 
-        if self.use_morrenus:
-            # Morrenus path: Morrenus → ManifestHub API → CDN (interactive)
-            morrenus_result = self._try_morrenus_generate(depot_id, manifest_id)
-            if morrenus_result is not None:
-                return morrenus_result
+        if self.use_hubcap:
+            # Hubcap path: Hubcap → ManifestHub API → CDN (interactive)
+            hubcap_result = self._try_hubcap_generate(depot_id, manifest_id)
+            if hubcap_result is not None:
+                return hubcap_result
             mh_result = self._try_manifesthub(depot_id, manifest_id)
             if mh_result is not None:
                 return mh_result
@@ -490,7 +490,7 @@ class ManifestDownloader:
         # Pre-seed depotcache from ./manifests/ so Steam finds them locally
         self._preseed_depotcache()
 
-        if not self.use_morrenus and lua.app_id:
+        if not self.use_hubcap and lua.app_id:
             pairs = [(d, m) for d, m in manifest_ids.items() if m]
             if pairs:
                 self._log_mirror_coverage(lua.app_id, pairs)
@@ -545,7 +545,7 @@ class ManifestDownloader:
                     manifest_paths.append(written)
                 continue
 
-            if not self.use_morrenus:
+            if not self.use_hubcap:
                 # Last resort: ask user for request code interactively
                 print(
                     Fore.YELLOW
@@ -586,7 +586,7 @@ class ManifestDownloader:
         cdn = self.get_cdn_client()
         manifest_ids = self.get_manifest_ids(lua, auto_manifest)
 
-        if not self.use_morrenus and lua.app_id:
+        if not self.use_hubcap and lua.app_id:
             pairs = [(d, m) for d, m in manifest_ids.items() if m]
             if pairs:
                 self._log_mirror_coverage(lua.app_id, pairs)

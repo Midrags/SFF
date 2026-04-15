@@ -31,6 +31,8 @@ Mirrors Solus FixGameService.cs (588 lines).
 """
 
 import os
+import shutil
+import subprocess
 import logging
 from pathlib import Path
 from typing import Optional
@@ -52,7 +54,9 @@ STEAM_STORE_API = "https://store.steampowered.com/api"
 class EmuMode(Enum):
     """which Goldberg mode to use"""
     REGULAR = "regular"
-    COLDCLIENT_LOADER = "coldclient_loader"
+    COLDCLIENT_LOADER = "coldclient_loader"   # kept for backward compatibility
+    COLDCLIENT_SIMPLE = "coldclient_simple"   # Python-based config, no credentials
+    COLDCLIENT_ADVANCED = "coldclient_advanced"  # GSE Fork tool, anon or login
     COLDLOADER_DLL = "coldloader_dll"
 
 
@@ -97,10 +101,15 @@ class FixGameService:
         skip_steamstub: bool = False,
         skip_goldberg_update: bool = False,
         log_func=None,
+        avatar_path: Optional[str] = None,
+        simple_settings: bool = False,
+        gse_auth_mode: str = "anonymous",
+        gse_username: str = "",
+        gse_password: str = "",
     ) -> bool:
         """
         Run the full Fix Game pipeline.
-        
+
         Args:
             app_id: Steam app ID
             game_dir: path to the game directory
@@ -108,11 +117,13 @@ class FixGameService:
             language: game language
             steam_id: Steam64 ID
             player_name: display name
-            emu_mode: "regular", "coldclient_loader", or "coldloader_dll"
+            emu_mode: "regular", "coldclient_simple", "coldclient_advanced", or "coldloader_dll"
             skip_drm_check: skip DRM detection step
             skip_steamstub: skip SteamStub unpacking
             log_func: callback for status updates
-        
+            avatar_path: optional path to avatar image (.png/.jpg/.jpeg)
+            simple_settings: if True, generate minimal configs without API calls
+
         Returns True on success.
         """
         def log(msg):
@@ -140,7 +151,7 @@ class FixGameService:
             if drm_result == DrmCheckResult.DRM_DETECTED:
                 log("DRM detected — forcing ColdClient mode")
                 if emu_mode == "regular":
-                    emu_mode = "coldclient_loader"
+                    emu_mode = "coldclient_simple"
 
         # --- Step 1: Goldberg Auto-Update ---
         log("\n--- Step 1: Goldberg Update ---")
@@ -158,18 +169,47 @@ class FixGameService:
 
         # --- Step 2: Config Generation ---
         log("\n--- Step 2: Config Generation ---")
-        cached_info = self.cache.load_app_info(app_id)
-        generator = GoldbergConfigGenerator(steam_web_api_key)
-        generator.generate(
-            app_id=app_id,
-            target_dir=game_dir,
-            language=language,
-            steam_id=steam_id,
-            player_name=player_name,
-            dlc_list=cached_info.dlc_list if cached_info else None,
-            cloud_save_paths=cached_info.cloud_save_paths if cached_info else None,
-            log_func=log,
-        )
+        if emu_mode == EmuMode.COLDCLIENT_ADVANCED.value:
+            self._run_gse_config(
+                app_id=app_id,
+                game_dir=game_dir,
+                auth_mode=gse_auth_mode,
+                username=gse_username,
+                password=gse_password,
+                log=log,
+            )
+            # also populate global GBE identity settings for this user
+            _appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+            global_dir = Path(_appdata) / "GSE Saves" / "settings"
+            generator = GoldbergConfigGenerator(steam_web_api_key)
+            generator._write_global_settings(
+                global_dir=global_dir,
+                player_name=player_name,
+                steam_id=steam_id,
+                language=language,
+                avatar_path=avatar_path,
+                log=log,
+            )
+        else:
+            cached_info = self.cache.load_app_info(app_id)
+            generator = GoldbergConfigGenerator(steam_web_api_key)
+            generator.generate(
+                app_id=app_id,
+                target_dir=game_dir,
+                language=language,
+                steam_id=steam_id,
+                player_name=player_name,
+                dlc_list=cached_info.dlc_list if cached_info else None,
+                cloud_save_paths=cached_info.cloud_save_paths if cached_info else None,
+                log_func=log,
+                avatar_path=avatar_path,
+                simple_mode=simple_settings,
+            )
+
+        # create and report the GSE Saves folder so users know where saves go
+        gse_saves = Path.home() / "AppData" / "Roaming" / "GSE Saves" / str(app_id)
+        gse_saves.mkdir(parents=True, exist_ok=True)
+        log(f"Save data: {gse_saves}")
 
         # --- Step 3: SteamStub Unpacking ---
         if not skip_steamstub:
@@ -189,7 +229,7 @@ class FixGameService:
 
         if mode == EmuMode.REGULAR:
             success, msg = self.applier.apply(game_dir, log_func=log)
-        elif mode == EmuMode.COLDCLIENT_LOADER:
+        elif mode in (EmuMode.COLDCLIENT_LOADER, EmuMode.COLDCLIENT_SIMPLE, EmuMode.COLDCLIENT_ADVANCED):
             success, msg = self.applier.apply_coldclient_loader(game_dir, app_id, log_func=log)
         elif mode == EmuMode.COLDLOADER_DLL:
             success, msg = self.applier.apply_coldloader_dll(game_dir, app_id, log_func=log)
@@ -309,7 +349,7 @@ class FixGameService:
                 return
 
         # fallback: ColdClient loader mode
-        if emu_mode in ("coldclient_loader",):
+        if emu_mode in ("coldclient_loader", "coldclient_simple", "coldclient_advanced"):
             for loader in ["steamclient_loader_x64.exe", "steamclient_loader_x32.exe"]:
                 if (game_path / loader).exists():
                     bat_content = f'@echo off\ncd /d "%~dp0"\nstart "" "{loader}"\n'
@@ -326,6 +366,97 @@ class FixGameService:
             log(f"✓ Created Launch.bat ({Path(main_exe).name})")
         else:
             log("Could not determine main executable for Launch.bat")
+
+    def _run_gse_config(
+        self,
+        app_id: int,
+        game_dir: str,
+        auth_mode: str,
+        username: str,
+        password: str,
+        log,
+    ) -> bool:
+        """
+        Run generate_emu_config.exe (GSE Fork) to build steam_settings.
+
+        auth_mode: "anonymous" (no credentials) or "login" (username + password).
+        Runs with CREATE_NO_WINDOW + stdin=DEVNULL so no console ever appears.
+        """
+        from sff.utils import root_folder
+
+        tools_folder = root_folder() / "third_party" / "gbe_fork_tools" / "generate_emu_config"
+        config_exe = tools_folder / "generate_emu_config.exe"
+
+        if not config_exe.exists():
+            log(f"generate_emu_config.exe not found at {config_exe}")
+            return False
+
+        env = os.environ.copy()
+        if auth_mode == "login" and username and password:
+            env["GSE_CFG_USERNAME"] = username
+            env["GSE_CFG_PASSWORD"] = password
+            log(f"GSE Fork: login as {username}")
+            # save credentials for future use
+            try:
+                from sff.settings import Settings, set_setting
+                set_setting(Settings.STEAM_USER, username)
+                set_setting(Settings.STEAM_PASS, password)
+            except Exception:
+                pass
+        else:
+            log("GSE Fork: anonymous mode")
+
+        creation_flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        try:
+            log(f"Running generate_emu_config.exe for app {app_id}...")
+            result = subprocess.run(
+                [str(config_exe), str(app_id)],
+                env=env,
+                cwd=str(tools_folder),
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                timeout=120,
+                creationflags=creation_flags,
+            )
+            if result.stdout:
+                for line in result.stdout.strip().splitlines()[-10:]:
+                    log(f"  {line}")
+            if result.returncode != 0:
+                log(f"generate_emu_config.exe exited with code {result.returncode}")
+                if result.stderr:
+                    log(result.stderr[:400])
+            else:
+                log("✓ GSE Fork config generation complete")
+        except subprocess.TimeoutExpired:
+            log("generate_emu_config.exe timed out after 120 s")
+            return False
+        except Exception as e:
+            log(f"Error running generate_emu_config.exe: {e}")
+            return False
+
+        # copy generated steam_settings to game dir
+        src_settings = tools_folder / "output" / str(app_id) / "steam_settings"
+        if src_settings.exists():
+            dst_settings = Path(game_dir) / "steam_settings"
+            dst_settings.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(src_settings, dst_settings, dirs_exist_ok=True)
+            log("✓ Copied steam_settings from GSE Fork output")
+        else:
+            log(f"GSE Fork output not found — expected {src_settings}")
+
+        # ensure configs.user.ini has saves_folder_name (GSE tool may omit it)
+        user_ini = Path(game_dir) / "steam_settings" / "configs.user.ini"
+        if user_ini.exists():
+            content = user_ini.read_text(encoding="utf-8", errors="replace")
+            if "saves_folder_name" not in content:
+                content += "\n[user::saves]\nsaves_folder_name=GSE Saves\n"
+                user_ini.write_text(content, encoding="utf-8")
+        else:
+            user_ini.parent.mkdir(parents=True, exist_ok=True)
+            user_ini.write_text("[user::saves]\nsaves_folder_name=GSE Saves\n", encoding="utf-8")
+
+        return True
 
     def _extract_launch_configs(self, pics_data: dict) -> list[dict]:
         """extract Windows launch configs from PICS data"""

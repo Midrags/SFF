@@ -87,7 +87,7 @@ SteaMidra has a full graphical interface.
 - **Tabbed interface** — Main, Store, Downloads, Fix Game, Tools, and Cloud Saves tabs.  
 - Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.  
 - All actions as buttons: crack, DRM removal, DLC check, workshop items, multiplayer fix, **Fixes/Bypasses (Ryuu)**, DLC unlockers, and more.  
-- **Store browser** — search and browse the Morrenus manifest library with pagination.  
+- **Store browser** — search and browse the Hubcap Manifest library with pagination.  
 - **Fix Game pipeline** — automate emulator application (Goldberg, ColdClient, ColdLoader) with SteamStub unpacking.  
 - **GBE Token Generator** — generate full Goldberg emulator configs with achievements, DLCs, stats, and icons.  
 - **Cloud Saves** — Steam userdata save backup/restore. Scans `Steam/userdata/<steam32id>/` for all games with saves, lets you back up the `remote/` folder to any destination, and restore it back with one click (automatic safety backup before overwrite).  
@@ -198,7 +198,7 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 **GBE Token Generator** – Goldberg Emulator configuration generation based on work by **Detanup01** ([gbe_fork](https://github.com/Detanup01/gbe_fork)), **NickAntaris**, and **Oureveryday** ([generate_game_info](https://github.com/oureveryday/Goldberg-generate_game_info)).
 
-**Morrenus / Solus** – Store browser and manifest library API provided by **MorrenusGames** ([Solus-Manifest-App](https://github.com/MorrenusGames/Solus-Manifest-App)).
+**Hubcap Manifest** – Store browser and manifest library API provided by **Hubcap Manifest** ([hubcapmanifest.com](https://hubcapmanifest.com)). Formerly known as Morrenus / Solus.
 
 **RedPaper** – Credit to RedPaper for the Broken Moon MIDI cover, originally arranged by U2 Akiyama and used in Touhou 7.5: Immaterial and Missing Power. Touhou 7.5 and its assets are owned by Team Shanghai Alice and Twilight Frontier. SteaMidra is not affiliated with or endorsed by either party. All trademarks belong to their respective owners.
 

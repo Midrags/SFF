@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 CREDENTIALS_FILE = "credentials.json"
 ONLINE_FIX_BASE_URL = "https://online-fix.me"
 
-def _get_credentials_path() -> Path: return root_folder(outside_internal=True) / CREDENTIALS_FILE
+def _get_credentials_path() -> Path: return root_folder() / CREDENTIALS_FILE
 
 def _read_credentials() -> Tuple[Optional[str], Optional[str]]:
     username = get_setting(Settings.ONLINE_FIX_USER)

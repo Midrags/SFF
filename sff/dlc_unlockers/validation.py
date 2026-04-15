@@ -1,3 +1,21 @@
+# SteaMidra - Steam game setup and manifest tool (SFF)
+# Copyright (c) 2025-2026 Midrag (https://github.com/Midrags)
+#
+# This file is part of SteaMidra.
+#
+# SteaMidra is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SteaMidra is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
+
 """Validation utilities for DLC unlocker operations."""
 
 import logging
@@ -16,6 +34,7 @@ def validate_game_directory(game_dir: Path) -> Tuple[bool, Optional[str]]:
     if not game_dir.is_dir():
         return False, f"Path is not a directory: {game_dir}"
     
+    # Check read permissions
     try:
         os.access(game_dir, os.R_OK)
     except Exception as e:
@@ -29,6 +48,7 @@ def validate_write_permissions(directory: Path) -> Tuple[bool, Optional[str]]:
         return False, f"Directory does not exist: {directory}"
     
     try:
+        # Try to create a test file
         test_file = directory / ".sff_write_test"
         test_file.write_text("test")
         test_file.unlink()
@@ -61,6 +81,7 @@ def validate_dll_file(dll_path: Path) -> Tuple[bool, Optional[str]]:
         return False, f"Path is not a file: {dll_path}"
     
     try:
+        # Check if file is readable
         with dll_path.open("rb") as f:
             f.read(1)
         return True, None
@@ -104,6 +125,7 @@ def check_file_in_use(file_path: Path) -> Tuple[bool, Optional[str]]:
         return False, None  # Only check on Windows
     
     try:
+        # Try to open file in exclusive mode
         with file_path.open("r+b"):
             return False, None  # File is not locked
     except PermissionError:

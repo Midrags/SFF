@@ -257,13 +257,6 @@ class GoldbergApplier:
             log(f"✓ Replaced {target.name} with Goldberg")
 
         if replaced > 0:
-            # deploy GameOverlayRenderer alongside — needed if overlay is later enabled
-            is_64 = has_64
-            gor_name = "GameOverlayRenderer64.dll" if is_64 else "GameOverlayRenderer.dll"
-            gor_src = self._find_tool(gor_name)
-            if gor_src:
-                shutil.copy2(gor_src, Path(game_dir) / gor_name)
-                log(f"✓ Deployed {gor_name} (overlay support)")
             return True, f"Applied Goldberg to {replaced} DLL(s)"
         return False, "No DLLs were replaced"
 
@@ -272,9 +265,10 @@ class GoldbergApplier:
     def apply_coldclient_loader(self, game_dir: str, app_id: int, log_func=None) -> tuple[bool, str]:
         """
         Apply Goldberg in ColdClient loader mode.
-        
+
         Deploys steamclient DLLs + steamclient_loader exe + generates
         ColdClientLoader.ini with the correct exe and paths.
+        Also auto-reverts any previous regular GBE DLL swap before applying.
         """
         def log(msg):
             if log_func:
@@ -282,6 +276,31 @@ class GoldbergApplier:
             logger.info(msg)
 
         game_path = Path(game_dir)
+
+        # --- auto-revert previous regular GBE install if present ---
+        # Regular mode renames steam_api.dll → steam_api.dll.bak and puts Goldberg in its place.
+        # ColdClient needs the original steam_api.dll to remain untouched, so restore it first.
+        bak_files = list(game_path.rglob("steam_api*.dll.bak"))
+        if bak_files:
+            log("Detected previous regular GBE install — restoring originals before ColdClient...")
+            for bak in bak_files:
+                original = bak.with_suffix("")  # removes .bak → steam_api.dll / steam_api64.dll
+                try:
+                    shutil.copy2(bak, original)
+                    bak.unlink()
+                    log(f"✓ Restored {original.name} from backup")
+                except Exception as e:
+                    log(f"Warning: could not restore {original.name}: {e}")
+
+        # --- generate steam_interfaces.txt from the original steam_api DLL ---
+        for dll_name in ["steam_api64.dll", "steam_api.dll"]:
+            dll_path = game_path / dll_name
+            if dll_path.exists():
+                settings_dir = game_path / "steam_settings"
+                settings_dir.mkdir(parents=True, exist_ok=True)
+                self.generate_interfaces_file(str(dll_path), str(settings_dir))
+                log(f"✓ Scanned interfaces from {dll_name}")
+                break
 
         # find main exe
         main_exe = self.find_main_exe(game_dir)
@@ -291,12 +310,12 @@ class GoldbergApplier:
         is_64 = self.is_exe_64bit(main_exe)
         log(f"Main exe: {Path(main_exe).name} ({'64-bit' if is_64 else '32-bit'})")
 
-        # deploy steamclient DLLs
-        for dll_name in ["steamclient.dll", "steamclient64.dll"]:
-            src = self.cache_dir / dll_name
-            if src.exists():
-                shutil.copy2(src, game_path / dll_name)
-                log(f"✓ Deployed {dll_name}")
+        # deploy only the arch-matching steamclient DLL
+        sc_name = "steamclient64.dll" if is_64 else "steamclient.dll"
+        sc_src = self.cache_dir / sc_name
+        if sc_src.exists():
+            shutil.copy2(sc_src, game_path / sc_name)
+            log(f"✓ Deployed {sc_name}")
 
         # deploy loader
         loader_name = "steamclient_loader_x64.exe" if is_64 else "steamclient_loader_x32.exe"
@@ -336,15 +355,25 @@ class GoldbergApplier:
         else:
             exe_rel = os.path.relpath(main_exe, game_dir)
 
-        # generate ColdClientLoader.ini (DllsToInjectFolder is the correct gbe_fork format)
+        # generate ColdClientLoader.ini with full commented template
         ini_content = f"""[SteamClient]
+; Path to the game executable (relative to this ini file)
 Exe={exe_rel}
+; Working directory for the game (leave empty = same folder as exe)
 ExeRunDir=
+; Additional command-line arguments to pass to the game
 ExeCommandLine=
+; Steam App ID for this game
 AppId={app_id}
+; 32-bit steamclient DLL (required)
 SteamClientDll=steamclient.dll
+; 64-bit steamclient DLL (required)
 SteamClient64Dll=steamclient64.dll
+; Folder containing extra DLLs to inject into the game process
 DllsToInjectFolder=extra_dlls
+; 1=enable ColdClient to forward to the emulator overlay
+; default=0
+ForwardToEmu=0
 """
 
         (game_path / "ColdClientLoader.ini").write_text(ini_content, encoding="utf-8")

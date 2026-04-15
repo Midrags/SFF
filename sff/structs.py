@@ -115,7 +115,7 @@ class AppListProfileChoice(Enum):
 
 class LuaEndpoint(Enum):
     OUREVERYDAY = "oureveryday (quick but could be limited)"
-    MORRENUS = "Morrenus (more stuff, needs API key, has a daily limit)"
+    HUBCAP = "Hubcap Manifest (more stuff, needs API key, has a daily limit)"
 
 
 class MainReturnCode(Enum):
@@ -144,6 +144,11 @@ class SettingCustomTypes(Enum):
 class SupportedLanguages(Enum):
     EN = "en"
     PT = "pt"
+    DE = "de"
+    ES = "es"
+    PL = "pl"
+    RU = "ru"
+    AR = "ar"
     AUTO = "Auto"
     
 SettingType = Union[type, list[Enum], SettingCustomTypes]
@@ -163,7 +168,7 @@ class SettingItem(NamedTuple):
 # Note: values are only obtained through get_setting() in utils.py
 class Settings(Enum):
     ADVANCED_MODE = SettingItem("advanced_mode", "Advanced Mode", False, bool)
-    MORRENUS_KEY = SettingItem("morrenus_key", "Morrenus API Key", True, str)
+    HUBCAP_KEY = SettingItem("morrenus_key", "Hubcap API Key", True, str)
     STEAM_PATH = SettingItem(
         "steam_path", "Steam Installation Path", False, SettingCustomTypes.DIR
     )

@@ -83,3 +83,15 @@ __pycache__/
 .Python
 *.egg-info/
 .pytest_cache/
+
+# DLL Analysis
+DLL_files/
+DLL_Analysis/
+analyze_dlls.py
+deep_analyze_dlls.py
+even_deeper_analyze_dlls.py
+tmp_stfixer/
+GLDLL/
+GLDLL_Analysis/
+diff_gl.py
+diff_output.txt

@@ -230,6 +230,8 @@ rich==13.9.4
     # via steam-manifest-decrypt (pyproject.toml)
 selenium==4.36.0
     # via steam-manifest-decrypt (pyproject.toml)
+seleniumbase>=4.32
+    # via steam-manifest-decrypt (pyproject.toml) — UC mode for SteamDB CF bypass
 setuptools==82.0.0
     # via
     #   pyinstaller

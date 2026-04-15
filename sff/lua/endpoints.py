@@ -144,29 +144,29 @@ def get_oureverday(dest: Path, app_id: str):
 
 
 
-def get_morrenus(dest: Path, app_id: str, depotcache: Optional[Path] = None) -> Optional[Path]:
-    url = f"https://manifest.morrenus.xyz/api/v1/manifest/{app_id}"
+def get_hubcap(dest: Path, app_id: str, depotcache: Optional[Path] = None) -> Optional[Path]:
+    url = f"https://hubcapmanifest.com/api/v1/manifest/{app_id}"
 
     # Loop to allow retry with new API key
     while True:
-        if not (morrenus_key := get_setting(Settings.MORRENUS_KEY)):
-            morrenus_key = prompt_secret(
-                "Paste your morrenus API key here: ",
+        if not (hubcap_key := get_setting(Settings.HUBCAP_KEY)):
+            hubcap_key = prompt_secret(
+                "Paste your Hubcap API key here: ",
                 lambda x: x.startswith("smm"),
-                "That's not a morrenus key!",
+                "That's not a Hubcap API key!",
                 long_instruction=(
-                    "Go the morrenus website and request an API key. It's free."
+                    "Go to the Hubcap Manifest website and request an API key. It's free."
                 ),
             ).strip()
-            set_setting(Settings.MORRENUS_KEY, morrenus_key)
+            set_setting(Settings.HUBCAP_KEY, hubcap_key)
 
         headers = {
-            "Authorization": f"Bearer {morrenus_key}",
+            "Authorization": f"Bearer {hubcap_key}",
         }
 
         try:
             stats_resp = httpx.get(
-                "https://manifest.morrenus.xyz/api/v1/user/stats",
+                "https://hubcapmanifest.com/api/v1/user/stats",
                 headers=headers,
                 timeout=15,
                 follow_redirects=True,
@@ -174,19 +174,19 @@ def get_morrenus(dest: Path, app_id: str, depotcache: Optional[Path] = None) -> 
         except httpx.ConnectError:
             print(
                 Fore.RED
-                + "\nNetwork error: Cannot reach Morrenus API."
+                + "\nNetwork error: Cannot reach Hubcap Manifest API."
                   " Check your internet connection."
                 + Style.RESET_ALL
             )
             return None
         except httpx.RequestError as e:
-            print(Fore.RED + f"\nNetwork error connecting to Morrenus: {e}" + Style.RESET_ALL)
+            print(Fore.RED + f"\nNetwork error connecting to Hubcap Manifest: {e}" + Style.RESET_ALL)
             return None
 
         if stats_resp.status_code == 401:
-            print(Fore.RED + "\nMorrenus API key is invalid or expired." + Style.RESET_ALL)
+            print(Fore.RED + "\nHubcap API key is invalid or expired." + Style.RESET_ALL)
             if prompt_confirm("Do you want to enter a new API key?"):
-                set_setting(Settings.MORRENUS_KEY, "")
+                set_setting(Settings.HUBCAP_KEY, "")
                 continue
             else:
                 print(Fore.YELLOW + "\nYou can update your API key in Settings later." + Style.RESET_ALL)
@@ -194,7 +194,7 @@ def get_morrenus(dest: Path, app_id: str, depotcache: Optional[Path] = None) -> 
         elif stats_resp.status_code != 200:
             print(
                 Fore.RED
-                + f"\nMorrenus API returned HTTP {stats_resp.status_code}."
+                + f"\nHubcap Manifest API returned HTTP {stats_resp.status_code}."
                 + Style.RESET_ALL
             )
             return None
@@ -226,7 +226,7 @@ def get_morrenus(dest: Path, app_id: str, depotcache: Optional[Path] = None) -> 
                 data = tf.read()
                 print(
                     Fore.GREEN
-                    + f"Morrenus Daily Limit: {usage+1}/{limit}"
+                    + f"Hubcap Daily Limit: {usage+1}/{limit}"
                     + Style.RESET_ALL
                 )
                 lua_bytes = read_lua_from_zip(io.BytesIO(data), decode=False, depotcache=depotcache)

@@ -1,6 +1,31 @@
 # Changelog
 
-## v4.8.1 (latest)
+## v4.8.2 (latest)
+
+### New Features
+
+- **"＋ Add depot manually" in version picker:** Each version group in the Download Version dialog now has a "＋ Add depot manually…" button. Click it to enter a Depot ID and Manifest ID by hand — the row is inserted pre-checked and picked up by Download Selected automatically. Useful for DLC depots that SteamDB couldn't scrape.
+- **ColdClient (Advanced / GSE Fork) mode:** New emulator mode in the Fix Game tab that runs `generate_emu_config.exe` silently (no black console window, no credential prompt appearing in front of the GUI). Supports anonymous login or optional Steam account credentials saved in settings for reuse.
+
+### Fixes & Improvements
+
+- **Hubcap Manifest rebrand:** All `manifest.morrenus.xyz` URLs updated to `hubcapmanifest.com` following the Morrenus Games → Hubcap Manifest rebrand. UI label "Morrenus API Key" updated to "Hubcap API Key". Existing saved API keys are fully preserved (backward-compatible storage key).
+- **Fixed black console + password prompt on Crack game:** `generate_emu_config.exe` is no longer spawned from the main Crack game path. Replaced with pure-Python `GoldbergConfigGenerator` — no console window, no credential prompt, and no real Steam username leaked into configs.
+- **Fixed ColdClient files leaking into game dir on Crack:** `shutil.copytree` replaced with `shutil.copy2` — only the target `steam_api.dll` is copied to the game folder instead of the entire gbe_fork directory.
+- **Configs always generated on Crack game:** Removed the "generate configs?" yes/no prompt. `configs.app.ini` and `configs.user.ini` are now always written after the DLL swap without asking.
+- **Save folder path logged:** After Crack game or Fix Game, the exact save data path (`%APPDATA%\GSE Saves\{app_id}\`) is printed to the log so users can locate their save files.
+- **ColdClient renamed to ColdClient (Simple):** "ColdClient Loader" renamed to "ColdClient (Simple)" in the Fix Game mode dropdown for clarity alongside the new Advanced mode.
+- **Removed `GameOverlayRenderer.dll` from regular GBE apply:** The overlay DLL is not needed for a basic DLL swap — it is built into `steam_api.dll` when the overlay is enabled.
+- **ColdClient deploys only matching-arch steamclient DLL:** 64-bit games receive `steamclient64.dll` only; 32-bit games receive `steamclient.dll` only. Both were previously always copied regardless of game architecture.
+- **`configs.app.ini` format fixed — GoldbergGUI parity:** DLC entries now appear before `unlock_all`; `unlock_all` defaults to `1` (was `0`); real DLC names are fetched from the Steam Store API in one batch call (falls back to `"DLC {id}"` per entry on error).
+- **Full `configs.overlay.ini` template:** Generated file now matches GoldbergGUI's full template exactly — `enable_experimental_overlay=1`, all appearance/timing/FPS-stats settings included instead of the previous 20-line stub.
+- **Global GBE settings folder:** Identity configs (`configs.user.ini`, `configs.main.ini`) and the account avatar are now written once to `%APPDATA%\GSE Saves\settings\` rather than per-game `steam_settings\`. Per-game folders are cleaner and the avatar priority bug (per-game avatar overriding the global one silently) is fixed. `SFF.png` is used as the default avatar on first setup.
+- **Steam Store API fallback for DLC list:** `_fetch_dlcs` now falls back to the Steam Store `appdetails` endpoint when SteamCMD returns no DLC, ensuring configs are still populated.
+- **Fixed SteamDB fill-forward pollution:** DLC depots that were Cloudflare-blocked during SteamDB scraping (CM-only entries) no longer appear in SteamDB historical version groups with incorrect source and date. Fill-forward now strictly excludes Steam CM entries.
+
+---
+
+## v4.8.1
 
 ### New features
 

@@ -172,13 +172,13 @@ class SFFMainWindow(QMainWindow):
         self._download_manager = DownloadManager()
         self.ui.download_manager = self._download_manager
 
-        self.store_tab = StoreTab()
+        self.store_tab = StoreTab(steam_path=steam_path)
         self.tabs.addTab(self.store_tab, "Store")
 
         self.downloads_tab = DownloadsTab(download_manager=self._download_manager)
         self.tabs.addTab(self.downloads_tab, "Download Tracking")
 
-        self.fix_game_tab = FixGameTab()
+        self.fix_game_tab = FixGameTab(steam_path=steam_path)
         self.tabs.addTab(self.fix_game_tab, "Fix Game")
 
         self.tools_tab = ToolsTab(steam_path)
@@ -223,6 +223,10 @@ class SFFMainWindow(QMainWindow):
         refresh_btn = QPushButton(T("Refresh list"))
         refresh_btn.clicked.connect(self._refresh_game_list)
         game_row.addWidget(refresh_btn)
+        quick_cc_btn = QPushButton("⚡ Quick ColdClient")
+        quick_cc_btn.setToolTip("Open Fix Game tab with ColdClient mode pre-filled for the selected game")
+        quick_cc_btn.clicked.connect(self._quick_coldclient)
+        game_row.addWidget(quick_cc_btn)
         game_row.addStretch()
         path_layout.addLayout(game_row)
 
@@ -407,6 +411,24 @@ class SFFMainWindow(QMainWindow):
             return
         for name, acf in self._game_list:
             self.game_combo.addItem(name, acf)
+
+    def _quick_coldclient(self) -> None:
+        """Switch to Fix Game tab with ColdClient mode pre-filled from the selected game."""
+        from sff.fix_game.service import EmuMode
+        acf = self._get_selected_acf()
+        if acf is None:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No Game Selected",
+                                "Please select a game from the dropdown first.")
+            return
+        game_path = str(getattr(acf, "path", "") or "")
+        app_id = str(getattr(acf, "app_id", "") or "")
+        self.fix_game_tab.prefill(game_path, app_id, EmuMode.COLDCLIENT_SIMPLE)
+        # switch to Fix Game tab
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == "Fix Game":
+                self.tabs.setCurrentIndex(i)
+                break
 
     def _get_selected_acf(self) -> Optional[Any]:
         from sff.game_specific import ACFInfo
