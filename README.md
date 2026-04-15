@@ -62,7 +62,7 @@ Also run the install_online_fix_requirements.bat
 
 ### Step 3: GreenLuma
 
-Download GreenLuma and set it up: https://www.up-4ever.net/h3vt78x7jdap
+Download GreenLuma and set it up: https://www.up-4ever.net/lyoi96gger8y
 
 Extract the ZIP and use the AppList folder from GreenLuma when SteaMidra asks for it. Full steps are in the [Setup Guide](docs/SETUP_GUIDE.md).
 
