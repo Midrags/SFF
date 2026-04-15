@@ -39,4 +39,4 @@ Using SteaMidra to install DLC unlockers (CreamInstaller-style). Credits for Cre
 
 **Credits**
 
-Made by Midrag and his brother. See the main [README](../README.md) for full credits including STFixer, Morrenus, gbe_fork, and all other third-party tools. Use SteaMidra at your own risk.
+Made by Midrag and his brother. See the main [README](../README.md) for full credits including Lightse (GreenLuma patch), Morrenus, gbe_fork, and all other third-party tools. Use SteaMidra at your own risk.

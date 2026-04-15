@@ -1,6 +1,27 @@
 # Changelog
 
-## v4.8.0 (latest)
+## v4.8.1 (latest)
+
+### New features
+
+- **Steam userdata Save Backup:** Cloud Saves tab completely rebuilt. SteaMidra now reads your Steam32 ID (saved in Settings or entered inline), scans `Steam/userdata/<steam32id>/` for all games with save data, resolves game names from `appmanifest_*.acf` files, and lets you back up the `remote/` folder to any destination folder. Backup structure: `<dest>/<Game Name> [AppID]/remote/`. An Import (Restore) button copies a backup back to Steam with an automatic safety backup before overwriting.
+- **GameOverlayRenderer.dll deployment:** `GameOverlayRenderer.dll` (x32) and `GameOverlayRenderer64.dll` (x64) are now deployed automatically to the game folder during both regular Goldberg apply and ColdClient Loader apply — arch-matched to the game exe. These DLLs are required when the experimental overlay is enabled in `configs.overlay.ini`.
+- **Desktop Shortcut for ColdClient Loader:** After applying ColdClient Loader mode, SteaMidra automatically creates a `.lnk` shortcut on the Windows Desktop pointing to the correct arch loader exe (`steamclient_loader_x64.exe` / `x32.exe`). The shortcut uses the game's own exe as its icon source. No extra Python packages required — uses PowerShell `WScript.Shell`.
+- **`configs.user.ini` generation:** Goldberg config generation now creates the mandatory `configs.user.ini` file with the correct `[user::general]` section containing `account_name`, `account_steamid`, and `language`. Previously this file was missing, causing gbe_fork to fall back to anonymous defaults.
+- **Overlay disabled by default:** `enable_experimental_overlay` in `configs.overlay.ini` now defaults to `0`. The overlay can cause crashes in some games and should only be enabled manually when needed.
+
+### Fixes & Improvements
+
+- **Fixed FileNotFoundError crash on first apply:** `goldberg_applier.apply()` now creates the `steam_settings/` directory before scanning interfaces. Previously it crashed with `FileNotFoundError: steam_interfaces.txt` when the directory didn't already exist.
+- **Fixed `configs.main.ini` wrong section:** Account name and Steam ID were incorrectly written to `[main::general]`. They now only appear in `configs.user.ini` under `[user::general]` as gbe_fork expects.
+- **Removed Capcom Save Fix UI:** The Capcom Save Fix required SteamTools to be installed — without it the fix does nothing. Removed from the Tools tab and Cloud Saves tab to avoid confusion.
+- **Removed STFixer mode from Cloud Saves tab:** Cloud Saves tab is now a single focused Steam userdata backup/restore interface.
+- **Launch.bat defaults to unchecked:** The "Create Launch.bat" option in Fix Game tab now defaults to unchecked since the desktop shortcut replaces its purpose for ColdClient mode. The option remains available for users who prefer a batch file.
+- **`GameOverlayRenderer.dll` added to restore() cleanup:** Restoring a game now removes the deployed overlay DLLs alongside other Goldberg files.
+
+---
+
+## v4.8.0
 
 ### New features
 
@@ -29,9 +50,6 @@
 - **Fixed UriHandler calls:** Uses static methods (register/is_registered) correctly.
 - **Fixed GBE Token Generator:** Now properly accepts and passes Steam Web API key to the generator backend.
 - **Renamed button:** "Process .lua file" renamed to "Download Games" for clarity.
-- **Fixed standalone EXE — tools not found (Steamless / SteamAutoCrack):** `root_folder()` now correctly returns `sys._MEIPASS` when frozen so all bundled tools (`third_party/`) are found inside the EXE instead of looking beside it where they don't exist.
-- **Fixed standalone EXE — user-writable paths:** `credentials.json`, `all_games.txt`, and `dlc_unlocker_cache` now use `outside_internal=True` so they are created beside the EXE (writable) instead of in the read-only MEIPASS temp folder.
-- **Fixed "Error: lost sys.stdin" on Steam restart:** All `input()` calls in the Steam restart flow are now guarded with `if sys.stdin:` so the windowed EXE never crashes when stdin is unavailable.
 
 ---
 

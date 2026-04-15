@@ -62,7 +62,7 @@ Also run the install_online_fix_requirements.bat
 
 ### Step 3: GreenLuma
 
-Download GreenLuma and set it up: https://www.up-4ever.net/h3vt78x7jdap
+Download GreenLuma and set it up: https://www.up-4ever.net/lyoi96gger8y
 
 Extract the ZIP and use the AppList folder from GreenLuma when SteaMidra asks for it. Full steps are in the [Setup Guide](docs/SETUP_GUIDE.md).
 
@@ -90,7 +90,7 @@ SteaMidra has a full graphical interface.
 - **Store browser** — search and browse the Morrenus manifest library with pagination.  
 - **Fix Game pipeline** — automate emulator application (Goldberg, ColdClient, ColdLoader) with SteamStub unpacking.  
 - **GBE Token Generator** — generate full Goldberg emulator configs with achievements, DLCs, stats, and icons.  
-- **Cloud Saves** — STFixer mode for Capcom save fixes + manual backup/restore of game saves.  
+- **Cloud Saves** — Steam userdata save backup/restore. Scans `Steam/userdata/<steam32id>/` for all games with saves, lets you back up the `remote/` folder to any destination, and restore it back with one click (automatic safety backup before overwrite).  
 - **VDF Key Extractor** — extract depot decryption keys from Steam's config.vdf.  
 - Lua/manifest processing, AppList management, and library tools all accessible from buttons.  
 - Full settings dialog where you can edit, delete, export, and import all settings.  
@@ -178,7 +178,7 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 
 **Made by Midrag and his brother.**
 
-**GreenLuma** – SteaMidra works alongside GreenLuma for AppList injection. GreenLuma is a separate tool and must be downloaded and set up independently.
+**GreenLuma** – SteaMidra works alongside GreenLuma for AppList injection. GreenLuma is a separate tool and must be downloaded and set up independently. GreenLuma patch developed by **Lightse**.
 
 **gbe_fork** – The "Crack a game" feature uses **gbe_fork**, a Steam emulator for running games offline. License in `third_party_licenses/gbe_fork.LICENSE`.
 
@@ -195,9 +195,6 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 **CreamInstaller** – The DLC Unlockers feature is inspired by and compatible with CreamInstaller. SteaMidra does not ship CreamInstaller; it provides its own implementation that follows similar behavior.
 
 **online-fix.me** – The multiplayer fix feature downloads fixes from online-fix.me. SteaMidra is not affiliated with online-fix.me. An account on that site is required.
-
-**STFixer** – The Cloud Saves STFixer mode is based on **STFixer v0.7.1** by Selectively11 ([GitHub](https://github.com/Selectively11/STFixer)). It patches broken save behavior in Capcom games and others.
-
 
 **GBE Token Generator** – Goldberg Emulator configuration generation based on work by **Detanup01** ([gbe_fork](https://github.com/Detanup01/gbe_fork)), **NickAntaris**, and **Oureveryday** ([generate_game_info](https://github.com/oureveryday/Goldberg-generate_game_info)).
 

@@ -16,23 +16,71 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Cloud Saves tab — STFixer mode + backup/restore game saves."""
+"""Cloud Saves tab — Steam userdata remote/ backup and restore."""
 
 import logging
 from pathlib import Path
 from typing import Optional
-import datetime
 
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QGroupBox, QMessageBox, QTableWidget, QTableWidgetItem,
-    QHeaderView, QStackedWidget, QTextEdit, QFrame,
+    QHeaderView, QTextEdit, QFileDialog, QFrame,
 )
-from PyQt6.QtCore import Qt
 
-from sff.cloud_saves import CloudSaves, BackupInfo
+from sff.cloud_saves import CloudSaves
+from sff.storage.settings import get_setting, set_setting
+from sff.structs import Settings
 
 logger = logging.getLogger(__name__)
+
+
+class _BackupWorker(QObject):
+    log_msg = pyqtSignal(str)
+    finished = pyqtSignal(bool, str)
+
+    def __init__(
+        self,
+        mode: str,
+        steam_path: str,
+        steam32_id: str,
+        app_id: int,
+        game_name: str,
+        dest_folder: str,
+    ):
+        super().__init__()
+        self.mode = mode
+        self.steam_path = steam_path
+        self.steam32_id = steam32_id
+        self.app_id = app_id
+        self.game_name = game_name
+        self.dest_folder = dest_folder
+
+    def run(self):
+        mgr = CloudSaves()
+        if self.mode == "backup":
+            result = mgr.backup_steam_save(
+                self.steam_path,
+                self.steam32_id,
+                self.app_id,
+                self.game_name,
+                self.dest_folder,
+                log_func=self.log_msg.emit,
+            )
+            if result:
+                self.finished.emit(True, result)
+            else:
+                self.finished.emit(False, "Backup failed — check log above.")
+        else:
+            ok = mgr.restore_steam_save(
+                self.dest_folder,
+                self.steam_path,
+                self.steam32_id,
+                self.app_id,
+                log_func=self.log_msg.emit,
+            )
+            self.finished.emit(ok, "" if ok else "Restore failed — check log above.")
 
 
 class CloudSavesTab(QWidget):
@@ -41,294 +89,251 @@ class CloudSavesTab(QWidget):
         super().__init__(parent)
         self.steam_path = steam_path
         self._manager = CloudSaves()
+        self._worker: Optional[_BackupWorker] = None
+        self._thread: Optional[QThread] = None
+        self._games: list[tuple[int, str]] = []
         self._setup_ui()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # mode selector
-        mode_layout = QHBoxLayout()
-        mode_layout.addWidget(QLabel("Select how SteaMidra handles your saves:"))
-        mode_layout.addStretch()
-        layout.addLayout(mode_layout)
+        # ── Setup group ──────────────────────────────────────────
+        setup_group = QGroupBox("Steam Setup")
+        setup_layout = QVBoxLayout(setup_group)
 
-        cards_layout = QHBoxLayout()
+        # Steam path row
+        sp_row = QHBoxLayout()
+        sp_row.addWidget(QLabel("Steam Path:"))
+        self._steam_path_edit = QLineEdit(str(self.steam_path))
+        sp_row.addWidget(self._steam_path_edit)
+        browse_sp = QPushButton("Browse")
+        browse_sp.clicked.connect(self._browse_steam_path)
+        sp_row.addWidget(browse_sp)
+        setup_layout.addLayout(sp_row)
 
-        self._stfixer_btn = QPushButton("STFixer Mode")
-        self._stfixer_btn.setCheckable(True)
-        self._stfixer_btn.setChecked(True)
-        self._stfixer_btn.setMinimumHeight(60)
-        self._stfixer_btn.setToolTip(
-            "Standard mode. Fixes broken saving in most Capcom games\n"
-            "and some others without enabling save syncing to a cloud provider.\n"
-            "Also enables the ability to use manifest pinning."
-        )
-        self._stfixer_btn.clicked.connect(lambda: self._switch_mode(0))
-        cards_layout.addWidget(self._stfixer_btn)
+        # Steam32 ID row
+        id_row = QHBoxLayout()
+        id_row.addWidget(QLabel("Steam32 ID:"))
+        self._steam32_edit = QLineEdit()
+        saved_id = get_setting(Settings.STEAM32_ID)
+        if saved_id:
+            self._steam32_edit.setText(str(saved_id))
+        else:
+            self._steam32_edit.setPlaceholderText("e.g. 123456789  (find at steamid.xyz)")
+        id_row.addWidget(self._steam32_edit)
+        save_id_btn = QPushButton("Save ID")
+        save_id_btn.clicked.connect(self._save_steam32_id)
+        id_row.addWidget(save_id_btn)
+        setup_layout.addLayout(id_row)
 
-        self._backup_btn = QPushButton("Backup / Restore Mode")
-        self._backup_btn.setCheckable(True)
-        self._backup_btn.setMinimumHeight(60)
-        self._backup_btn.setToolTip(
-            "Manually backup and restore game save files.\n"
-            "Create snapshots of your saves and restore them later."
-        )
-        self._backup_btn.clicked.connect(lambda: self._switch_mode(1))
-        cards_layout.addWidget(self._backup_btn)
+        scan_btn = QPushButton("Scan Games")
+        scan_btn.clicked.connect(self._scan_games)
+        setup_layout.addWidget(scan_btn)
 
-        layout.addLayout(cards_layout)
+        layout.addWidget(setup_group)
 
-        # separator
+        # ── Game list ────────────────────────────────────────────
+        games_group = QGroupBox("Games with Cloud Saves (remote/ folder)")
+        games_layout = QVBoxLayout(games_group)
+
+        self._games_table = QTableWidget()
+        self._games_table.setColumnCount(2)
+        self._games_table.setHorizontalHeaderLabels(["App ID", "Game Name"])
+        self._games_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self._games_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._games_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._games_table.setAlternatingRowColors(True)
+        games_layout.addWidget(self._games_table)
+
+        layout.addWidget(games_group)
+
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
         sep.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(sep)
 
-        # stacked pages
-        self._stack = QStackedWidget()
-        self._stack.addWidget(self._build_stfixer_page())
-        self._stack.addWidget(self._build_backup_page())
-        layout.addWidget(self._stack)
+        # ── Backup group ─────────────────────────────────────────
+        backup_group = QGroupBox("Backup Saves")
+        backup_layout = QVBoxLayout(backup_group)
 
-    def _switch_mode(self, index: int):
-        self._stack.setCurrentIndex(index)
-        self._stfixer_btn.setChecked(index == 0)
-        self._backup_btn.setChecked(index == 1)
+        backup_layout.addWidget(QLabel(
+            "Select a game above, then choose where to save the backup.\n"
+            "Creates: <destination>/<Game Name> [AppID]/remote/"
+        ))
 
-    # ── STFixer page ──────────────────────────────────────────
+        dest_row = QHBoxLayout()
+        dest_row.addWidget(QLabel("Backup Destination:"))
+        self._dest_edit = QLineEdit()
+        self._dest_edit.setPlaceholderText("Choose a folder…")
+        dest_row.addWidget(self._dest_edit)
+        browse_dest = QPushButton("Browse")
+        browse_dest.clicked.connect(self._browse_dest)
+        dest_row.addWidget(browse_dest)
+        backup_layout.addLayout(dest_row)
 
-    def _build_stfixer_page(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
+        self._backup_btn = QPushButton("Backup Selected Game")
+        self._backup_btn.clicked.connect(self._do_backup)
+        backup_layout.addWidget(self._backup_btn)
 
-        desc = QLabel(
-            "STFixer patches broken save behavior in Capcom games (and some others).\n"
-            "Based on STFixer v0.7.1 by Selectively11."
-        )
-        desc.setWordWrap(True)
-        layout.addWidget(desc)
+        layout.addWidget(backup_group)
 
-        self._stfix_log = QTextEdit()
-        self._stfix_log.setReadOnly(True)
-        self._stfix_log.setPlaceholderText("Fix output will appear here...")
-        layout.addWidget(self._stfix_log)
+        # ── Import / Restore group ───────────────────────────────
+        restore_group = QGroupBox("Import (Restore) Saves")
+        restore_layout = QVBoxLayout(restore_group)
 
-        btn_layout = QHBoxLayout()
-        apply_btn = QPushButton("Apply Fix")
-        apply_btn.clicked.connect(self._apply_stfixer)
-        btn_layout.addWidget(apply_btn)
+        restore_layout.addWidget(QLabel(
+            "Select a game above, then browse to the backup folder\n"
+            "(the '<Game Name> [AppID]' folder created during backup).\n"
+            "Current saves are automatically backed up before overwrite."
+        ))
 
-        restore_btn = QPushButton("Restore Original")
-        restore_btn.clicked.connect(self._restore_stfixer)
-        btn_layout.addWidget(restore_btn)
+        import_row = QHBoxLayout()
+        import_row.addWidget(QLabel("Backup Folder:"))
+        self._import_edit = QLineEdit()
+        self._import_edit.setPlaceholderText("Browse to <Game Name> [AppID] folder…")
+        import_row.addWidget(self._import_edit)
+        browse_import = QPushButton("Browse")
+        browse_import.clicked.connect(self._browse_import)
+        import_row.addWidget(browse_import)
+        restore_layout.addLayout(import_row)
 
-        btn_layout.addStretch()
-        layout.addLayout(btn_layout)
+        self._restore_btn = QPushButton("Import Saves → Steam")
+        self._restore_btn.clicked.connect(self._do_restore)
+        restore_layout.addWidget(self._restore_btn)
 
-        return page
+        layout.addWidget(restore_group)
 
-    def _apply_stfixer(self):
-        self._stfix_log.clear()
-        try:
-            from sff.tools.capcom_save_fix import CapcomSaveFix
-            fixer = CapcomSaveFix()
-            steam_dir = str(self.steam_path)
-            self._stfix_log.append(f"Applying Capcom Save Fix (STFixer) to {steam_dir}...")
-            result = fixer.apply(steam_dir, log_func=lambda msg: self._stfix_log.append(msg))
-            if result.succeeded:
-                self._stfix_log.append("Fix applied successfully!")
-            elif result.error:
-                self._stfix_log.append(f"ERROR: {result.error}")
-        except Exception as e:
-            self._stfix_log.append(f"CRITICAL ERROR: {e}")
+        # ── Log ──────────────────────────────────────────────────
+        self._log = QTextEdit()
+        self._log.setReadOnly(True)
+        self._log.setMaximumHeight(160)
+        self._log.setPlaceholderText("Output will appear here…")
+        layout.addWidget(self._log)
 
-    def _restore_stfixer(self):
-        self._stfix_log.clear()
-        try:
-            from sff.tools.capcom_save_fix import CapcomSaveFix
-            fixer = CapcomSaveFix()
-            steam_dir = str(self.steam_path)
-            self._stfix_log.append(f"Restoring original files in {steam_dir}...")
-            result = fixer.restore(steam_dir, log_func=lambda msg: self._stfix_log.append(msg))
-            if result.succeeded:
-                self._stfix_log.append("Restore completed!")
-            elif result.error:
-                self._stfix_log.append(f"ERROR: {result.error}")
-        except Exception as e:
-            self._stfix_log.append(f"CRITICAL ERROR: {e}")
+    # ── helpers ──────────────────────────────────────────────────
 
-    # ── Backup / Restore page ─────────────────────────────────
+    def _browse_steam_path(self):
+        path = QFileDialog.getExistingDirectory(self, "Select Steam Folder", str(self.steam_path))
+        if path:
+            self._steam_path_edit.setText(path)
 
-    def _build_backup_page(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-
-        # target game
-        target_group = QGroupBox("Target Game")
-        target_layout = QVBoxLayout(target_group)
-
-        row1 = QHBoxLayout()
-        row1.addWidget(QLabel("App ID:"))
-        self._app_id_edit = QLineEdit()
-        row1.addWidget(self._app_id_edit)
-
-        row1.addWidget(QLabel("Game Name:"))
-        self._game_name_edit = QLineEdit()
-        row1.addWidget(self._game_name_edit)
-
-        detect_btn = QPushButton("Load Backups")
-        detect_btn.clicked.connect(self._load_backups)
-        row1.addWidget(detect_btn)
-        target_layout.addLayout(row1)
-
-        row2 = QHBoxLayout()
-        backup_btn = QPushButton("Create New Backup")
-        backup_btn.clicked.connect(self._create_backup)
-        row2.addWidget(backup_btn)
-        target_layout.addLayout(row2)
-
-        layout.addWidget(target_group)
-
-        # backups list
-        list_group = QGroupBox("Available Backups")
-        list_layout = QVBoxLayout(list_group)
-
-        self._table = QTableWidget()
-        self._table.setColumnCount(4)
-        self._table.setHorizontalHeaderLabels(["Date", "App ID", "Game", "Size (bytes)"])
-        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        list_layout.addWidget(self._table)
-
-        btn_layout = QHBoxLayout()
-        restore_btn = QPushButton("Restore Selected")
-        restore_btn.clicked.connect(self._restore_selected)
-        btn_layout.addWidget(restore_btn)
-
-        delete_btn = QPushButton("Delete Selected")
-        delete_btn.clicked.connect(self._delete_selected)
-        btn_layout.addWidget(delete_btn)
-
-        refresh_btn = QPushButton("Refresh All")
-        refresh_btn.clicked.connect(self._refresh_all)
-        btn_layout.addWidget(refresh_btn)
-
-        list_layout.addLayout(btn_layout)
-        layout.addWidget(list_group)
-
-        self._refresh_all()
-        return page
-
-    # ── Backup logic ──────────────────────────────────────────
-
-    def _load_backups(self):
-        app_id_str = self._app_id_edit.text().strip()
-        if app_id_str and app_id_str.isdigit():
-            backups = self._manager.get_backups(int(app_id_str))
-            self._populate_table(backups)
-        else:
-            QMessageBox.warning(self, "Invalid Request", "Please specify a valid App ID.")
-
-    def _refresh_all(self):
-        all_backups = []
-        if self._manager.backup_dir.exists():
-            for app_dir in self._manager.backup_dir.iterdir():
-                if app_dir.is_dir() and app_dir.name.isdigit():
-                    all_backups.extend(self._manager.get_backups(int(app_dir.name)))
-        self._populate_table(all_backups)
-
-    def _populate_table(self, backups: list[BackupInfo]):
-        backups.sort(key=lambda b: b.timestamp, reverse=True)
-        self._table.setRowCount(len(backups))
-        for i, b in enumerate(backups):
-            dt = datetime.datetime.fromtimestamp(b.timestamp).strftime('%Y-%m-%d %H:%M:%S')
-            self._table.setItem(i, 0, QTableWidgetItem(dt))
-            self._table.setItem(i, 1, QTableWidgetItem(str(b.app_id)))
-            self._table.setItem(i, 2, QTableWidgetItem(b.game_name))
-            self._table.setItem(i, 3, QTableWidgetItem(str(b.total_size)))
-            self._table.item(i, 0).setData(Qt.ItemDataRole.UserRole, b)
-
-    def _create_backup(self):
-        app_id_str = self._app_id_edit.text().strip()
-        game_name = self._game_name_edit.text().strip() or "Unknown Game"
-
-        if not app_id_str or not app_id_str.isdigit():
-            QMessageBox.warning(self, "Invalid Input", "Please provide a valid App ID.")
+    def _save_steam32_id(self):
+        val = self._steam32_edit.text().strip()
+        if not val.isdigit():
+            QMessageBox.warning(self, "Invalid Steam32 ID", "Steam32 ID must be a number.\nFind yours at https://steamid.xyz/")
             return
+        set_setting(Settings.STEAM32_ID, val)
+        self._log.append(f"✓ Steam32 ID saved: {val}")
 
-        app_id = int(app_id_str)
-        try:
-            saves = self._manager.detect_saves(app_id, game_name)
-            if not saves:
-                QMessageBox.warning(self, "No Saves Found", "Could not detect save locations for this game.")
-                return
+    def _browse_dest(self):
+        path = QFileDialog.getExistingDirectory(self, "Select Backup Destination")
+        if path:
+            self._dest_edit.setText(path)
 
-            save_path = saves[0].save_path
-            backup_info = self._manager.backup(app_id, save_path, game_name)
-            if backup_info:
-                QMessageBox.information(self, "Success", f"Backup created successfully at:\n{backup_info.backup_path}")
-                self._load_backups()
-            else:
-                QMessageBox.critical(self, "Error", "Failed to create backup.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to create backup: {e}")
+    def _browse_import(self):
+        path = QFileDialog.getExistingDirectory(self, "Select Backup Folder (the '<Game Name> [AppID]' folder)")
+        if path:
+            self._import_edit.setText(path)
 
-    def _get_selected_backup(self) -> Optional[BackupInfo]:
-        row = self._table.currentRow()
-        if row < 0:
+    def _validate_setup(self) -> Optional[tuple[str, str]]:
+        """Returns (steam_path, steam32_id) or None if validation fails."""
+        steam_path = self._steam_path_edit.text().strip()
+        if not steam_path or not Path(steam_path).exists():
+            QMessageBox.warning(self, "Invalid Steam Path", "Please enter a valid Steam installation path.")
             return None
-        item = self._table.item(row, 0)
-        if item:
-            return item.data(Qt.ItemDataRole.UserRole)
-        return None
+        steam32_id = self._steam32_edit.text().strip()
+        if not steam32_id or not steam32_id.isdigit():
+            QMessageBox.warning(
+                self, "Steam32 ID Missing",
+                "Please enter your Steam32 ID.\nFind it at https://steamid.xyz/"
+            )
+            return None
+        return steam_path, steam32_id
 
-    def _restore_selected(self):
-        backup = self._get_selected_backup()
-        if not backup:
+    def _scan_games(self):
+        result = self._validate_setup()
+        if not result:
             return
+        steam_path, steam32_id = result
+        self._log.clear()
+        self._log.append(f"Scanning {steam_path}/userdata/{steam32_id}/ …")
+        self._games = CloudSaves.list_steam_games(steam_path, steam32_id)
+        self._games_table.setRowCount(len(self._games))
+        for i, (app_id, game_name) in enumerate(self._games):
+            self._games_table.setItem(i, 0, QTableWidgetItem(str(app_id)))
+            self._games_table.setItem(i, 1, QTableWidgetItem(game_name))
+        self._log.append(f"✓ Found {len(self._games)} game(s) with save data.")
 
-        reply = QMessageBox.question(
-            self, "Restore Backup",
-            f"Restore backup for {backup.game_name}?\n\nWARNING: This will overwrite current save files.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                manifest = self._manager._load_manifest(backup.app_id)
-                save_path = manifest.get("save_path")
-                if not save_path:
-                    saves = self._manager.detect_saves(backup.app_id, backup.game_name)
-                    save_path = saves[0].save_path if saves else ""
+    def _selected_game(self) -> Optional[tuple[int, str]]:
+        row = self._games_table.currentRow()
+        if row < 0 or row >= len(self._games):
+            QMessageBox.warning(self, "No Game Selected", "Please select a game from the list.")
+            return None
+        return self._games[row]
 
-                if not save_path:
-                    QMessageBox.warning(self, "Error", "Could not determine save path to restore to.")
-                    return
+    def _set_buttons_enabled(self, enabled: bool):
+        self._backup_btn.setEnabled(enabled)
+        self._restore_btn.setEnabled(enabled)
 
-                success = self._manager.restore(backup.app_id, backup.backup_path, save_path)
-                if success:
-                    QMessageBox.information(self, "Success", "Backup restored successfully.")
-                else:
-                    QMessageBox.critical(self, "Error", "Failed to restore backup.")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to restore backup: {e}")
-
-    def _delete_selected(self):
-        backup = self._get_selected_backup()
-        if not backup:
+    def _do_backup(self):
+        result = self._validate_setup()
+        if not result:
             return
+        steam_path, steam32_id = result
+        game = self._selected_game()
+        if not game:
+            return
+        app_id, game_name = game
+        dest = self._dest_edit.text().strip()
+        if not dest:
+            QMessageBox.warning(self, "No Destination", "Please choose a backup destination folder.")
+            return
+        self._run_worker("backup", steam_path, steam32_id, app_id, game_name, dest)
 
+    def _do_restore(self):
+        result = self._validate_setup()
+        if not result:
+            return
+        steam_path, steam32_id = result
+        game = self._selected_game()
+        if not game:
+            return
+        app_id, game_name = game
+        backup_folder = self._import_edit.text().strip()
+        if not backup_folder:
+            QMessageBox.warning(self, "No Backup Folder", "Please browse to the backup folder.")
+            return
         reply = QMessageBox.question(
-            self, "Delete Backup",
-            f"Delete backup for {backup.game_name}?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            self, "Confirm Import",
+            f"Import saves for {game_name}?\n\nThis will overwrite current Steam saves.\n"
+            f"(A safety backup is created automatically first.)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                success = self._manager.delete_backup(backup.backup_path)
-                if success:
-                    self._refresh_all()
-                else:
-                    QMessageBox.critical(self, "Error", "Failed to delete backup.")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to delete backup: {e}")
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self._run_worker("restore", steam_path, steam32_id, app_id, game_name, backup_folder)
+
+    def _run_worker(
+        self, mode: str, steam_path: str, steam32_id: str,
+        app_id: int, game_name: str, dest_folder: str,
+    ):
+        if self._thread and self._thread.isRunning():
+            return
+        self._log.clear()
+        self._set_buttons_enabled(False)
+
+        self._thread = QThread()
+        self._worker = _BackupWorker(mode, steam_path, steam32_id, app_id, game_name, dest_folder)
+        self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.run)
+        self._worker.log_msg.connect(self._log.append)
+        self._worker.finished.connect(self._on_done)
+        self._worker.finished.connect(self._thread.quit)
+        self._thread.start()
+
+    def _on_done(self, succeeded: bool, detail: str):
+        self._set_buttons_enabled(True)
+        if succeeded:
+            self._log.append(f"\n✓ Done! {detail}")
+        else:
+            self._log.append(f"\n✗ {detail}")

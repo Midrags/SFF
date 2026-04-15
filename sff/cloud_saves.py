@@ -347,6 +347,176 @@ class CloudSaves:
             pass
         return {}
 
+    # --- Steam userdata methods ---
+
+    @staticmethod
+    def list_steam_games(steam_path: str, steam32_id: str) -> list[tuple[int, str]]:
+        """
+        Enumerate games in Steam userdata for the given Steam32 ID.
+
+        Returns a list of (app_id, game_name) sorted by game name.
+        Game names are resolved from steamapps/appmanifest_<appid>.acf when available,
+        falling back to the numeric app ID string.
+        """
+        results: list[tuple[int, str]] = []
+        userdata_dir = Path(steam_path) / "userdata" / str(steam32_id)
+        if not userdata_dir.exists():
+            return results
+
+        # build a name lookup from appmanifest ACF files
+        name_map: dict[int, str] = {}
+        steamapps_dirs = [
+            Path(steam_path) / "steamapps",
+        ]
+        # also check library folders
+        lf_path = Path(steam_path) / "steamapps" / "libraryfolders.vdf"
+        if lf_path.exists():
+            try:
+                text = lf_path.read_text(encoding="utf-8", errors="ignore")
+                for line in text.splitlines():
+                    line = line.strip().strip('"')
+                    if line and (Path(line) / "steamapps").exists():
+                        steamapps_dirs.append(Path(line) / "steamapps")
+            except Exception:
+                pass
+
+        for sd in steamapps_dirs:
+            if not sd.exists():
+                continue
+            for acf in sd.glob("appmanifest_*.acf"):
+                try:
+                    appid_str = acf.stem.split("_", 1)[1]
+                    if not appid_str.isdigit():
+                        continue
+                    appid = int(appid_str)
+                    text = acf.read_text(encoding="utf-8", errors="ignore")
+                    for line in text.splitlines():
+                        line = line.strip()
+                        if line.startswith('"name"'):
+                            name = line.split('"name"', 1)[1].strip().strip('"')
+                            name_map[appid] = name
+                            break
+                except Exception:
+                    pass
+
+        try:
+            for item in userdata_dir.iterdir():
+                if not item.is_dir() or not item.name.isdigit():
+                    continue
+                app_id = int(item.name)
+                if app_id == 0:
+                    continue
+                remote_dir = item / "remote"
+                if not remote_dir.exists():
+                    continue
+                game_name = name_map.get(app_id, f"App {app_id}")
+                results.append((app_id, game_name))
+        except PermissionError:
+            pass
+
+        results.sort(key=lambda x: x[1].lower())
+        return results
+
+    def backup_steam_save(
+        self,
+        steam_path: str,
+        steam32_id: str,
+        app_id: int,
+        game_name: str,
+        dest_folder: str,
+        log_func=None,
+    ) -> Optional[str]:
+        """
+        Copy <Steam>/userdata/<steam32id>/<app_id>/remote/ to
+        <dest_folder>/<game_name> [<app_id>]/remote/.
+
+        Returns the created backup folder path on success, None on failure.
+        """
+        def log(msg):
+            if log_func:
+                log_func(msg)
+            logger.info(msg)
+
+        src = Path(steam_path) / "userdata" / str(steam32_id) / str(app_id) / "remote"
+        if not src.exists():
+            log(f"No remote/ folder found at {src}")
+            return None
+
+        safe_name = "".join(c if c not in r'\/:*?"<>|' else "_" for c in game_name)
+        dest = Path(dest_folder) / f"{safe_name} [{app_id}]" / "remote"
+        dest.mkdir(parents=True, exist_ok=True)
+
+        try:
+            file_count = 0
+            total_size = 0
+            for f in src.rglob("*"):
+                if f.is_file():
+                    rel = f.relative_to(src)
+                    target = dest / rel
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(f, target)
+                    file_count += 1
+                    total_size += f.stat().st_size
+
+            log(f"✓ Backed up {file_count} file(s) ({self._format_size(total_size)}) → {dest}")
+            return str(dest.parent)
+        except Exception as e:
+            log(f"Backup failed: {e}")
+            return None
+
+    def restore_steam_save(
+        self,
+        backup_folder: str,
+        steam_path: str,
+        steam32_id: str,
+        app_id: int,
+        log_func=None,
+    ) -> bool:
+        """
+        Copy <backup_folder>/remote/ back to
+        <Steam>/userdata/<steam32id>/<app_id>/remote/.
+
+        Automatically creates a safety backup of current saves first.
+        Returns True on success.
+        """
+        def log(msg):
+            if log_func:
+                log_func(msg)
+            logger.info(msg)
+
+        src = Path(backup_folder) / "remote"
+        if not src.exists():
+            log(f"Backup remote/ folder not found at {src}")
+            return False
+
+        dest = Path(steam_path) / "userdata" / str(steam32_id) / str(app_id) / "remote"
+
+        # safety backup of current saves
+        if dest.exists():
+            safety_ts = time.strftime("%Y%m%d_%H%M%S")
+            safety = self.backup_dir / str(app_id) / f"pre_restore_{safety_ts}"
+            try:
+                shutil.copytree(dest, safety, dirs_exist_ok=True)
+                log(f"Safety backup of current saves → {safety}")
+            except Exception as e:
+                log(f"Warning: safety backup failed ({e}), proceeding anyway")
+
+        try:
+            dest.mkdir(parents=True, exist_ok=True)
+            restored = 0
+            for f in src.rglob("*"):
+                if f.is_file():
+                    rel = f.relative_to(src)
+                    target = dest / rel
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(f, target)
+                    restored += 1
+            log(f"✓ Restored {restored} file(s) to {dest}")
+            return True
+        except Exception as e:
+            log(f"Restore failed: {e}")
+            return False
+
     @staticmethod
     def _format_size(size_bytes: int) -> str:
         for unit in ["B", "KB", "MB", "GB"]:

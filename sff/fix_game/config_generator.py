@@ -22,7 +22,8 @@ Goldberg emulator config generator.
 Creates the steam_settings/ folder with all config files:
 - steam_appid.txt
 - configs.app.ini (DLC, cloud save dirs)
-- configs.main.ini (account, language)
+- configs.user.ini (account name, steamid, language)
+- configs.main.ini (connectivity settings)
 - configs.overlay.ini
 - achievements.json (from Steam Web API)
 - stats.json
@@ -104,8 +105,8 @@ class GoldbergConfigGenerator:
             app_id: Steam app ID
             target_dir: game directory where steam_settings/ will be created
             language: game language
-            steam_id: Steam64 ID for configs.main.ini
-            player_name: player name for configs.main.ini
+            steam_id: Steam64 ID for configs.user.ini
+            player_name: player name for configs.user.ini
             dlc_list: optional pre-fetched DLC dict {id: name}
             cloud_save_paths: optional pre-fetched cloud save paths
             log_func: optional callback for status messages
@@ -127,8 +128,11 @@ class GoldbergConfigGenerator:
             # configs.app.ini (DLC + cloud saves)
             self._write_app_config(app_id, settings_dir, dlc_list, cloud_save_paths, log)
 
-            # configs.main.ini (account + language)
-            self._write_main_config(settings_dir, steam_id, player_name, language, log)
+            # configs.user.ini (account name, steamid, language)
+            self._write_user_config(settings_dir, steam_id, player_name, language, log)
+
+            # configs.main.ini (connectivity settings)
+            self._write_main_config(settings_dir, log)
 
             # configs.overlay.ini
             self._write_overlay_config(settings_dir, log)
@@ -197,14 +201,19 @@ class GoldbergConfigGenerator:
         path.write_text("\n".join(lines), encoding="utf-8")
         log("✓ Created configs.app.ini")
 
-    def _write_main_config(self, settings_dir, steam_id, player_name, language, log):
-        """write configs.main.ini"""
-        content = f"""[main::general]
+    def _write_user_config(self, settings_dir, steam_id, player_name, language, log):
+        """write configs.user.ini with account settings"""
+        content = f"""[user::general]
 account_name={player_name}
 account_steamid={steam_id}
 language={language}
+"""
+        (settings_dir / "configs.user.ini").write_text(content, encoding="utf-8")
+        log("✓ Created configs.user.ini")
 
-[main::connectivity]
+    def _write_main_config(self, settings_dir, log):
+        """write configs.main.ini with connectivity settings"""
+        content = """[main::connectivity]
 disable_lan_only=1
 """
         (settings_dir / "configs.main.ini").write_text(content, encoding="utf-8")
@@ -212,7 +221,7 @@ disable_lan_only=1
 
     def _write_overlay_config(self, settings_dir, log):
         """write configs.overlay.ini"""
-        content = "[overlay::general]\nenable_experimental_overlay=1\n"
+        content = "[overlay::general]\nenable_experimental_overlay=0\n"
         (settings_dir / "configs.overlay.ini").write_text(content, encoding="utf-8")
         log("✓ Created configs.overlay.ini")
 

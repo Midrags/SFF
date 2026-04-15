@@ -33,6 +33,7 @@ import re
 import struct
 import shutil
 import logging
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -222,6 +223,7 @@ class GoldbergApplier:
 
         replaced = 0
         settings_dir = Path(game_dir) / "steam_settings"
+        settings_dir.mkdir(parents=True, exist_ok=True)
 
         for dll_path in dll_paths:
             dll_name = Path(dll_path).name.lower()
@@ -255,6 +257,13 @@ class GoldbergApplier:
             log(f"✓ Replaced {target.name} with Goldberg")
 
         if replaced > 0:
+            # deploy GameOverlayRenderer alongside — needed if overlay is later enabled
+            is_64 = has_64
+            gor_name = "GameOverlayRenderer64.dll" if is_64 else "GameOverlayRenderer.dll"
+            gor_src = self._find_tool(gor_name)
+            if gor_src:
+                shutil.copy2(gor_src, Path(game_dir) / gor_name)
+                log(f"✓ Deployed {gor_name} (overlay support)")
             return True, f"Applied Goldberg to {replaced} DLL(s)"
         return False, "No DLLs were replaced"
 
@@ -339,9 +348,20 @@ DllsToInjectFolder=extra_dlls
 """
 
         (game_path / "ColdClientLoader.ini").write_text(ini_content, encoding="utf-8")
-        log("✓ Generated ColdClientLoader.ini")
+        log("\u2713 Generated ColdClientLoader.ini")
 
-        return True, f"ColdClient loader deployed — run {loader_name} to start the game"
+        # deploy GameOverlayRenderer — needed if overlay is enabled in configs
+        gor_name = "GameOverlayRenderer64.dll" if is_64 else "GameOverlayRenderer.dll"
+        gor_src = self._find_tool(gor_name)
+        if gor_src:
+            shutil.copy2(gor_src, game_path / gor_name)
+            log(f"\u2713 Deployed {gor_name} (overlay support)")
+
+        # create desktop shortcut for the loader
+        game_name = main_exe_path.stem
+        self._create_desktop_shortcut(game_name, game_path / loader_name, game_path, main_exe_path, log)
+
+        return True, f"ColdClient loader deployed \u2014 run {loader_name} to start the game"
 
     # --- ColdLoader DLL mode (denuvosanctuary method) ---
 
@@ -412,6 +432,51 @@ SteamClient={'steamclient64.dll' if is_64 else 'steamclient.dll'}
 
         return True, "ColdLoader DLL deployed — game loads Goldberg automatically via DLL proxy"
 
+    @staticmethod
+    def _create_desktop_shortcut(
+        game_name: str,
+        target_exe: Path,
+        working_dir: Path,
+        icon_source: Path,
+        log,
+    ):
+        """
+        Create a Windows .lnk shortcut on the Desktop for the given target exe.
+        Uses PowerShell WScript.Shell — no extra packages required.
+        """
+        try:
+            desktop = Path.home() / "Desktop"
+            if not desktop.exists():
+                import winreg
+                key = winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER,
+                    r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders",
+                )
+                desktop = Path(winreg.QueryValueEx(key, "Desktop")[0])
+                winreg.CloseKey(key)
+
+            safe_name = "".join(c if c not in r'\/:*?"<>|' else "_" for c in game_name)
+            lnk_path = desktop / f"{safe_name}.lnk"
+
+            icon_loc = str(icon_source) if icon_source.exists() else str(target_exe)
+
+            ps_script = (
+                f'$s=(New-Object -COM WScript.Shell).CreateShortcut("{lnk_path}");'
+                f'$s.TargetPath="{target_exe}";'
+                f'$s.WorkingDirectory="{working_dir}";'
+                f'$s.IconLocation="{icon_loc},0";'
+                f'$s.Save()'
+            )
+            subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+                check=True,
+                capture_output=True,
+                timeout=10,
+            )
+            log(f"\u2713 Created desktop shortcut: {lnk_path.name}")
+        except Exception as e:
+            log(f"Warning: could not create desktop shortcut ({e})")
+
     def _find_tool(self, filename: str) -> Optional[str]:
         """search cache dir and third_party for a file"""
         tp = Path(__file__).parent.parent.parent / "third_party"
@@ -474,6 +539,7 @@ SteamClient={'steamclient64.dll' if is_64 else 'steamclient.dll'}
             "steamclient_loader_x32.exe", "steamclient_loader_x64.exe",
             "steamclient_extra_x32.dll", "steamclient_extra_x64.dll",
             "steam_interfaces.txt",
+            "GameOverlayRenderer.dll", "GameOverlayRenderer64.dll",
         ]:
             p = game_path / name
             if p.exists():

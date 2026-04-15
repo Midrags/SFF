@@ -195,3 +195,4 @@ class ToolsTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
+

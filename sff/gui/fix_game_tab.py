@@ -136,7 +136,7 @@ class FixGameTab(QWidget):
         opt_layout.addWidget(self._chk_config)
 
         self._chk_launchbat = QCheckBox("Create Launch.bat (For ColdClient)")
-        self._chk_launchbat.setChecked(True)
+        self._chk_launchbat.setChecked(False)
         opt_layout.addWidget(self._chk_launchbat)
         
         layout.addWidget(opt_group)
