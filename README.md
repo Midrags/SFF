@@ -1,6 +1,12 @@
 # SteaMidra
 
+<<<<<<< HEAD
 *Made by Midrag and his brother!*
+=======
+# If you use the normal mode patch of GL then you do not have to downgrade steam!!!
+
+Steam has updated and if you accidentally update your Steam client to a version after **10/03/2026** then GreenLuma won't work! Use this command to revert your Steam version:
+>>>>>>> 2271008238278b6de718170818d8cafae186bda5
 
 ## Educational use only. Use at your own risk.
 
