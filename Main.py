@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
-# owner: Midrag
 import argparse
 import logging
 import os
@@ -159,7 +158,7 @@ def main(ui: UI, args: argparse.Namespace) -> MainReturnCode:
     if menu_choice == MainMenu.UPDATE_ALL_MANIFESTS:
         return ui.update_all_manifests()
 
-    if TYPE_CHECKING:  # For pyright to complain when i add shit to MainMenu
+    if TYPE_CHECKING:  # Exhaustive match: ensures all MainMenu values are handled
         _x: Literal[MainMenu.MANAGE_LUA] = menu_choice  # noqa: F841
 
     if args.file:

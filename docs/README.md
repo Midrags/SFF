@@ -17,7 +17,10 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 **Guides**
 
 [Setup Guide](SETUP_GUIDE.md)  
-What to install: GreenLuma, Python (if needed) and multiplayer fix requirements.
+What to install (GreenLuma) and how to get started with the EXE.
+
+[Python Setup](PYTHON_SETUP.md)  
+Running or building SteaMidra from source. Dependencies, virtual environment, and EXE build steps.
 
 [User Guide](USER_GUIDE.md)  
 What each menu option does and how to add games step by step. Covers both CLI and GUI.
@@ -36,6 +39,9 @@ Using the Ryuu fix source as an alternative or supplement to online-fix.me. No a
 
 [DLC Unlockers](dlc_unlockers/README.md)  
 Using SteaMidra to install DLC unlockers (CreamInstaller-style). Credits for CreamInstaller are on that page.
+
+[Troubleshooting](TROUBLESHOOTING.md)  
+Common problems and what to try. Steam errors, Chrome issues, login failures, and more.
 
 **Credits**
 

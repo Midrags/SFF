@@ -1,114 +1,53 @@
-# ⚠️ Important Update!
+# SteaMidra
 
-Steam has updated and if you accidentally update your Steam client to a version after **10/03/2026** then GreenLuma won't work! Use this command to revert your Steam version:
+*Made by Midrag and his brother!*
 
-```
-"C:\Program Files (x86)\Steam\steam.exe" -forcesteamupdate -forcepackagedownload -overridepackageurl http://web.archive.org/web/20260122074724if_/media.steampowered.com/client -exitsteam
-```
+## Educational use only. Use at your own risk.
 
-Just so people know online-fix has updated their site and it is very annoying when they do that, since multiplayer fix is not working no more as it did before. Use Bypass/fix option instead it should have all the needed files etc for multiplayer and fixes for games.
-
----
-
-# SteaMidra (Education purposes only)
-
-"Made" by Midrag and his brother!
-
-Quick thing before we start remember to exclude the SteaMidra folder from Windows Security or at least the folder in this path for Creaminstaller Resources to work! `sff\dlc_unlockers\resources`
+> ⚠️ **Remember:** Exclude the SteaMidra folder from Windows Security — especially `sff\dlc_unlockers\resources` — or CreamInstaller resources may not work correctly.
 
 SteaMidra helps you set up games to work with Steam using Lua scripts, manifests, and GreenLuma. It writes the right files into your Steam folder so games and DLC can run. It does not replace or crack Steam itself.
 
-**Need help?** Check the [documentation](docs/README.md) or reach out to me Merium0 on the Discord and we'll sort it out. Discord server: https://discord.gg/yp3UA6QdBC
+> ⚠️ **Multiplayer fix is currently not working.** online-fix.me has updated their site which broke the integration. A fix is being worked on. In the meantime, use the **Fixes/Bypasses (Ryuu)** option which includes multiplayer and game fixes for many titles.
 
-**Small video about SteaMidra:** [Youtube Tutorial](https://youtu.be/cFfItiV8-pk)
+Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
+**Small video about SteaMidra:** [YouTube Tutorial](https://youtu.be/cFfItiV8-pk)
 
-## I'm too lazy to edit the readme.md file not, but just so people know the release got exe file now so there is no need to do all these steps under, unless you want too though.
+---
 
+## Features
+
+- Download and use Lua files for games, download manifests, and set up GreenLuma.
+- Write Lua and manifest data into Steam's config so games work with or without an extra injector.
+- Other features: multiplayer fixes (online-fix.me), **game fixes/bypasses (Ryuu)**, DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
+- **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
+- Parallel downloads, backups, recent files, and settings export/import.
+
+---
 
 ## Quick start
 
-### Step 1: Install dependencies
+### Step 1: SteaMidra
 
-**Two commands are required** (steam has a stale `urllib3<2` constraint that conflicts with Selenium; `--no-deps` bypasses it — steam works fine at runtime with urllib3 2.x):
+Download the latest version from [here](https://github.com/Midrags/SFF/releases/latest).
+Create a folder anywhere, name it `SteaMidra`, and place `SteaMidra_GUI.exe` and `SteamKillInject.exe` inside it.
 
-```batch
-pip install -r requirements.txt
-pip install steam==1.4.4 --no-deps
+### Step 2: GreenLuma
 
-Also run the install_online_fix_requirements.bat
-```
+Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: https://www.up-4ever.net/lyoi96gger8y
 
-If you get dependency conflicts with other projects on your system, use a virtual environment:
+Extract the ZIP — you will see three folders. You only need `NormalModePatch.rar`.
+Extract `NormalModePatch.rar` and place all files from it into your `SteaMidra\Greenluma` folder.
 
-```batch
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-pip install steam==1.4.4 --no-deps
+### Step 3: Setup GreenLuma
 
-Also run the install_online_fix_requirements.bat
-```
+Go into the GreenLuma folder and run `GreenLumaSettings2025.exe`.
+Type `2` in the terminal and press Enter, then set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`) and `GreenLuma_2025_x64.dll` (default: `SteaMidra\Greenluma\GreenLuma_2025_x64.dll`).
 
-### Step 2: Run SteaMidra
+> Running from source (Python)? See the [Python Setup Guide](docs/PYTHON_SETUP.md).
 
-**With Python:**
-- CLI: `python Main.py`
-- GUI: `python Main_gui.py`
-
-**With the EXE:**
-- CLI: Run `build_simple.bat`, then run `SteaMidra.exe` (administrator preferred).
-- GUI: Run both install commands from Step 1, then `build_simple_gui.bat`, then run `SteaMidra_GUI.exe`.
-
-### Step 3: GreenLuma
-
-Download GreenLuma and set it up: https://www.up-4ever.net/lyoi96gger8y
-
-Extract the ZIP and use the AppList folder from GreenLuma when SteaMidra asks for it. Full steps are in the [Setup Guide](docs/SETUP_GUIDE.md).
-
-**Optional:** Windows desktop notifications: `pip install -r requirements-optional.txt`
-
-## GUI Version
-
-SteaMidra has a full graphical interface.
-
-**Run with Python:** `python Main_gui.py`
-
-**Build the GUI EXE:**
-1. Install dependencies (two commands — both required):
-   ```batch
-   pip install -r requirements.txt
-   pip install steam==1.4.4 --no-deps
-   ```
-2. Run `build_simple_gui.bat`
-3. Run `dist\SteaMidra_GUI.exe`
-
-**What the GUI gives you:**  
-- **Tabbed interface** — Main, Store, Downloads, Fix Game, Tools, and Cloud Saves tabs.  
-- Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.  
-- All actions as buttons: crack, DRM removal, DLC check, workshop items, multiplayer fix, **Fixes/Bypasses (Ryuu)**, DLC unlockers, and more.  
-- **Store browser** — search and browse the Hubcap Manifest library with pagination.  
-- **Fix Game pipeline** — automate emulator application (Goldberg, ColdClient, ColdLoader) with SteamStub unpacking.  
-- **GBE Token Generator** — generate full Goldberg emulator configs with achievements, DLCs, stats, and icons.  
-- **Cloud Saves** — Steam userdata save backup/restore. Scans `Steam/userdata/<steam32id>/` for all games with saves, lets you back up the `remote/` folder to any destination, and restore it back with one click (automatic safety backup before overwrite).  
-- **VDF Key Extractor** — extract depot decryption keys from Steam's config.vdf.  
-- Lua/manifest processing, AppList management, and library tools all accessible from buttons.  
-- Full settings dialog where you can edit, delete, export, and import all settings.  
-- **11+ themes** including Dracula, Nord, Cyberpunk, and more.  
-- **System tray icon** for quick show/hide and exit.  
-- **Multi-language support** — switch between English and Portuguese in Settings (more locales can be added).  
-- Log output shown in the window so you can see what's happening.  
-- Any prompts that would normally appear in the terminal show up as dialog boxes instead.
-
-The CLI version (`Main.py` / `SteaMidra.exe`) still works exactly the same as before.
-
-## What SteaMidra can do
-
-- Download and use Lua files for games, download manifests, and set up GreenLuma.  
-- Write Lua and manifest data into Steam's config so games work with or without an extra injector.  
-- Other features: multiplayer fixes (online-fix.me), **game fixes/bypasses (Ryuu)**, DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).  
-- **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
-- Parallel downloads, backups, recent files, and settings export/import.
+---
 
 ### AppList profiles (GreenLuma limit workaround)
 
@@ -122,15 +61,43 @@ GreenLuma has a hard limit of 130–134 App IDs. To use more games, use AppList 
 
 When you reach 130 IDs, SteaMidra will remind you to create a new profile. Create an empty profile, switch to it, then add more games.
 
+---
+
+## GUI features
+
+SteaMidra has a full graphical interface.
+
+**What the GUI gives you:**
+- **Tabbed interface** — Main, Store, Downloads, Fix Game, Tools, and Cloud Saves tabs.
+- Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.
+- All actions as buttons: crack, DRM removal, DLC check, workshop items, multiplayer fix, **Fixes/Bypasses (Ryuu)**, DLC unlockers, and more.
+- **Store browser** — search and browse the Hubcap Manifest library with pagination.
+- **Fix Game pipeline** — automate emulator application (Goldberg, ColdClient, ColdLoader) with SteamStub unpacking.
+- **GBE Token Generator** — generate full Goldberg emulator configs with achievements, DLCs, stats, and icons.
+- **Cloud Saves** — Steam userdata save backup/restore. Scans `Steam/userdata/<steam32id>/` for all games with saves, lets you back up the `remote/` folder to any destination, and restore it back with one click (automatic safety backup before overwrite).
+- **VDF Key Extractor** — extract depot decryption keys from Steam's config.vdf.
+- Lua/manifest processing, AppList management, and library tools all accessible from buttons.
+- Full settings dialog where you can edit, delete, export, and import all settings.
+- **11+ themes** including Dracula, Nord, Cyberpunk, and more.
+- **System tray icon** for quick show/hide and exit.
+- **Multi-language support** — switch between English and Portuguese in Settings (more locales can be added).
+- Log output shown in the window so you can see what's happening.
+- Any prompts that would normally appear in the terminal show up as dialog boxes instead.
+
+---
+
 ## What's new
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in the latest update.
+
+---
 
 ## Documentation
 
 [Documentation index](docs/README.md) – Start here.
 
 [Setup Guide](docs/SETUP_GUIDE.md) – What to install (including GreenLuma).
+
 [User Guide](docs/USER_GUIDE.md) – What each menu option does and how to add games.
 
 [Quick Reference](docs/QUICK_REFERENCE.md) – Commands and shortcuts.
@@ -143,36 +110,17 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in the latest update.
 
 [DLC Unlockers](docs/dlc_unlockers/README.md) – Using DLC unlockers (CreamInstaller-style).
 
-## Requirements
+[Troubleshooting](docs/TROUBLESHOOTING.md) – Common problems and solutions.
 
-`requirements.txt` covers everything: CLI, GUI (PyQt6), online-fix (Selenium), and Tor fallback.
+[Python Setup](docs/PYTHON_SETUP.md) – Running or building from source.
 
-**Install with two commands:**
-```batch
-pip install -r requirements.txt
-pip install steam==1.4.4 --no-deps
-```
-
-The second command is needed because `steam==1.4.4` has a stale `urllib3<2` constraint that conflicts with Selenium 4.x. Steam only uses `requests` at runtime and works perfectly with urllib3 2.x — `--no-deps` simply skips the outdated constraint check.
-
-More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
+---
 
 ## Troubleshooting
 
-**Steam says "No Internet Connection" when downloading** — SteaMidra handles this automatically.
+See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for common problems and solutions.
 
-1. **Workshop ACF fix** — The most common cause is orphaned workshop items in `appworkshop_{id}.acf` triggering a failed Workshop update. SteaMidra patches this file to clear `NeedsDownload` when no workshop content is installed.
-2. **Manifest seeding** — When you process a .lua file or use "Update all manifests", manifests are written directly to Steam's `depotcache` folder before Steam starts. Steam finds them locally.
-3. **ACF error state** — SteaMidra clears stale `UpdateResult` and validation flags in the game ACF so Steam doesn't get stuck in a retry loop.
-
-**Dependency conflicts / urllib3 error** — Run both install commands from Step 1 above (requirements.txt first, then `pip install steam==1.4.4 --no-deps`). If conflicts persist with other projects on your system, use a virtual environment.
-
-**ModuleNotFoundError** — Dependencies are not installed. Run `pip install -r requirements.txt`.
-
-**Remove SteamStub (Steamless) → WinError 2** — In the GUI, clicking "Remove SteamStub" now opens a file picker. Just navigate to your game folder and select the `.exe` yourself — no Steam API lookup needed.
-
-**SteamAutoCrack not found** — Make sure the SteaMidra folder is intact and hasn't had any files deleted. SteamAutoCrack is bundled in `third_party/SteamAutoCrack/cli/` and should already be there.
-
+---
 
 ## Credits
 
@@ -201,6 +149,8 @@ More details in [INSTALL_DEPENDENCIES.md](INSTALL_DEPENDENCIES.md).
 **Hubcap Manifest** – Store browser and manifest library API provided by **Hubcap Manifest** ([hubcapmanifest.com](https://hubcapmanifest.com)). Formerly known as Morrenus / Solus.
 
 **RedPaper** – Credit to RedPaper for the Broken Moon MIDI cover, originally arranged by U2 Akiyama and used in Touhou 7.5: Immaterial and Missing Power. Touhou 7.5 and its assets are owned by Team Shanghai Alice and Twilight Frontier. SteaMidra is not affiliated with or endorsed by either party. All trademarks belong to their respective owners.
+
+README rewrite assisted by **itsphox**.
 
 SteaMidra is licensed under the GNU General Public License v3.0 (see LICENSE file).
 

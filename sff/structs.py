@@ -263,7 +263,7 @@ class LuaResult(NamedTuple):
 class GenEmuMode(Enum):
     USER_GAME_STATS = auto()
     STEAM_SETTINGS = auto()
-    ALL = auto()  # idk why i have this, it's there if i ever need it
+    ALL = auto()  # Reserved for future use
 
 
 class DepotOrAppID(NamedTuple):

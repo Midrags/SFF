@@ -16,11 +16,9 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
-# owner: Midrag
 VERSION = "4.8.2"
+# NOTE: Public key shared by oureveryday (https://github.com/SteamAutoCracks/Steam-auto-crack/issues/33)
 STEAM_WEB_API_KEY = "1DD0450A99F573693CD031EBB160907D"
-"""NOTE: Not even mine lmao. Given away by oureveryday
-(source: https://github.com/SteamAutoCracks/Steam-auto-crack/issues/33)"""
 GITHUB_USERNAME = "Midrags"
 REPO_NAME = "sff"
 # Update check source: https://github.com/Midrags/SFF/releases/

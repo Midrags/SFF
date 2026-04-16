@@ -427,7 +427,7 @@ class AppListManager(AppInjectionManager):
             )
             return
 
-        # i'm not using set() cuz that doesn't preserve insertion order lmao
+        # dict.fromkeys preserves insertion order unlike set()
         local_ids = list(dict.fromkeys([int(x.app_id) for x in path_and_ids]))
 
         self._populate_id_map(local_ids)
@@ -612,6 +612,31 @@ class AppListManager(AppInjectionManager):
         elif choice == AppListProfileChoice.RENAME:
             self._profile_rename()
 
+    def _ensure_current_applist_saved(self) -> None:
+        """Auto-save the current AppList before a profile switch if it has not been saved to any profile yet."""
+        current_ids = [x.app_id for x in self.get_local_ids(sort=True)]
+        if not current_ids:
+            return
+        current_set = set(current_ids)
+        for profile_name in list_profiles():
+            saved = load_profile(profile_name)
+            if saved is not None and set(saved) == current_set:
+                return
+        base_name = "Default AppList"
+        name = base_name
+        counter = 2
+        while profile_exists(name):
+            name = f"{base_name} {counter}"
+            counter += 1
+        if save_profile(name, current_ids):
+            print(
+                Fore.YELLOW
+                + f"Your current AppList ({len(current_ids)} IDs) was automatically saved as '{name}' before switching."
+                + Style.RESET_ALL
+            )
+        else:
+            print(Fore.RED + "Warning: Could not auto-save current AppList before switching." + Style.RESET_ALL)
+
     def _profile_create(self) -> None:
         name = prompt_text("Profile name:", validator=lambda x: len(x.strip()) > 0)
         if not name:
@@ -631,6 +656,7 @@ class AppListManager(AppInjectionManager):
                 + Style.RESET_ALL
             )
             if prompt_confirm("Switch to this profile now?", default=True):
+                self._ensure_current_applist_saved()
                 success, count = profile_switch(name, self.applist_folder)
                 if success:
                     print(
@@ -657,6 +683,7 @@ class AppListManager(AppInjectionManager):
         )
         if selected is None:
             return
+        self._ensure_current_applist_saved()
         success, count = profile_switch(selected, self.applist_folder)
         if success:
             limit = get_profile_limit()

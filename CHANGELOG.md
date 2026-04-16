@@ -23,6 +23,16 @@
 - **Steam Store API fallback for DLC list:** `_fetch_dlcs` now falls back to the Steam Store `appdetails` endpoint when SteamCMD returns no DLC, ensuring configs are still populated.
 - **Fixed SteamDB fill-forward pollution:** DLC depots that were Cloudflare-blocked during SteamDB scraping (CM-only entries) no longer appear in SteamDB historical version groups with incorrect source and date. Fill-forward now strictly excludes Steam CM entries.
 
+### Hotfix (post-release)
+
+- **Fixed `LuaEndpoint` AttributeError crash:** All users running v4.8.2 crashed on Lua download due to a stale `MORRENUS` reference in the CLI engine. Fixed to `HUBCAP`.
+- **Fixed GSE credentials never saving/loading:** Two incorrect import paths (`sff.settings` → `sff.storage.settings`) silently prevented GSE credentials from being saved after a ColdClient Advanced run or pre-filled in the UI on next launch.
+- **DLC now fetched in Simple mode:** The `configs.app.ini` DLC list was incorrectly skipped when Simple mode was selected. DLC is now always fetched; only achievements, language data, and depot info are skipped.
+- **Overlay disabled in Simple/Regular mode:** `configs.overlay.ini` now writes `enable_experimental_overlay=0` for Simple and Regular Goldberg modes to avoid crashes with frametime tools. Only ColdClient Advanced mode enables the overlay.
+- **User identity no longer reverts:** The Fix Game tab now reads `%APPDATA%\GSE Saves\settings\configs.user.ini` on startup and pre-fills the Username and Steam64 ID fields from the global GBE identity.
+- **Hubcap API key redirect:** Clicking Connect with no API key now shows a dialog with a direct "Get API Key" button that opens `https://hubcapmanifest.com/` in the browser.
+- **Code cleanup:** Renamed `sff/fun.py` → `sff/extras.py`. Removed personal `# owner:` dev tags and casual inline comments across all files.
+
 ---
 
 ## v4.8.1

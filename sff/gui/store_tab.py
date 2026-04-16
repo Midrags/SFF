@@ -16,14 +16,14 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Store tab — browse and search the Morrenus manifest library."""
+"""Store tab — browse and search the Hubcap Manifest library."""
 
 import logging
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
-from PyQt6.QtGui import QColor, QBrush, QFont
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject, QUrl
+from PyQt6.QtGui import QDesktopServices, QColor, QBrush, QFont
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QTableWidget, QTableWidgetItem, QHeaderView,
@@ -535,7 +535,19 @@ class StoreTab(QWidget):
     def _connect(self):
         key = self._key_edit.text().strip()
         if not key:
-            QMessageBox.warning(self, "Missing Key", "Please enter your Hubcap API key.")
+            dlg = QMessageBox(self)
+            dlg.setWindowTitle("No API Key")
+            dlg.setIcon(QMessageBox.Icon.Information)
+            dlg.setText(
+                "No Hubcap API key set.\n\n"
+                "Get your free API key at hubcapmanifest.com, "
+                "then paste it in the field above."
+            )
+            dlg.addButton("Get API Key", QMessageBox.ButtonRole.ActionRole)
+            dlg.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+            result = dlg.exec()
+            if result == 0:
+                QDesktopServices.openUrl(QUrl("https://hubcapmanifest.com/"))
             return
 
         try:

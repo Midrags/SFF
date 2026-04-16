@@ -131,12 +131,12 @@ class GoldbergConfigGenerator:
             # steam_appid.txt
             self._write_appid(app_id, target_dir, log)
 
-            # configs.app.ini (DLC + cloud saves)
+            # configs.app.ini (DLC + cloud saves — always fetched, even in simple mode)
             self._write_app_config(app_id, settings_dir, dlc_list, cloud_save_paths, log,
-                                   skip_api=simple_mode)
+                                   skip_api=False)
 
-            # configs.overlay.ini (per-game)
-            self._write_overlay_config(settings_dir, log)
+            # configs.overlay.ini (per-game — overlay disabled for simple/regular mode)
+            self._write_overlay_config(settings_dir, log, enable_overlay=not simple_mode)
 
             if not simple_mode:
                 # achievements.json
@@ -387,9 +387,9 @@ download_steamhttp_requests=0
         (settings_dir / "configs.main.ini").write_text(content, encoding="utf-8")
         log("\u2713 Created configs.main.ini")
 
-    def _write_overlay_config(self, settings_dir, log):
+    def _write_overlay_config(self, settings_dir, log, enable_overlay: bool = True):
         """write configs.overlay.ini — full GoldbergGUI template"""
-        content = """\
+        content = f"""\
 # ################################################################################ #
 #                                                                                  #
 #    USE AT YOUR OWN RISK :: This feature might cause crashes or other problems    #
@@ -401,7 +401,7 @@ download_steamhttp_requests=0
 [overlay::general]
 # 1=enable the experimental overlay, might cause crashes
 # default=0
-enable_experimental_overlay=1
+enable_experimental_overlay={"1" if enable_overlay else "0"}
 # amount of time to wait before attempting to detect and hook the renderer (DirectX, OpenGL, Vulkan, etc...)
 # default=0
 hook_delay_sec=0

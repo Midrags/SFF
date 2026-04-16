@@ -286,7 +286,7 @@ def download_lua(dest: Path, os_type: OSType) -> LuaResult:
 
         match = reg.search(x)
 
-        assert match is not None  # lmao
+        assert match is not None
 
         return match.group()
 

@@ -190,6 +190,26 @@ class FixGameTab(QWidget):
         self._worker = None
         self._game_entries: list[tuple[str, str, Path]] = []
         self._setup_ui()
+        self._load_gse_identity()
+
+    def _load_gse_identity(self):
+        """Pre-fill username and Steam64 ID from the global GSE Saves settings folder."""
+        import configparser
+        try:
+            appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+            user_ini = Path(appdata) / "GSE Saves" / "settings" / "configs.user.ini"
+            if not user_ini.exists():
+                return
+            cfg = configparser.ConfigParser()
+            cfg.read(str(user_ini), encoding="utf-8")
+            name = cfg.get("user::general", "account_name", fallback="").strip()
+            sid = cfg.get("user::general", "account_steamid", fallback="").strip()
+            if name and not self._name_edit.text():
+                self._name_edit.setText(name)
+            if sid and not self._steamid_edit.text():
+                self._steamid_edit.setText(sid)
+        except Exception:
+            pass
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
@@ -332,7 +352,8 @@ class FixGameTab(QWidget):
 
         # pre-fill saved credentials
         try:
-            from sff.settings import Settings, get_setting
+            from sff.storage.settings import get_setting
+            from sff.structs import Settings
             sv = get_setting(Settings.STEAM_USER)
             if sv:
                 self._gse_user_edit.setText(str(sv))
@@ -356,7 +377,7 @@ class FixGameTab(QWidget):
         # steam_settings generation mode
         config_layout = QHBoxLayout()
         config_layout.addWidget(QLabel("steam_settings:"))
-        self._radio_simple = QRadioButton("Simple (offline, fast — no API calls)")
+        self._radio_simple = QRadioButton("Simple (fast — DLC fetched, no achievements/depot data)")
         self._radio_advanced = QRadioButton("Advanced (fetches DLCs, languages, depots)")
         self._radio_advanced.setChecked(True)
         self._settings_mode_group = QButtonGroup(self)

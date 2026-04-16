@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
-# owner: Midrag
 import logging
 import os
 import sys

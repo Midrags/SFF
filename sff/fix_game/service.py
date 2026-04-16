@@ -398,7 +398,8 @@ class FixGameService:
             log(f"GSE Fork: login as {username}")
             # save credentials for future use
             try:
-                from sff.settings import Settings, set_setting
+                from sff.storage.settings import set_setting
+                from sff.structs import Settings
                 set_setting(Settings.STEAM_USER, username)
                 set_setting(Settings.STEAM_PASS, password)
             except Exception:

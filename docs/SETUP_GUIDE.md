@@ -2,46 +2,54 @@
 
 What you need to use SteaMidra and how to get started.
 
-**Before you start**
+> Running from source (Python)? See [Python Setup](PYTHON_SETUP.md) instead.
 
-You need Steam installed on your PC. SteaMidra will ask for your Steam folder if it can't find it (usually the folder that contains steam.exe).
+---
 
-**GreenLuma (required for the main workflow)**
+## Before you start
 
-SteaMidra works with GreenLuma. You need to download GreenLuma yourself and set it up.
+- Steam must be installed on your PC.
+- Exclude the SteaMidra folder from Windows Security — especially `sff\dlc_unlockers\resources` — or CreamInstaller resources may not work. Add a Windows Defender exclusion for the folder.
 
-- Download GreenLuma: https://www.up-4ever.net/h3vt78x7jdap  
-- Extract the ZIP and follow the instructions that come with GreenLuma.  
-- When SteaMidra asks for the AppList folder, point it to the AppList folder inside your GreenLuma folder.
+---
 
-**Python and dependencies (if you run from source)**
+## Step 1: Download SteaMidra
 
-If you run SteaMidra with Python instead of the EXE:
+Download the latest release from [GitHub Releases](https://github.com/Midrags/SFF/releases/latest).
 
-1. Install Python (from python.org).  
-2. Open a command prompt in the SteaMidra folder and run both commands:  
-   ```batch
-   pip install -r requirements.txt
-   pip install steam==1.4.4 --no-deps
-   ```
-   The second command is needed because `steam==1.4.4` has a stale urllib3 constraint that conflicts with Selenium — `--no-deps` skips it. Steam works fine at runtime.  
-3. Optional (Windows notifications):  
-   `pip install -r requirements-optional.txt`
+Create a folder (e.g. `SteaMidra`) and place `SteaMidra_GUI.exe` and `SteamKillInject.exe` inside it.
 
-**Multiplayer fix (online-fix.me)**
+---
 
-For the multiplayer fix feature you need:
+## Step 2: GreenLuma
 
-- A browser (Chrome is recommended) and an archiver (7-Zip or WinRAR).  
-- An account on online-fix.me. Create one on their website; SteaMidra will ask for your username and password the first time you use the feature.
+Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: https://www.up-4ever.net/lyoi96gger8y
 
-If the project includes a batch file for online-fix requirements, run it. Otherwise run:  
-`pip install selenium`
+1. Extract the ZIP — you will see three folders. You only need `NormalModePatch.rar`.
+2. Extract `NormalModePatch.rar` and place all files into your `SteaMidra\Greenluma` folder.
 
-**If something doesn't work**
+---
 
-- "Steam path not found" — Choose the folder that contains steam.exe.  
-- "Selenium not installed" — Run the pip install command above.  
-- "Login failed" — Check your online-fix.me username and password on their website.
+## Step 3: Configure GreenLuma
 
-If you run into other problems, check the error message and debug.log in the SteaMidra folder, or ask on Discord.
+1. Open your `SteaMidra\Greenluma` folder and run `GreenLumaSettings2025.exe`.
+2. Type `2` and press Enter.
+3. Set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`).
+4. Set the full path to `GreenLuma_2025_x64.dll` (default: `SteaMidra\Greenluma\GreenLuma_2025_x64.dll`).
+
+---
+
+## Multiplayer fix (online-fix.me)
+
+> ⚠️ **Currently not working.** online-fix.me has updated their site which broke the integration. A fix is being worked on. Use the **Fixes/Bypasses (Ryuu)** option in the meantime.
+
+When the feature is restored, you will need:
+
+- A browser (Chrome recommended) and an archiver (7-Zip or WinRAR).
+- An account on online-fix.me.
+
+---
+
+## Problems?
+
+See [Troubleshooting](TROUBLESHOOTING.md) or ask on [Discord](https://discord.gg/V8aZqnbB84).

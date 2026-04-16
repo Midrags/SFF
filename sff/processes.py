@@ -52,7 +52,7 @@ import psutil
 
 
 
-from sff.fun import Konami, replace_boot_image
+from sff.extras import Konami, replace_boot_image
 
 from sff.prompts import prompt_confirm
 

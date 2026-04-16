@@ -444,7 +444,7 @@ class GameHandler:
 
         def filter_id(x: str) -> int:
             match = regex.search(x)
-            assert match is not None  # lmao
+            assert match is not None
             return int(match.group())
 
         workshop_id: int = prompt_text(

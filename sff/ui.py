@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
-# owner: Midrag
 import functools
 import logging
 import os
@@ -767,7 +766,7 @@ class UI:
         )
         if parsed_lua is None:
             return MainReturnCode.LOOP_NO_PROMPT
-        downloader.use_morrenus = (lua_manager.last_endpoint == LuaEndpoint.MORRENUS)
+        downloader.use_hubcap = (lua_manager.last_endpoint == LuaEndpoint.HUBCAP)
         
         # Track recent file
         if parsed_lua.path:
