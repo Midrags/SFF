@@ -1,6 +1,5 @@
 # SteaMidra
 
-<<<<<<< HEAD
 *Made by Midrag and his brother!*
 =======
 # If you use the normal mode patch of GL then you do not have to downgrade steam!!!
