@@ -65,6 +65,11 @@ all_games_txt = os.path.join(spec_root, 'all_games.txt')
 if os.path.exists(all_games_txt):
     datas.append((all_games_txt, '.'))
 
+# Include c/ folder (MIDI player library, soundfont, and MIDI files)
+c_dir = os.path.join(spec_root, 'c')
+if os.path.exists(c_dir):
+    datas.append((c_dir, 'c'))
+
 win10toast_data = get_win10toast_data()
 if win10toast_data:
     datas.append(win10toast_data)

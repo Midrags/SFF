@@ -22,9 +22,11 @@ __pycache__/
 Codestouse/
 Codes to use/
 third_party/Codes to use/
-third_party/SteamAutoCrack/Steam-auto-crack-master/
+third_party/SteamAutoCrack/Steam-auto-crack-*/
 third_party/SteamAutoCrack/SteamAutoCrack/
-Steam-auto-crack-master/
+third_party/SteamAutoCrack/old/
+third_party/gbe_fork/generate_emu_config/
+Steam-auto-crack-*/
 SteamAutoCrack/SteamAutoCrack/
 typings/
 typings/steam/
