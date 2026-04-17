@@ -19,7 +19,6 @@
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Callable
 
 # Safe import to handle headless environments
 try:
@@ -38,7 +37,7 @@ class ManifestorAutomator:
     """
     TARGET_URL = "https://openlua.cloud/"
 
-    def __init__(self, download_dir: Path):
+    def __init__(self, download_dir):
         self.download_dir = download_dir
         self.hidden_browser: Optional[QWebEngineView] = None
         self.pending_appid: Optional[int] = None
@@ -48,13 +47,13 @@ class ManifestorAutomator:
         self.error_msg: Optional[str] = None
         self.on_progress: Optional[Callable[[str], None]] = None
 
-    def _log(self, msg: str):
+    def _log(self, msg):
         if self.on_progress:
             self.on_progress(msg)
         else:
             print(f"[Manifestor] {msg}")
 
-    def download_lua_sync(self, appid: int, timeout_sec: int = 30) -> Optional[Path]:
+    def download_lua_sync(self, appid, timeout_sec = 30):
         """
         Bloqueia (sincronamente) até que o arquivo lua do appid seja baixado.
         Retorna o caminho para o arquivo baixado ou None em caso de falha/timeout.
@@ -116,7 +115,7 @@ class ManifestorAutomator:
         self.hidden_browser.loadFinished.connect(self._on_manifestor_load_finished)
         self.hidden_browser.setUrl(QUrl(self.TARGET_URL))
 
-    def _on_manifestor_load_finished(self, success: bool):
+    def _on_manifestor_load_finished(self, success):
         if not success:
             self.error_msg = "Falha ao carregar openlua.cloud"
             if self.loop:
@@ -142,7 +141,7 @@ class ManifestorAutomator:
             self.pending_appid = None
             self._inject_and_download(appid)
 
-    def _inject_and_download(self, appid: int):
+    def _inject_and_download(self, appid):
         js_code = f"""
             (function() {{
                 try {{
@@ -185,7 +184,7 @@ class ManifestorAutomator:
         self.hidden_browser.page().runJavaScript(js_code)
         self._log(f"Automação injetada para o AppID {appid}. Aguardando download...")
 
-    def _handle_download_request(self, download: QWebEngineDownloadRequest):
+    def _handle_download_request(self, download):
         self.download_dir.mkdir(parents=True, exist_ok=True)
         suggested_filename = download.suggestedFileName()
         

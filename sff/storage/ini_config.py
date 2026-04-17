@@ -16,10 +16,10 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
-from typing import Callable
 from configupdater import ConfigUpdater
 
 from pathlib import Path
+from typing import Callable
 
 
 def edit_ini_option(

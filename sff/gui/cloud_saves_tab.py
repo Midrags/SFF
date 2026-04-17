@@ -20,7 +20,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 from PyQt6.QtWidgets import (
@@ -85,7 +84,7 @@ class _BackupWorker(QObject):
 
 class CloudSavesTab(QWidget):
 
-    def __init__(self, steam_path: Path, parent=None):
+    def __init__(self, steam_path, parent=None):
         super().__init__(parent)
         self.steam_path = steam_path
         self._manager = CloudSaves()
@@ -235,7 +234,7 @@ class CloudSavesTab(QWidget):
         if path:
             self._import_edit.setText(path)
 
-    def _validate_setup(self) -> Optional[tuple[str, str]]:
+    def _validate_setup(self):
         """Returns (steam_path, steam32_id) or None if validation fails."""
         steam_path = self._steam_path_edit.text().strip()
         if not steam_path or not Path(steam_path).exists():
@@ -264,14 +263,14 @@ class CloudSavesTab(QWidget):
             self._games_table.setItem(i, 1, QTableWidgetItem(game_name))
         self._log.append(f"✓ Found {len(self._games)} game(s) with save data.")
 
-    def _selected_game(self) -> Optional[tuple[int, str]]:
+    def _selected_game(self):
         row = self._games_table.currentRow()
         if row < 0 or row >= len(self._games):
             QMessageBox.warning(self, "No Game Selected", "Please select a game from the list.")
             return None
         return self._games[row]
 
-    def _set_buttons_enabled(self, enabled: bool):
+    def _set_buttons_enabled(self, enabled):
         self._backup_btn.setEnabled(enabled)
         self._restore_btn.setEnabled(enabled)
 
@@ -331,7 +330,7 @@ class CloudSavesTab(QWidget):
         self._worker.finished.connect(self._thread.quit)
         self._thread.start()
 
-    def _on_done(self, succeeded: bool, detail: str):
+    def _on_done(self, succeeded, detail):
         self._set_buttons_enabled(True)
         if succeeded:
             self._log.append(f"\n✓ Done! {detail}")

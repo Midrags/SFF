@@ -40,7 +40,6 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -88,22 +87,22 @@ class GoldbergConfigGenerator:
     depot/DLC/language info.
     """
 
-    def __init__(self, steam_web_api_key: Optional[str] = None):
+    def __init__(self, steam_web_api_key = None):
         self.steam_web_api_key = steam_web_api_key
 
     def generate(
         self,
         app_id: int,
         target_dir: str,
-        language: str = "english",
-        steam_id: str = "76561198001737783",
-        player_name: str = "Player",
-        dlc_list: Optional[dict] = None,
-        cloud_save_paths: Optional[dict] = None,
+        language = "english",
+        steam_id = "76561198001737783",
+        player_name = "Player",
+        dlc_list = None,
+        cloud_save_paths = None,
         log_func=None,
-        avatar_path: Optional[str] = None,
-        simple_mode: bool = False,
-    ) -> bool:
+        avatar_path = None,
+        simple_mode = False,
+    ):
         """
         Generate the full steam_settings/ folder.
 
@@ -171,17 +170,17 @@ class GoldbergConfigGenerator:
             log(f"Error: {e}")
             return False
 
-    def _write_appid(self, app_id: int, target_dir: str, log):
+    def _write_appid(self, app_id, target_dir, log):
         """write steam_appid.txt to the game root"""
         path = Path(target_dir) / "steam_appid.txt"
         path.write_text(str(app_id), encoding="utf-8")
         log("\u2713 Created steam_appid.txt")
 
     def _write_app_config(self, app_id, settings_dir, dlc_list, cloud_save_paths, log,
-                          skip_api: bool = False):
+                          skip_api = False):
         """write configs.app.ini with DLC and cloud save directories"""
         # DLC entries fetched/provided — listed FIRST before unlock_all (GoldbergGUI format)
-        dlc_lines: list[str] = []
+        dlc_lines = []
         if dlc_list:
             for dlc_id, dlc_name in dlc_list.items():
                 dlc_lines.append(f"{dlc_id}={dlc_name}")
@@ -297,7 +296,7 @@ saves_folder_name=GSE Saves
         (settings_dir / "configs.user.ini").write_text(content, encoding="utf-8")
         log("\u2713 Created configs.user.ini")
 
-    def _write_main_config(self, settings_dir, log, enable_avatar: bool = False):
+    def _write_main_config(self, settings_dir, log, enable_avatar = False):
         """write configs.main.ini with full commented template"""
         avatar_val = "1" if enable_avatar else "0"
         content = f"""# ##############################################################################
@@ -389,7 +388,7 @@ download_steamhttp_requests=0
         (settings_dir / "configs.main.ini").write_text(content, encoding="utf-8")
         log("\u2713 Created configs.main.ini")
 
-    def _write_overlay_config(self, settings_dir, log, enable_overlay: bool = True):
+    def _write_overlay_config(self, settings_dir, log, enable_overlay = True):
         """write configs.overlay.ini — full GoldbergGUI template"""
         content = f"""\
 # ################################################################################ #
@@ -553,7 +552,7 @@ Stats_Pos_y=0.0
         (settings_dir / "configs.overlay.ini").write_text(content, encoding="utf-8")
         log("\u2713 Created configs.overlay.ini")
 
-    def _deploy_avatar(self, avatar_path: str, settings_dir: Path, log):
+    def _deploy_avatar(self, avatar_path, settings_dir, log):
         """copy avatar image to steam_settings/account_avatar.{ext}"""
         src = Path(avatar_path)
         if not src.exists():
@@ -573,9 +572,9 @@ Stats_Pos_y=0.0
         player_name: str,
         steam_id: str,
         language: str,
-        avatar_path: Optional[str],
+        avatar_path,
         log,
-    ) -> None:
+    ):
         """Create/update %APPDATA%\\GSE Saves\\settings\\ — global GBE identity applied to all games.
 
         Avatar priority rule: NEVER put avatar in per-game steam_settings.
@@ -718,7 +717,7 @@ Stats_Pos_y=0.0
         except Exception as e:
             log(f"Could not fetch depots: {e}")
 
-    def _fetch_dlcs(self, app_id, log) -> dict:
+    def _fetch_dlcs(self, app_id, log):
         """Fetch DLC list with real names.
 
         Priority:
@@ -739,7 +738,7 @@ Stats_Pos_y=0.0
                 data = resp.json()
 
             data_raw = data.get("data", {}).get(str(app_id), {})
-            dlc_ids: set[int] = set()
+            dlc_ids = set()
 
             # Pass A: extended.listofdlc (same as GBE/GSE Source 1)
             dlc_str = data_raw.get("extended", {}).get("listofdlc", "")

@@ -22,7 +22,6 @@ import sys
 from contextlib import contextmanager
 from tempfile import TemporaryFile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generator, Literal, Optional, Union, overload
 from urllib.parse import urlparse
 
 import httpx
@@ -30,6 +29,7 @@ from tqdm import tqdm  # type: ignore
 
 from sff.prompts import prompt_confirm, prompt_text
 from sff.secret_store import b64_decrypt
+from typing import Literal, Union, overload
 
 if sys.platform == "win32":
     import msvcrt
@@ -43,8 +43,6 @@ else:
         def getch():
             return None
 
-if TYPE_CHECKING:
-    from tempfile import _TemporaryFileWrapper  # pyright: ignore[reportPrivateUsage]
 
 logger = logging.getLogger(__name__)
 
@@ -52,27 +50,27 @@ logger = logging.getLogger(__name__)
 @overload
 async def get_request(
     url: str,
-    type: Literal["text"] = "text",
-    timeout: int = 10,
-    headers: Optional[dict[str, str]] = None,
-) -> Union[str, None]: ...
+    type = "text",
+    timeout = 10,
+    headers = None,
+): ...
 
 
 @overload
 async def get_request(
     url: str,
     type: Literal["json"],
-    timeout: int = 10,
-    headers: Optional[dict[str, str]] = None,
-) -> Union[dict[Any, Any], None]: ...
+    timeout = 10,
+    headers = None,
+): ...
 
 
 async def get_request(
     url: str,
-    type: Literal["text", "json"] = "text",
-    timeout: int = 10,
-    headers: Optional[dict[str, str]] = None,
-) -> Union[str, dict[Any, Any], None]:
+    type = "text",
+    timeout = 10,
+    headers = None,
+):
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             logger.debug(f"Making request to {url}")
@@ -91,7 +89,7 @@ async def get_request(
         logger.debug(f"Request error: {repr(e)}")
 
 
-def get_request_raw(url: str):
+def get_request_raw(url):
     resp = None
     while True:
         try:
@@ -116,13 +114,13 @@ async def _wait_for_enter():
         await asyncio.sleep(0.05)
 
 
-def get_base_domain(url: str):
+def get_base_domain(url):
     parsed_url = urlparse(url)
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
     return base_url
 
 
-def _fetch_gmrc_via_tor(manifest_id: Union[str, int]) -> Union[str, None]:
+def _fetch_gmrc_via_tor(manifest_id):
     # Tries local Tor SOCKS5 (9050/9150) first, then pure-Python torpy.
     # torpy only speaks v2 hidden services; KurO's onion is v3 so that path
     # will fail for now, but the SOCKS path handles v3 fine.
@@ -182,7 +180,7 @@ def _fetch_gmrc_via_tor(manifest_id: Union[str, int]) -> Union[str, None]:
 
 # Lowkey don't remember why i wrote it like this.
 # It uses a default timeout of 10s but i think it still got stuck?
-async def get_gmrc(manifest_id: Union[str, int], silent: bool = False, try_tor: bool = True) -> Union[str, None]:
+async def get_gmrc(manifest_id: Union[str, int], silent: bool = False, try_tor: bool = True):
     # Yes, I'm aware it's not actually "encrypted" since I included the password
     # Shut up.
     template_url = b64_decrypt(
@@ -263,7 +261,7 @@ async def get_gmrc(manifest_id: Union[str, int], silent: bool = False, try_tor: 
     return code or None
 
 
-def get_game_name(app_id: str) -> str:
+def get_game_name(app_id):
     official_info = asyncio.run(
         get_request(
             f"https://store.steampowered.com/api/appdetails/?appids={app_id}",
@@ -285,10 +283,10 @@ def get_game_name(app_id: str) -> str:
 @contextmanager
 def download_to_tempfile(
     url: str,
-    headers: Optional[dict[str, str]] = None,
-    params: Optional[dict[str, str]] = None,
-    chunk_size: int = (1024**2) // 2,
-) -> Generator[Union["_TemporaryFileWrapper[bytes]", None], None, None]:
+    headers = None,
+    params = None,
+    chunk_size = (1024**2) // 2,
+):
     temp_f = TemporaryFile()
     try:
         with httpx.stream(
@@ -329,9 +327,9 @@ def download_to_tempfile(
 def download_to_path(
     url: str,
     path: Path,
-    headers: Optional[dict[str, str]] = None,
-    chunk_size: int = (1024**2) // 2,
-) -> bool:
+    headers = None,
+    chunk_size = (1024**2) // 2,
+):
     try:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)

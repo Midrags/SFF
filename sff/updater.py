@@ -18,7 +18,6 @@
 
 import asyncio
 import re
-from typing import Any, Optional
 import httpx
 import json
 
@@ -28,11 +27,11 @@ from sff.strings import VERSION
 # Hardcoded to ensure updates always fetch from https://github.com/Midrags/SFF/releases
 
 
-def _parse_version(tag: str) -> tuple[int, ...]:
+def _parse_version(tag):
     # Strip leading 'v' if present (e.g. v4.5.0)
     s = tag.strip().lstrip("vV")
     parts = re.split(r"[.\-]", s)
-    out: list[int] = []
+    out = []
     for p in parts:
         try:
             out.append(int(p))
@@ -41,7 +40,7 @@ def _parse_version(tag: str) -> tuple[int, ...]:
     return tuple(out)
 
 
-def is_newer_version(remote_tag: str, current: str) -> bool:
+def is_newer_version(remote_tag, current):
     r = _parse_version(remote_tag)
     c = _parse_version(current)
     # Pad with zeros so (4, 5) compares equal to (4, 5, 0)
@@ -58,7 +57,7 @@ class Updater:
     _HEADERS = {"Accept": "application/vnd.github.v3+json", "User-Agent": "SteaMidra-Updater"}
 
     @staticmethod
-    def get_latest_stable() -> Optional[dict[str, Any]]:
+    def get_latest_stable():
         resp = asyncio.run(
             get_request(
                 Updater._LATEST_URL,
@@ -85,7 +84,7 @@ class Updater:
         return None
 
     @staticmethod
-    def get_latest_prerelease() -> Optional[dict[str, Any]]:
+    def get_latest_prerelease():
         url = Updater._RELEASES_URL
         while True:
             resp = httpx.get(url, headers=Updater._HEADERS)
@@ -101,7 +100,7 @@ class Updater:
         return None
 
     @staticmethod
-    def update_available() -> tuple[bool, Optional[dict[str, Any]]]:
+    def update_available():
         release = Updater.get_latest_stable()
         if not release:
             return False, None

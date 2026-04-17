@@ -23,7 +23,6 @@ import sys
 import time
 import traceback
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
 
 from colorama import Fore, Style
 from colorama import init as color_init
@@ -61,7 +60,7 @@ def dump_crash():
     print(Style.RESET_ALL, end="")
 
 
-def main(ui: UI, args: argparse.Namespace) -> MainReturnCode:
+def main(ui, args: argparse.Namespace):
 
     logger.debug(f"Root folder is {root_folder()}")
 
@@ -111,7 +110,7 @@ def main(ui: UI, args: argparse.Namespace) -> MainReturnCode:
     if args.file and first_launch:
         menu_choice = MainMenu.MANAGE_LUA
     else:
-        menu_choice: MainMenu = prompt_select(
+        menu_choice = prompt_select(
             "Choose:", list(MainMenu), exclude=exclude
         )
 
@@ -159,7 +158,7 @@ def main(ui: UI, args: argparse.Namespace) -> MainReturnCode:
         return ui.update_all_manifests()
 
     if TYPE_CHECKING:  # Exhaustive match: ensures all MainMenu values are handled
-        _x: Literal[MainMenu.MANAGE_LUA] = menu_choice  # noqa: F841
+        _x = menu_choice  # noqa: F841
 
     if args.file:
         path = Path(args.file)

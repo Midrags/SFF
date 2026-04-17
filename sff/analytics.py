@@ -24,7 +24,6 @@ import time
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from sff.utils import root_folder
 
@@ -37,19 +36,19 @@ ANALYTICS_FILE = root_folder(outside_internal=True) / "analytics.json"
 class OperationRecord:
     timestamp: float
     operation_type: str
-    app_id: Optional[int] = None
+    app_id: str = None
     success: bool = True
     duration: float = 0.0
-    error_message: Optional[str] = None
+    error_message: str = None
 
 
 @dataclass
 class AnalyticsData:
-    operations: List[OperationRecord] = field(default_factory=list)
-    total_downloads: int = 0
-    total_successes: int = 0
-    total_failures: int = 0
-    feature_usage: Dict[str, int] = field(default_factory=dict)
+    operations: list = field(default_factory=list)
+    total_downloads = 0
+    total_successes = 0
+    total_failures = 0
+    feature_usage: dict = field(default_factory=dict)
 
 
 class AnalyticsTracker:
@@ -58,7 +57,7 @@ class AnalyticsTracker:
         self.data = AnalyticsData()
         self.load()
     
-    def load(self) -> None:
+    def load(self):
         try:
             if ANALYTICS_FILE.exists():
                 with ANALYTICS_FILE.open("r", encoding="utf-8") as f:
@@ -77,7 +76,7 @@ class AnalyticsTracker:
             logger.error(f"Failed to load analytics: {e}", exc_info=True)
             self.data = AnalyticsData()
     
-    def save(self) -> None:
+    def save(self):
         try:
             raw_data = {
                 "operations": [
@@ -107,11 +106,11 @@ class AnalyticsTracker:
     def record_operation(
         self,
         operation_type: str,
-        app_id: Optional[int] = None,
-        success: bool = True,
-        duration: float = 0.0,
-        error_message: Optional[str] = None
-    ) -> None:
+        app_id = None,
+        success = True,
+        duration = 0.0,
+        error_message = None
+    ):
         record = OperationRecord(
             timestamp=time.time(),
             operation_type=operation_type,
@@ -134,7 +133,7 @@ class AnalyticsTracker:
         self.save()
         logger.info(f"Recorded operation: {operation_type} (success={success})")
     
-    def record_feature_usage(self, feature_name: str) -> None:
+    def record_feature_usage(self, feature_name):
         if feature_name not in self.data.feature_usage:
             self.data.feature_usage[feature_name] = 0
         
@@ -142,7 +141,7 @@ class AnalyticsTracker:
         self.save()
         logger.debug(f"Recorded feature usage: {feature_name}")
     
-    def get_most_downloaded_games(self, limit: int = 10) -> List[tuple]:
+    def get_most_downloaded_games(self, limit = 10):
         app_ids = [
             op.app_id for op in self.data.operations
             if op.app_id is not None and op.operation_type == "download"
@@ -151,13 +150,13 @@ class AnalyticsTracker:
         counter = Counter(app_ids)
         return counter.most_common(limit)
     
-    def get_success_rate(self) -> float:
+    def get_success_rate(self):
         total = self.data.total_successes + self.data.total_failures
         if total == 0:
             return 0.0
         return (self.data.total_successes / total) * 100
     
-    def get_average_duration(self, operation_type: Optional[str] = None) -> float:
+    def get_average_duration(self, operation_type = None):
         operations = self.data.operations
         if operation_type:
             operations = [op for op in operations if op.operation_type == operation_type]
@@ -168,10 +167,10 @@ class AnalyticsTracker:
         total_duration = sum(op.duration for op in operations)
         return total_duration / len(operations)
     
-    def get_feature_usage_stats(self) -> Dict[str, int]:
+    def get_feature_usage_stats(self):
         return dict(self.data.feature_usage)
     
-    def export_to_json(self, output_path: Path) -> bool:
+    def export_to_json(self, output_path):
         try:
             export_data = {
                 "summary": {
@@ -209,7 +208,7 @@ class AnalyticsTracker:
             logger.error(f"Failed to export analytics: {e}", exc_info=True)
             return False
     
-    def generate_dashboard_text(self) -> str:
+    def generate_dashboard_text(self):
         lines = []
         lines.append("=" * 80)
         lines.append("SteaMidra Analytics Dashboard")
@@ -239,10 +238,10 @@ class AnalyticsTracker:
 
 
 # Global analytics tracker instance
-_analytics_tracker: Optional[AnalyticsTracker] = None
+_analytics_tracker = None
 
 
-def get_analytics_tracker() -> AnalyticsTracker:
+def get_analytics_tracker():
     global _analytics_tracker
     if _analytics_tracker is None:
         _analytics_tracker = AnalyticsTracker()

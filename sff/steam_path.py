@@ -20,7 +20,6 @@ import logging
 import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Callable, Optional
 
 from colorama import Fore, Style
 
@@ -36,18 +35,18 @@ else:
 logger = logging.getLogger(__name__)
 
 
-def validate_steam_path(path: Optional[Path]) -> bool:
+def validate_steam_path(path):
     return path is not None and (path / "steamapps").exists()
 
 
 class PathFinderStrategy(ABC):
     @abstractmethod
-    def find(self) -> Optional[Path]:
+    def find(self):
         pass
 
 
 class RegistryFinder(PathFinderStrategy):
-    def find(self) -> Optional[Path]:
+    def find(self):
         path = find_steam_path_from_registry()
 
         if validate_steam_path(path):
@@ -56,17 +55,17 @@ class RegistryFinder(PathFinderStrategy):
 
 
 class LinuxFinder(PathFinderStrategy):
-    def find(self) -> Optional[Path]:
+    def find(self):
         steam_dir = (Path.home() / ".steam/root").resolve()
         if steam_dir.exists():
             return steam_dir
 
 
 class UserInputFinder(PathFinderStrategy):
-    def __init__(self, validator: Callable[[Path], bool]):
+    def __init__(self, validator):
         self.validator = validator
 
-    def find(self) -> Path:
+    def find(self):
         print("Couldn't find your Steam path.")
         return prompt_dir(
             msg="Paste the path here (The folder that has steam.exe)",
@@ -77,10 +76,10 @@ class UserInputFinder(PathFinderStrategy):
 
 class SettingsFinder(PathFinderStrategy):
     def __init__(self):
-        self.raw_path: Optional[str] = None
+        self.raw_path = None
         "populated after find() is ran"
 
-    def find(self) -> Optional[Path]:
+    def find(self):
         self.raw_path = get_setting(Settings.STEAM_PATH)
         if self.raw_path is not None:
             path = Path(self.raw_path)
@@ -89,10 +88,10 @@ class SettingsFinder(PathFinderStrategy):
 
 
 class SteamPathService:
-    def __init__(self, finders: list[PathFinderStrategy]):
+    def __init__(self, finders):
         self.finders = finders
 
-    def get_path(self) -> Path:
+    def get_path(self):
         for finder in self.finders:
             path = finder.find()
             if path:
@@ -101,20 +100,20 @@ class SteamPathService:
 
         raise FileNotFoundError("Steam path could not be resolved.")
 
-    def _log_success(self, path: Path):
+    def _log_success(self, path):
         colorized = Fore.YELLOW + str(path.resolve()) + Style.RESET_ALL
         print(f"Your Steam path is {colorized}")
 
 
-def init_steam_path(os_type: OSType):
+def init_steam_path(os_type):
     settings_strat = SettingsFinder()
-    os_specific_finder: list[PathFinderStrategy] = []
+    os_specific_finder = []
     if os_type == OSType.WINDOWS:
         os_specific_finder.append(RegistryFinder())
     elif os_type == OSType.LINUX:
         os_specific_finder.append(LinuxFinder())
 
-    strategies: list[PathFinderStrategy] = [
+    strategies = [
         settings_strat,
         *os_specific_finder,
         UserInputFinder(validator=validate_steam_path),

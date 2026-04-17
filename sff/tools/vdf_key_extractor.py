@@ -30,7 +30,6 @@ import re
 import logging
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,7 @@ class ExtractionResult:
     keys: list = field(default_factory=list)
     new_keys: list = field(default_factory=list)  # keys not in existing file
     errors: list = field(default_factory=list)
-    source_path: str = ""
+    source_path = ""
 
 
 class VdfKeyExtractor:
@@ -88,7 +87,7 @@ class VdfKeyExtractor:
     """
 
     @staticmethod
-    def get_default_steam_config_path() -> Optional[str]:
+    def get_default_steam_config_path():
         """get the default config.vdf path from Steam's install dir"""
         candidates = [
             r"C:\Program Files (x86)\Steam\config\config.vdf",
@@ -119,7 +118,7 @@ class VdfKeyExtractor:
         return None
 
     @staticmethod
-    def validate_depot_key(key: str) -> bool:
+    def validate_depot_key(key):
         """check if a key is valid (64 hex characters)"""
         if not key or len(key) != 64:
             return False
@@ -131,9 +130,9 @@ class VdfKeyExtractor:
 
     def extract_keys(
         self,
-        vdf_path: Optional[str] = None,
-        existing_keys_path: Optional[str] = None,
-    ) -> ExtractionResult:
+        vdf_path = None,
+        existing_keys_path = None,
+    ):
         """
         Extract depot keys from config.vdf.
         
@@ -189,7 +188,7 @@ class VdfKeyExtractor:
 
         return result
 
-    def _load_existing_keys(self, path: str) -> set[DepotKey]:
+    def _load_existing_keys(self, path):
         """load keys from an existing keys file (depot_id;key format)"""
         keys = set()
         try:
@@ -204,11 +203,11 @@ class VdfKeyExtractor:
         return keys
 
     @staticmethod
-    def format_keys_as_text(keys: list[DepotKey]) -> str:
+    def format_keys_as_text(keys):
         """format keys as "depot_id;key" lines"""
         return "\n".join(str(k) for k in keys)
 
-    def save_keys(self, keys: list[DepotKey], output_path: str):
+    def save_keys(self, keys, output_path):
         """save keys to a file"""
         Path(output_path).write_text(
             self.format_keys_as_text(keys), encoding="utf-8"

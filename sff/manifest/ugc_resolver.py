@@ -20,7 +20,7 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, List, Optional, Union
+from typing import Union
 
 import gevent
 from steam.client import SteamClient  # type: ignore
@@ -55,11 +55,11 @@ WorkshopContent = Union[HContentFile, DirectDownloadUrl]
 class IUgcIdStrategy(ABC):
     @property
     @abstractmethod
-    def name(self) -> str:
+    def name(self):
         pass
 
     @abstractmethod
-    def get_content(self, ctx: WorkshopItemContext) -> Optional[WorkshopContent]:
+    def get_content(self, ctx):
         pass
 
 
@@ -69,8 +69,8 @@ class StandardUgcIdStrategy(IUgcIdStrategy):
     def name(self):
         return "Standard"
 
-    def _send_request(self, client: SteamClient, workshop_id: int):
-        resp: Any = (  # pyright: ignore[reportUnknownVariableType]
+    def _send_request(self, client, workshop_id):
+        resp = (  # pyright: ignore[reportUnknownVariableType]
             client.send_um_and_wait(  # pyright: ignore[reportUnknownMemberType]
                 "PublishedFile.GetDetails#1",
                 {
@@ -103,7 +103,7 @@ class StandardUgcIdStrategy(IUgcIdStrategy):
 
     _MAX_UGC_RETRIES = 3
 
-    def _get_workshop_items_details(self, ctx: WorkshopItemContext):
+    def _get_workshop_items_details(self, ctx):
         if not ctx.client.logged_on:
             print("Logging in anonymously...", end="", flush=True)
             ctx.client.anonymous_login()
@@ -132,35 +132,35 @@ class StandardUgcIdStrategy(IUgcIdStrategy):
             raise last_error
         raise RuntimeError("Unexpected: no response and no error")
 
-    def _content_from_details(self, details: Any) -> Optional[WorkshopContent]:
+    def _content_from_details(self, details):
         if not details:
             return None
         if details.file_url:
             return DirectDownloadUrl(details.file_url)
         return HContentFile(details.hcontent_file)
 
-    def get_content(self, ctx: WorkshopItemContext) -> Optional[WorkshopContent]:
+    def get_content(self, ctx):
         details = self._get_workshop_items_details(ctx)
         return self._content_from_details(details)
 
     def get_content_and_details(
         self, ctx: WorkshopItemContext
-    ) -> tuple[Optional[WorkshopContent], Optional[Any]]:
+    ):
         details = self._get_workshop_items_details(ctx)
         return self._content_from_details(details), details
 
 
 class UgcIDResolver:
-    def __init__(self, strategies: List[IUgcIdStrategy]):
+    def __init__(self, strategies):
         self.strategies = strategies
 
-    def resolve(self, ctx: WorkshopItemContext) -> tuple[WorkshopContent, str]:
+    def resolve(self, ctx):
         content, _method, _details = self.resolve_with_details(ctx)
         return content, _method
 
     def resolve_with_details(
         self, ctx: WorkshopItemContext
-    ) -> tuple[WorkshopContent, str, Optional[Any]]:
+    ):
         for strategy in self.strategies:
             if isinstance(strategy, StandardUgcIdStrategy):
                 content, details = strategy.get_content_and_details(ctx)
@@ -173,7 +173,7 @@ class UgcIDResolver:
         raise Exception(f"Unable to resolve manifest for depot {ctx.workshop_id}")
 
 
-def get_workshop_time_updated(ctx: WorkshopItemContext) -> Optional[int]:
+def get_workshop_time_updated(ctx):
     strategy = StandardUgcIdStrategy()
     try:
         details = strategy._get_workshop_items_details(ctx)

@@ -22,7 +22,6 @@ import hashlib
 import logging
 import struct
 from pathlib import Path
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ MANIFEST_MAGIC = b'\x27\x44\x56\x01'  # Steam depot manifest signature
 class IntegrityVerifier:
     
     @staticmethod
-    def verify_file_size(file_path: Path, expected_size: Optional[int] = None) -> bool:
+    def verify_file_size(file_path, expected_size = None):
         if expected_size is None:
             return True
         
@@ -51,7 +50,7 @@ class IntegrityVerifier:
             return False
     
     @staticmethod
-    def verify_manifest_magic(file_path: Path) -> bool:
+    def verify_manifest_magic(file_path):
         try:
             with file_path.open("rb") as f:
                 magic = f.read(4)
@@ -67,7 +66,7 @@ class IntegrityVerifier:
             return False
     
     @staticmethod
-    def compute_checksum(file_path: Path, algorithm: str = "sha256") -> Optional[str]:
+    def compute_checksum(file_path, algorithm = "sha256"):
         try:
             hash_obj = hashlib.new(algorithm)
             with file_path.open("rb") as f:
@@ -82,8 +81,8 @@ class IntegrityVerifier:
     def verify_checksum(
         file_path: Path,
         expected_checksum: str,
-        algorithm: str = "sha256"
-    ) -> bool:
+        algorithm = "sha256"
+    ):
         actual_checksum = IntegrityVerifier.compute_checksum(file_path, algorithm)
         if actual_checksum is None:
             return False
@@ -98,7 +97,7 @@ class IntegrityVerifier:
         return True
     
     @staticmethod
-    def verify_manifest_parseable(file_path: Path) -> bool:
+    def verify_manifest_parseable(file_path):
         try:
             with file_path.open("rb") as f:
                 magic = f.read(4)
@@ -119,9 +118,9 @@ class IntegrityVerifier:
     @staticmethod
     def verify_manifest_full(
         file_path: Path,
-        expected_size: Optional[int] = None,
-        expected_checksum: Optional[str] = None
-    ) -> Tuple[bool, str]:
+        expected_size = None,
+        expected_checksum = None
+    ):
         if not file_path.exists():
             return False, f"File not found: {file_path}"
         
@@ -143,7 +142,7 @@ class IntegrityVerifier:
         return True, "Verification successful"
     
     @staticmethod
-    def handle_verification_failure(file_path: Path, delete: bool = True) -> None:
+    def handle_verification_failure(file_path, delete = True):
         if delete:
             try:
                 file_path.unlink(missing_ok=True)

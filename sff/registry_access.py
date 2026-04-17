@@ -19,7 +19,6 @@
 import sys
 import winreg
 from pathlib import Path
-from typing import Optional
 
 from colorama import Fore, Style
 
@@ -45,7 +44,7 @@ def find_steam_path_from_registry():
         return None
 
 
-def key_exists(hive: int, key_path: str):
+def key_exists(hive, key_path):
     try:
         key = winreg.OpenKey(hive, key_path, 0, winreg.KEY_READ)
         winreg.CloseKey(key)
@@ -78,7 +77,7 @@ def get_greenluma_key():
     return selected_version
 
 
-def read_subkey(hive: int, key_path: str, sub_key_name: str):
+def read_subkey(hive, key_path, sub_key_name):
     try:
         with winreg.OpenKey(hive, key_path) as key:
             return winreg.QueryValueEx(key, sub_key_name)[0]
@@ -86,12 +85,12 @@ def read_subkey(hive: int, key_path: str, sub_key_name: str):
         return
 
 
-def set_stats_and_achievements(app_id: int):
+def set_stats_and_achievements(app_id):
     if (selected_version := get_setting(Settings.GL_VERSION)) is None:
         selected_version = get_greenluma_key()
         set_setting(Settings.GL_VERSION, selected_version)
 
-    curr: Optional[int] = read_subkey(
+    curr = read_subkey(
         winreg.HKEY_CURRENT_USER,
         rf"SOFTWARE\{selected_version}\AppID\{app_id}",
         "SkipStatsAndAchievements",

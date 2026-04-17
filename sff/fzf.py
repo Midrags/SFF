@@ -19,13 +19,12 @@
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Union
 
 from sff.structs import OSType
 from sff.utils import root_folder
 
 
-def run_fzf(choices: Union[list[str], Path], os_type: OSType):
+def run_fzf(choices, os_type):
     if isinstance(choices, list):
         choices_str = "\n".join(choices)
     else:

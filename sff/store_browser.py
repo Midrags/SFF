@@ -21,7 +21,6 @@
 import time
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
 
 import httpx
 
@@ -51,7 +50,7 @@ class LibraryPage:
     limit: int = 100
 
     @property
-    def total_pages(self) -> int:
+    def total_pages(self):
         if self.limit <= 0:
             return 1
         return max(1, (self.total + self.limit - 1) // self.limit)
@@ -62,19 +61,19 @@ class GameStatus:
     app_id: int
     status: str = "unknown"
     message: str = ""
-    _cached_at: float = 0.0
+    _cached_at = 0.0
 
 
 class StoreApiClient:
     """Morrenus manifest API. Needs a Bearer token (smm_ key)."""
 
-    def __init__(self, api_key: str, timeout: float = 30.0):
+    def __init__(self, api_key, timeout = 30.0):
         self.api_key = api_key
         self.timeout = timeout
         self._status_cache: dict[int, GameStatus] = {}
         self._client: Optional[httpx.Client] = None
 
-    def _get_client(self) -> httpx.Client:
+    def _get_client(self):
         # lazy-init so we reuse connections
         if self._client is None or self._client.is_closed:
             self._client = httpx.Client(
@@ -94,10 +93,10 @@ class StoreApiClient:
     # --- validation ---
 
     @staticmethod
-    def validate_api_key(api_key: str) -> bool:
+    def validate_api_key(api_key):
         return bool(api_key and api_key.strip().startswith("smm") and len(api_key.strip()) > 10)
 
-    def test_api_key(self) -> bool:
+    def test_api_key(self):
         try:
             resp = self._get_client().get("/user/stats")
             return resp.status_code == 200
@@ -109,11 +108,11 @@ class StoreApiClient:
 
     def get_library(
         self,
-        limit: int = 100,
-        offset: int = 0,
-        search: Optional[str] = None,
-        sort_by: str = "updated",
-    ) -> LibraryPage:
+        limit = 100,
+        offset = 0,
+        search = None,
+        sort_by = "updated",
+    ):
         params = {
             "limit": limit,
             "offset": offset,
@@ -154,9 +153,9 @@ class StoreApiClient:
     def search_library(
         self,
         query: str,
-        limit: int = 50,
-        search_by_appid: bool = False,
-    ) -> list[GameInfo]:
+        limit = 50,
+        search_by_appid = False,
+    ):
         params = {
             "q": query,
             "limit": limit,
@@ -187,7 +186,7 @@ class StoreApiClient:
             logger.error("Search failed: %s", e)
             return []
 
-    def get_all_games(self) -> list[GameInfo]:
+    def get_all_games(self):
         try:
             resp = self._get_client().get("/games")
             resp.raise_for_status()
@@ -206,7 +205,7 @@ class StoreApiClient:
 
     # --- game status ---
 
-    def get_game_status(self, app_id: int, force_refresh: bool = False) -> GameStatus:
+    def get_game_status(self, app_id, force_refresh = False):
         # cached for 5 min
         cached = self._status_cache.get(app_id)
         if cached and not force_refresh:
@@ -232,7 +231,7 @@ class StoreApiClient:
 
     # --- downloads ---
 
-    def get_manifest(self, app_id: int) -> Optional[bytes]:
+    def get_manifest(self, app_id):
         try:
             resp = self._get_client().get(f"/manifest/{app_id}")
             resp.raise_for_status()
@@ -241,7 +240,7 @@ class StoreApiClient:
             logger.error("Failed to download manifest for %d: %s", app_id, e)
             return None
 
-    def get_lua_content(self, app_id: int) -> Optional[str]:
+    def get_lua_content(self, app_id):
         try:
             resp = self._get_client().get(f"/lua/{app_id}")
             resp.raise_for_status()
@@ -250,7 +249,7 @@ class StoreApiClient:
             logger.error("Failed to get lua for %d: %s", app_id, e)
             return None
 
-    def get_workshop_manifest(self, workshop_id: int) -> Optional[bytes]:
+    def get_workshop_manifest(self, workshop_id):
         try:
             resp = self._get_client().get(f"/generate/workshopmanifest/{workshop_id}")
             resp.raise_for_status()
@@ -261,7 +260,7 @@ class StoreApiClient:
 
     # --- depot helpers ---
 
-    def get_game_depots(self, app_id: int) -> list[int]:
+    def get_game_depots(self, app_id):
         """Return depot IDs for a game using the Morrenus generate/manifest list endpoint."""
         try:
             resp = self._get_client().get(f"/generate/manifest/{app_id}")
@@ -278,7 +277,7 @@ class StoreApiClient:
 
     # --- user info ---
 
-    def get_user_stats(self) -> Optional[dict]:
+    def get_user_stats(self):
         try:
             resp = self._get_client().get("/user/stats")
             resp.raise_for_status()

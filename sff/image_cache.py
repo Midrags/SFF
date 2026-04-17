@@ -29,7 +29,6 @@ import logging
 import hashlib
 from pathlib import Path
 from collections import OrderedDict
-from typing import Optional
 
 import httpx
 
@@ -44,7 +43,7 @@ CACHE_DIR_NAME = "image_cache"
 TARGET_WIDTH = 280  # pixel width for thumbnails
 
 
-def _get_cache_dir() -> Path:
+def _get_cache_dir():
     """get the image cache directory, creating it if needed"""
     base = Path(os.environ.get("APPDATA", os.path.expanduser("~")))
     cache_dir = base / "SteaMidra" / CACHE_DIR_NAME
@@ -60,7 +59,7 @@ class ImageCache:
     Evicts oldest entries when cache exceeds MAX_CACHE_SIZE items.
     """
 
-    def __init__(self, max_size: int = MAX_CACHE_SIZE):
+    def __init__(self, max_size = MAX_CACHE_SIZE):
         self.max_size = max_size
         self.cache_dir = _get_cache_dir()
         # track access order for LRU eviction
@@ -94,7 +93,7 @@ class ImageCache:
             except OSError:
                 pass
 
-    def get_path(self, app_id: int) -> Optional[Path]:
+    def get_path(self, app_id):
         """
         Get the cached image path for an app.
         Returns None if not cached.
@@ -107,11 +106,11 @@ class ImageCache:
             return cache_path
         return None
 
-    def has(self, app_id: int) -> bool:
+    def has(self, app_id):
         """check if an image is cached"""
         return (self.cache_dir / f"{app_id}.jpg").exists()
 
-    def download(self, app_id: int, force: bool = False) -> Optional[Path]:
+    def download(self, app_id, force = False):
         """
         Download and cache a game header image.
         
@@ -142,7 +141,7 @@ class ImageCache:
             logger.warning("Failed to download image for app %d: %s", app_id, e)
             return None
 
-    def download_batch(self, app_ids: list[int], max_concurrent: int = 5) -> dict[int, Optional[Path]]:
+    def download_batch(self, app_ids, max_concurrent = 5):
         """
         Download multiple images, skipping already-cached ones.
         Returns a dict of app_id -> path (or None on failure).
@@ -174,12 +173,12 @@ class ImageCache:
             logger.error("Failed to clear image cache: %s", e)
 
     @property
-    def size(self) -> int:
+    def size(self):
         """number of cached images"""
         return len(self._access_order)
 
     @property
-    def disk_usage(self) -> int:
+    def disk_usage(self):
         """total bytes used by cached images"""
         total = 0
         try:

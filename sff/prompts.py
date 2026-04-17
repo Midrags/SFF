@@ -16,32 +16,25 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
-from __future__ import annotations
 
 import gc
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional
-
-if TYPE_CHECKING:
-    from InquirerPy.base import BaseComplexPrompt, BaseListPrompt
-    from InquirerPy.base.control import Choice
-    from InquirerPy.prompts.input import InputPrompt
-    from InquirerPy.utils import InquirerPyValidate
-
-_gui_backend: Any = None
 
 
-def set_gui_backend(backend: Any) -> None:
+_gui_backend = None
+
+
+def set_gui_backend(backend):
     global _gui_backend
     _gui_backend = backend
 
 
-def convert_to_path(x: str):
+def convert_to_path(x):
     return Path(x.strip("\"' "))
 
 
-def _clean_prompt(prompt: Any) -> None:
+def _clean_prompt(prompt):
     """Dark voodoo I cooked that actually works??? `prompt_select` leaks way less now"""
     from InquirerPy.base import BaseComplexPrompt, BaseListPrompt
     from InquirerPy.prompts.input import InputPrompt
@@ -58,12 +51,12 @@ def _clean_prompt(prompt: Any) -> None:
 
 def prompt_select(
     msg: str,
-    choices: list[Any],
-    default: Optional[Any] = None,
-    fuzzy: bool = False,
-    cancellable: bool = False,
-    exclude: Optional[list[Any]] = None,
-    **kwargs: Any,
+    choices,
+    default = None,
+    fuzzy = False,
+    cancellable = False,
+    exclude = None,
+    **kwargs,
 ):
     if _gui_backend:
         return _gui_backend.prompt_select(
@@ -73,7 +66,7 @@ def prompt_select(
     from InquirerPy import inquirer
     from InquirerPy.base.control import Choice
 
-    new_choices: list[Choice] = []
+    new_choices = []
     for c in choices:
         if isinstance(c, Enum):
             if exclude and c in exclude:
@@ -103,12 +96,12 @@ def prompt_select(
 
 def prompt_dir(
     msg: str,
-    custom_check: Optional[Callable[[Path], bool]] = None,
-    custom_msg: Optional[str] = None,
-) -> Path:
+    custom_check = None,
+    custom_msg = None,
+):
     if _gui_backend:
         return _gui_backend.prompt_dir(msg, custom_check=custom_check, custom_msg=custom_msg)
-    def validator(raw_input: str) -> bool:
+    def validator(raw_input):
         path = convert_to_path(raw_input)
 
         if not (path.exists() and path.is_dir()):
@@ -126,10 +119,10 @@ def prompt_dir(
     )
 
 
-def prompt_file(msg: str, allow_blank: bool = False) -> Path:
+def prompt_file(msg, allow_blank = False):
     if _gui_backend:
         return _gui_backend.prompt_file(msg, allow_blank=allow_blank)
-    is_file: Callable[[str], bool] = lambda x: (
+    is_file = lambda x: (
         convert_to_path(x).exists() and convert_to_path(x).is_file()
     ) or (True if allow_blank and x == "" else False)
     return prompt_text(
@@ -142,11 +135,11 @@ def prompt_file(msg: str, allow_blank: bool = False) -> Path:
 
 def prompt_text(
     msg: str,
-    validator: Optional["InquirerPyValidate"] = None,
-    invalid_msg: str = "Invalid input",
-    instruction: str = "",
-    long_instruction: str = "",
-    filter: Optional[Callable[[str], Any]] = None,
+    validator = None,
+    invalid_msg = "Invalid input",
+    instruction = "",
+    long_instruction = "",
+    filter = None,
 ):
     if _gui_backend:
         return _gui_backend.prompt_text(
@@ -171,10 +164,10 @@ def prompt_text(
 
 def prompt_secret(
     msg: str,
-    validator: Optional["InquirerPyValidate"] = None,
-    invalid_msg: str = "Invalid input",
-    instruction: str = "",
-    long_instruction: str = "",
+    validator = None,
+    invalid_msg = "Invalid input",
+    instruction = "",
+    long_instruction = "",
 ):
     if _gui_backend:
         return _gui_backend.prompt_secret(
@@ -198,10 +191,10 @@ def prompt_secret(
 
 def prompt_confirm(
     msg: str,
-    true_msg: Optional[str] = None,
-    false_msg: Optional[str] = None,
-    default: bool = True,
-) -> bool:
+    true_msg = None,
+    false_msg = None,
+    default = True,
+):
     if _gui_backend:
         return _gui_backend.prompt_confirm(
             msg, true_msg=true_msg, false_msg=false_msg, default=default,

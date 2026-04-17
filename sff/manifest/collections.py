@@ -19,7 +19,6 @@
 """Steam Workshop collection fetching via Web API."""
 
 import logging
-from typing import Optional
 
 import httpx
 
@@ -33,8 +32,8 @@ GET_COLLECTION_DETAILS_URL = (
 def get_collection_children(
     collection_id: int,
     api_key: str,
-    timeout: float = 15.0,
-) -> list[int]:
+    timeout = 15.0,
+):
     if not api_key:
         logger.warning("No Steam Web API key provided for GetCollectionDetails")
         return []

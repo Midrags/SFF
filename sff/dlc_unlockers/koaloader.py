@@ -22,7 +22,6 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from typing import Optional
 
 from sff.dlc_unlockers.base import UnlockerBase, UnlockerType, Platform
 
@@ -50,18 +49,18 @@ class KoaloaderUnlocker(UnlockerBase):
     # Example: winmm-64/winmm.dll
     
     @property
-    def unlocker_type(self) -> UnlockerType:
+    def unlocker_type(self):
         return UnlockerType.KOALOADER
 
     @property
-    def supported_platforms(self) -> list[Platform]:
+    def supported_platforms(self):
         return [Platform.STEAM]
 
     @property
-    def display_name(self) -> str:
+    def display_name(self):
         return "Koaloader"
     
-    def is_installed(self, game_dir: Path) -> bool:
+    def is_installed(self, game_dir):
         has_config = (game_dir / self.CONFIG_FILENAME).exists()
         
         has_proxy_backup = any(
@@ -71,7 +70,7 @@ class KoaloaderUnlocker(UnlockerBase):
         
         return has_config and has_proxy_backup
     
-    def _select_proxy_dll(self, game_dir: Path, koaloader_dir: Optional[Path] = None, arch: Optional[str] = None) -> Optional[str]:
+    def _select_proxy_dll(self, game_dir, koaloader_dir = None, arch = None):
         existing_proxies = [
             proxy for proxy in self.PROXY_OPTIONS
             if (game_dir / proxy).exists()
@@ -109,10 +108,10 @@ class KoaloaderUnlocker(UnlockerBase):
         logger.warning("No preferred proxy found, using first in list")
         return self.PROXY_OPTIONS[0] if self.PROXY_OPTIONS else None
     
-    def install(self, game_dir: Path, dlc_ids: list[int], app_id: int,
-                koaloader_dir: Optional[Path] = None,
-                smokeapi_dir: Optional[Path] = None,
-                proxy_dll: Optional[str] = None) -> bool:
+    def install(self, game_dir, dlc_ids, app_id,
+                koaloader_dir = None,
+                smokeapi_dir = None,
+                proxy_dll = None):
         try:
             steam_api_64 = game_dir / "steam_api64.dll"
             steam_api_32 = game_dir / "steam_api.dll"
@@ -233,7 +232,7 @@ class KoaloaderUnlocker(UnlockerBase):
             logger.error(f"Unexpected error during installation: {e}")
             return False
     
-    def uninstall(self, game_dir: Path) -> bool:
+    def uninstall(self, game_dir):
         try:
             config_path = game_dir / self.CONFIG_FILENAME
             if config_path.exists():
@@ -277,7 +276,7 @@ class KoaloaderUnlocker(UnlockerBase):
             logger.error(f"Unexpected error during uninstallation: {e}")
             return False
     
-    def generate_config(self, dlc_ids: list[int], app_id: int) -> dict:
+    def generate_config(self, dlc_ids, app_id):
         return {
             "logging": False,
             "enabled": True,

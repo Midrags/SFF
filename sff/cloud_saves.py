@@ -31,15 +31,14 @@ import json
 import time
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 # module-level cache for all_games.txt — parsed once per session
-_ALL_GAMES_CACHE: Optional[dict] = None
+_ALL_GAMES_CACHE = None
 
 
-def _load_all_games_cache() -> dict:
+def _load_all_games_cache():
     """Parse all_games.txt into {app_id: name}. Returns cached dict after first call."""
     global _ALL_GAMES_CACHE
     if _ALL_GAMES_CACHE is not None:
@@ -99,9 +98,9 @@ class SaveInfo:
     app_id: int
     game_name: str
     save_path: str
-    file_count: int = 0
-    total_size: int = 0
-    last_modified: float = 0.0
+    file_count = 0
+    total_size = 0
+    last_modified = 0.0
 
 
 @dataclass
@@ -114,15 +113,15 @@ class BackupInfo:
     file_count: int = 0
     total_size: int = 0
 
-    def to_dict(self) -> dict:
+    def to_dict(self):
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "BackupInfo":
+    def from_dict(cls, d):
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
-def _get_backup_dir() -> Path:
+def _get_backup_dir():
     """get the save backup root directory"""
     base = Path(os.environ.get("APPDATA", os.path.expanduser("~")))
     backup_dir = base / "SteaMidra" / "save_backups"
@@ -151,7 +150,7 @@ class CloudSaves:
     def __init__(self):
         self.backup_dir = _get_backup_dir()
 
-    def detect_saves(self, app_id: int, game_name: str = "") -> list[SaveInfo]:
+    def detect_saves(self, app_id, game_name = ""):
         """
         Try to detect save files for a game.
         
@@ -190,7 +189,7 @@ class CloudSaves:
 
         return results
 
-    def _scan_save_dir(self, path: Path, app_id: int, game_name: str) -> Optional[SaveInfo]:
+    def _scan_save_dir(self, path, app_id, game_name):
         """scan a directory for save files"""
         try:
             file_count = 0
@@ -219,7 +218,7 @@ class CloudSaves:
             logger.warning("Failed to scan %s: %s", path, e)
             return None
 
-    def backup(self, app_id: int, save_path: str, game_name: str = "", log_func=None) -> Optional[BackupInfo]:
+    def backup(self, app_id, save_path, game_name = "", log_func=None):
         """
         Create a timestamped backup of save files.
         
@@ -279,7 +278,7 @@ class CloudSaves:
             log(f"Backup failed: {e}")
             return None
 
-    def restore(self, app_id: int, backup_path: str, save_path: str, log_func=None) -> bool:
+    def restore(self, app_id, backup_path, save_path, log_func=None):
         """
         Restore save files from a backup.
         
@@ -324,7 +323,7 @@ class CloudSaves:
             log(f"Restore failed: {e}")
             return False
 
-    def get_backups(self, app_id: int) -> list[BackupInfo]:
+    def get_backups(self, app_id):
         """get all backups for a game, newest first"""
         app_dir = self.backup_dir / str(app_id)
         if not app_dir.exists():
@@ -351,7 +350,7 @@ class CloudSaves:
 
         return backups
 
-    def delete_backup(self, backup_path: str) -> bool:
+    def delete_backup(self, backup_path):
         """delete a specific backup"""
         try:
             shutil.rmtree(backup_path)
@@ -361,7 +360,7 @@ class CloudSaves:
             logger.error("Failed to delete backup: %s", e)
             return False
 
-    def _save_manifest(self, app_id: int, game_name: str, save_path: str, latest: BackupInfo):
+    def _save_manifest(self, app_id, game_name, save_path, latest):
         """save per-game manifest with metadata"""
         manifest_path = self.backup_dir / str(app_id) / "manifest.json"
         data = {
@@ -372,7 +371,7 @@ class CloudSaves:
         }
         manifest_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-    def _load_manifest(self, app_id: int) -> dict:
+    def _load_manifest(self, app_id):
         """load per-game manifest"""
         manifest_path = self.backup_dir / str(app_id) / "manifest.json"
         try:
@@ -385,7 +384,7 @@ class CloudSaves:
     # --- Steam userdata methods ---
 
     @staticmethod
-    def list_steam_games(steam_path: str, steam32_id: str) -> list[tuple[int, str]]:
+    def list_steam_games(steam_path, steam32_id):
         """
         Enumerate games in Steam userdata for the given Steam32 ID.
 
@@ -401,7 +400,7 @@ class CloudSaves:
             return []
 
         # --- collect all app IDs that have a remote/ folder ---
-        app_ids: list[int] = []
+        app_ids = []
         try:
             for item in userdata_dir.iterdir():
                 if not item.is_dir() or not item.name.isdigit():
@@ -417,7 +416,7 @@ class CloudSaves:
         if not app_ids:
             return []
 
-        name_map: dict[int, str] = {}
+        name_map = {}
 
         # --- Layer 1: ACF files via get_steam_libs (same as main menu) ---
         try:
@@ -476,7 +475,7 @@ class CloudSaves:
                 import httpx
                 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-                def _fetch_name(appid: int) -> tuple[int, str]:
+                def _fetch_name(appid):
                     try:
                         r = httpx.get(
                             "https://store.steampowered.com/api/appdetails",
@@ -518,7 +517,7 @@ class CloudSaves:
         game_name: str,
         dest_folder: str,
         log_func=None,
-    ) -> Optional[str]:
+    ):
         """
         Copy <Steam>/userdata/<steam32id>/<app_id>/remote/ to
         <dest_folder>/<game_name> [<app_id>]/remote/.
@@ -564,7 +563,7 @@ class CloudSaves:
         steam32_id: str,
         app_id: int,
         log_func=None,
-    ) -> bool:
+    ):
         """
         Copy <backup_folder>/remote/ back to
         <Steam>/userdata/<steam32id>/<app_id>/remote/.
@@ -611,7 +610,7 @@ class CloudSaves:
             return False
 
     @staticmethod
-    def _format_size(size_bytes: int) -> str:
+    def _format_size(size_bytes):
         for unit in ["B", "KB", "MB", "GB"]:
             if size_bytes < 1024:
                 return f"{size_bytes:.1f} {unit}"

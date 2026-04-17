@@ -21,7 +21,6 @@
 import json
 import logging
 from pathlib import Path
-from typing import List, Optional
 
 from sff.utils import root_folder
 
@@ -37,7 +36,7 @@ class RecentFilesManager:
         self.recent_files: List[str] = []
         self.load()
     
-    def load(self) -> None:
+    def load(self):
         try:
             if RECENT_FILES_PATH.exists():
                 with RECENT_FILES_PATH.open("r", encoding="utf-8") as f:
@@ -48,7 +47,7 @@ class RecentFilesManager:
             logger.error(f"Failed to load recent files: {e}", exc_info=True)
             self.recent_files = []
     
-    def save(self) -> None:
+    def save(self):
         try:
             data = {"files": self.recent_files}
             with RECENT_FILES_PATH.open("w", encoding="utf-8") as f:
@@ -57,7 +56,7 @@ class RecentFilesManager:
         except Exception as e:
             logger.error(f"Failed to save recent files: {e}", exc_info=True)
     
-    def add(self, file_path: Path) -> None:
+    def add(self, file_path):
         file_str = str(file_path.resolve())
         
         # Remove if already exists (to move it to the front)
@@ -72,7 +71,7 @@ class RecentFilesManager:
         self.save()
         logger.info(f"Added to recent files: {file_path.name}")
     
-    def get_all(self) -> List[Path]:
+    def get_all(self):
         existing_files = []
         removed_files = []
         
@@ -91,12 +90,12 @@ class RecentFilesManager:
         
         return existing_files
     
-    def clear(self) -> None:
+    def clear(self):
         self.recent_files = []
         self.save()
         logger.info("Cleared recent files list")
     
-    def remove(self, file_path: Path) -> bool:
+    def remove(self, file_path):
         file_str = str(file_path.resolve())
         if file_str in self.recent_files:
             self.recent_files.remove(file_str)
@@ -107,10 +106,10 @@ class RecentFilesManager:
 
 
 # Global recent files manager instance
-_recent_files_manager: Optional[RecentFilesManager] = None
+_recent_files_manager = None
 
 
-def get_recent_files_manager() -> RecentFilesManager:
+def get_recent_files_manager():
     global _recent_files_manager
     if _recent_files_manager is None:
         _recent_files_manager = RecentFilesManager()

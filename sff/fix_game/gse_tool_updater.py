@@ -33,7 +33,6 @@ import os
 import shutil
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -45,7 +44,7 @@ _TOOL_EXE = "generate_emu_config.exe"
 _VERSION_FILE = "gse_tool_version.txt"
 
 
-def _staging_dir() -> Path:
+def _staging_dir():
     appdata = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
     return appdata / "SteaMidra" / "gse_tool"
 
@@ -61,7 +60,7 @@ class GseToolUpdater:
     def __init__(self):
         self.staging = _staging_dir()
 
-    def get_staged_version(self) -> Optional[str]:
+    def get_staged_version(self):
         try:
             vf = self.staging / _VERSION_FILE
             if vf.exists():
@@ -70,7 +69,7 @@ class GseToolUpdater:
             pass
         return None
 
-    def get_latest_release(self) -> Optional[tuple[str, str]]:
+    def get_latest_release(self):
         """
         Query GitHub for the latest release.
         Returns (tag_name, zip_download_url) or None.
@@ -114,10 +113,10 @@ class GseToolUpdater:
             logger.error("Failed to check gse_fork releases: %s", e)
             return None
 
-    def is_available(self) -> bool:
+    def is_available(self):
         return (self.staging / _TOOL_EXE).exists()
 
-    def needs_update(self) -> bool:
+    def needs_update(self):
         if not self.is_available():
             return True
         cached = self.get_staged_version()
@@ -128,13 +127,13 @@ class GseToolUpdater:
             return False  # can't check; assume OK
         return cached != latest[0]
 
-    def ensure_tool(self, force_update: bool = False, log_func=None) -> bool:
+    def ensure_tool(self, force_update = False, log_func=None):
         """
         Make sure generate_emu_config.exe is available in the staging directory.
         Downloads from GitHub if missing or outdated.
         Returns True if the tool is available after this call.
         """
-        def log(msg: str):
+        def log(msg):
             if log_func:
                 log_func(msg)
             logger.info(msg)
@@ -165,7 +164,7 @@ class GseToolUpdater:
         log("Download failed — using previously staged tool if available")
         return self.is_available()
 
-    def _download_and_extract(self, tag: str, url: str, log) -> bool:
+    def _download_and_extract(self, tag, url, log):
         try:
             with httpx.Client(timeout=120.0, follow_redirects=True) as client:
                 resp = client.get(url)

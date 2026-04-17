@@ -32,7 +32,6 @@ import shutil
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +57,11 @@ class SteamStubUnpacker:
     4. If no SteamStub, restores backup
     """
 
-    def __init__(self, steamless_path: Optional[str] = None):
+    def __init__(self, steamless_path = None):
         self.steamless_path = steamless_path or self._find_steamless()
 
     @staticmethod
-    def _find_steamless() -> Optional[str]:
+    def _find_steamless():
         """try to find Steamless in third_party/ dirs"""
         # check various locations relative to the project
         candidates = [
@@ -85,16 +84,16 @@ class SteamStubUnpacker:
 
         return None
 
-    def is_available(self) -> bool:
+    def is_available(self):
         """check if Steamless is available"""
         return self.steamless_path is not None and Path(self.steamless_path).exists()
 
-    def _should_skip(self, exe_path: Path) -> bool:
+    def _should_skip(self, exe_path):
         """check if an exe should be skipped (installers, redistributables, etc)"""
         name_lower = exe_path.name.lower()
         return any(skip in name_lower for skip in SKIP_PATTERNS)
 
-    def unpack_directory(self, directory: str, log_func=None) -> int:
+    def unpack_directory(self, directory, log_func=None):
         """
         Scan a directory recursively and unpack any SteamStub-protected .exe files.
         
@@ -127,7 +126,7 @@ class SteamStubUnpacker:
         log(f"Unpacked {unpacked_count} SteamStub-protected file(s)")
         return unpacked_count
 
-    def unpack_file(self, file_path: str, log_func=None) -> bool:
+    def unpack_file(self, file_path, log_func=None):
         """
         Try to unpack a single executable.
         
@@ -182,7 +181,7 @@ class SteamStubUnpacker:
             logger.warning("Failed to unpack %s: %s", exe_path.name, e)
             return False
 
-    def restore_file(self, file_path: str) -> bool:
+    def restore_file(self, file_path):
         """restore an exe from its .steamstub.bak backup"""
         exe_path = Path(file_path)
         backup_path = exe_path.with_suffix(exe_path.suffix + ".steamstub.bak")
@@ -197,7 +196,7 @@ class SteamStubUnpacker:
                 logger.error("Failed to restore %s: %s", exe_path.name, e)
         return False
 
-    def restore_directory(self, directory: str, log_func=None) -> int:
+    def restore_directory(self, directory, log_func=None):
         """restore all .steamstub.bak files in a directory"""
         def log(msg):
             if log_func:

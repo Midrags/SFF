@@ -40,7 +40,7 @@ PROTOBUF_SIGNATURE_MAGIC = 0x1B81B817
 PROTOBUF_ENDOFMANIFEST_MAGIC = 0x32C415AB
 
 
-def decrypt_filename(b64_encrypted_name: str, key_bytes: bytes) -> str:
+def decrypt_filename(b64_encrypted_name, key_bytes):
     try:
         decoded_data = base64.b64decode(b64_encrypted_name)
 
@@ -63,7 +63,7 @@ def decrypt_filename(b64_encrypted_name: str, key_bytes: bytes) -> str:
         return b64_encrypted_name
 
 
-def view_manifest(manifest_file: bytes):
+def view_manifest(manifest_file):
     stream = io.BytesIO(manifest_file)
 
     magic, payload_length = struct.unpack("<II", stream.read(8))
@@ -152,7 +152,7 @@ def decrypt_and_save_manifest(
     )
 
     key_bytes = bytes.fromhex(dec_key)
-    new_mappings: list[ContentManifestPayload.FileMapping] = []
+    new_mappings = []
     for mapping in original_payload.mappings:
         new_mapping = ContentManifestPayload.FileMapping()
         new_mapping.CopyFrom(mapping)

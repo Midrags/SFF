@@ -28,10 +28,10 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, Optional
 
 from sff.strings import STEAM_WEB_API_KEY
 from sff.utils import root_folder
+from typing import Callable
 
 # Pre-built self-contained EXE locations (x86, no dotnet runtime needed), checked in order
 _EXE_PATHS = [
@@ -43,7 +43,7 @@ _EXE_PATHS = [
 # The self-contained EXE bundles the runtime and works without any dotnet install.
 
 
-def get_steamauto_cli_path() -> Optional[Path]:
+def get_steamauto_cli_path():
     # 1. Frozen single-file EXE: bundled data lives in sys._MEIPASS, not next to
     #    the EXE file.  Check there first so a bundled SteamAutoCrack.CLI.exe is
     #    found even though root_folder() returns Path(sys.executable).parent.
@@ -67,13 +67,13 @@ def get_steamauto_cli_path() -> Optional[Path]:
     return None
 
 
-def _snapshot_executables(game_path: Path) -> dict[Path, Path]:
+def _snapshot_executables(game_path):
     """Create temporary backup copies of every .exe in the game directory.
 
     Returns a mapping of {original_path: backup_path} so we can restore if
     the cracking tool removes an exe without producing a replacement.
     """
-    backups: dict[Path, Path] = {}
+    backups = {}
     backup_dir = game_path / ".steamidra_exe_backups"
     backup_dir.mkdir(exist_ok=True)
     for exe in game_path.glob("*.exe"):
@@ -86,7 +86,7 @@ def _snapshot_executables(game_path: Path) -> dict[Path, Path]:
 def _verify_and_restore(
     backups: dict[Path, Path],
     print_func: Callable[[str], None],
-) -> int:
+):
     """Check that every backed-up exe still exists; restore any that vanished.
 
     Returns the number of executables that had to be restored.
@@ -118,7 +118,7 @@ def _verify_and_restore(
     return restored
 
 
-def _ensure_config_has_api_key(cli_dir: Path) -> None:
+def _ensure_config_has_api_key(cli_dir):
     """Make sure config.json in the CLI directory has the Steam Web API key.
 
     Without this key, SteamAutoCrack may fail with a "NO LICENSE" error when
@@ -144,8 +144,8 @@ def run_steamauto(
     game_path: Path,
     app_id: str,
     *,
-    print_func: Callable[[str], None] = print,
-) -> int:
+    print_func = print,
+):
     game_path = game_path.resolve()
     cli = get_steamauto_cli_path()
     if cli is None:

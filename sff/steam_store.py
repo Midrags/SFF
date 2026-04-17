@@ -24,7 +24,6 @@ Used when local ACF is missing and as fallback for DLC check when Steam API time
 import re
 import logging
 import time
-from typing import Optional
 
 import httpx
 
@@ -43,7 +42,7 @@ _USER_AGENT = (
 )
 
 
-def _store_get_json(url: str) -> Optional[dict]:
+def _store_get_json(url):
     try:
         resp = httpx.get(
             url,
@@ -59,7 +58,7 @@ def _store_get_json(url: str) -> Optional[dict]:
         return None
 
 
-def get_app_details_from_store(app_id: int) -> Optional[dict]:
+def get_app_details_from_store(app_id):
     """
     Fetch app details from Steam Store API (no login).
     Returns dict with "name" (str) and "dlc" (list of int app ids), or None on failure.
@@ -80,7 +79,7 @@ def get_app_details_from_store(app_id: int) -> Optional[dict]:
     return {"name": name, "dlc": dlc_ids}
 
 
-def get_dlc_list_from_store(base_id: int) -> Optional[tuple[str, list[int]]]:
+def get_dlc_list_from_store(base_id):
     """
     Get base app name and DLC app id list from Store API (no Steam client).
     Returns (base_name, dlc_ids) or None on failure.
@@ -91,12 +90,12 @@ def get_dlc_list_from_store(base_id: int) -> Optional[tuple[str, list[int]]]:
     return (details["name"] or f"App {base_id}", details["dlc"])
 
 
-def get_dlc_names_from_store(dlc_ids: list[int]) -> dict[int, str]:
+def get_dlc_names_from_store(dlc_ids):
     """
     Fetch DLC names from Store API (one request per id, with short delay).
     Returns dict mapping app_id -> name; missing names are "DLC <id>".
     """
-    result: dict[int, str] = {}
+    result = {}
     for i, app_id in enumerate(dlc_ids):
         if i > 0:
             time.sleep(_STORE_API_DELAY)
@@ -108,7 +107,7 @@ def get_dlc_names_from_store(dlc_ids: list[int]) -> dict[int, str]:
     return result
 
 
-def get_app_name_from_store(app_id: int) -> Optional[str]:
+def get_app_name_from_store(app_id):
     """
     Fetch app name from Steam store page (no Steam client login).
     Returns None on failure or if title cannot be parsed.

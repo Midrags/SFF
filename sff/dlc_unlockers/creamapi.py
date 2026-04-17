@@ -21,7 +21,6 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Optional
 
 from .base import Platform, UnlockerBase, UnlockerType
 from .downloader import GitHubReleaseDownloader
@@ -49,29 +48,29 @@ class CreamAPIUnlocker(UnlockerBase):
     CREAMAPI_32_DLL = "steam_api.dll"
     CREAMAPI_64_DLL = "steam_api64.dll"
     
-    def __init__(self, downloader: Optional[GitHubReleaseDownloader] = None):
+    def __init__(self, downloader = None):
         self.downloader = downloader
     
     @property
-    def unlocker_type(self) -> UnlockerType:
+    def unlocker_type(self):
         return UnlockerType.CREAMAPI
     
     @property
-    def supported_platforms(self) -> list[Platform]:
+    def supported_platforms(self):
         return [Platform.STEAM]
     
     @property
-    def display_name(self) -> str:
+    def display_name(self):
         return "CreamAPI"
     
-    def _find_steam_api_dll(self, game_dir: Path, dll_name: str) -> Optional[Path]:
+    def _find_steam_api_dll(self, game_dir, dll_name):
         exclude_backup = "_o" not in dll_name  # When searching for backups, don't exclude
         return find_steam_api_dll(game_dir, dll_name, exclude_backup=exclude_backup)
 
-    def _detect_architecture(self, game_dir: Path) -> Optional[str]:
+    def _detect_architecture(self, game_dir):
         return detect_steam_architecture(game_dir, self.BACKUP_SUFFIX.replace(".dll", ""))
     
-    def is_installed(self, game_dir: Path) -> bool:
+    def is_installed(self, game_dir):
         config_exists = (game_dir / self.CONFIG_FILENAME).exists()
         if not config_exists:
             for _ in game_dir.rglob(self.CONFIG_FILENAME):
@@ -83,7 +82,7 @@ class CreamAPIUnlocker(UnlockerBase):
         
         return config_exists or backup_32 is not None or backup_64 is not None
     
-    def install(self, game_dir: Path, dlc_ids: list[int], app_id: int) -> bool:
+    def install(self, game_dir, dlc_ids, app_id):
         valid, error = validate_game_directory(game_dir)
         if not valid:
             logger.error(f"Invalid game directory: {error}")
@@ -159,7 +158,7 @@ class CreamAPIUnlocker(UnlockerBase):
             logger.error(f"Failed to install CreamAPI: {e}")
             return False
     
-    def uninstall(self, game_dir: Path) -> bool:
+    def uninstall(self, game_dir):
         try:
             success = True
             config_removed = False
@@ -216,7 +215,7 @@ class CreamAPIUnlocker(UnlockerBase):
             logger.error(f"Failed to uninstall CreamAPI: {e}")
             return False
     
-    def generate_config(self, dlc_ids: list[int], app_id: int) -> dict:
+    def generate_config(self, dlc_ids, app_id):
         return {
             "app_id": app_id,
             "dlc_ids": dlc_ids,
@@ -228,7 +227,7 @@ class CreamAPIUnlocker(UnlockerBase):
             "disableuserinterface": False
         }
     
-    def _generate_ini_config(self, dlc_ids: list[int], app_id: int) -> str:
+    def _generate_ini_config(self, dlc_ids, app_id):
         lines = []
         
         lines.append(f"; CreamAPI Configuration for App ID {app_id}")

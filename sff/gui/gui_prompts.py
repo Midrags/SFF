@@ -19,7 +19,6 @@
 import threading
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Optional
 
 from PyQt6.QtCore import QObject, QThread, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -41,11 +40,11 @@ from PyQt6.QtWidgets import (
 class _Invoker(QObject):
     _signal = pyqtSignal(object)
 
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
         self._signal.connect(self._run)
 
-    def _run(self, task: Any) -> None:
+    def _run(self, task):
         func, container = task
         try:
             container["value"] = func()
@@ -54,16 +53,16 @@ class _Invoker(QObject):
         container["done"].set()
 
 
-_invoker: Optional[_Invoker] = None
+_invoker = None
 
 
-def _on_gui_thread(func: Callable[[], Any]) -> Any:
+def _on_gui_thread(func):
     app = QApplication.instance()
     if not app or QThread.currentThread() == app.thread():
         return func()
     if _invoker is None:
         raise RuntimeError("gui prompt backend not installed")
-    container: dict[str, Any] = {"value": None, "error": None, "done": threading.Event()}
+    container = {"value": None, "error": None, "done": threading.Event()}
     _invoker._signal.emit((func, container))
     container["done"].wait()
     if container["error"] is not None:
@@ -72,23 +71,23 @@ def _on_gui_thread(func: Callable[[], Any]) -> Any:
 
 
 class GUIPromptBackend:
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent=None):
         self._parent = parent
 
-    def set_parent(self, parent: QWidget) -> None:
+    def set_parent(self, parent):
         self._parent = parent
 
     def prompt_select(
         self,
         msg: str,
-        choices: list[Any],
-        default: Any = None,
-        fuzzy: bool = False,
-        cancellable: bool = False,
-        exclude: Optional[list[Any]] = None,
-        **kwargs: Any,
-    ) -> Any:
-        items: list[tuple[str, Any]] = []
+        choices,
+        default=None,
+        fuzzy=False,
+        cancellable=False,
+        exclude=None,
+        **kwargs,
+    ):
+        items = []
         for c in choices:
             if isinstance(c, Enum):
                 if exclude and c in exclude:
@@ -102,7 +101,7 @@ class GUIPromptBackend:
         multiselect = kwargs.get("multiselect", False)
         parent = self._parent
 
-        def _show() -> Any:
+        def _show():
             dlg = QDialog(parent)
             dlg.setWindowTitle("Select")
             dlg.setMinimumWidth(420)
@@ -152,14 +151,14 @@ class GUIPromptBackend:
 
     def prompt_confirm(
         self,
-        msg: str,
-        true_msg: Optional[str] = None,
-        false_msg: Optional[str] = None,
-        default: bool = True,
-    ) -> bool:
+        msg,
+        true_msg=None,
+        false_msg=None,
+        default=True,
+    ):
         parent = self._parent
 
-        def _show() -> bool:
+        def _show():
             btn = QMessageBox.question(
                 parent,
                 "Confirm",
@@ -174,15 +173,15 @@ class GUIPromptBackend:
     def prompt_text(
         self,
         msg: str,
-        validator: Any = None,
-        invalid_msg: str = "Invalid input",
-        instruction: str = "",
-        long_instruction: str = "",
-        filter: Optional[Callable[[str], Any]] = None,
-    ) -> Any:
+        validator=None,
+        invalid_msg="Invalid input",
+        instruction="",
+        long_instruction="",
+        filter=None,
+    ):
         parent = self._parent
 
-        def _show() -> Any:
+        def _show():
             while True:
                 text, ok = QInputDialog.getText(parent, "Input", msg)
                 if not ok:
@@ -202,12 +201,12 @@ class GUIPromptBackend:
     def prompt_dir(
         self,
         msg: str,
-        custom_check: Optional[Callable[[Path], bool]] = None,
-        custom_msg: Optional[str] = None,
-    ) -> Path:
+        custom_check=None,
+        custom_msg=None,
+    ):
         parent = self._parent
 
-        def _show() -> Path:
+        def _show():
             while True:
                 path = QFileDialog.getExistingDirectory(parent, msg)
                 if not path:
@@ -220,10 +219,10 @@ class GUIPromptBackend:
 
         return _on_gui_thread(_show)
 
-    def prompt_file(self, msg: str, allow_blank: bool = False) -> Path:
+    def prompt_file(self, msg, allow_blank=False):
         parent = self._parent
 
-        def _show() -> Path:
+        def _show():
             path, _ = QFileDialog.getOpenFileName(parent, msg)
             if not path:
                 return Path("") if allow_blank else Path(".")
@@ -234,14 +233,14 @@ class GUIPromptBackend:
     def prompt_secret(
         self,
         msg: str,
-        validator: Any = None,
-        invalid_msg: str = "Invalid input",
-        instruction: str = "",
-        long_instruction: str = "",
-    ) -> str:
+        validator=None,
+        invalid_msg="Invalid input",
+        instruction="",
+        long_instruction="",
+    ):
         parent = self._parent
 
-        def _show() -> str:
+        def _show():
             while True:
                 text, ok = QInputDialog.getText(
                     parent, "Secret", msg, QLineEdit.EchoMode.Password,
@@ -261,7 +260,7 @@ class GUIPromptBackend:
         return _on_gui_thread(_show)
 
 
-def install(parent_widget: Optional[QWidget] = None) -> None:
+def install(parent_widget=None):
     global _invoker
     _invoker = _Invoker()
     backend = GUIPromptBackend(parent_widget)
@@ -269,12 +268,12 @@ def install(parent_widget: Optional[QWidget] = None) -> None:
     set_gui_backend(backend)
 
 
-def update_parent(parent_widget: QWidget) -> None:
+def update_parent(parent_widget):
     from sff.prompts import _gui_backend
     if _gui_backend is not None:
         _gui_backend.set_parent(parent_widget)
 
 
-def uninstall() -> None:
+def uninstall():
     from sff.prompts import set_gui_backend
     set_gui_backend(None)

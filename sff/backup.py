@@ -22,7 +22,6 @@ import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from colorama import Fore, Style
 
@@ -42,7 +41,7 @@ class BackupManager:
         self.backup_dir = BACKUP_DIR
         self.backup_dir.mkdir(exist_ok=True)
     
-    def get_retention_count(self) -> int:
+    def get_retention_count(self):
         try:
             retention_str = get_setting(Settings.BACKUP_RETENTION)
             if retention_str:
@@ -51,7 +50,7 @@ class BackupManager:
             pass
         return DEFAULT_RETENTION
     
-    def create_backup(self, source: Path, backup_name: Optional[str] = None) -> Optional[Path]:
+    def create_backup(self, source, backup_name = None):
         try:
             if not source.exists():
                 logger.error(f"Source does not exist: {source}")
@@ -80,7 +79,7 @@ class BackupManager:
             logger.error(f"Failed to create backup of {source}: {e}", exc_info=True)
             return None
     
-    def restore_backup(self, backup_path: Path, destination: Path) -> bool:
+    def restore_backup(self, backup_path, destination):
         try:
             if not backup_path.exists():
                 logger.error(f"Backup does not exist: {backup_path}")
@@ -109,7 +108,7 @@ class BackupManager:
             logger.error(f"Failed to restore backup: {e}", exc_info=True)
             return False
     
-    def list_backups(self, filter_name: Optional[str] = None) -> list[Path]:
+    def list_backups(self, filter_name = None):
         try:
             if filter_name:
                 backups = [p for p in self.backup_dir.iterdir() if p.name.startswith(filter_name)]
@@ -124,7 +123,7 @@ class BackupManager:
             logger.error(f"Failed to list backups: {e}", exc_info=True)
             return []
     
-    def _verify_backup(self, backup_path: Path) -> bool:
+    def _verify_backup(self, backup_path):
         try:
             if backup_path.is_dir():
                 return any(backup_path.iterdir())
@@ -134,7 +133,7 @@ class BackupManager:
             logger.error(f"Backup verification failed: {e}", exc_info=True)
             return False
     
-    def _cleanup_old_backups(self, source_name: str):
+    def _cleanup_old_backups(self, source_name):
         try:
             retention = self.get_retention_count()
             backups = self.list_backups(source_name)
@@ -152,7 +151,7 @@ class BackupManager:
         except Exception as e:
             logger.error(f"Failed to cleanup old backups: {e}", exc_info=True)
     
-    def get_backup_size(self) -> int:
+    def get_backup_size(self):
         try:
             total_size = 0
             for backup in self.backup_dir.rglob("*"):
@@ -165,17 +164,17 @@ class BackupManager:
 
 
 # Global backup manager instance
-_backup_manager: Optional[BackupManager] = None
+_backup_manager = None
 
 
-def get_backup_manager() -> BackupManager:
+def get_backup_manager():
     global _backup_manager
     if _backup_manager is None:
         _backup_manager = BackupManager()
     return _backup_manager
 
 
-def backup_before_operation(source: Path, operation_name: str) -> Optional[Path]:
+def backup_before_operation(source, operation_name):
     manager = get_backup_manager()
     print(Fore.YELLOW + f"Creating backup before {operation_name}..." + Style.RESET_ALL)
     backup_path = manager.create_backup(source, f"{operation_name}_{source.name}")

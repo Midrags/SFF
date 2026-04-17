@@ -22,7 +22,6 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
-from typing import Callable
 
 from sff.storage.ini_config import edit_ini_option
 from sff.utils import root_folder
@@ -36,7 +35,7 @@ else:
             return None
 
 class Konami:
-    def __init__(self, on_success: Callable[[], None]):
+    def __init__(self, on_success):
         self.on_success = on_success
         self.running = False
 
@@ -63,7 +62,7 @@ class Konami:
             "a",
         ]
 
-        self.buffer: deque[str] = deque(maxlen=len(self.code))
+        self.buffer = deque(maxlen=len(self.code))
         "Track last 10 key presses"
 
         self.key_states = {k: False for k in self.vk_map.keys()}
@@ -98,7 +97,7 @@ class Konami:
         self.running = False
 
 
-def replace_boot_image(injector_dir: Path):
+def replace_boot_image(injector_dir):
     ini_file = injector_dir / "DLLInjector.ini"
     if not ini_file.exists():
         return

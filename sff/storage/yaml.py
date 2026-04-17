@@ -17,17 +17,16 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 from pathlib import Path
-from typing import Any
 import yaml
 
 class YAMLParser:
-    def __init__(self, path: Path):
+    def __init__(self, path):
         self.path = path
 
-    def read(self) -> dict[str, Any]:
+    def read(self):
         with self.path.open(encoding="utf-8") as f:
             return yaml.safe_load(f)
         
-    def write(self, data: dict[str, Any]):
+    def write(self, data):
         with self.path.open("w", encoding="utf-8") as f:
             f.write(yaml.dump(data))

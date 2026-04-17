@@ -35,7 +35,6 @@ import shutil
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -104,13 +103,13 @@ class GoldbergApplier:
     ColdLoader DLL mode: deploys coldloader.dll + proxy DLL (no exe needed)
     """
 
-    def __init__(self, goldberg_cache_dir: Path):
+    def __init__(self, goldberg_cache_dir):
         self.cache_dir = goldberg_cache_dir
 
     # --- detection ---
 
     @staticmethod
-    def detect_steam_api(game_dir: str) -> tuple[bool, bool, list]:
+    def detect_steam_api(game_dir):
         """
         Find all steam_api DLLs in the game directory.
         
@@ -131,7 +130,7 @@ class GoldbergApplier:
         return has_32, has_64, paths
 
     @staticmethod
-    def is_exe_64bit(exe_path: str) -> bool:
+    def is_exe_64bit(exe_path):
         """
         Check if an executable is 64-bit by reading the PE header.
         Reads MZ header → PE offset → machine type.
@@ -156,7 +155,7 @@ class GoldbergApplier:
             return False
 
     @staticmethod
-    def detect_game_bitness(game_dir: str, main_exe: Optional[str] = None) -> bool:
+    def detect_game_bitness(game_dir, main_exe = None):
         """
         Detect whether the game is 64-bit using multiple signals, in order:
 
@@ -208,7 +207,7 @@ class GoldbergApplier:
         return True
 
     @staticmethod
-    def find_main_exe(game_dir: str) -> Optional[str]:
+    def find_main_exe(game_dir):
         """
         Find the main game executable (largest .exe, excluding known non-game files).
         """
@@ -233,7 +232,7 @@ class GoldbergApplier:
     # --- interface scanning ---
 
     @staticmethod
-    def scan_interfaces(dll_path: str) -> list[str]:
+    def scan_interfaces(dll_path):
         """
         Scan a steam_api DLL for interface version strings.
         
@@ -250,7 +249,7 @@ class GoldbergApplier:
             logger.warning("Failed to scan interfaces in %s: %s", dll_path, e)
             return []
 
-    def generate_interfaces_file(self, dll_path: str, settings_dir: str):
+    def generate_interfaces_file(self, dll_path, settings_dir):
         """
         Scan a steam_api DLL and write steam_interfaces.txt
         to the steam_settings directory.
@@ -263,7 +262,7 @@ class GoldbergApplier:
 
     # --- regular mode ---
 
-    def apply(self, game_dir: str, log_func=None) -> tuple[bool, str]:
+    def apply(self, game_dir, log_func=None):
         """
         Apply Goldberg in regular mode — replace steam_api DLLs.
         
@@ -320,7 +319,7 @@ class GoldbergApplier:
 
     # --- ColdClient loader mode (Solus method) ---
 
-    def apply_coldclient_loader(self, game_dir: str, app_id: int, log_func=None) -> tuple[bool, str]:
+    def apply_coldclient_loader(self, game_dir, app_id, log_func=None):
         """
         Apply Goldberg in ColdClient loader mode.
 
@@ -456,7 +455,7 @@ ForwardToEmu=0
 
     # --- ColdLoader DLL mode (denuvosanctuary method) ---
 
-    def apply_coldloader_dll(self, game_dir: str, app_id: int, log_func=None) -> tuple[bool, str]:
+    def apply_coldloader_dll(self, game_dir, app_id, log_func=None):
         """
         Apply ColdLoader DLL mode — uses coldloader.dll + a DLL proxy
         to load GBE ColdClient without needing an external exe.
@@ -569,7 +568,7 @@ SteamClient={'steamclient64.dll' if is_64 else 'steamclient.dll'}
         except Exception as e:
             log(f"Warning: could not create desktop shortcut ({e})")
 
-    def _find_tool(self, filename: str) -> Optional[str]:
+    def _find_tool(self, filename):
         """search cache dir and third_party for a file"""
         tp = Path(__file__).parent.parent.parent / "third_party"
         candidates = [
@@ -586,7 +585,7 @@ SteamClient={'steamclient64.dll' if is_64 else 'steamclient.dll'}
 
     # --- restore ---
 
-    def restore(self, game_dir: str, log_func=None) -> tuple[bool, str]:
+    def restore(self, game_dir, log_func=None):
         """
         Undo all Goldberg changes — restore .bak files,
         delete steam_settings/, steam_appid.txt, ColdClient files.

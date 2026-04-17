@@ -19,7 +19,6 @@
 import logging
 from enum import IntFlag
 from pathlib import Path
-from typing import Optional
 
 from sff.storage.vdf import get_steam_libs, vdf_load
 from sff.utils import enter_path
@@ -53,7 +52,7 @@ class AppState(IntFlag):
 
 
 class ACFParser:
-    def __init__(self, acf: Path):
+    def __init__(self, acf):
         self.data = vdf_load(acf)
         self._name: Optional[str] = None
         self._id: Optional[int] = None
@@ -62,7 +61,7 @@ class ACFParser:
     @property
     def name(self):
         if self._name is None:
-            raw_name: Optional[str] = enter_path(
+            raw_name = enter_path(
                 self.data, "AppState", "name", default=None
             )
             self._name = raw_name
@@ -71,7 +70,7 @@ class ACFParser:
     @property
     def id(self):
         if self._id is None:
-            raw_id: Optional[str] = enter_path(
+            raw_id = enter_path(
                 self.data, "AppState", "appid", default=None
             )
             if raw_id and raw_id.isdigit():
@@ -81,7 +80,7 @@ class ACFParser:
     @property
     def state(self):
         if self._state is None:
-            raw_state: Optional[str] = enter_path(
+            raw_state = enter_path(
                 self.data, "AppState", "StateFlags", default=None
             )
             if raw_state and raw_state.isdigit():
@@ -90,7 +89,7 @@ class ACFParser:
     
     @property
     def install_dir(self):
-        raw_install_dir: Optional[str] = enter_path(
+        raw_install_dir = enter_path(
             self.data, "AppState", "installdir", default=None
         )
         return raw_install_dir if raw_install_dir else ""
@@ -102,13 +101,13 @@ class ACFParser:
         return False
 
 
-def get_app_name_from_acf(steam_path: Path, app_id: int) -> str:
+def get_app_name_from_acf(steam_path, app_id):
     """
     Get game name from local ACF files only (no Steam login/API).
     Used by remove-game menu so the list never blocks on "Logging in anonymously...".
     ACF first; store page is used as fallback for uninstalled games.
     """
-    libs: list[Path] = []
+    libs = []
     try:
         libs = get_steam_libs(steam_path)
     except Exception as e:

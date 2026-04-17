@@ -20,7 +20,6 @@
 
 import time
 import logging
-from typing import Optional
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
@@ -36,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 class DownloadsTab(QWidget):
 
-    def __init__(self, download_manager: Optional[DownloadManager] = None, parent=None):
+    def __init__(self, download_manager = None, parent=None):
         super().__init__(parent)
         self._dm = download_manager or DownloadManager()
         self._setup_ui()
@@ -206,5 +205,5 @@ class DownloadsTab(QWidget):
             self._load_history()
 
     @property
-    def download_manager(self) -> DownloadManager:
+    def download_manager(self):
         return self._dm

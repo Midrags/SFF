@@ -20,7 +20,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional, Union
 
 from colorama import Fore, Style
 from rich.console import Console
@@ -36,12 +35,13 @@ from sff.storage.settings import get_setting, set_setting
 from sff.storage.yaml import YAMLParser
 from sff.structs import DLCTypes, LuaParsedInfo, Settings
 from sff.utils import enter_path
+from typing import Union
 
 logger = logging.getLogger(__name__)
 
 
 class SLSManager(AppInjectionManager):
-    def __init__(self, steam_path: Path, provider: SteamInfoProvider):
+    def __init__(self, steam_path, provider):
         self.steam_path = steam_path
         self.provider = provider
 
@@ -72,7 +72,7 @@ class SLSManager(AppInjectionManager):
                 Settings.SLS_CONFIG_LOCATION, str(self.sls_config_path.absolute())
             )
 
-    def get_local_ids(self) -> list[int]:
+    def get_local_ids(self):
         parser = YAMLParser(self.sls_config_path)
         data = parser.read()
         return data.get("AdditionalApps", [])
@@ -99,7 +99,7 @@ class SLSManager(AppInjectionManager):
         if changes > 0:
             parser.write(yaml_data)
 
-    def _dlc_check_via_store(self, base_id: int) -> None:
+    def _dlc_check_via_store(self, base_id):
         """DLC check using Steam Store API only (no Steam client login). Fallback when Steam API fails."""
         print("Using Steam Store (no login required)...")
         result = get_dlc_list_from_store(base_id)
@@ -113,7 +113,7 @@ class SLSManager(AppInjectionManager):
         print(f"Found {len(dlc_ids)} DLC(s). Fetching names...")
         names = get_dlc_names_from_store(dlc_ids)
         local_ids = set(self.get_local_ids())
-        not_in_config: list[int] = []
+        not_in_config = []
         rows_store = []
         for app_id in dlc_ids:
             in_list = app_id in local_ids
@@ -140,7 +140,7 @@ class SLSManager(AppInjectionManager):
         else:
             print("All DLCs are in the config.")
 
-    def dlc_check(self, provider: SteamInfoProvider, base_id: int) -> None:
+    def dlc_check(self, provider, base_id):
         print("Checking for DLC...")
         try:
             base_info = provider.get_single_app_info(base_id)
@@ -166,9 +166,9 @@ class SLSManager(AppInjectionManager):
             config = ConfigVDFWriter(self.steam_path)
             manifest = ManifestDownloader(self.provider, self.steam_path)
             if dlc_info:
-                unowned_non_depot_dlcs: list[int] = []
+                unowned_non_depot_dlcs = []
                 local_ids = self.get_local_ids()
-                parsed_dlcs: list[ParsedDLC] = [
+                parsed_dlcs = [
                     ParsedDLC(int(depot_id), data, base_info, local_ids)
                     for depot_id, data in dlc_info.items()
                 ]
@@ -178,12 +178,12 @@ class SLSManager(AppInjectionManager):
                     manifest.get_dlc_manifest_status(depot_dlcs) if depot_dlcs else {}
                 )
                 non_depot_dlc_count = 0
-                bool_map: dict[Optional[bool], str] = {
+                bool_map = {
                     True: "[green]O[/green]",
                     False: "[red]X[/red]",
                     None: "N/A",
                 }
-                bool_plain: dict[Optional[bool], str] = {
+                bool_plain = {
                     True: "O", False: "X", None: "N/A"
                 }
                 rows_dlc = []

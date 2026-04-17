@@ -24,7 +24,7 @@ from sff.utils import root_folder
 # Find the locales folder relative to this file
 LOCALES_DIR = root_folder() / "sff/locales"
 
-def _load_language_file(language: str) -> dict:
+def _load_language_file(language):
     file_path = LOCALES_DIR / f"{language}.json"
     if not file_path.exists():
         return {}
@@ -38,7 +38,7 @@ def _load_language_file(language: str) -> dict:
 
 
 class Translator:
-    def __init__(self, language: str = None):
+    def __init__(self, language = None):
         if not LOCALES_DIR.exists():
             LOCALES_DIR.mkdir(parents=True, exist_ok=True)
             
@@ -76,7 +76,7 @@ class Translator:
     def locale(self):
         return self.language
 
-    def __call__(self, key: str) -> str:
+    def __call__(self, key):
         if not key:
             return ""
             
@@ -97,13 +97,13 @@ class Translator:
 # Global instance initialized below, but can be updated on App start
 _T = Translator("en")
 
-def get_translator() -> Translator:
+def get_translator():
     return _T
 
-def set_language(lang: str) -> None:
+def set_language(lang):
     global _T
     _T = Translator(lang)
 
-def T(key: str) -> str:
+def T(key):
     """Short-hand for translation calls"""
     return _T(key)

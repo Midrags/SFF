@@ -29,7 +29,6 @@ import os
 import io
 import logging
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -71,11 +70,11 @@ class GoldbergUpdater:
     downloads emu-win-release.7z if outdated, and extracts all needed files.
     """
 
-    def __init__(self, cache_dir: Path):
+    def __init__(self, cache_dir):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_cached_version(self) -> Optional[str]:
+    def get_cached_version(self):
         """get the currently cached version tag"""
         version_file = self.cache_dir / "version.txt"
         try:
@@ -85,7 +84,7 @@ class GoldbergUpdater:
             pass
         return None
 
-    def get_latest_version(self) -> Optional[tuple[str, str]]:
+    def get_latest_version(self):
         """
         Check GitHub for the latest release.
         Returns (tag_name, download_url) or None on failure.
@@ -119,7 +118,7 @@ class GoldbergUpdater:
             logger.error("Failed to check gbe_fork releases: %s", e)
             return None
 
-    def needs_update(self) -> bool:
+    def needs_update(self):
         """check if we need to download a newer version"""
         cached = self.get_cached_version()
         if not cached:
@@ -131,7 +130,7 @@ class GoldbergUpdater:
 
         return cached != latest[0]
 
-    def _copy_bundled_fallback(self, log) -> bool:
+    def _copy_bundled_fallback(self, log):
         """
         Last-resort fallback: copy any Goldberg DLLs that ship inside
         third_party/gbe_fork/ into the cache directory.
@@ -159,7 +158,7 @@ class GoldbergUpdater:
             return True
         return False
 
-    def ensure_goldberg(self, force_update: bool = False, log_func=None) -> bool:
+    def ensure_goldberg(self, force_update = False, log_func=None):
         """
         Make sure we have the latest Goldberg DLLs cached.
         Downloads and extracts if needed.
@@ -212,7 +211,7 @@ class GoldbergUpdater:
         log("Download failed — trying bundled fallback...")
         return self._copy_bundled_fallback(log)
 
-    def _download_and_extract(self, tag: str, url: str, log) -> bool:
+    def _download_and_extract(self, tag, url, log):
         """download the 7z archive and extract needed files"""
         try:
             # download the archive
@@ -260,7 +259,7 @@ class GoldbergUpdater:
 
         return self._extract_with_subprocess(archive_data, tag, log)
 
-    def _find_file(self, search_dir: Path, filename: str) -> Optional[Path]:
+    def _find_file(self, search_dir, filename):
         """recursively find a file by name in a directory"""
         for path in search_dir.rglob(filename):
             if path.is_file():
@@ -278,7 +277,7 @@ class GoldbergUpdater:
         ("WinRAR",                                      "winrar"),
     ]
 
-    def _find_extractor(self) -> tuple[str, str]:
+    def _find_extractor(self):
         """return (exe_path, tool_type) for the first usable archive extractor, or ("", "")"""
         import subprocess
         import shutil as _shutil
@@ -308,7 +307,7 @@ class GoldbergUpdater:
 
     _7ZR_URL = "https://github.com/ip7z/7zip/releases/latest/download/7zr.exe"
 
-    def _download_7zr(self, log) -> str:
+    def _download_7zr(self, log):
         """download standalone 7zr.exe to cache_dir and return its path, or "" on failure"""
         import httpx
         dest = self.cache_dir / "7zr.exe"
@@ -326,7 +325,7 @@ class GoldbergUpdater:
             log(f"Failed to download 7zr.exe: {e}")
             return ""
 
-    def _extract_with_subprocess(self, archive_data: bytes, tag: str, log) -> bool:
+    def _extract_with_subprocess(self, archive_data, tag, log):
         """fallback: write archive to cache_dir (Defender-friendly path) and extract with 7-Zip or WinRAR"""
         import subprocess
         import shutil

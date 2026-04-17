@@ -25,7 +25,6 @@ import sys
 import time
 import webbrowser
 from pathlib import Path
-from typing import Optional
 
 from sff.prompts import prompt_text
 
@@ -35,7 +34,7 @@ _KEY_URL = "https://manifesthub1.filegear-sg.me"
 _EXPIRY_SECONDS = 86_400  # 24 h
 
 
-def _key_is_valid() -> bool:
+def _key_is_valid():
     from sff.storage.settings import get_setting
     from sff.structs import Settings
 
@@ -49,7 +48,7 @@ def _key_is_valid() -> bool:
         return False
 
 
-def _save_key(key: str) -> None:
+def _save_key(key):
     from sff.storage.settings import set_setting
     from sff.structs import Settings
 
@@ -57,7 +56,7 @@ def _save_key(key: str) -> None:
     set_setting(Settings.MANIFESTHUB_KEY_EXPIRY, str(time.time() + _EXPIRY_SECONDS))
 
 
-def _extract_key_from_html(html: str) -> Optional[str]:
+def _extract_key_from_html(html):
     # UUID first — most common API key format
     m = re.search(
         r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
@@ -77,7 +76,7 @@ def _extract_key_from_html(html: str) -> Optional[str]:
     return None
 
 
-def _find_browser() -> Optional[tuple]:
+def _find_browser():
     # Returns (kind, binary_path) where kind is 'chromium', 'edge', or 'firefox'.
     # Opera GX is checked first.
     loc = os.environ.get("LOCALAPPDATA", "")
@@ -120,7 +119,7 @@ def _find_browser() -> Optional[tuple]:
     return None
 
 
-def _make_driver(kind: str, binary: Optional[str], headless: bool):  # type: ignore[return]
+def _make_driver(kind, binary, headless):  # type: ignore[return]
     from selenium import webdriver
 
     if kind == "edge":
@@ -162,7 +161,7 @@ def _make_driver(kind: str, binary: Optional[str], headless: bool):  # type: ign
     return driver
 
 
-def _try_selenium_fetch() -> Optional[str]:
+def _try_selenium_fetch():
     try:
         from selenium.webdriver.support.ui import WebDriverWait
     except ImportError:
@@ -209,7 +208,7 @@ def _try_selenium_fetch() -> Optional[str]:
     return None
 
 
-def get_manifesthub_api_key() -> Optional[str]:
+def get_manifesthub_api_key():
     """Get a valid key, auto-renewing if the 24 h window has passed."""
     from sff.storage.settings import get_setting
     from sff.structs import Settings

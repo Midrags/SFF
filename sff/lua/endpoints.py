@@ -23,7 +23,6 @@ import io
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -38,7 +37,7 @@ from sff.zip import read_lua_from_zip
 logger = logging.getLogger(__name__)
 
 
-def get_oureverday(dest: Path, app_id: str):
+def get_oureverday(dest, app_id):
     import json
     import httpx as _httpx
     from sff.steam_client import create_provider_for_current_thread
@@ -144,7 +143,7 @@ def get_oureverday(dest: Path, app_id: str):
 
 
 
-def get_hubcap(dest: Path, app_id: str, depotcache: Optional[Path] = None) -> Optional[Path]:
+def get_hubcap(dest, app_id, depotcache = None):
     url = f"https://hubcapmanifest.com/api/v1/manifest/{app_id}"
 
     # Loop to allow retry with new API key
