@@ -23,6 +23,7 @@ typedef struct
 } MidiPlayer;
 
 static MidiPlayer *g_Player = NULL;
+static int g_finished = 0;
 
 static void AudioCallback(ma_device *pDevice, void *pOutput, const void *pInput, ma_uint32 frameCount)
 {
@@ -79,9 +80,8 @@ static void AudioCallback(ma_device *pDevice, void *pOutput, const void *pInput,
         SamplesToRender -= SampleBlock;
         if (g_Player->midi_current == NULL)
         {
-            tsf_reset(g_Player->soundfont);
-            g_Player->msec_time = 0.0;
-            g_Player->midi_current = g_Player->midi_head;
+            g_finished = 1;
+            break;
         }
     }
 }
@@ -90,6 +90,7 @@ API int StartPlayback(const char *midi_filename, const char *soundfont_filename,
 {
     if (g_Player)
         return -1;
+    g_finished = 0;
     g_Player = (MidiPlayer *)malloc(sizeof(MidiPlayer));
     if (!g_Player)
         return 1;
@@ -139,10 +140,21 @@ API int StartPlayback(const char *midi_filename, const char *soundfont_filename,
 
     if (ma_device_init(NULL, &deviceConfig, &g_Player->device) != MA_SUCCESS)
     {
+        tsf_close(g_Player->soundfont);
+        tml_free(g_Player->midi_head);
+        free(g_Player);
+        g_Player = NULL;
+        return 4;
     }
     tsf_set_output(g_Player->soundfont, TSF_STEREO_INTERLEAVED, (int)deviceConfig.sampleRate, 0.0f);
     if (ma_device_start(&g_Player->device) != MA_SUCCESS)
     {
+        ma_device_uninit(&g_Player->device);
+        tsf_close(g_Player->soundfont);
+        tml_free(g_Player->midi_head);
+        free(g_Player);
+        g_Player = NULL;
+        return 5;
     }
     return 0;
 }
@@ -167,6 +179,11 @@ API void ToggleChannel(int channel, int active)
     // If we are muting the channel, immediately stop all notes on it.
     if (!active)
         tsf_channel_note_off_all(g_Player->soundfont, channel);
+}
+
+API int IsFinished()
+{
+    return g_finished;
 }
 
 // Get the list of channels that the MIDI file uses

@@ -126,6 +126,7 @@ def main():
     client = SteamClient()
     provider = SteamInfoProvider(client)
     ui = UI(provider, steam_path, os_type)
+    app.aboutToQuit.connect(ui.kill_midi_player)
 
     window = SFFMainWindow(ui, steam_path)
     window.show()

@@ -17,6 +17,8 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 import ctypes
+import threading
+import time
 from pathlib import Path
 
 from sff.structs import MidiFiles
@@ -25,8 +27,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _find_c_files(ext: str) -> list:
+    c_dir = MidiFiles.MIDI_PLAYER_DLL.value.parent
+    return sorted(c_dir.glob(f"*.{ext}"))
+
+
 class MidiPlayer:
-    def __init__(self, dll: Path):
+    def __init__(self, dll: Path, playlist: list, soundfont: Path):
         lib_path = str(dll.resolve())
         try:
             self.player_lib = ctypes.CDLL(lib_path)
@@ -34,34 +41,96 @@ class MidiPlayer:
             raise ValueError(f"Error loading library: {e}")
 
         self.CIntArray16 = ctypes.c_int * 16
-        self.soundfont = str(MidiFiles.SOUNDFONT.value.resolve()).encode()
-        self.midi = str(MidiFiles.MIDI.value.resolve()).encode()
+        self.soundfont = str(soundfont.resolve()).encode()
+        self.playlist = list(playlist)
+        self._current_idx = 0
+        self._running = False
+        self._monitor_thread = None
+        self.used_channels: list = []
+        self.channel_is_active: dict = {}
+
+        self.player_lib.StartPlayback.argtypes = [
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.c_int),
+        ]
+        self.player_lib.StartPlayback.restype = ctypes.c_int
+        self.player_lib.StopPlayback.argtypes = []
+        self.player_lib.StopPlayback.restype = None
+        self.player_lib.ToggleChannel.argtypes = [ctypes.c_int, ctypes.c_int]
+        self.player_lib.ToggleChannel.restype = None
+        self.player_lib.GetUsedChannels.argtypes = [ctypes.POINTER(ctypes.c_int)]
+        self.player_lib.GetUsedChannels.restype = None
+        self.player_lib.IsFinished.argtypes = []
+        self.player_lib.IsFinished.restype = ctypes.c_int
+
         logger.debug("MidiPlayer initialized")
 
-    def start(self):
-        # All channels on by default
-        initial_states_py = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-
-        # Convert the Python list to a C-compatible array
+    def _start_track(self, midi_path: Path):
+        initial_states_py = [1] * 16
         initial_states_c = self.CIntArray16(*initial_states_py)
+        midi_b = str(midi_path.resolve()).encode()
 
-        result = self.player_lib.StartPlayback(
-            self.midi, self.soundfont, initial_states_c
-        )
+        result_holder = [None]
+        exc_holder = [None]
+        used_channels_holder = [self.CIntArray16()]
 
-        if result != 0 and result != -1:
-            print(f"C library returned an error on start: {result}")
-            return
+        def _run():
+            try:
+                result_holder[0] = self.player_lib.StartPlayback(
+                    midi_b, self.soundfont, initial_states_c
+                )
+                if result_holder[0] == 0:
+                    self.player_lib.GetUsedChannels(used_channels_holder[0])
+            except Exception as e:
+                exc_holder[0] = e
 
-        used_channels_data = self.CIntArray16()
-        self.player_lib.GetUsedChannels(used_channels_data)
-        self.used_channels = [i for i, used in enumerate(used_channels_data) if used]
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        t.join(timeout=10)
 
-        self.channel_is_active = {
-            ch: (initial_states_py[ch] == 1) for ch in self.used_channels
-        }
+        if exc_holder[0] is not None:
+            raise exc_holder[0]
 
-        logger.debug(f"MIDI file uses channels: {self.used_channels}")
+        result = result_holder[0]
+        if result != 0:
+            logger.warning(
+                f"StartPlayback returned {result} for {midi_path.name} "
+                f"({'already playing' if result == -1 else 'error'})"
+            )
+            return False
+
+        self.used_channels = [i for i, used in enumerate(used_channels_holder[0]) if used]
+        self.channel_is_active = {ch: True for ch in self.used_channels}
+        logger.debug(f"Now playing: {midi_path.name} | channels: {self.used_channels}")
+        return True
+
+    def _monitor_playlist(self):
+        while self._running:
+            time.sleep(0.3)
+            if not self._running:
+                break
+            try:
+                if self.player_lib.IsFinished():
+                    self.player_lib.StopPlayback()
+                    if not self._running:
+                        break
+                    self._current_idx = (self._current_idx + 1) % len(self.playlist)
+                    next_track = self.playlist[self._current_idx]
+                    logger.debug(f"Advancing to track {self._current_idx}: {next_track.name}")
+                    self._start_track(next_track)
+            except Exception as e:
+                logger.warning(f"Playlist monitor error: {e}")
+
+    def start(self):
+        if not self.playlist:
+            raise ValueError("Playlist is empty — no MIDI files found in c/ folder")
+        self._current_idx = 0
+        if not self._start_track(self.playlist[0]):
+            raise RuntimeError("Failed to start first track")
+        self._running = True
+        self._monitor_thread = threading.Thread(target=self._monitor_playlist, daemon=True)
+        self._monitor_thread.start()
         logger.debug("MidiPlayer started")
 
     def toggle_channel(self, channel_to_toggle):
@@ -69,22 +138,14 @@ class MidiPlayer:
             if not (0 <= channel_to_toggle < 16):
                 raise ValueError("Channel out of range")
             if channel_to_toggle not in self.used_channels:
-                logger.debug(
-                    f"Warning: Channel {channel_to_toggle} is "
-                    "not used in this MIDI file."
-                )
-
+                logger.debug(f"Channel {channel_to_toggle} not used in current MIDI.")
             new_state = not self.channel_is_active.get(channel_to_toggle, False)
             self.channel_is_active[channel_to_toggle] = new_state
-            action = 'Unmuting' if new_state else 'Muting'
-            logger.debug(
-                f"--> {action} channel {channel_to_toggle}..."
-            )
-            # Send command to C library
+            action = "Unmuting" if new_state else "Muting"
+            logger.debug(f"--> {action} channel {channel_to_toggle}...")
             self.player_lib.ToggleChannel(channel_to_toggle, 1 if new_state else 0)
-
         except ValueError:
-            print("Invalid input. Please enter a number between 0 and 15, or 'q'.")
+            logger.warning("Invalid channel number.")
 
     def set_channel(self, channel_num, state):
         self.player_lib.ToggleChannel(channel_num, state)
@@ -94,5 +155,8 @@ class MidiPlayer:
             self.set_channel(x, state)
 
     def stop(self):
+        self._running = False
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            self._monitor_thread.join(timeout=2)
         self.player_lib.StopPlayback()
         logger.debug("MidiPlayer stopped")
