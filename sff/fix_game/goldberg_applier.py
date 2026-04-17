@@ -367,12 +367,15 @@ class GoldbergApplier:
         is_64 = self.detect_game_bitness(game_dir, main_exe)
         log(f"Main exe: {Path(main_exe).name} ({'64-bit' if is_64 else '32-bit'})")
 
-        # deploy only the arch-matching steamclient DLL
-        sc_name = "steamclient64.dll" if is_64 else "steamclient.dll"
-        sc_src = self.cache_dir / sc_name
-        if sc_src.exists():
-            shutil.copy2(sc_src, game_path / sc_name)
-            log(f"✓ Deployed {sc_name}")
+        # deploy BOTH steamclient DLLs — ColdClientLoader always writes both paths
+        # to the registry and the game exe may hard-require either regardless of bitness
+        for sc_name in ("steamclient.dll", "steamclient64.dll"):
+            sc_src = self.cache_dir / sc_name
+            if sc_src.exists():
+                shutil.copy2(sc_src, game_path / sc_name)
+                log(f"✓ Deployed {sc_name}")
+            else:
+                log(f"Warning: {sc_name} not found in cache")
 
         # deploy loader
         loader_name = "steamclient_loader_x64.exe" if is_64 else "steamclient_loader_x32.exe"
@@ -412,29 +415,34 @@ class GoldbergApplier:
         else:
             exe_rel = os.path.relpath(main_exe, game_dir)
 
-        # generate ColdClientLoader.ini — only include the DLL entry that was actually deployed
-        # ColdClientLoader errors if a listed DLL file does not exist on disk
-        if is_64:
-            dll_line = "SteamClient64Dll=steamclient64.dll"
-        else:
-            dll_line = "SteamClientDll=steamclient.dll"
-
+        # generate ColdClientLoader.ini — both DLL entries must always be present;
+        # the loader writes both paths to the Windows registry unconditionally,
+        # and some game exes hard-require steamclient.dll regardless of their bitness
         ini_content = f"""[SteamClient]
-; Path to the game executable (relative to this ini file)
+# path to game exe, absolute or relative to the loader
 Exe={exe_rel}
-; Working directory for the game (leave empty = same folder as exe)
+# empty means the folder of the exe
 ExeRunDir=
-; Additional command-line arguments to pass to the game
+# any additional args to pass to the game
 ExeCommandLine=
-; Steam App ID for this game
+# Steam App ID for this game
 AppId={app_id}
-; steamclient DLL matching the game's architecture (only the deployed arch is listed)
-{dll_line}
-; Folder containing extra DLLs to inject into the game process
+# path to the steamclient dlls — both must be set
+SteamClientDll=steamclient.dll
+SteamClient64Dll=steamclient64.dll
+
+[Injection]
+ForceInjectSteamClient=0
+ForceInjectGameOverlayRenderer=0
 DllsToInjectFolder=extra_dlls
-; 1=enable ColdClient to forward to the emulator overlay
-; default=0
-ForwardToEmu=0
+IgnoreInjectionError=1
+IgnoreLoaderArchDifference=0
+
+[Persistence]
+Mode=0
+
+[Debug]
+ResumeByDebugger=0
 """
 
         (game_path / "ColdClientLoader.ini").write_text(ini_content, encoding="utf-8")

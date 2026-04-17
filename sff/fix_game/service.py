@@ -100,6 +100,7 @@ class FixGameService:
         skip_drm_check = False,
         skip_steamstub = False,
         skip_goldberg_update = False,
+        create_launch_bat = True,
         log_func=None,
         avatar_path = None,
         simple_settings = False,
@@ -256,8 +257,11 @@ class FixGameService:
             return False
 
         # --- Step 5: Launch.bat Generation ---
-        log("\n--- Step 5: Launch Script ---")
-        self._generate_launch_script(app_id, game_dir, emu_mode, log)
+        if create_launch_bat:
+            log("\n--- Step 5: Launch Script ---")
+            self._generate_launch_script(app_id, game_dir, emu_mode, log)
+        else:
+            log("\n--- Step 5: Launch Script (skipped) ---")
 
         log("\n=== Fix Game Complete ===")
         return True
