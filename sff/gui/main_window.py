@@ -695,6 +695,7 @@ class SFFMainWindow(QMainWindow):
                 if ok:
                     set_setting(s, val)
             _refresh_list()
+            self._apply_setting_live(s, dlg)
 
         def _delete_setting():
             item = lw.currentItem()
@@ -707,6 +708,7 @@ class SFFMainWindow(QMainWindow):
             ) == QMessageBox.StandardButton.Yes:
                 clear_setting(s)
                 _refresh_list()
+                self._apply_setting_live(s, dlg)
 
         def _export():
             path, _ = QFileDialog.getSaveFileName(dlg, "Export settings", "settings_export.json", "JSON (*.json)")
@@ -740,6 +742,42 @@ class SFFMainWindow(QMainWindow):
         import_btn.clicked.connect(_import)
 
         dlg.exec()
+
+    def _apply_setting_live(self, s, parent_widget=None):
+        from sff.structs import Settings
+        if s == Settings.PLAY_MUSIC:
+            from sff.storage.settings import get_setting
+            val = get_setting(Settings.PLAY_MUSIC)
+            if val:
+                self.ui.kill_midi_player()
+                self.ui.init_midi_player()
+            else:
+                self.ui.kill_midi_player()
+        elif s == Settings.APPLIST_FOLDER:
+            try:
+                from sff.app_injector.applist import AppListManager
+                import sys
+                if sys.platform == "win32":
+                    self.ui.app_list_man = AppListManager(
+                        self.ui.steam_path, self.ui.provider
+                    )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to reinit AppListManager: {e}")
+        elif s == Settings.STEAM_PATH:
+            if parent_widget:
+                QMessageBox.information(
+                    parent_widget,
+                    "Restart Recommended",
+                    "Steam path changed. Please restart SteaMidra for all changes to take full effect.",
+                )
+        elif s == Settings.LANGUAGE:
+            if parent_widget:
+                QMessageBox.information(
+                    parent_widget,
+                    "Restart Required",
+                    "Language changed. Please restart SteaMidra to apply the new language.",
+                )
 
     # ── About ────────────────────────────────────────────────────
 

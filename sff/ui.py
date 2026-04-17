@@ -42,7 +42,7 @@ from sff.library_scanner import LibraryScanner
 from sff.lua.manager import LuaManager
 from sff.lua.writer import ACFWriter, ConfigVDFWriter
 from sff.manifest.downloader import ManifestDownloader
-from sff.midi import MidiPlayer
+from sff.midi import MidiPlayer, _find_c_files
 from sff.notifications import get_notification_service
 from sff.processes import SteamProcess
 from sff.prompts import (
@@ -160,11 +160,37 @@ class UI:
             set_setting(Settings.PLAY_MUSIC, False)
             play_music = False
 
-        if any([not x.value.exists() for x in list(MidiFiles)]) or not play_music:
+        if not play_music or not MidiFiles.MIDI_PLAYER_DLL.value.exists():
             self.midi_player = None
-        else:
-            self.midi_player = MidiPlayer(MidiFiles.MIDI_PLAYER_DLL.value)
+            return
+
+        playlist = _find_c_files("mid")
+        soundfonts = _find_c_files("sf2")
+
+        if not playlist:
+            logger.warning("No .mid files found in c/ folder — music disabled")
+            self.midi_player = None
+            return
+        if not soundfonts:
+            logger.warning("No .sf2 soundfont found in c/ folder — music disabled")
+            self.midi_player = None
+            return
+
+        try:
+            self.midi_player = MidiPlayer(
+                MidiFiles.MIDI_PLAYER_DLL.value,
+                playlist=playlist,
+                soundfont=soundfonts[0],
+            )
             self.midi_player.start()
+        except Exception as e:
+            logger.warning(f"MIDI player failed to start: {e}")
+            try:
+                if self.midi_player:
+                    self.midi_player.stop()
+            except Exception:
+                pass
+            self.midi_player = None
 
     def kill_midi_player(self):
         if self.midi_player:
