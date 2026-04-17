@@ -54,11 +54,11 @@ from sff.prompts import (
     prompt_text,
 )
 from sff.recent_files import get_recent_files_manager
-from sff.storage.acf import ACFParser, get_app_name_from_acf
+from sff.storage.acf import ACFParser, find_and_parse_acf, get_app_name_from_acf
 from sff.storage.vdf import ensure_library_has_app
 from sff.steam_client import create_provider_for_current_thread, get_product_info, SteamInfoProvider
 from sff.steam_store import get_app_name_from_store
-from sff.steam_tools_compat import install_lua_to_steam, remove_lua_from_steam
+from sff.steam_tools_compat import install_lua_to_steam, remove_acf_and_manifests, remove_lua_from_steam
 from sff.storage.settings import (
     clear_setting,
     export_settings,
@@ -509,14 +509,53 @@ class UI:
             print("No games selected. Doing nothing.")
             return MainReturnCode.LOOP
 
-        if not prompt_confirm(
-            f"Remove {len(to_remove)} game(s) from library? Restart Steam afterward for changes to take effect.",
-            default=True,
-        ):
+        scope = prompt_select(
+            "How much do you want to remove?",
+            [
+                ("AppList + stplug-in only (current behaviour)", "basic"),
+                ("Full clean: + ACF + manifests (game disappears from Steam)", "full"),
+                ("Full clean: + ACF + manifests + config.vdf decryption keys", "full_keys"),
+            ],
+            cancellable=True,
+        )
+        if scope is None:
             return MainReturnCode.LOOP
+
+        full_clean = scope in ("full", "full_keys")
+        remove_keys = scope == "full_keys"
+
+        confirm_msg = f"Remove {len(to_remove)} game(s)"
+        if full_clean:
+            confirm_msg += " — ACF + manifests will be deleted (game folder kept)"
+        if remove_keys:
+            confirm_msg += " + config.vdf keys"
+        confirm_msg += ". Restart Steam afterward for changes to take effect."
+
+        if not prompt_confirm(confirm_msg, default=True):
+            return MainReturnCode.LOOP
+
+        config_writer = ConfigVDFWriter(self.steam_path) if remove_keys else None
 
         for app_id in to_remove:
             remove_lua_from_steam(self.steam_path, app_id)
+
+            if full_clean:
+                acf_parser, acf_path = find_and_parse_acf(self.steam_path, app_id)
+                if acf_parser is None:
+                    print(
+                        Fore.YELLOW + f"No ACF found for {app_id} — skipping manifest/ACF removal."
+                        + Style.RESET_ALL
+                    )
+                else:
+                    mounted_depots = acf_parser.get_mounted_depots()
+                    n = remove_acf_and_manifests(
+                        self.steam_path, app_id, mounted_depots, acf_path
+                    )
+                    print(Fore.CYAN + f"Deleted {n} file(s) for {app_id} (ACF + manifests)." + Style.RESET_ALL)
+
+                    if remove_keys and config_writer and mounted_depots:
+                        n_keys = config_writer.remove_decryption_keys(list(mounted_depots.keys()))
+                        print(Fore.CYAN + f"Removed {n_keys} decryption key(s) from config.vdf." + Style.RESET_ALL)
 
         if self.app_list_man:
             path_and_ids = self.app_list_man.get_local_ids(sort=True)

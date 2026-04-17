@@ -362,6 +362,28 @@ class ConfigVDFWriter:
 
 
 
+    def remove_decryption_keys(self, depot_ids: list) -> int:
+        vdf_file = self.steam_path / "config/config.vdf"
+        shutil.copyfile(vdf_file, (self.steam_path / "config/config.vdf.backup"))
+        removed = 0
+        with VDFLoadAndDumper(vdf_file) as vdf_data:
+            depots = enter_path(
+                vdf_data,
+                "InstallConfigStore",
+                "Software",
+                "Valve",
+                "Steam",
+                "depots",
+                mutate=True,
+                ignore_case=True,
+            )
+            for depot_id in depot_ids:
+                depot_id_str = str(depot_id)
+                if depot_id_str in depots:
+                    del depots[depot_id_str]
+                    removed += 1
+        return removed
+
     def ids_in_config(self, ids: list[int]):
 
         vdf_file = self.steam_path / "config/config.vdf"
