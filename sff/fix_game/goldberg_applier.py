@@ -82,10 +82,16 @@ INTERFACE_REGEX = re.compile(
 )
 
 # exe skip patterns for main exe detection
+# games often ship launchers / helpers that are LARGER than the actual game exe;
+# they must be excluded so find_main_exe() picks the real game binary.
 EXE_SKIP = [
     "unins", "setup", "install", "redist", "crash", "report",
     "update", "patch", "vc_", "dotnet", "directx", "dxsetup",
     "steamclient_loader", "UnityCrash",
+    # launchers / helpers / tools that can be larger than the game exe:
+    "launcher", "helper", "tool", "config", "benchmark", "editor",
+    "prerequisite", "prereq", "physx", "vcredist", "uplay", "easyanticheat",
+    "battleye", "anticheat", "game_shipping",
 ]
 
 
@@ -148,6 +154,58 @@ class GoldbergApplier:
                 return machine in (0x8664, 0xAA64)
         except Exception:
             return False
+
+    @staticmethod
+    def detect_game_bitness(game_dir: str, main_exe: Optional[str] = None) -> bool:
+        """
+        Detect whether the game is 64-bit using multiple signals, in order:
+
+        1. steam_api64.dll present in the game dir  → definitively 64-bit
+           (the game ships this DLL only when targeting x64)
+        2. steam_api.dll present but no steam_api64.dll  → definitively 32-bit
+        3. PE header of the provided main_exe (or largest found exe)
+        4. Default  → True (64-bit) — safer choice; most modern games are x64
+
+        Never crashes: every path has a fallback.
+        """
+        game_path = Path(game_dir)
+
+        # --- Signal 1 & 2: steam_api DLL presence (most reliable) ---
+        has_api64 = (game_path / "steam_api64.dll").exists()
+        if not has_api64:
+            # also check one level of subdirectories (some games nest the exe)
+            for p in game_path.iterdir():
+                if p.is_dir() and (p / "steam_api64.dll").exists():
+                    has_api64 = True
+                    break
+
+        has_api32 = (game_path / "steam_api.dll").exists()
+        if not has_api32:
+            for p in game_path.iterdir():
+                if p.is_dir() and (p / "steam_api.dll").exists():
+                    has_api32 = True
+                    break
+
+        if has_api64:
+            return True   # steam_api64.dll present → x64
+        if has_api32:     # only steam_api.dll, no 64-bit variant → x86
+            return False
+
+        # --- Signal 3: PE header ---
+        exe = main_exe or GoldbergApplier.find_main_exe(game_dir)
+        if exe:
+            try:
+                result = GoldbergApplier.is_exe_64bit(exe)
+                return result
+            except Exception:
+                pass
+
+        # --- Signal 4: default to 64-bit ---
+        logger.warning(
+            "detect_game_bitness: could not determine arch for %s — defaulting to 64-bit",
+            game_dir,
+        )
+        return True
 
     @staticmethod
     def find_main_exe(game_dir: str) -> Optional[str]:
@@ -307,7 +365,7 @@ class GoldbergApplier:
         if not main_exe:
             return False, "Could not find main game executable"
 
-        is_64 = self.is_exe_64bit(main_exe)
+        is_64 = self.detect_game_bitness(game_dir, main_exe)
         log(f"Main exe: {Path(main_exe).name} ({'64-bit' if is_64 else '32-bit'})")
 
         # deploy only the arch-matching steamclient DLL
@@ -355,7 +413,13 @@ class GoldbergApplier:
         else:
             exe_rel = os.path.relpath(main_exe, game_dir)
 
-        # generate ColdClientLoader.ini with full commented template
+        # generate ColdClientLoader.ini — only include the DLL entry that was actually deployed
+        # ColdClientLoader errors if a listed DLL file does not exist on disk
+        if is_64:
+            dll_line = "SteamClient64Dll=steamclient64.dll"
+        else:
+            dll_line = "SteamClientDll=steamclient.dll"
+
         ini_content = f"""[SteamClient]
 ; Path to the game executable (relative to this ini file)
 Exe={exe_rel}
@@ -365,10 +429,8 @@ ExeRunDir=
 ExeCommandLine=
 ; Steam App ID for this game
 AppId={app_id}
-; 32-bit steamclient DLL (required)
-SteamClientDll=steamclient.dll
-; 64-bit steamclient DLL (required)
-SteamClient64Dll=steamclient64.dll
+; steamclient DLL matching the game's architecture (only the deployed arch is listed)
+{dll_line}
 ; Folder containing extra DLLs to inject into the game process
 DllsToInjectFolder=extra_dlls
 ; 1=enable ColdClient to forward to the emulator overlay
@@ -412,11 +474,12 @@ ForwardToEmu=0
         game_path = Path(game_dir)
 
         # detect bitness first so we can pick the right arch-specific bundled DLL
-        is_64 = True
         main_exe = self.find_main_exe(game_dir)
+        is_64 = self.detect_game_bitness(game_dir, main_exe)
         if main_exe:
-            is_64 = self.is_exe_64bit(main_exe)
             log(f"Main exe: {Path(main_exe).name} ({'64-bit' if is_64 else '32-bit'})")
+        else:
+            log(f"No main exe found — bitness detected from steam_api DLLs: {'64-bit' if is_64 else '32-bit'}")
 
         arch = "x64" if is_64 else "x86"
         coldloader_dll = (self._find_tool(f"coldloader_{arch}.dll")

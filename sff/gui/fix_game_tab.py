@@ -296,17 +296,19 @@ class FixGameTab(QWidget):
         mode_layout = QHBoxLayout()
         mode_layout.addWidget(QLabel("Emulator Mode:"))
         self._mode_combo = QComboBox()
-        self._mode_combo.addItem("Regular Goldberg (steam_api64.dll)", EmuMode.REGULAR)
-        self._mode_combo.addItem("ColdClient (Simple — no password)", EmuMode.COLDCLIENT_SIMPLE)
-        self._mode_combo.addItem("ColdClient (Advanced — GSE Fork tool)", EmuMode.COLDCLIENT_ADVANCED)
-        self._mode_combo.addItem("ColdLoader DLL (proxy dll)", EmuMode.COLDLOADER_DLL)
+        self._mode_combo.addItem("Regular — replace steam_api.dll", EmuMode.REGULAR)
+        self._mode_combo.addItem("ColdClient Simple — Python config + Steam API DLC fetch", EmuMode.COLDCLIENT_SIMPLE)
+        self._mode_combo.addItem("ColdClient Advanced — GSE Fork tool (best DLC coverage)", EmuMode.COLDCLIENT_ADVANCED)
+        self._mode_combo.addItem("ColdLoader DLL — proxy DLL method", EmuMode.COLDLOADER_DLL)
         mode_layout.addWidget(self._mode_combo)
         mode_layout.addStretch()
         opt_layout.addLayout(mode_layout)
 
         mode_tip = QLabel(
-            "💡 Tip: Many games don't work with Regular mode — if the game doesn't launch "
-            "or Steam features are broken, switch to <b>ColdClient (Simple)</b>."
+            "💡 Tip: <b>ColdClient Simple</b> works for most games — fetches DLC from Steam API, "
+            "no login needed. Use <b>ColdClient Advanced</b> for the best DLC/achievement "
+            "coverage (requires the bundled GSE Fork tool). <b>Regular</b> is the simplest "
+            "but fails on games that require steamclient.dll."
         )
         mode_tip.setWordWrap(True)
         mode_tip.setStyleSheet("color: #a0a0a0; font-size: 11px; padding: 2px 0px 4px 0px;")

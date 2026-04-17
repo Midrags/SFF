@@ -44,6 +44,8 @@ from typing import Optional
 
 import httpx
 
+from sff.steam_store import get_dlc_list_from_store, get_dlc_names_from_store
+
 logger = logging.getLogger(__name__)
 
 STEAMCMD_API_URL = "https://steamcmd.morrenus.net/api"
@@ -185,13 +187,13 @@ class GoldbergConfigGenerator:
                 dlc_lines.append(f"{dlc_id}={dlc_name}")
             log(f"\u2713 Added {len(dlc_list)} DLCs to config")
         elif not skip_api:
-            fetched = self._fetch_dlcs(app_id)
+            fetched = self._fetch_dlcs(app_id, log)
             if fetched:
                 for dlc_id, dlc_name in fetched.items():
                     dlc_lines.append(f"{dlc_id}={dlc_name}")
                 log(f"\u2713 Fetched {len(fetched)} DLCs from API")
             else:
-                log("No DLCs found")
+                log("No DLCs found (game may have none, or all APIs failed)")
 
         lines = [
             "# ################################################################################ #",
@@ -716,62 +718,71 @@ Stats_Pos_y=0.0
         except Exception as e:
             log(f"Could not fetch depots: {e}")
 
-    def _fetch_dlc_names(self, dlc_ids: list) -> dict:
-        """Batch-fetch real DLC names from Steam Store appdetails — one request for all IDs."""
-        if not dlc_ids:
-            return {}
-        try:
-            with httpx.Client(timeout=20.0) as client:
-                resp = client.get(
-                    f"{STEAM_STORE_API_URL}/appdetails",
-                    params={"appids": ",".join(str(d) for d in dlc_ids)},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-            result = {}
-            for dlc_id in dlc_ids:
-                app_data = data.get(str(dlc_id), {})
-                if app_data.get("success") and app_data.get("data"):
-                    name = app_data["data"].get("name") or f"DLC {dlc_id}"
-                else:
-                    name = f"DLC {dlc_id}"
-                result[str(dlc_id)] = name
-            return result
-        except Exception as e:
-            logger.warning("Could not fetch DLC names from Steam Store: %s", e)
-            return {str(d): f"DLC {d}" for d in dlc_ids}
+    def _fetch_dlcs(self, app_id, log) -> dict:
+        """Fetch DLC list with real names.
 
-    def _fetch_dlcs(self, app_id) -> dict:
-        """fetch DLC list with real names — SteamCMD API first, Store API fallback"""
+        Priority:
+        1. SteamCMD API (morrenus.net) — mirrors Steam CM product info structure.
+           Uses BOTH sources identical to GBE/GSE fork generate_emu_config.py:
+             a) extended.listofdlc  — comma-separated DLC app IDs
+             b) depots[*].dlcappid  — DLC IDs registered only through depot entries
+           (see Detanup01/gbe_fork_tools and alex47exe/gse_fork_tools get_depots_infos())
+        2. Steam Store API via sff.steam_store module — fallback; individual
+           requests per DLC ID, no URL-encoding issues.
+        """
+        # --- Source 1: SteamCMD API (GBE/GSE-identical two-pass DLC collection) ---
         try:
+            log(f"  DLC: trying SteamCMD API for {app_id}...")
             with httpx.Client(timeout=15.0) as client:
                 resp = client.get(f"{STEAMCMD_API_URL}/{app_id}")
                 resp.raise_for_status()
                 data = resp.json()
 
-            dlc_str = (data.get("data", {}).get(str(app_id), {})
-                       .get("extended", {}).get("listofdlc", ""))
-            if dlc_str:
-                dlc_ids = [d.strip() for d in dlc_str.split(",") if d.strip() and d.strip().isdigit()]
-                if dlc_ids:
-                    return self._fetch_dlc_names(dlc_ids)
-        except Exception as e:
-            logger.warning("Could not fetch DLCs from SteamCMD: %s", e)
+            data_raw = data.get("data", {}).get(str(app_id), {})
+            dlc_ids: set[int] = set()
 
-        # fallback: Steam Store appdetails has a 'dlc' list of IDs
-        try:
-            with httpx.Client(timeout=15.0) as client:
-                resp = client.get(
-                    f"{STEAM_STORE_API_URL}/appdetails",
-                    params={"appids": str(app_id), "filters": "basic,dlc"},
-                )
-                resp.raise_for_status()
-                store_data = resp.json()
-            dlc_ids = (store_data.get(str(app_id), {})
-                       .get("data", {}).get("dlc", []))
+            # Pass A: extended.listofdlc (same as GBE/GSE Source 1)
+            dlc_str = data_raw.get("extended", {}).get("listofdlc", "")
+            if dlc_str:
+                for d in dlc_str.split(","):
+                    d = d.strip()
+                    if d.isdigit():
+                        dlc_ids.add(int(d))
+
+            # Pass B: depots[*].dlcappid (same as GBE/GSE Source 2)
+            for dep_key, depot_info in data_raw.get("depots", {}).items():
+                if isinstance(depot_info, dict) and "dlcappid" in depot_info:
+                    try:
+                        dlc_ids.add(int(depot_info["dlcappid"]))
+                    except (ValueError, TypeError):
+                        pass
+
             if dlc_ids:
-                return self._fetch_dlc_names([str(d) for d in dlc_ids])
+                log(f"  DLC: SteamCMD found {len(dlc_ids)} IDs (listofdlc+depots) — fetching names...")
+                names = get_dlc_names_from_store(list(dlc_ids))
+                return {str(k): v for k, v in names.items()}
+            else:
+                log(f"  DLC: SteamCMD API returned no DLC IDs for {app_id}")
         except Exception as e:
-            logger.warning("Could not fetch DLCs from Steam Store: %s", e)
+            logger.debug("SteamCMD DLC fetch failed for %s: %s", app_id, e)
+            log(f"  DLC: SteamCMD API failed ({e})")
+
+        # --- Source 2: Steam Store API (sff.steam_store — same as download pipeline) ---
+        try:
+            log(f"  DLC: trying Steam Store API for {app_id}...")
+            result = get_dlc_list_from_store(app_id)
+            if result:
+                _, dlc_ids = result
+                if dlc_ids:
+                    log(f"  DLC: Steam Store found {len(dlc_ids)} IDs — fetching names...")
+                    names = get_dlc_names_from_store(dlc_ids)
+                    return {str(k): v for k, v in names.items()}
+                else:
+                    log(f"  DLC: Steam Store returned empty DLC list for {app_id}")
+            else:
+                log(f"  DLC: Steam Store returned no data for {app_id}")
+        except Exception as e:
+            logger.debug("Steam Store DLC fetch failed for %s: %s", app_id, e)
+            log(f"  DLC: Steam Store API failed ({e})")
 
         return {}
