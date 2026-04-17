@@ -26,7 +26,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, QObject
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QGroupBox, QComboBox, QCheckBox, QFileDialog,
-    QMessageBox, QTextEdit, QRadioButton, QButtonGroup,
+    QMessageBox, QTextEdit, QRadioButton, QButtonGroup, QScrollArea,
 )
 
 from sff.fix_game.service import FixGameService, EmuMode
@@ -212,7 +212,14 @@ class FixGameTab(QWidget):
             pass
 
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        _scroll = QScrollArea()
+        _scroll.setWidgetResizable(True)
+        _inner = QWidget()
+        layout = QVBoxLayout(_inner)
+        _scroll.setWidget(_inner)
+        outer.addWidget(_scroll)
 
         # --- Target Game ---
         target_group = QGroupBox("Target Game")
@@ -318,7 +325,9 @@ class FixGameTab(QWidget):
         self._gse_group = QGroupBox("GSE Fork Options")
         gse_layout = QVBoxLayout(self._gse_group)
 
-        auth_row = QHBoxLayout()
+        self._gse_auth_widget = QWidget()
+        auth_row = QHBoxLayout(self._gse_auth_widget)
+        auth_row.setContentsMargins(0, 0, 0, 0)
         auth_row.addWidget(QLabel("Auth:"))
         self._gse_anon_radio = QRadioButton("Anonymous (no credentials)")
         self._gse_login_radio = QRadioButton("Login with Steam credentials")
@@ -329,7 +338,7 @@ class FixGameTab(QWidget):
         auth_row.addWidget(self._gse_anon_radio)
         auth_row.addWidget(self._gse_login_radio)
         auth_row.addStretch()
-        gse_layout.addLayout(auth_row)
+        gse_layout.addWidget(self._gse_auth_widget)
 
         self._gse_creds_widget = QWidget()
         creds_layout = QVBoxLayout(self._gse_creds_widget)
@@ -350,7 +359,7 @@ class FixGameTab(QWidget):
         gse_layout.addWidget(self._gse_creds_widget)
         self._gse_creds_widget.hide()
         opt_layout.addWidget(self._gse_group)
-        self._gse_group.hide()
+        self._gse_group.setMaximumHeight(0)
 
         # pre-fill saved credentials
         try:
@@ -416,6 +425,7 @@ class FixGameTab(QWidget):
         self._log_area.setReadOnly(True)
         log_layout.addWidget(self._log_area)
         layout.addWidget(log_group)
+        layout.addStretch()
 
     def _refresh_game_list(self):
         """Scan installed Steam games and populate the dropdown."""
@@ -502,9 +512,12 @@ class FixGameTab(QWidget):
             self._avatar_edit.setText(path)
 
     def _on_mode_changed(self, _index):
-        """Show/hide GSE Fork options when ColdClient Advanced is selected."""
+        """Collapse/expand GSE Fork options when ColdClient Advanced is selected."""
         mode = self._mode_combo.currentData()
-        self._gse_group.setVisible(mode == EmuMode.COLDCLIENT_ADVANCED)
+        visible = mode == EmuMode.COLDCLIENT_ADVANCED
+        self._gse_group.setMaximumHeight(16777215 if visible else 0)
+        if visible:
+            self._on_gse_auth_changed()
 
     def _on_gse_auth_changed(self):
         """Show/hide credential fields based on auth radio selection."""
