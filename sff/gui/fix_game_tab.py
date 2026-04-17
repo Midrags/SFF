@@ -139,6 +139,7 @@ class _FixWorker(QObject):
                 emu_mode=self.emu_mode.value,
                 skip_steamstub=not self.unpack_steamstub,
                 skip_goldberg_update=not self.goldberg_update,
+                create_launch_bat=self.create_launch_bat,
                 log_func=self.log_msg.emit,
                 player_name=self.player_name or "Player",
                 steam_id=self.steam_id or _DEFAULT_STEAM_ID,
