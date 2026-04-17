@@ -31,6 +31,7 @@ Mirrors Solus FixGameService.cs (588 lines).
 """
 
 import os
+import sys
 import shutil
 import subprocess
 import logging
@@ -169,8 +170,11 @@ class FixGameService:
 
         # --- Step 2: Config Generation ---
         log("\n--- Step 2: Config Generation ---")
+        cached_info = self.cache.load_app_info(app_id)
+        generator = GoldbergConfigGenerator(steam_web_api_key)
+
         if emu_mode == EmuMode.COLDCLIENT_ADVANCED.value:
-            self._run_gse_config(
+            gse_ok = self._run_gse_config(
                 app_id=app_id,
                 game_dir=game_dir,
                 auth_mode=gse_auth_mode,
@@ -178,10 +182,23 @@ class FixGameService:
                 password=gse_password,
                 log=log,
             )
-            # also populate global GBE identity settings for this user
+            if not gse_ok:
+                log("⚠ GSE tool unavailable — falling back to Python config generator")
+                generator.generate(
+                    app_id=app_id,
+                    target_dir=game_dir,
+                    language=language,
+                    steam_id=steam_id,
+                    player_name=player_name,
+                    dlc_list=cached_info.dlc_list if cached_info else None,
+                    cloud_save_paths=cached_info.cloud_save_paths if cached_info else None,
+                    log_func=log,
+                    avatar_path=avatar_path,
+                    simple_mode=False,
+                )
+            # always write global GBE identity settings regardless of which path was taken
             _appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
             global_dir = Path(_appdata) / "GSE Saves" / "settings"
-            generator = GoldbergConfigGenerator(steam_web_api_key)
             generator._write_global_settings(
                 global_dir=global_dir,
                 player_name=player_name,
@@ -191,8 +208,6 @@ class FixGameService:
                 log=log,
             )
         else:
-            cached_info = self.cache.load_app_info(app_id)
-            generator = GoldbergConfigGenerator(steam_web_api_key)
             generator.generate(
                 app_id=app_id,
                 target_dir=game_dir,
@@ -363,9 +378,43 @@ class FixGameService:
             exe_rel = os.path.relpath(main_exe, game_dir)
             bat_content = f'@echo off\ncd /d "%~dp0"\nstart "" "{exe_rel}"\n'
             (game_path / "Launch.bat").write_text(bat_content, encoding="utf-8")
-            log(f"✓ Created Launch.bat ({Path(main_exe).name})")
-        else:
-            log("Could not determine main executable for Launch.bat")
+            log(f"\u2713 Created Launch.bat ({exe_rel})")
+
+    @staticmethod
+    def _find_gse_exe() -> Optional[Path]:
+        """
+        Locate generate_emu_config.exe in priority order:
+        1. sys._MEIPASS (frozen single-file EXE — bundled data lives here,
+           NOT in Path(sys.executable).parent which is the EXE's own folder)
+        2. Next to the EXE / project root (dev mode or one-folder distribution)
+        3. %APPDATA%/SteaMidra/gse_tool/ (previously staged persistent copy)
+        """
+        rel = (Path("third_party") / "gbe_fork_tools"
+               / "generate_emu_config" / "generate_emu_config.exe")
+
+        # 1. Frozen single-file EXE: bundled files are in sys._MEIPASS
+        if getattr(sys, "frozen", False):
+            meipass = Path(getattr(sys, "_MEIPASS", ""))
+            p = meipass / rel
+            if p.exists():
+                return p
+
+        # 2. Dev mode or one-folder distribution: next to the project root
+        try:
+            from sff.utils import root_folder
+            p = root_folder() / rel
+            if p.exists():
+                return p
+        except Exception:
+            pass
+
+        # 3. Persistent APPDATA staged copy (written on first successful run)
+        appdata = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+        p = appdata / "SteaMidra" / "gse_tool" / "generate_emu_config.exe"
+        if p.exists():
+            return p
+
+        return None
 
     def _run_gse_config(
         self,
@@ -379,24 +428,55 @@ class FixGameService:
         """
         Run generate_emu_config.exe (GSE Fork) to build steam_settings.
 
-        auth_mode: "anonymous" (no credentials) or "login" (username + password).
+        Locates the tool via _find_gse_exe() (checks sys._MEIPASS first so the
+        bundled version inside the frozen EXE is found correctly).
+        Copies the tool to %APPDATA%/SteaMidra/gse_tool/ before running so it
+        has a writable persistent directory for output and its own state files.
+
+        auth_mode: "anonymous" or "login" (username + password via env vars).
         Runs with CREATE_NO_WINDOW + stdin=DEVNULL so no console ever appears.
+        Returns True if config was generated successfully.
         """
-        from sff.utils import root_folder
-
-        tools_folder = root_folder() / "third_party" / "gbe_fork_tools" / "generate_emu_config"
-        config_exe = tools_folder / "generate_emu_config.exe"
-
-        if not config_exe.exists():
-            log(f"generate_emu_config.exe not found at {config_exe}")
+        config_exe = self._find_gse_exe()
+        if not config_exe:
+            log("generate_emu_config.exe not found in any search location")
+            log("  Searched: sys._MEIPASS, project root, %APPDATA%/SteaMidra/gse_tool/")
             return False
+
+        log(f"GSE tool found: {config_exe}")
+
+        # Copy the entire tool folder to a persistent writable APPDATA location.
+        # This ensures the tool can write output/ and keep its own state files,
+        # and avoids issues with sys._MEIPASS being a read-constrained temp dir.
+        appdata = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+        run_dir = appdata / "SteaMidra" / "gse_tool"
+        run_exe = run_dir / "generate_emu_config.exe"
+
+        try:
+            src_dir = config_exe.parent
+            run_dir.mkdir(parents=True, exist_ok=True)
+            # copy EXE
+            shutil.copy2(config_exe, run_exe)
+            # copy _internal/ folder (PyInstaller dependencies for the tool)
+            src_internal = src_dir / "_internal"
+            if src_internal.is_dir():
+                dst_internal = run_dir / "_internal"
+                shutil.copytree(src_internal, dst_internal, dirs_exist_ok=True)
+            # copy any support files (jpg, txt examples, etc.) — skip output/
+            for f in src_dir.iterdir():
+                if f.is_file() and f.name != "generate_emu_config.exe":
+                    shutil.copy2(f, run_dir / f.name)
+            log(f"✓ GSE tool staged to {run_dir}")
+        except Exception as e:
+            log(f"Warning: could not stage GSE tool to APPDATA ({e}) — running in-place")
+            run_dir = config_exe.parent
+            run_exe = config_exe
 
         env = os.environ.copy()
         if auth_mode == "login" and username and password:
             env["GSE_CFG_USERNAME"] = username
             env["GSE_CFG_PASSWORD"] = password
             log(f"GSE Fork: login as {username}")
-            # save credentials for future use
             try:
                 from sff.storage.settings import set_setting
                 from sff.structs import Settings
@@ -411,9 +491,9 @@ class FixGameService:
         try:
             log(f"Running generate_emu_config.exe for app {app_id}...")
             result = subprocess.run(
-                [str(config_exe), str(app_id)],
+                [str(run_exe), str(app_id)],
                 env=env,
-                cwd=str(tools_folder),
+                cwd=str(run_dir),
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
@@ -421,14 +501,16 @@ class FixGameService:
                 creationflags=creation_flags,
             )
             if result.stdout:
-                for line in result.stdout.strip().splitlines()[-10:]:
-                    log(f"  {line}")
+                for line in result.stdout.strip().splitlines()[-15:]:
+                    log(f"  [gse] {line}")
+            if result.stderr:
+                for line in result.stderr.strip().splitlines()[-5:]:
+                    log(f"  [gse-err] {line}")
             if result.returncode != 0:
                 log(f"generate_emu_config.exe exited with code {result.returncode}")
-                if result.stderr:
-                    log(result.stderr[:400])
+                return False
             else:
-                log("✓ GSE Fork config generation complete")
+                log("\u2713 GSE Fork config generation complete")
         except subprocess.TimeoutExpired:
             log("generate_emu_config.exe timed out after 120 s")
             return False
@@ -437,14 +519,16 @@ class FixGameService:
             return False
 
         # copy generated steam_settings to game dir
-        src_settings = tools_folder / "output" / str(app_id) / "steam_settings"
+        src_settings = run_dir / "output" / str(app_id) / "steam_settings"
         if src_settings.exists():
             dst_settings = Path(game_dir) / "steam_settings"
             dst_settings.mkdir(parents=True, exist_ok=True)
             shutil.copytree(src_settings, dst_settings, dirs_exist_ok=True)
-            log("✓ Copied steam_settings from GSE Fork output")
+            log("\u2713 Copied steam_settings from GSE Fork output")
         else:
             log(f"GSE Fork output not found — expected {src_settings}")
+            log("  Config generation may have failed silently; check [gse] lines above")
+            return False
 
         # ensure configs.user.ini has saves_folder_name (GSE tool may omit it)
         user_ini = Path(game_dir) / "steam_settings" / "configs.user.ini"
