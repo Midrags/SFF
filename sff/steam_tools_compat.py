@@ -77,3 +77,30 @@ def remove_lua_from_steam(steam_path, app_id: str | int):
     except OSError as e:
         logger.warning("Could not remove LUA from Steam config: %s", e)
         return False
+
+
+def remove_acf_and_manifests(steam_path, app_id: str | int, mounted_depots: dict, acf_path=None):
+    deleted = 0
+    for depot_id, manifest_id in mounted_depots.items():
+        filename = f"{depot_id}_{manifest_id}.manifest"
+        for cache_dir in [
+            steam_path / "depotcache",
+            steam_path / "config" / "depotcache",
+        ]:
+            f = cache_dir / filename
+            try:
+                if f.exists():
+                    f.unlink()
+                    logger.info("Deleted manifest: %s", f)
+                    deleted += 1
+            except OSError as e:
+                logger.warning("Could not delete manifest %s: %s", f, e)
+    if acf_path is not None:
+        try:
+            if acf_path.exists():
+                acf_path.unlink()
+                logger.info("Deleted ACF: %s", acf_path)
+                deleted += 1
+        except OSError as e:
+            logger.warning("Could not delete ACF %s: %s", acf_path, e)
+    return deleted

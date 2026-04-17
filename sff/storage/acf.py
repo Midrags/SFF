@@ -100,6 +100,27 @@ class ACFParser:
             return True
         return False
 
+    def get_mounted_depots(self) -> dict:
+        return enter_path(self.data, "AppState", "MountedDepots", default={})
+
+
+def find_and_parse_acf(steam_path, app_id):
+    libs = []
+    try:
+        libs = get_steam_libs(steam_path)
+    except Exception as e:
+        logger.debug("get_steam_libs failed: %s", e)
+    if not libs:
+        libs = [steam_path]
+    for lib in libs:
+        acf_path = lib / "steamapps" / f"appmanifest_{app_id}.acf"
+        if acf_path.exists():
+            try:
+                return ACFParser(acf_path), acf_path
+            except Exception as e:
+                logger.debug("ACF parse failed for %s: %s", acf_path, e)
+    return None, None
+
 
 def get_app_name_from_acf(steam_path, app_id):
     """

@@ -38,14 +38,26 @@ def run_fzf(choices, os_type):
             print(
                 "You don't have fzf installed. Please install it and try this again."
             )
-            return
+            return None
         cmd = [fzf_path]
     elif os_type == OSType.WINDOWS:
-        cmd = [root_folder() / "third_party/fzf/fzf.exe"]
-    proc = subprocess.run(
-        cmd,
-        input=choices_str,
-        capture_output=True,
-        encoding="utf-8",
-    )
-    return proc.stdout.strip("\n")
+        fzf_path = root_folder() / "third_party/fzf/fzf.exe"
+        if not fzf_path.exists():
+            print(
+                f"fzf.exe not found at {fzf_path}.\n"
+                "Please re-extract the release zip to ensure third_party/fzf/ is present,\n"
+                "or enter the App ID directly instead of using game search."
+            )
+            return None
+        cmd = [fzf_path]
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=choices_str,
+            capture_output=True,
+            encoding="utf-8",
+        )
+        return proc.stdout.strip("\n")
+    except (FileNotFoundError, OSError) as e:
+        print(f"Failed to run fzf: {e}")
+        return None
