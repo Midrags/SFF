@@ -38,9 +38,15 @@ In the GUI, clicking "Remove SteamStub" opens a file picker. Navigate to your ga
 
 ---
 
-## SteamAutoCrack not found
+## SteamAutoCrack not found / "Failed to extract" error
 
-Make sure the SteaMidra folder is intact and no files have been deleted. SteamAutoCrack is bundled in `third_party/SteamAutoCrack/cli/` and should already be there.
+SteamAutoCrack is bundled inside `SteaMidra_GUI.exe` and is found automatically. You do **not** need to download or extract it manually.
+
+If you still see this error:
+- Make sure you are using the latest version of SteaMidra.
+- Install SteaMidra in a short path like `C:\SFF\` — very long install paths can cause Windows path-length errors (260-character limit).
+
+If you previously tried to fix this by extracting the SteamAutoCrack release ZIP into the `third_party\SteamAutoCrack\` folder, **delete those extracted files**. The full archive contains hundreds of deeply-nested .NET build files that cause the "Failed to extract … fopen: No such file or directory" error. Only the CLI bundled inside the EXE is needed.
 
 ---
 

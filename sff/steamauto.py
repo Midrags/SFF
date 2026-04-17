@@ -44,11 +44,26 @@ _EXE_PATHS = [
 
 
 def get_steamauto_cli_path() -> Optional[Path]:
+    # 1. Frozen single-file EXE: bundled data lives in sys._MEIPASS, not next to
+    #    the EXE file.  Check there first so a bundled SteamAutoCrack.CLI.exe is
+    #    found even though root_folder() returns Path(sys.executable).parent.
+    #    (Same pattern as _find_gse_exe() in service.py.)
+    if getattr(sys, "frozen", False):
+        meipass = Path(getattr(sys, "_MEIPASS", ""))
+        for subpath in _EXE_PATHS:
+            p = meipass / subpath
+            if p.exists():
+                return p.resolve()
+
+    # 2. Dev mode or one-folder distribution: check next to the EXE / project root.
+    #    For the one-file EXE this covers files the user placed manually beside
+    #    SteaMidra_GUI.exe (e.g. .\third_party\SteamAutoCrack\cli\SteamAutoCrack.CLI.exe).
     root = root_folder()
     for subpath in _EXE_PATHS:
         p = root / subpath
         if p.exists():
             return p.resolve()
+
     return None
 
 
