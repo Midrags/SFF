@@ -34,7 +34,7 @@ class ManifestContext:
     app_data: dict[str, Any]
     "get_product_info data for app id"
     provider: SteamInfoProvider
-    auto = True
+    auto: bool = True
     "whether the user chose to automatically get IDs or not"
     _dlc_data = None
     "Lazy-loaded DLC data"
