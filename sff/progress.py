@@ -20,7 +20,6 @@
 
 import logging
 import time
-from typing import Optional
 
 from tqdm import tqdm
 
@@ -32,9 +31,9 @@ class ProgressTracker:
     def __init__(
         self,
         total: int,
-        desc: str = "Processing",
-        unit: str = "it",
-        unit_scale: bool = False
+        desc = "Processing",
+        unit = "it",
+        unit_scale = False
     ):
         self.total = total
         self.desc = desc
@@ -50,13 +49,13 @@ class ProgressTracker:
             ncols=100
         )
     
-    def update(self, n: int = 1) -> None:
+    def update(self, n = 1):
         self.pbar.update(n)
     
-    def set_description(self, desc: str) -> None:
+    def set_description(self, desc):
         self.pbar.set_description(desc)
     
-    def close(self) -> None:
+    def close(self):
         self.pbar.close()
         elapsed = time.time() - self.start_time
         logger.info(f"{self.desc} completed in {elapsed:.2f}s")
@@ -70,7 +69,7 @@ class ProgressTracker:
 
 class SpinnerProgress:
     
-    def __init__(self, desc: str = "Processing"):
+    def __init__(self, desc = "Processing"):
         self.desc = desc
         self.pbar = tqdm(
             desc=desc,
@@ -78,10 +77,10 @@ class SpinnerProgress:
             ncols=100
         )
     
-    def update_description(self, desc: str) -> None:
+    def update_description(self, desc):
         self.pbar.set_description(desc)
     
-    def close(self) -> None:
+    def close(self):
         self.pbar.close()
     
     def __enter__(self):
@@ -93,12 +92,12 @@ class SpinnerProgress:
 
 def create_progress_bar(
     total: int,
-    desc: str = "Processing",
-    unit: str = "it",
-    unit_scale: bool = False
-) -> ProgressTracker:
+    desc = "Processing",
+    unit = "it",
+    unit_scale = False
+):
     return ProgressTracker(total, desc, unit, unit_scale)
 
 
-def create_spinner(desc: str = "Processing") -> SpinnerProgress:
+def create_spinner(desc = "Processing"):
     return SpinnerProgress(desc)

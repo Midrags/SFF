@@ -21,7 +21,6 @@
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 from PyQt6.QtWidgets import (
@@ -37,12 +36,12 @@ logger = logging.getLogger(__name__)
 _DEFAULT_STEAM_ID = "76561198001737783"
 
 
-def _scan_installed_games(steam_path: Optional[Path] = None) -> list[tuple[str, str, Path]]:
+def _scan_installed_games(steam_path = None):
     """Scan all Steam libraries and return list of (name, app_id, game_path)."""
-    results: list[tuple[str, str, Path]] = []
-    seen: set[str] = set()
+    results = []
+    seen = set()
 
-    candidates: list[Path] = []
+    candidates = []
     if steam_path and steam_path.exists():
         candidates.append(steam_path)
 
@@ -106,13 +105,13 @@ class _FixWorker(QObject):
     finished = pyqtSignal(bool, str)
     log_msg = pyqtSignal(str)
 
-    def __init__(self, game_path: Path, app_id: str, emu_mode: EmuMode,
+    def __init__(self, game_path, app_id, emu_mode,
                  unpack_steamstub: bool, generate_config: bool, create_launch_bat: bool,
                  goldberg_update: bool, player_name: str, steam_id: str,
                  avatar_path: str, simple_settings: bool,
-                 gse_auth_mode: str = "anonymous",
-                 gse_username: str = "",
-                 gse_password: str = ""):
+                 gse_auth_mode = "anonymous",
+                 gse_username = "",
+                 gse_password = ""):
         super().__init__()
         self.game_path = game_path
         self.app_id = app_id
@@ -165,7 +164,7 @@ class _RevertWorker(QObject):
     finished = pyqtSignal(bool, str)
     log_msg = pyqtSignal(str)
 
-    def __init__(self, game_path: Path):
+    def __init__(self, game_path):
         super().__init__()
         self.game_path = game_path
 
@@ -183,7 +182,7 @@ class _RevertWorker(QObject):
 class FixGameTab(QWidget):
     """Orchestrates the Fix Game pipeline."""
 
-    def __init__(self, steam_path: Optional[Path] = None, parent=None):
+    def __init__(self, steam_path = None, parent=None):
         super().__init__(parent)
         self._steam_path = steam_path
         self._thread = None
@@ -417,7 +416,7 @@ class FixGameTab(QWidget):
         log_layout.addWidget(self._log_area)
         layout.addWidget(log_group)
 
-    def _refresh_game_list(self) -> None:
+    def _refresh_game_list(self):
         """Scan installed Steam games and populate the dropdown."""
         self._game_combo.blockSignals(True)
         self._game_combo.clear()
@@ -430,7 +429,7 @@ class FixGameTab(QWidget):
             logger.debug(f"Game scan failed: {e}")
         self._game_combo.blockSignals(False)
 
-    def _on_game_selected(self, index: int) -> None:
+    def _on_game_selected(self, index):
         """Auto-fill path and App ID when user picks a game from dropdown."""
         data = self._game_combo.itemData(index)
         if data is None:
@@ -440,7 +439,7 @@ class FixGameTab(QWidget):
         self._id_edit.setText(app_id)
 
     @staticmethod
-    def _detect_app_id(game_path: Path) -> str:
+    def _detect_app_id(game_path):
         """Try to detect App ID from the game folder using multiple sources."""
         import re
         candidates = [
@@ -501,16 +500,16 @@ class FixGameTab(QWidget):
         if path:
             self._avatar_edit.setText(path)
 
-    def _on_mode_changed(self, _index: int) -> None:
+    def _on_mode_changed(self, _index):
         """Show/hide GSE Fork options when ColdClient Advanced is selected."""
         mode = self._mode_combo.currentData()
         self._gse_group.setVisible(mode == EmuMode.COLDCLIENT_ADVANCED)
 
-    def _on_gse_auth_changed(self) -> None:
+    def _on_gse_auth_changed(self):
         """Show/hide credential fields based on auth radio selection."""
         self._gse_creds_widget.setVisible(self._gse_login_radio.isChecked())
 
-    def prefill(self, game_path: str, app_id: str, emu_mode: EmuMode = EmuMode.COLDCLIENT_SIMPLE):
+    def prefill(self, game_path, app_id, emu_mode = EmuMode.COLDCLIENT_SIMPLE):
         """Pre-fill fields from external callers (e.g. Quick ColdClient button)."""
         self._path_edit.setText(game_path)
         if app_id:
@@ -620,7 +619,7 @@ class FixGameTab(QWidget):
         self._thread.started.connect(self._worker.run)
         self._thread.start()
 
-    def _on_fix_finished(self, success: bool, msg: str):
+    def _on_fix_finished(self, success, msg):
         self._run_btn.setEnabled(True)
         self._revert_btn.setEnabled(True)
         if self._thread:
@@ -631,7 +630,7 @@ class FixGameTab(QWidget):
         else:
             QMessageBox.critical(self, "Error", f"Failed to fix game:\n{msg}")
 
-    def _on_revert_finished(self, success: bool, msg: str):
+    def _on_revert_finished(self, success, msg):
         self._run_btn.setEnabled(True)
         self._revert_btn.setEnabled(True)
         if self._thread:

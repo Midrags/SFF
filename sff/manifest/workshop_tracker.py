@@ -21,7 +21,6 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any
 
 from sff.utils import root_folder
 
@@ -30,7 +29,7 @@ logger = logging.getLogger(__name__)
 TRACKER_FILE = root_folder(outside_internal=True) / "workshop_tracker.json"
 
 
-def _load() -> dict[str, Any]:
+def _load():
     try:
         if TRACKER_FILE.exists():
             with TRACKER_FILE.open("r", encoding="utf-8") as f:
@@ -40,7 +39,7 @@ def _load() -> dict[str, Any]:
     return {"items": []}
 
 
-def _save(data: dict[str, Any]) -> None:
+def _save(data):
     try:
         TRACKER_FILE.parent.mkdir(parents=True, exist_ok=True)
         with TRACKER_FILE.open("w", encoding="utf-8") as f:
@@ -49,11 +48,11 @@ def _save(data: dict[str, Any]) -> None:
         logger.warning("Failed to save workshop tracker: %s", e)
 
 
-def _key(app_id: str, workshop_id: int) -> str:
+def _key(app_id, workshop_id):
     return f"{app_id}:{workshop_id}"
 
 
-def add(app_id: str, workshop_id: int, time_updated: int) -> None:
+def add(app_id, workshop_id, time_updated):
     data = _load()
     key = _key(app_id, workshop_id)
     items = {_key(str(i.get("app_id", "")), int(i.get("workshop_id", 0))): i for i in data.get("items", [])}
@@ -66,7 +65,7 @@ def add(app_id: str, workshop_id: int, time_updated: int) -> None:
     _save(data)
 
 
-def get_all() -> list[tuple[str, int, int]]:
+def get_all():
     data = _load()
     result = []
     for item in data.get("items", []):
@@ -81,11 +80,11 @@ def get_all() -> list[tuple[str, int, int]]:
     return result
 
 
-def update_time(app_id: str, workshop_id: int, time_updated: int) -> None:
+def update_time(app_id, workshop_id, time_updated):
     add(app_id, workshop_id, time_updated)
 
 
-def remove(app_id: str, workshop_id: int) -> None:
+def remove(app_id, workshop_id):
     data = _load()
     key = _key(app_id, workshop_id)
     items = [

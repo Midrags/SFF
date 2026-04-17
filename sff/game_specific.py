@@ -26,7 +26,6 @@ import shlex
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Literal, NamedTuple, Optional, overload
 
 from colorama import Fore, Style
 
@@ -67,6 +66,7 @@ from sff.structs import (
 )
 from sff.strings import STEAM_WEB_API_KEY
 from sff.utils import enter_path, root_folder
+from typing import Literal, NamedTuple, Optional, overload
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +93,9 @@ class GameHandler:
         self.provider = provider
         self.injection_manager = injection_manager
 
-    def _scan_games(self) -> list[tuple[AppName, ACFInfo]]:
-        games: list[tuple[AppName, ACFInfo]] = []
-        seen_app_ids: set[str] = set()
+    def _scan_games(self):
+        games = []
+        seen_app_ids = set()
         
         # Get all Steam libraries (including from all drives)
         try:
@@ -178,10 +178,10 @@ class GameHandler:
         
         return games
 
-    def get_game_list(self) -> list[tuple[AppName, ACFInfo]]:
+    def get_game_list(self):
         return self._scan_games()
 
-    def get_game(self) -> Optional[ACFInfo]:
+    def get_game(self):
         games = self._scan_games()
         if not games:
             print(Fore.RED + "No games found in any Steam library!" + Style.RESET_ALL)
@@ -194,7 +194,7 @@ class GameHandler:
             cancellable=True,
         )
 
-    def find_steam_dll(self, game_path: Path) -> Optional[Path]:
+    def find_steam_dll(self, game_path):
         files = list(game_path.rglob("steam_api*.dll"))
         if len(files) > 1:
             return prompt_select(
@@ -208,7 +208,7 @@ class GameHandler:
     @overload
     def run_gen_emu(
         self, app_id: str, mode: Literal[GenEmuMode.USER_GAME_STATS]
-    ) -> None: ...
+    ): ...
 
     @overload
     def run_gen_emu(
@@ -216,13 +216,13 @@ class GameHandler:
         app_id: str,
         mode: Literal[GenEmuMode.STEAM_SETTINGS, GenEmuMode.ALL],
         dst_steam_settings_folder: Path,
-    ) -> None: ...
+    ): ...
 
     def run_gen_emu(
         self,
         app_id: str,
         mode: GenEmuMode,
-        dst_steam_settings_folder: Optional[Path] = None,
+        dst_steam_settings_folder = None,
     ):
         if mode in (GenEmuMode.STEAM_SETTINGS, GenEmuMode.ALL):
             if dst_steam_settings_folder is None:
@@ -256,7 +256,7 @@ class GameHandler:
         env["GSE_CFG_USERNAME"] = user
         env["GSE_CFG_PASSWORD"] = password
 
-        extra_args: list[str] = []
+        extra_args = []
         if mode == GenEmuMode.USER_GAME_STATS:
             extra_args.extend(["-skip_con", "-skip_inv"])
         cmds = [str(config_exe.absolute()), "-clean", *extra_args, app_id]
@@ -320,7 +320,7 @@ class GameHandler:
                 + str(dst_steam_settings_folder)
             )
 
-    def _crack_dll_core(self, app_id: str, dll_path: Path) -> bool:
+    def _crack_dll_core(self, app_id, dll_path):
         """Swap steam_api DLL with Goldberg. Returns False if already cracked."""
         gbe_fork_folder = root_folder() / "third_party/gbe_fork/"
         gbe_dll = gbe_fork_folder / dll_path.name
@@ -354,7 +354,7 @@ class GameHandler:
         (api_folder / "steam_appid.txt").write_text(app_id, "utf-8")
         return True
 
-    def crack_dll(self, app_id: str, dll_path: Path):
+    def crack_dll(self, app_id, dll_path):
         swapped = self._crack_dll_core(app_id, dll_path)
         if not swapped:
             return
@@ -384,7 +384,7 @@ class GameHandler:
         print(f"\nCrack complete. Run the game — saves go to: "
               f"{Path.home() / 'AppData' / 'Roaming' / 'GSE Saves' / app_id}")
 
-    def apply_steamless(self, app_info: ACFInfo, exe_path: Optional[Path] = None):
+    def apply_steamless(self, app_info, exe_path = None):
         game_exe = exe_path if exe_path is not None else self.select_executable(app_info)
 
         steamless_exe = root_folder() / "third_party/steamless/Steamless.CLI.exe"
@@ -404,14 +404,14 @@ class GameHandler:
             print(output.stdout)
             print("Steamless failed...")
 
-    def _prompt_manual_exe(self, app_info: ACFInfo):
+    def _prompt_manual_exe(self, app_info):
         subprocess.run(["explorer", app_info.path])
         game_exe = prompt_file(
             "Drag the game .exe here and press Enter:",
         )
         return game_exe
 
-    def _get_windows_execs(self, info: ProductInfo, app_id: int) -> list[str]:
+    def _get_windows_execs(self, info, app_id):
         launches = enter_path(info, "apps", app_id, "config", "launch")
         return [
             launch["executable"]
@@ -419,7 +419,7 @@ class GameHandler:
             if enter_path(launch, "config", "oslist") == "windows"
         ]
 
-    def select_executable(self, app_info: ACFInfo) -> Path:
+    def select_executable(self, app_info):
         info = get_product_info(self.provider, [int(app_info.app_id)])
 
         windows_exes = self._get_windows_execs(info, int(app_info.app_id))
@@ -432,22 +432,22 @@ class GameHandler:
         chosen = prompt_select("Choose the exe:", windows_exes)
         return app_info.path / chosen
 
-    def download_workshop_manifest(self, app_id: str):
-        strats: list[IUgcIdStrategy] = [StandardUgcIdStrategy()]
+    def download_workshop_manifest(self, app_id):
+        strats = [StandardUgcIdStrategy()]
         ugc_resolver = UgcIDResolver(strats)
         regex = re.compile(
             r"(?<=steamcommunity.com\/sharedfiles\/filedetails\/\?id=)\d+|^\d+$"
         )
 
-        def validate(x: str) -> bool:
+        def validate(x):
             return bool(regex.search(x))
 
-        def filter_id(x: str) -> int:
+        def filter_id(x):
             match = regex.search(x)
             assert match is not None
             return int(match.group())
 
-        workshop_id: int = prompt_text(
+        workshop_id = prompt_text(
             "Paste workshop item or collection URL, or item ID:",
             validator=validate,
             filter=filter_id,
@@ -503,7 +503,7 @@ class GameHandler:
                     + Style.RESET_ALL
                 )
 
-    def check_mod_updates(self, app_id: str) -> None:
+    def check_mod_updates(self, app_id):
         items = [(a, w, t) for a, w, t in tracker_get_all() if a == app_id]
         if not items:
             print("No tracked workshop items for this game. Download items first to track them.")
@@ -539,7 +539,7 @@ class GameHandler:
             + Style.RESET_ALL
         )
 
-    def _resolve_game_name(self, app_info: ACFInfo) -> str:
+    def _resolve_game_name(self, app_info):
         """Helper: resolve game name from ACF or Steam Store fallback."""
         game_name = "Unknown"
         steamapps_for_game = app_info.path.parent.parent
@@ -559,7 +559,7 @@ class GameHandler:
                 logger.debug("Steam Store API fallback for game name: %s", e)
         return game_name
 
-    def apply_multiplayer_fix(self, app_info: ACFInfo) -> None:
+    def apply_multiplayer_fix(self, app_info):
         print("\n" + Fore.CYAN + "Multiplayer Fix (online-fix.me)" + Style.RESET_ALL)
         print("This will download and apply a multiplayer fix for the selected game.")
         print("The fix will be extracted directly to the game folder.\n")
@@ -579,7 +579,7 @@ class GameHandler:
             print("\n" + Fore.RED + "Failed to apply multiplayer fix." + Style.RESET_ALL)
             print("Check the error messages above for details.")
 
-    def apply_ryuu_fix(self, app_info: ACFInfo) -> None:
+    def apply_ryuu_fix(self, app_info):
         print("\n" + Fore.CYAN + "Fixes/Bypasses (generator.ryuu.lol)" + Style.RESET_ALL)
         print("This will search and apply a game fix or bypass from Ryuu's repository.")
         print("The fix will be extracted directly to the game folder.\n")
@@ -597,7 +597,7 @@ class GameHandler:
             print("\n" + Fore.RED + "Failed to apply Ryuu fix." + Style.RESET_ALL)
             print("Check the error messages above for details.")
 
-    def manage_dlc_unlockers(self, app_info: ACFInfo) -> None:
+    def manage_dlc_unlockers(self, app_info):
         from sff.dlc_unlockers.manager import UnlockerManager
         from sff.dlc_unlockers.downloader import GitHubReleaseDownloader
         from sff.dlc_unlockers.base import Platform, UnlockerType
@@ -790,7 +790,7 @@ class GameHandler:
 
     def execute_choice(
         self, choice: GameSpecificChoices, *, override_game: Optional[ACFInfo] = None
-    ) -> MainReturnCode:
+    ):
         app_info = override_game if override_game is not None else self.get_game()
         if app_info is None:
             return MainReturnCode.LOOP_NO_PROMPT

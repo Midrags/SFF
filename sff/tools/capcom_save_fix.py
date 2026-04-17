@@ -48,7 +48,6 @@ import hashlib
 import logging
 import zlib
 from pathlib import Path
-from typing import Optional
 from enum import Enum
 from io import BytesIO
 
@@ -97,7 +96,7 @@ class PatchResult:
         self.cache_patched = False
         self.error = ""
 
-    def fail(self, error: str) -> "PatchResult":
+    def fail(self, error):
         self.succeeded = False
         self.error = error
         return self
@@ -123,7 +122,7 @@ class CapcomSaveFix:
         self._cached_payload_size = 0
 
     @staticmethod
-    def detect_steam_path() -> Optional[str]:
+    def detect_steam_path():
         """auto-detect Steam installation path"""
         candidates = []
 
@@ -161,7 +160,7 @@ class CapcomSaveFix:
 
         return candidates[0] if candidates else None
 
-    def _find_core_dll(self, steam_path: str) -> Optional[str]:
+    def _find_core_dll(self, steam_path):
         """find the SteamTools core DLL by checking for the AES key in binary content"""
         for name in HIJACK_CANDIDATES:
             dll_path = os.path.join(steam_path, name)
@@ -175,7 +174,7 @@ class CapcomSaveFix:
                 continue
         return None
 
-    def _find_cache_path(self, steam_path: str) -> Optional[str]:
+    def _find_cache_path(self, steam_path):
         """find the SteamTools payload cache file"""
         cache_dir = os.path.join(steam_path, "appcache", "httpcache", "3b")
         if not os.path.isdir(cache_dir):
@@ -192,7 +191,7 @@ class CapcomSaveFix:
                     continue
         return None
 
-    def get_patch_state(self, steam_path: str) -> PatchState:
+    def get_patch_state(self, steam_path):
         """
         Check the current patch state of SteamTools.
         """
@@ -245,7 +244,7 @@ class CapcomSaveFix:
             logger.warning("Patch state check failed: %s", e)
             return PatchState.ERROR
 
-    def apply(self, steam_path: str, log_func=None) -> PatchResult:
+    def apply(self, steam_path, log_func=None):
         """
         Apply the Capcom save fix patches.
         """
@@ -326,7 +325,7 @@ class CapcomSaveFix:
 
         return result
 
-    def restore(self, steam_path: str, log_func=None) -> PatchResult:
+    def restore(self, steam_path, log_func=None):
         """
         Restore original SteamTools files from backups.
         """
@@ -374,24 +373,24 @@ class CapcomSaveFix:
     # --- internal helpers ---
 
     @staticmethod
-    def _read_shared(path: str) -> bytes:
+    def _read_shared(path):
         """read a file with shared access (so Steam can still have it open)"""
         with open(path, "rb") as f:
             return f.read()
 
     @staticmethod
-    def _backup(path: str):
+    def _backup(path):
         """create .bak backup if one doesn't exist"""
         bak = path + ".bak"
         if not os.path.exists(bak):
             shutil.copy2(path, bak)
 
     @staticmethod
-    def _scan_for_bytes(data: bytes, needle: bytes, start: int = 0) -> int:
+    def _scan_for_bytes(data, needle, start = 0):
         """find needle in data, returns offset or -1"""
         return data.find(needle, start)
 
-    def _get_decrypted_payload(self, cache_path: str) -> Optional[bytes]:
+    def _get_decrypted_payload(self, cache_path):
         """decrypt and decompress the SteamTools payload cache"""
         raw = self._read_shared(cache_path)
         if len(raw) < 32:
@@ -423,7 +422,7 @@ class CapcomSaveFix:
             except zlib.error:
                 return None
 
-    def _reencrypt_and_write(self, cache_path: str, payload: bytes, iv: bytes):
+    def _reencrypt_and_write(self, cache_path, payload, iv):
         """compress, encrypt, and write the payload back"""
         # compress
         compressed = zlib.compress(payload)
@@ -443,7 +442,7 @@ class CapcomSaveFix:
         # write: IV + ciphertext
         Path(cache_path).write_bytes(iv + ciphertext)
 
-    def _patch_payload(self, cache_path: str, log) -> bool:
+    def _patch_payload(self, cache_path, log):
         """decrypt, patch, and re-encrypt the payload cache"""
         raw = self._read_shared(cache_path)
         if len(raw) < 32:
@@ -525,7 +524,7 @@ class CapcomSaveFix:
     # --- signature scanning (ported from STFixer Signatures.cs) ---
 
     @staticmethod
-    def _find_core_patch1(data: bytes) -> int:
+    def _find_core_patch1(data):
         """find core patch #1: E8 call with negative target, followed by 85 C0 0F 84"""
         pattern = bytes([0xE8])
         check_after = bytes([0x85, 0xC0, 0x0F, 0x84])
@@ -544,7 +543,7 @@ class CapcomSaveFix:
         return -1
 
     @staticmethod
-    def _find_core_patch2(data: bytes, start: int = 0) -> int:
+    def _find_core_patch2(data, start = 0):
         """find core patch #2: 85 C0 74 xx 33 FF (hash compare fall-through)"""
         end = len(data)
         for i in range(start, end - 6):
@@ -555,7 +554,7 @@ class CapcomSaveFix:
         return -1
 
     @staticmethod
-    def _find_payload_patch1(data: bytes) -> int:
+    def _find_payload_patch1(data):
         """cloud rewrite jz: 85 C0 0F 85 ?? ?? 00 00 45 85 FF [0F 84|90 E9]"""
         for i in range(len(data) - 17):
             if (data[i] == 0x85 and data[i+1] == 0xC0 and
@@ -568,7 +567,7 @@ class CapcomSaveFix:
         return -1
 
     @staticmethod
-    def _find_payload_patch2(data: bytes, start: int = 0) -> int:
+    def _find_payload_patch2(data, start = 0):
         """proxy appid load: [8B 0D|31 C9] ?? ?? ?? ?? 48 8D 14 3E"""
         tail = bytes([0x48, 0x8D, 0x14, 0x3E])
         for i in range(start, len(data) - 10):
@@ -579,7 +578,7 @@ class CapcomSaveFix:
         return -1
 
     @staticmethod
-    def _find_payload_patch3(data: bytes) -> int:
+    def _find_payload_patch3(data):
         """Spacewar 480 constant anchor: C7 40 09 E0 01 00 00, then next 89 3D or 6x NOP"""
         spacewar = bytes([0xC7, 0x40, 0x09, 0xE0, 0x01, 0x00, 0x00])
         anchor = data.find(spacewar)
@@ -596,7 +595,7 @@ class CapcomSaveFix:
         return -1
 
     @staticmethod
-    def _find_payload_patch4(data: bytes) -> int:
+    def _find_payload_patch4(data):
         """activation flag: paired C6 05 xx xx FE FF 01/00 with E9 bridge"""
         for i in range(len(data) - 24):
             if data[i] != 0xC6 or data[i+1] != 0x05:
@@ -624,7 +623,7 @@ class CapcomSaveFix:
         return -1
 
     @staticmethod
-    def _find_payload_patch5(data: bytes) -> int:
+    def _find_payload_patch5(data):
         """retry skip: E8 call then 48 85 F6 75/EB with backwards jmp in skip range"""
         for i in range(len(data) - 12):
             if data[i] != 0xE8:

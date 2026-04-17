@@ -25,7 +25,6 @@ import logging
 import threading
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
-from typing import Optional, Callable
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -71,11 +70,11 @@ class HistoryEntry:
     error: str = ""
     timestamp: float = 0.0
 
-    def to_dict(self) -> dict:
+    def to_dict(self):
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "HistoryEntry":
+    def from_dict(cls, d):
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
@@ -90,7 +89,7 @@ class DownloadHistory:
         self._load()
 
     @staticmethod
-    def _get_history_path() -> Path:
+    def _get_history_path():
         base = Path(os.environ.get("APPDATA", os.path.expanduser("~")))
         path = base / "SteaMidra" / "download_history.json"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -112,13 +111,13 @@ class DownloadHistory:
         except Exception as e:
             logger.error("Failed to save download history: %s", e)
 
-    def add(self, entry: HistoryEntry):
+    def add(self, entry):
         self._entries.append(entry)
         while len(self._entries) > self.MAX_ENTRIES:
             self._entries.pop(0)
         self._save()
 
-    def get_all(self) -> list[HistoryEntry]:
+    def get_all(self):
         return list(self._entries)
 
     def clear(self):
@@ -126,7 +125,7 @@ class DownloadHistory:
         self._save()
 
     @property
-    def count(self) -> int:
+    def count(self):
         return len(self._entries)
 
 
@@ -154,9 +153,9 @@ class DownloadManager:
         app_id: int,
         game_name: str,
         dest_path: str,
-        mode: DownloadMode = DownloadMode.GREENLUMA,
-        download_func: Optional[Callable] = None,
-    ) -> DownloadItem:
+        mode = DownloadMode.GREENLUMA,
+        download_func = None,
+    ):
         # download_func(app_id, dest_path, progress_callback) -> bool
         item = DownloadItem(
             app_id=app_id,
@@ -175,7 +174,7 @@ class DownloadManager:
         self._start_worker()
         return item
 
-    def cancel_download(self, app_id: int):
+    def cancel_download(self, app_id):
         with self._lock:
             # remove from queue
             self._queue = [d for d in self._queue if d.app_id != app_id]
@@ -188,7 +187,7 @@ class DownloadManager:
         if self.on_queue_changed:
             self.on_queue_changed()
 
-    def retry_download(self, app_id: int):
+    def retry_download(self, app_id):
         with self._lock:
             for i, item in enumerate(self._failed):
                 if item.app_id == app_id:
@@ -268,7 +267,7 @@ class DownloadManager:
             if self.on_queue_changed:
                 self.on_queue_changed()
 
-    def _execute_download(self, item: DownloadItem) -> bool:
+    def _execute_download(self, item):
         backoff = 2
 
         for attempt in range(item.max_retries + 1):
@@ -315,23 +314,23 @@ class DownloadManager:
 
     # --- status queries ---
 
-    def get_queue(self) -> list[DownloadItem]:
+    def get_queue(self):
         with self._lock:
             return list(self._queue)
 
-    def get_active(self) -> Optional[DownloadItem]:
+    def get_active(self):
         return self._active
 
-    def get_completed(self) -> list[DownloadItem]:
+    def get_completed(self):
         with self._lock:
             return list(self._completed)
 
-    def get_failed(self) -> list[DownloadItem]:
+    def get_failed(self):
         with self._lock:
             return list(self._failed)
 
     @property
-    def active_count(self) -> int:
+    def active_count(self):
         return (1 if self._active else 0) + len(self._queue)
 
     def clear_completed(self):
@@ -348,7 +347,7 @@ class DownloadManager:
 
     # --- external tracking (for flows that manage their own download) ---
 
-    def track_external(self, app_id: int, game_name: str) -> DownloadItem:
+    def track_external(self, app_id, game_name):
         # Register a download that is managed outside the worker queue
         # (e.g. process_lua_full).  Caller updates .progress / .status
         # and must call complete_external() when done.
@@ -364,7 +363,7 @@ class DownloadManager:
             self.on_queue_changed()
         return item
 
-    def complete_external(self, item: DownloadItem, success: bool = True, error: str = ""):
+    def complete_external(self, item, success = True, error = ""):
         item.completed_at = time.time()
         if success:
             item.status = DownloadStatus.COMPLETED

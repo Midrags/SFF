@@ -28,7 +28,7 @@ import zipfile
 from collections import OrderedDict
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 from colorama import Fore, Style
 
@@ -149,7 +149,7 @@ class UI:
 
         self.init_midi_player()
 
-    def _steam_provider(self) -> SteamInfoProvider:
+    def _steam_provider(self):
         import threading
         if threading.current_thread() is threading.main_thread():
             return self.provider
@@ -173,9 +173,9 @@ class UI:
             self.midi_player = None  # prolly does nothing but whatever
 
     @music_toggle_decorator
-    def edit_settings_menu(self) -> MainReturnCode:
+    def edit_settings_menu(self):
         while True:
-            choice: Optional[SettingsManagementOptions] = prompt_select(
+            choice = prompt_select(
                 "Settings Management:",
                 list(SettingsManagementOptions),
                 cancellable=True,
@@ -193,7 +193,7 @@ class UI:
         
         return MainReturnCode.LOOP_NO_PROMPT
     
-    def _edit_settings_submenu(self) -> None:
+    def _edit_settings_submenu(self):
         win_only = [Settings.APPLIST_FOLDER, Settings.GL_VERSION]
         linux_only = [Settings.SLS_CONFIG_LOCATION]
         if self.os_type == OSType.WINDOWS:
@@ -205,7 +205,7 @@ class UI:
 
         while True:
             saved_settings = load_all_settings()
-            selected_key: Optional[Settings] = prompt_select(
+            selected_key = prompt_select(
                 "Select a setting to change:",
                 [
                     (
@@ -235,7 +235,7 @@ class UI:
                 + ("[ENCRYPTED]" if selected_key.hidden else str(value))
                 + Style.RESET_ALL
             )
-            operation: Optional[SettingOperations] = prompt_select(
+            operation = prompt_select(
                 "What do you want to do with this setting?",
                 list(SettingOperations),
                 cancellable=True,
@@ -255,7 +255,7 @@ class UI:
                         "Select the new value:", "Enable", "Disable"
                     )
                 elif isinstance(selected_key.type, list):
-                    enum_val: Enum = prompt_select(
+                    enum_val = prompt_select(
                         "Select the new value:", selected_key.type
                     )
                     new_settings_value = enum_val.value
@@ -290,7 +290,7 @@ class UI:
                 ):
                     self.app_list_man = AppListManager(self.steam_path, self.provider)
 
-    def _get_applist_ids(self) -> Optional[list[int]]:
+    def _get_applist_ids(self):
         if self.app_list_man is None and self.sls_man is None:
             return None
         if self.app_list_man:
@@ -300,7 +300,7 @@ class UI:
         return None
 
 
-    def _export_settings_submenu(self) -> None:
+    def _export_settings_submenu(self):
         print(Fore.CYAN + "\n=== Export Settings ===" + Style.RESET_ALL)
         
         # Ask if user wants to include sensitive data
@@ -337,7 +337,7 @@ class UI:
         else:
             print(Fore.RED + "✗ Failed to export settings. Check debug.log for details." + Style.RESET_ALL)
     
-    def _import_settings_submenu(self) -> None:
+    def _import_settings_submenu(self):
         print(Fore.CYAN + "\n=== Import Settings ===" + Style.RESET_ALL)
         print(Fore.YELLOW + "Warning: This will overwrite existing settings!" + Style.RESET_ALL)
         
@@ -360,7 +360,7 @@ class UI:
             print(Fore.RED + f"✗ {message}" + Style.RESET_ALL)
 
     @music_toggle_decorator
-    def offline_fix_menu(self) -> MainReturnCode:
+    def offline_fix_menu(self):
         print(
             Fore.YELLOW
             + "Steam will fail to launch when you close it while in OFFLINE Mode. "
@@ -380,7 +380,7 @@ class UI:
             print("There are no users on this Steam installation...")
             return MainReturnCode.LOOP_NO_PROMPT
         user_ids = vdf_users.keys()
-        users: list[LoggedInUser] = []
+        users = []
         for user_id in user_ids:
             x = vdf_users[user_id]
             users.append(
@@ -393,10 +393,10 @@ class UI:
         if len(users) == 0:
             print("There are no users on this Steam installation")
             return MainReturnCode.LOOP_NO_PROMPT
-        offline_converter: Callable[[str], str] = lambda x: (
+        offline_converter = lambda x: (
             "ONLINE" if x == "0" else "OFFLINE"
         )
-        chosen_user: Optional[LoggedInUser] = prompt_select(
+        chosen_user = prompt_select(
             "Select a user: ",
             [
                 (
@@ -418,13 +418,13 @@ class UI:
         return MainReturnCode.LOOP
 
     @music_toggle_decorator
-    def applist_menu(self) -> MainReturnCode:
+    def applist_menu(self):
         if self.app_list_man is None:
             print("Functionality for linux will be implemented soon.")
             return MainReturnCode.LOOP_NO_PROMPT
         return self.app_list_man.display_menu(self.provider)
 
-    def remove_game_menu(self) -> MainReturnCode:
+    def remove_game_menu(self):
         stplug_in = self.steam_path / "config" / "stplug-in"
         if not stplug_in.exists():
             print(
@@ -456,7 +456,7 @@ class UI:
         if choice is None:
             return MainReturnCode.LOOP
 
-        to_remove: list[int] = []
+        to_remove = []
         if choice == "type":
             raw = prompt_text(
                 "Enter App ID to remove (e.g. 268910):",
@@ -539,7 +539,7 @@ class UI:
         steam_libs = get_steam_libs(self.steam_path)
         if len(steam_libs) == 1:
             return steam_libs[0]
-        steam_lib_path: Optional[Path] = prompt_select(
+        steam_lib_path = prompt_select(
             "Select a Steam library location:",
             steam_libs,
             cancellable=True,
@@ -548,7 +548,7 @@ class UI:
         return steam_lib_path
 
     @music_toggle_decorator
-    def handle_game_specific(self, choice: GameSpecificChoices) -> MainReturnCode:
+    def handle_game_specific(self, choice):
         injection_manager = self.app_list_man or self.sls_man
         if injection_manager is None:
             print("Unsupported OS for this action.")
@@ -562,7 +562,7 @@ class UI:
         )
         return handler.execute_choice(choice)
 
-    def run_steamless_direct(self, acf_info: ACFInfo, exe_path: Path) -> None:
+    def run_steamless_direct(self, acf_info, exe_path):
         from sff.game_specific import GameHandler
         from sff.storage.vdf import get_steam_libs
         injection_manager = self.app_list_man or self.sls_man
@@ -574,7 +574,7 @@ class UI:
 
     def run_game_action_with_selection(
         self, choice: GameSpecificChoices, acf_info: ACFInfo
-    ) -> MainReturnCode:
+    ):
         injection_manager = self.app_list_man or self.sls_man
         if injection_manager is None:
             print("Unsupported OS for this action.")
@@ -587,7 +587,7 @@ class UI:
         )
         return handler.execute_choice(choice, override_game=acf_info)
 
-    def run_steam_auto_cli(self) -> MainReturnCode:
+    def run_steam_auto_cli(self):
         from sff.steamauto import get_steamauto_cli_path, run_steamauto
 
         if get_steamauto_cli_path() is None:
@@ -644,7 +644,7 @@ class UI:
         return MainReturnCode.LOOP
 
     @music_toggle_decorator
-    def process_lua_minimal(self) -> MainReturnCode:
+    def process_lua_minimal(self):
 
         if self.os_type == OSType.WINDOWS:
             print(
@@ -744,7 +744,7 @@ class UI:
         return MainReturnCode.LOOP
 
     @music_toggle_decorator
-    def process_lua_full(self, file: Optional[Path] = None) -> MainReturnCode:
+    def process_lua_full(self, file = None):
         import time
         start_time = time.time()
         
@@ -848,8 +848,8 @@ class UI:
         )
         return MainReturnCode.LOOP
 
-    def manage_context_menu(self) -> MainReturnCode:
-        choice: Optional[ContextMenuOptions] = prompt_select(
+    def manage_context_menu(self):
+        choice = prompt_select(
             "Select an operation for the context menu:",
             list(ContextMenuOptions),
             cancellable=True,
@@ -862,7 +862,7 @@ class UI:
             uninstall_context_menu()
         return MainReturnCode.LOOP_NO_PROMPT
 
-    def check_updates(self, os_type: OSType, test: bool = False) -> MainReturnCode:
+    def check_updates(self, os_type, test = False):
         print("Checking for updates (GitHub releases)...", end="", flush=True)
         is_newer, resp = Updater.update_available()
         print(" Done!")
@@ -918,7 +918,7 @@ class UI:
         update_zip = app_dir / "update.zip"
         tmp_update = app_dir / "tmp_update"
 
-        def _do_auto_update() -> bool:
+        def _do_auto_update():
             if not download_url or not asset_name:
                 return False
             print(f"Downloading {asset_name}...")
@@ -1077,7 +1077,7 @@ class UI:
             webbrowser.open(release_url)
         return MainReturnCode.LOOP_NO_PROMPT
 
-    def update_all_manifests(self) -> MainReturnCode:
+    def update_all_manifests(self):
         applist_ids = self._get_applist_ids()
         if applist_ids is None:
             print("This OS is not supported for this action.")
@@ -1092,7 +1092,7 @@ class UI:
             if self.app_list_man
             else None
         )
-        explored_ids: list[int] = []
+        explored_ids = []
         for lib in steam_libs:
             steamapps = lib / "steamapps"
             acf_files = steamapps.glob("*.acf")
@@ -1144,7 +1144,7 @@ class UI:
         )
         return MainReturnCode.LOOP
 
-    def export_applist_ids(self, export_path: Path) -> MainReturnCode:
+    def export_applist_ids(self, export_path):
         try:
             ids = self._get_applist_ids()
             if ids is None:
@@ -1163,7 +1163,7 @@ class UI:
             logger.error(f"Failed to export IDs: {e}", exc_info=True)
             return MainReturnCode.EXIT
     
-    def process_batch_lua_files(self, file_paths: list[str], dry_run: bool = False) -> MainReturnCode:
+    def process_batch_lua_files(self, file_paths, dry_run = False):
         print(Fore.CYAN + f"\n=== Batch Processing {len(file_paths)} files ===" + Style.RESET_ALL)
         
         if dry_run:
@@ -1212,7 +1212,7 @@ class UI:
         
         return MainReturnCode.EXIT
     
-    def auto_update_manifests(self) -> MainReturnCode:
+    def auto_update_manifests(self):
         print(Fore.CYAN + "\n=== Auto-Update Manifests ===" + Style.RESET_ALL)
 
         applist_ids = self._get_applist_ids()
@@ -1227,7 +1227,7 @@ class UI:
         downloader = ManifestDownloader(provider, self.steam_path)
         
         updated_count = 0
-        explored_ids: list[int] = []
+        explored_ids = []
         
         for lib in steam_libs:
             steamapps = lib / "steamapps"
@@ -1271,7 +1271,7 @@ class UI:
         return MainReturnCode.EXIT
     
     @music_toggle_decorator
-    def recent_files_menu(self) -> MainReturnCode:
+    def recent_files_menu(self):
         recent_files = self.recent_files_manager.get_all()
         
         if not recent_files:
@@ -1306,7 +1306,7 @@ class UI:
         return self.process_lua_full(choice)
     
     @music_toggle_decorator
-    def scan_library_menu(self) -> MainReturnCode:
+    def scan_library_menu(self):
         print(Fore.CYAN + "\n=== Library Scanner ===" + Style.RESET_ALL)
         
         lua_manager = LuaManager(self.os_type)
@@ -1353,7 +1353,7 @@ class UI:
         return MainReturnCode.LOOP_NO_PROMPT
     
     @music_toggle_decorator
-    def analytics_dashboard_menu(self) -> MainReturnCode:
+    def analytics_dashboard_menu(self):
         print(Fore.CYAN + "\n=== Analytics Dashboard ===" + Style.RESET_ALL)
         
         dashboard = self.analytics_tracker.generate_dashboard_text()

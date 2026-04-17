@@ -31,7 +31,6 @@ import shutil
 import logging
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -60,20 +59,20 @@ class GBETokenGenerator:
         - controller/controls.txt
     """
 
-    def __init__(self, steam_web_api_key: str):
+    def __init__(self, steam_web_api_key):
         self.api_key = steam_web_api_key
 
     def generate(
         self,
         app_id: int,
         output_path: str,
-        language: str = "english",
-        player_name: str = "Player",
-        steam_id: str = "76561198001737783",
-        download_icons: bool = True,
-        create_zip: bool = True,
+        language = "english",
+        player_name = "Player",
+        steam_id = "76561198001737783",
+        download_icons = True,
+        create_zip = True,
         log_func=None,
-    ) -> bool:
+    ):
         """
         Generate a full GBE config package.
         
@@ -202,7 +201,7 @@ disable_lan_only=1
             log(f"Error: {e}")
             return False
 
-    def _fetch_achievements(self, app_id: int, log) -> list:
+    def _fetch_achievements(self, app_id, log):
         """fetch achievement definitions from Steam Web API"""
         url = (f"{STEAM_WEB_API_URL}/ISteamUserStats/GetSchemaForGame/v2/"
                f"?key={self.api_key}&appid={app_id}&l=english")
@@ -216,7 +215,7 @@ disable_lan_only=1
             log(f"Could not fetch achievements: {e}")
             return []
 
-    def _fetch_stats(self, app_id: int, log) -> list:
+    def _fetch_stats(self, app_id, log):
         """fetch stat definitions from Steam Web API"""
         url = (f"{STEAM_WEB_API_URL}/ISteamUserStats/GetSchemaForGame/v2/"
                f"?key={self.api_key}&appid={app_id}&l=english")
@@ -230,7 +229,7 @@ disable_lan_only=1
             log(f"Could not fetch stats: {e}")
             return []
 
-    def _fetch_dlcs(self, app_id: int, log) -> dict:
+    def _fetch_dlcs(self, app_id, log):
         """fetch DLC list + names from SteamCMD API + Steam Store"""
         dlcs = {}
         try:
@@ -264,7 +263,7 @@ disable_lan_only=1
             log(f"Could not fetch DLCs: {e}")
         return dlcs
 
-    def _fetch_languages(self, app_id: int, log) -> list:
+    def _fetch_languages(self, app_id, log):
         """fetch supported languages"""
         try:
             with httpx.Client(timeout=15.0) as client:
@@ -281,7 +280,7 @@ disable_lan_only=1
 
         return ["english"]
 
-    def _fetch_depots(self, app_id: int, log) -> list:
+    def _fetch_depots(self, app_id, log):
         """fetch depot IDs"""
         try:
             with httpx.Client(timeout=15.0) as client:

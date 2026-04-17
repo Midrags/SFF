@@ -22,7 +22,6 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Optional
 
 from sff.storage.settings import get_setting
 from sff.structs import Settings
@@ -58,7 +57,7 @@ class APICache:
         except Exception as e:
             logger.error(f"Failed to save cache: {e}", exc_info=True)
     
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key):
         if key not in self.cache:
             return None
         
@@ -74,7 +73,7 @@ class APICache:
         logger.debug(f"Cache hit for key: {key}")
         return entry.get("data")
     
-    def set(self, key: str, data: Any, ttl: Optional[int] = None):
+    def set(self, key, data, ttl = None):
         if ttl is None:
             ttl = DEFAULT_TTL
         
@@ -86,7 +85,7 @@ class APICache:
         logger.debug(f"Cached data for key: {key} (TTL: {ttl}s)")
         self.save()
     
-    def invalidate(self, key: Optional[str] = None):
+    def invalidate(self, key = None):
         if key is None:
             # Clear entire cache
             self.cache = {}
@@ -114,10 +113,10 @@ class APICache:
             self.save()
 
 
-_cache_instance: Optional[APICache] = None
+_cache_instance = None
 
 
-def get_cache() -> APICache:
+def get_cache():
     global _cache_instance
     if _cache_instance is None:
         _cache_instance = APICache()

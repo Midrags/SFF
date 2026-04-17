@@ -21,7 +21,6 @@ import logging
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Optional, cast
 from urllib.parse import urljoin
 
 import httpx
@@ -53,17 +52,18 @@ from sff.structs import (  # type: ignore
 )
 from sff.zip import read_nth_file_from_zip_bytes, extract_manifests_from_zip_bytes
 from sff.steam_tools_compat import sync_manifest_to_config_depotcache
+from typing import cast
 
 logger = logging.getLogger(__name__)
 
 
 class ManifestDownloader:
-    def __init__(self, provider: SteamInfoProvider, steam_path: Path, use_hubcap: bool = False):
+    def __init__(self, provider, steam_path, use_hubcap = False):
         self.steam_path = steam_path
         self.provider = provider
         self.use_hubcap = use_hubcap
 
-    def _preseed_depotcache(self) -> int:
+    def _preseed_depotcache(self):
         # Copy everything from ./manifests/ into depotcache now so Steam
         # finds them locally and never needs a network call.
         manifests_dir = Path.cwd() / "manifests"
@@ -88,7 +88,7 @@ class ManifestDownloader:
 
     def _write_manifest_to_depotcache(
         self, raw: bytes, depot_id: str, manifest_id: str, decrypt: bool = False, dec_key: str = ""
-    ) -> Optional[Path]:
+    ):
         # Write raw manifest bytes to depotcache and config/depotcache.
         # Handles both ZIP-wrapped (CDN) and raw (ManifestHub/GitHub) formats.
         depotcache = self.steam_path / "depotcache"
@@ -109,13 +109,13 @@ class ManifestDownloader:
             return dest
         return None
 
-    def get_dlc_manifest_status(self, depot_ids: list[int]):
-        manifest_ids: dict[int, bool] = {}
+    def get_dlc_manifest_status(self, depot_ids):
+        manifest_ids = {}
 
         while True:
             app_info = get_product_info(self.provider, depot_ids)  # type: ignore
             for depot_id in depot_ids:
-                depots_dict: dict[str, Any] = (
+                depots_dict = (
                     app_info.get("apps", {}).get(depot_id, {}).get("depots", {})
                 )
 
@@ -136,8 +136,8 @@ class ManifestDownloader:
 
     def get_manifest_ids(
         self, lua: LuaParsedInfo, auto: bool = False
-    ) -> DepotManifestMap:
-        manifest_ids: dict[str, str] = {}
+    ):
+        manifest_ids = {}
         app_id = int(lua.app_id)
         if not auto:
             mode = prompt_select(
@@ -159,7 +159,7 @@ class ManifestDownloader:
             auto=auto_fetch,
         )
 
-        strats: list[IManifestStrategy] = []
+        strats = []
 
         if auto_fetch:
             strats.append(StandardManifestStrategy())
@@ -186,7 +186,7 @@ class ManifestDownloader:
 
         return DepotManifestMap(manifest_ids)
 
-    def get_cdn_client(self, max_retries: int = 5):
+    def get_cdn_client(self, max_retries = 5):
         for attempt in range(max_retries):
             try:
                 cdn = CDNClient(self.provider.client)
@@ -199,7 +199,7 @@ class ManifestDownloader:
 
     def _try_hubcap_generate(
         self, depot_id: str, manifest_id: str
-    ) -> Optional[bytes]:
+    ):
         # Hubcap Manifest on-demand API: generates per-manifest, cached after first hit.
         # Limit: 1500/day. Returns raw manifest bytes (NOT zip-wrapped).
         api_key = get_setting(Settings.HUBCAP_KEY)
@@ -241,7 +241,7 @@ class ManifestDownloader:
 
     def _try_github_manifest_direct(
         self, app_id: str, depot_id: str, manifest_id: str, target: Path
-    ) -> bool:
+    ):
         url = (
             f"https://raw.githubusercontent.com/qwe213312/k25FCdfEOoEJ42S6"
             f"/main/{depot_id}_{manifest_id}.manifest"
@@ -266,7 +266,7 @@ class ManifestDownloader:
 
     def _try_github_manifest_bytes(
         self, app_id: str, depot_id: str, manifest_id: str
-    ) -> Optional[bytes]:
+    ):
         url = (
             f"https://raw.githubusercontent.com/qwe213312/k25FCdfEOoEJ42S6"
             f"/main/{depot_id}_{manifest_id}.manifest"
@@ -290,7 +290,7 @@ class ManifestDownloader:
 
     def _try_manifesthub_combined(
         self, depot_id: str, manifest_id: str, app_id: str
-    ) -> Optional[bytes]:
+    ):
         """
         Fire ManifestHub API and GitHub mirror simultaneously.
         Returns the data from whichever endpoint finishes fastest and succeeds.
@@ -321,7 +321,7 @@ class ManifestDownloader:
 
     def _log_mirror_coverage(
         self, app_id: str, depot_manifest_pairs: list[tuple[str, str]]
-    ) -> int:
+    ):
         """
         Queries GitHub API for the mirror repo and counts how many of the needed
         {depot_id}_{manifest_id}.manifest files it has. Purely informational.
@@ -348,7 +348,7 @@ class ManifestDownloader:
             logger.debug(f"GitHub mirror coverage check failed: {e}")
         return 0
 
-    def _try_manifesthub(self, depot_id: str, manifest_id: str) -> Optional[bytes]:
+    def _try_manifesthub(self, depot_id, manifest_id):
         # Hits the ManifestHub API; key is auto-fetched and renewed as needed.
         api_key = get_manifesthub_api_key()
         if not api_key:
@@ -385,8 +385,8 @@ class ManifestDownloader:
         self,
         depot_id: str,
         manifest_id: str,
-        cdn_client: Optional[CDNClient] = None,
-        app_id: str = "",
+        cdn_client = None,
+        app_id = "",
     ):
         if cdn_client is None:
             cdn_client = self.get_cdn_client()
@@ -448,7 +448,7 @@ class ManifestDownloader:
         # Step 4 (interactive CDN) handled by the caller
         return None
 
-    def resolve_gmrc(self, manifest_id: str):
+    def resolve_gmrc(self, manifest_id):
         while True:
             req_code = asyncio.run(get_gmrc(manifest_id))
             if req_code is not None:
@@ -467,7 +467,7 @@ class ManifestDownloader:
             break
         return req_code
 
-    def download_workshop_item(self, app_id: str, ugc_id: str):
+    def download_workshop_item(self, app_id, ugc_id):
         manifest = self.download_single_manifest(app_id, ugc_id)
         if manifest:
             extracted = read_nth_file_from_zip_bytes(0, manifest)
@@ -495,7 +495,7 @@ class ManifestDownloader:
             if pairs:
                 self._log_mirror_coverage(lua.app_id, pairs)
 
-        manifest_paths: list[Path] = []
+        manifest_paths = []
         for pair in lua.depots:
             depot_id = pair.depot_id
             dec_key = pair.decryption_key
@@ -616,7 +616,7 @@ class ManifestDownloader:
         
         print(Fore.CYAN + f"\nDownloading {len(download_tasks)} manifests with {worker_count} workers..." + Style.RESET_ALL)
         
-        manifest_paths: list[Path] = []
+        manifest_paths = []
         depotcache = self.steam_path / "depotcache"
         depotcache.mkdir(exist_ok=True)
         

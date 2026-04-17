@@ -36,7 +36,7 @@ from PyQt6.QtWidgets import (
 from sff.utils import root_folder
 
 
-def _get_workshop_profile() -> QWebEngineProfile:
+def _get_workshop_profile():
     profile = QWebEngineProfile("SteaMidraWorkshop")
     base_path = root_folder(outside_internal=True) / "webengine_profile"
     storage_path = base_path / "storage"
@@ -52,7 +52,7 @@ def _get_workshop_profile() -> QWebEngineProfile:
     return profile
 
 
-def open_workshop_browser(app_id: str, parent=None) -> None:
+def open_workshop_browser(app_id, parent=None):
     profile = _get_workshop_profile()
     page = QWebEnginePage(profile)
     view = QWebEngineView()
@@ -70,14 +70,14 @@ def open_workshop_browser(app_id: str, parent=None) -> None:
     url_bar.setPlaceholderText("URL")
     url_bar.setReadOnly(False)
 
-    def update_url_bar(qurl: QUrl) -> None:
+    def update_url_bar(qurl):
         url_str = qurl.toString()
         if url_str and url_bar.text() != url_str:
             url_bar.blockSignals(True)
             url_bar.setText(url_str)
             url_bar.blockSignals(False)
 
-    def navigate_from_bar() -> None:
+    def navigate_from_bar():
         text = url_bar.text().strip()
         if text:
             if not text.startswith(("http://", "https://")):
@@ -96,7 +96,7 @@ def open_workshop_browser(app_id: str, parent=None) -> None:
     workshop_btn = QPushButton("Workshop")
     workshop_btn.clicked.connect(lambda: view.setUrl(QUrl(workshop_url)))
     copy_btn = QPushButton("Copy Workshop link")
-    def copy_current_url() -> None:
+    def copy_current_url():
         clipboard = QApplication.clipboard()
         url = view.url().toString()
         clipboard.setText(url if url else "")

@@ -24,7 +24,6 @@ context menu (show/hide, recent, downloads, settings, exit).
 """
 
 import logging
-from typing import Optional
 
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
 from PyQt6.QtGui import QIcon, QAction
@@ -45,14 +44,14 @@ class TrayIcon(QObject):
     show_requested = pyqtSignal()
     exit_requested = pyqtSignal()
 
-    def __init__(self, parent=None, icon_path: str = ""):
+    def __init__(self, parent=None, icon_path = ""):
         super().__init__(parent)
         self._tray: Optional[QSystemTrayIcon] = None
         self._menu: Optional[QMenu] = None
         self._icon_path = icon_path
         self._minimize_to_tray = True
 
-    def setup(self, app_icon: Optional[QIcon] = None):
+    def setup(self, app_icon = None):
         """initialize the tray icon — call this after QApplication is created"""
         if not QSystemTrayIcon.isSystemTrayAvailable():
             logger.warning("System tray not available")
@@ -102,7 +101,7 @@ class TrayIcon(QObject):
         elif reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self.show_requested.emit()
 
-    def notify(self, title: str, message: str, duration_ms: int = 3000):
+    def notify(self, title, message, duration_ms = 3000):
         """show a tray notification balloon"""
         if self._tray:
             self._tray.showMessage(title, message, QSystemTrayIcon.MessageIcon.Information, duration_ms)
@@ -120,11 +119,11 @@ class TrayIcon(QObject):
             self._recent_menu.addAction(action)
 
     @property
-    def minimize_to_tray(self) -> bool:
+    def minimize_to_tray(self):
         return self._minimize_to_tray
 
     @minimize_to_tray.setter
-    def minimize_to_tray(self, value: bool):
+    def minimize_to_tray(self, value):
         self._minimize_to_tray = value
 
     def hide(self):

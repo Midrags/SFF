@@ -33,7 +33,6 @@ import re
 import logging
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -64,7 +63,7 @@ class UriHandler:
     """
 
     @staticmethod
-    def register(exe_path: Optional[str] = None):
+    def register(exe_path = None):
         """
         Register the midra:// protocol in Windows registry.
         
@@ -136,7 +135,7 @@ class UriHandler:
             return False
 
     @staticmethod
-    def is_registered() -> bool:
+    def is_registered():
         """check if midra:// is registered"""
         if sys.platform != "win32":
             return False
@@ -152,7 +151,7 @@ class UriHandler:
             return False
 
     @staticmethod
-    def parse_uri(uri: str) -> Optional[ParsedUri]:
+    def parse_uri(uri):
         """
         Parse a midra:// URI into action + app ID.
         
@@ -186,7 +185,7 @@ class UriHandler:
         return ParsedUri(action=action, app_id=app_id)
 
     @staticmethod
-    def check_args_for_uri() -> Optional[ParsedUri]:
+    def check_args_for_uri():
         """
         Check sys.argv for a midra:// URI (passed when clicking a link).
         Returns the parsed URI if found, None otherwise.

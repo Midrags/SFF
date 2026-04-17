@@ -23,13 +23,13 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Set
 
 from colorama import Fore, Style
 
 from sff.storage.acf import ACFParser
 from sff.storage.vdf import get_steam_libs
 from sff.progress import create_progress_bar
+from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +48,13 @@ class GameInfo:
 
 class LibraryScanner:
     
-    def __init__(self, steam_path: Path, lua_backup_path: Path, applist_folder: Optional[Path] = None):
+    def __init__(self, steam_path, lua_backup_path, applist_folder = None):
         self.steam_path = steam_path
         self.lua_backup_path = lua_backup_path
         self.applist_folder = applist_folder
     
-    def _get_applist_ids(self) -> Set[int]:
-        app_ids: Set[int] = set()
+    def _get_applist_ids(self):
+        app_ids = set()
         
         if not self.applist_folder or not self.applist_folder.exists():
             return app_ids
@@ -77,7 +77,7 @@ class LibraryScanner:
         
         return app_ids
     
-    def _scan_all_drives(self) -> List[Path]:
+    def _scan_all_drives(self):
         steam_libs = []
         
         try:
@@ -112,7 +112,7 @@ class LibraryScanner:
         
         return steam_libs
     
-    def scan_all_games(self, scan_all_drives: bool = True) -> List[GameInfo]:
+    def scan_all_games(self, scan_all_drives = True):
         logger.info("Starting comprehensive library scan...")
         
         applist_ids = self._get_applist_ids()
@@ -124,8 +124,8 @@ class LibraryScanner:
         
         steam_libs = list(set(steam_libs))
         
-        all_games: List[GameInfo] = []
-        seen_app_ids: Set[int] = set()
+        all_games = []
+        seen_app_ids = set()
         
         print(Fore.CYAN + f"\nScanning {len(steam_libs)} Steam libraries across all drives..." + Style.RESET_ALL)
         
@@ -143,8 +143,8 @@ class LibraryScanner:
         
         return all_games
     
-    def _scan_library(self, library_path: Path, applist_ids: Set[int], seen_app_ids: Set[int]) -> List[GameInfo]:
-        games: List[GameInfo] = []
+    def _scan_library(self, library_path, applist_ids, seen_app_ids):
+        games = []
         steamapps = library_path / "steamapps"
         
         if not steamapps.exists():
@@ -198,8 +198,8 @@ class LibraryScanner:
         
         return games
     
-    def _check_orphaned_applist_ids(self, applist_ids: Set[int], seen_app_ids: Set[int]) -> List[GameInfo]:
-        orphaned_games: List[GameInfo] = []
+    def _check_orphaned_applist_ids(self, applist_ids, seen_app_ids):
+        orphaned_games = []
         orphaned_ids = applist_ids - seen_app_ids
         
         if orphaned_ids:
@@ -223,13 +223,13 @@ class LibraryScanner:
         
         return orphaned_games
     
-    def filter_needs_manifest(self, games: List[GameInfo]) -> List[GameInfo]:
+    def filter_needs_manifest(self, games):
         return [g for g in games if g.needs_manifest]
     
-    def filter_downloaded_only(self, games: List[GameInfo]) -> List[GameInfo]:
+    def filter_downloaded_only(self, games):
         return [g for g in games if g.has_acf and g.install_dir]
     
-    def generate_report_text(self, games: List[GameInfo]) -> str:
+    def generate_report_text(self, games):
         needs_manifest = self.filter_needs_manifest(games)
         downloaded_only = self.filter_downloaded_only(games)
         
@@ -268,7 +268,7 @@ class LibraryScanner:
         
         return "\n".join(report)
     
-    def generate_report_json(self, games: List[GameInfo]) -> dict:
+    def generate_report_json(self, games):
         needs_manifest = self.filter_needs_manifest(games)
         downloaded_only = self.filter_downloaded_only(games)
         
@@ -316,8 +316,8 @@ class LibraryScanner:
         self,
         games: List[GameInfo],
         output_path: Path,
-        format: str = "json"
-    ) -> bool:
+        format = "json"
+    ):
         try:
             if format == "json":
                 report = self.generate_report_json(games)

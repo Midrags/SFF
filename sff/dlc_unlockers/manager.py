@@ -20,7 +20,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from sff.dlc_unlockers.base import UnlockerBase, UnlockerType, Platform
 from sff.dlc_unlockers.smokeapi import SmokeAPIUnlocker
@@ -36,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 class UnlockerManager:
     
-    def __init__(self, steam_path: Optional[Path] = None):
+    def __init__(self, steam_path = None):
         self.steam_path = steam_path
         self.unlockers: list[UnlockerBase] = [
             SmokeAPIUnlocker(),
@@ -46,7 +45,7 @@ class UnlockerManager:
             UplayR2Unlocker()
         ]
     
-    def detect_platform(self, game_dir: Path) -> Platform:
+    def detect_platform(self, game_dir):
         if (game_dir / "steam_api.dll").exists() or (game_dir / "steam_api64.dll").exists():
             logger.info(f"Detected Steam platform in {game_dir}")
             return Platform.STEAM
@@ -62,12 +61,12 @@ class UnlockerManager:
         logger.warning(f"No platform-specific DLLs found in {game_dir}, defaulting to Steam")
         return Platform.STEAM
     
-    def get_compatible_unlockers(self, platform: Platform) -> list[UnlockerBase]:
+    def get_compatible_unlockers(self, platform):
         compatible = [u for u in self.unlockers if platform in u.supported_platforms]
         logger.info(f"Found {len(compatible)} compatible unlockers for {platform.value}")
         return compatible
     
-    def get_active_unlocker(self, app_id: int) -> Optional[UnlockerType]:
+    def get_active_unlocker(self, app_id):
         settings = load_all_settings()
         unlocker_map = settings.get(Settings.ACTIVE_UNLOCKER_PER_GAME.key_name, {})
         
@@ -81,7 +80,7 @@ class UnlockerManager:
         
         return None
     
-    def set_active_unlocker(self, app_id: int, unlocker_type: UnlockerType) -> None:
+    def set_active_unlocker(self, app_id, unlocker_type):
         settings = load_all_settings()
         unlocker_map = settings.get(Settings.ACTIVE_UNLOCKER_PER_GAME.key_name, {})
         
@@ -98,7 +97,7 @@ class UnlockerManager:
         
         logger.info(f"Set active unlocker for app {app_id} to {unlocker_type.value}")
     
-    def get_unlocker_by_type(self, unlocker_type: UnlockerType) -> Optional[UnlockerBase]:
+    def get_unlocker_by_type(self, unlocker_type):
         for unlocker in self.unlockers:
             if unlocker.unlocker_type == unlocker_type:
                 return unlocker

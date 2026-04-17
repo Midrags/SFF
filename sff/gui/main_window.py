@@ -18,7 +18,6 @@
 import re
 import sys
 from pathlib import Path
-from typing import Any, Callable, Optional
 
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
 from PyQt6.QtGui import QTextCursor
@@ -57,11 +56,11 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 class StreamEmitter(QObject):
     text_written = pyqtSignal(str)
 
-    def write(self, text: str) -> None:
+    def write(self, text):
         if text:
             self.text_written.emit(text)
 
-    def flush(self) -> None:
+    def flush(self):
         pass
 
 
@@ -69,11 +68,11 @@ class GenericWorker(QObject):
     finished = pyqtSignal(object)
     error = pyqtSignal(str)
 
-    def __init__(self, func: Callable[[], Any]) -> None:
+    def __init__(self, func):
         super().__init__()
         self.func = func
 
-    def run(self) -> None:
+    def run(self):
         try:
             result = self.func()
             self.finished.emit(result)
@@ -82,7 +81,7 @@ class GenericWorker(QObject):
             self.finished.emit(None)
 
 
-def _arrow_style_url(path: Path) -> str:
+def _arrow_style_url(path):
     s = str(path.resolve()).replace("\\", "/")
     return f'"{s}"' if " " in s else s
 
@@ -93,24 +92,24 @@ _RESOURCES_DIR = Path(__file__).resolve().parent / "resources"
 class GameComboBox(QComboBox):
     """ComboBox with visible arrow that points down when closed, up when open."""
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent=None):
         super().__init__(parent)
         self._popup_open = False
         self._down_path = _RESOURCES_DIR / "arrow_down.png"
         self._up_path = _RESOURCES_DIR / "arrow_up.png"
         self._update_arrow()
 
-    def showPopup(self) -> None:
+    def showPopup(self):
         self._popup_open = True
         self._update_arrow()
         super().showPopup()
 
-    def hidePopup(self) -> None:
+    def hidePopup(self):
         super().hidePopup()
         self._popup_open = False
         self._update_arrow()
 
-    def _update_arrow(self) -> None:
+    def _update_arrow(self):
         if not self._down_path.exists() or not self._up_path.exists():
             return
         p = self._up_path if self._popup_open else self._down_path
@@ -124,15 +123,15 @@ class GameComboBox(QComboBox):
 
 
 class SFFMainWindow(QMainWindow):
-    def __init__(self, ui: Any, steam_path: Path) -> None:
+    def __init__(self, ui, steam_path):
         super().__init__()
         self.ui = ui
         self.steam_path = steam_path
         self._current_theme = "dark"
-        self._game_list: list[tuple[str, Any]] = []
+        self._game_list = []
         self._stream_emitter = StreamEmitter()
-        self._worker: Optional[GenericWorker] = None
-        self._worker_thread: Optional[QThread] = None
+        self._worker = None
+        self._worker_thread = None
 
         self.setWindowTitle("SteaMidra")
         self.setMinimumSize(960, 700)
@@ -373,14 +372,14 @@ class SFFMainWindow(QMainWindow):
 
     # ── Path / game source helpers ───────────────────────────────
 
-    def _browse_path(self) -> None:
+    def _browse_path(self):
         path = QFileDialog.getExistingDirectory(self, "Select game folder")
         if path:
             self.path_edit.setText(path)
             if self.radio_outside.isChecked() and not self.outside_name_edit.text().strip():
                 self.outside_name_edit.setText(Path(path).name)
 
-    def _on_source_changed(self) -> None:
+    def _on_source_changed(self):
         from_steam = self.radio_steam.isChecked()
         self.game_combo.setEnabled(from_steam)
         self.path_edit.setEnabled(not from_steam)
@@ -392,7 +391,7 @@ class SFFMainWindow(QMainWindow):
         ):
             w.setVisible(not from_steam)
 
-    def _refresh_game_list(self) -> None:
+    def _refresh_game_list(self):
         from sff.game_specific import GameHandler
         from sff.storage.vdf import get_steam_libs
 
@@ -412,7 +411,7 @@ class SFFMainWindow(QMainWindow):
         for name, acf in self._game_list:
             self.game_combo.addItem(name, acf)
 
-    def _quick_coldclient(self) -> None:
+    def _quick_coldclient(self):
         """Switch to Fix Game tab with ColdClient mode pre-filled from the selected game."""
         from sff.fix_game.service import EmuMode
         acf = self._get_selected_acf()
@@ -430,7 +429,7 @@ class SFFMainWindow(QMainWindow):
                 self.tabs.setCurrentIndex(i)
                 break
 
-    def _get_selected_acf(self) -> Optional[Any]:
+    def _get_selected_acf(self):
         from sff.game_specific import ACFInfo
 
         if self.radio_steam.isChecked():
@@ -447,7 +446,7 @@ class SFFMainWindow(QMainWindow):
 
     # ── Worker management ────────────────────────────────────────
 
-    def _start_worker(self, func: Callable[[], Any], label: str = "action") -> None:
+    def _start_worker(self, func, label: str = "action"):
         if self._worker_thread is not None and self._worker_thread.isRunning():
             QMessageBox.information(self, "Busy", "An action is already running.")
             return
@@ -462,7 +461,7 @@ class SFFMainWindow(QMainWindow):
         self._worker_thread = QThread()
         self._worker.moveToThread(self._worker_thread)
 
-        def _on_finish(_result: Any) -> None:
+        def _on_finish(_result):
             sys.stdout = old_stdout
             sys.stderr = old_stderr
             if self._worker_thread:
@@ -477,7 +476,7 @@ class SFFMainWindow(QMainWindow):
         self._worker_thread.started.connect(self._worker.run)
         self._worker_thread.start()
 
-    def _open_workshop(self) -> None:
+    def _open_workshop(self):
         acf = self._get_selected_acf()
         if acf is None:
             QMessageBox.warning(
@@ -494,7 +493,7 @@ class SFFMainWindow(QMainWindow):
 
         open_workshop_browser(app_id, self)
 
-    def _run_game_action(self, choice: Any) -> None:
+    def _run_game_action(self, choice):
         from sff.structs import MainMenu
         acf = self._get_selected_acf()
         if acf is None:
@@ -527,7 +526,7 @@ class SFFMainWindow(QMainWindow):
             lambda: self.ui.run_game_action_with_selection(choice, acf), label
         )
 
-    def _run_steam_auto_gui(self) -> None:
+    def _run_steam_auto_gui(self):
         from sff.steamauto import get_steamauto_cli_path, run_steamauto
 
         if get_steamauto_cli_path() is None:
@@ -549,18 +548,18 @@ class SFFMainWindow(QMainWindow):
         game_path = acf.path
         app_id = acf.app_id or "0"
 
-        def _job() -> None:
+        def _job():
             run_steamauto(game_path, app_id, print_func=print)
 
         self._start_worker(_job, label="SteamAutoCrack")
 
-    def _run_tool(self, func: Callable[[], Any]) -> None:
+    def _run_tool(self, func):
         label = getattr(func, "__name__", "tool")
         self._start_worker(func, label)
 
     # ── Log ──────────────────────────────────────────────────────
 
-    def _append_log(self, text: str) -> None:
+    def _append_log(self, text):
         text = _ANSI_RE.sub("", text)
         self.log_text.moveCursor(QTextCursor.MoveOperation.End)
         self.log_text.insertPlainText(text)
@@ -568,7 +567,7 @@ class SFFMainWindow(QMainWindow):
 
     # ── Theme ────────────────────────────────────────────────────
 
-    def _set_theme(self, key: str) -> None:
+    def _set_theme(self, key):
         self._current_theme = key
         _, style = THEMES[key]
         self.setStyleSheet(style)
@@ -576,7 +575,7 @@ class SFFMainWindow(QMainWindow):
 
     # ── Settings dialog ──────────────────────────────────────────
 
-    def _show_settings(self) -> None:
+    def _show_settings(self):
         from sff.storage.settings import (
             clear_setting,
             export_settings,
@@ -605,7 +604,7 @@ class SFFMainWindow(QMainWindow):
         saved = load_all_settings()
         settings_order: list[Settings] = [s for s in Settings if s not in skip]
 
-        def _refresh_list() -> None:
+        def _refresh_list():
             nonlocal saved
             saved = load_all_settings()
             lw.clear()
@@ -644,7 +643,7 @@ class SFFMainWindow(QMainWindow):
         close_btn.rejected.connect(dlg.reject)
         layout.addWidget(close_btn)
 
-        def _edit_setting() -> None:
+        def _edit_setting():
             item = lw.currentItem()
             if not item:
                 return
@@ -697,7 +696,7 @@ class SFFMainWindow(QMainWindow):
                     set_setting(s, val)
             _refresh_list()
 
-        def _delete_setting() -> None:
+        def _delete_setting():
             item = lw.currentItem()
             if not item:
                 return
@@ -709,7 +708,7 @@ class SFFMainWindow(QMainWindow):
                 clear_setting(s)
                 _refresh_list()
 
-        def _export() -> None:
+        def _export():
             path, _ = QFileDialog.getSaveFileName(dlg, "Export settings", "settings_export.json", "JSON (*.json)")
             if path:
                 ok = export_settings(Path(path), include_sensitive=False)
@@ -718,7 +717,7 @@ class SFFMainWindow(QMainWindow):
                 else:
                     QMessageBox.warning(dlg, "Error", "Failed to export settings.")
 
-        def _import() -> None:
+        def _import():
             path, _ = QFileDialog.getOpenFileName(dlg, "Import settings", "", "JSON (*.json)")
             if not path:
                 return
@@ -744,7 +743,7 @@ class SFFMainWindow(QMainWindow):
 
     # ── About ────────────────────────────────────────────────────
 
-    def _show_about(self) -> None:
+    def _show_about(self):
         from sff.strings import VERSION
 
         QMessageBox.about(

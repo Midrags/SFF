@@ -19,14 +19,14 @@
 from collections import OrderedDict
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Optional, TypeVar, overload
 
 import vdf  # type: ignore
+from typing import Any, Optional, TypeVar, overload
 
 _DictType = TypeVar("_DictType", bound=dict[Any, Any])
 
 
-def vdf_dump(vdf_file: Path, obj: dict[str, Any]):
+def vdf_dump(vdf_file, obj):
     with vdf_file.open("w", encoding="utf-8") as f:
         vdf.dump(obj, f, pretty=True)  # type: ignore
 
@@ -34,20 +34,20 @@ def vdf_dump(vdf_file: Path, obj: dict[str, Any]):
 @overload
 def vdf_load(
     vdf_file: Path, mapper: type[OrderedDict[Any, Any]]
-) -> OrderedDict[Any, Any]: ...
+): ...
 
 
 @overload
-def vdf_load(vdf_file: Path, mapper: type[_DictType]) -> _DictType: ...
+def vdf_load(vdf_file, mapper): ...
 
 
 @overload
-def vdf_load(vdf_file: Path) -> dict[Any, Any]: ...
+def vdf_load(vdf_file): ...
 
 
-def vdf_load(vdf_file: Path, mapper: type[_DictType] = dict) -> _DictType:
+def vdf_load(vdf_file, mapper = dict):
     with vdf_file.open(encoding="utf-8") as f:
-        data: _DictType = vdf.load(f, mapper=mapper)  # type: ignore
+        data = vdf.load(f, mapper=mapper)  # type: ignore
     return data
 
 
@@ -55,7 +55,7 @@ class VDFLoadAndDumper:
     """For when you need to load and dump a vdf file in one line.
     Use `vdf_load` or `vdf_dump` to do just one of the two"""
 
-    def __init__(self, path: Path):
+    def __init__(self, path):
         self.path = path
         self.data = vdf.VDFDict()
 
@@ -73,11 +73,11 @@ class VDFLoadAndDumper:
             vdf_dump(self.path, self.data)
 
 
-def get_steam_libs(steam_path: Path):
+def get_steam_libs(steam_path):
     lib_folders = steam_path / "config/libraryfolders.vdf"
 
     vdf_data = vdf_load(lib_folders)
-    paths: list[Path] = []
+    paths = []
     for library in vdf_data["libraryfolders"].values():
         try:
             if (path := Path(library["path"])).exists():
@@ -87,7 +87,7 @@ def get_steam_libs(steam_path: Path):
     return paths
 
 
-def ensure_library_has_app(steam_path: Path, library_path: Path, app_id: str) -> bool:
+def ensure_library_has_app(steam_path, library_path, app_id):
     lib_folders = steam_path / "config/libraryfolders.vdf"
     if not lib_folders.exists():
         return False
@@ -95,7 +95,7 @@ def ensure_library_has_app(steam_path: Path, library_path: Path, app_id: str) ->
         vdf_data = vdf_load(lib_folders)
         folders = vdf_data.get("libraryfolders", {})
         lib_path_str = str(library_path.resolve())
-        found_key: Optional[str] = None
+        found_key = None
         for key, lib in folders.items():
             if key == "contentstatsid":
                 continue

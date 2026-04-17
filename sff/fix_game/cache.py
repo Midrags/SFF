@@ -28,12 +28,11 @@ import json
 import logging
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
-def _get_cache_dir() -> Path:
+def _get_cache_dir():
     """get the fix game cache directory"""
     base = Path(os.environ.get("APPDATA", os.path.expanduser("~")))
     cache_dir = base / "SteaMidra" / "fix_game_cache"
@@ -42,7 +41,7 @@ def _get_cache_dir() -> Path:
     return cache_dir
 
 
-def _ensure_defender_exclusion(path: Path) -> None:
+def _ensure_defender_exclusion(path):
     """
     Attempt to add a Windows Defender exclusion for the SteaMidra data directory.
     First tries non-elevated; if that fails (needs admin), silently skips.
@@ -86,11 +85,11 @@ class CachedAppInfo:
     build_id: int = 0
     depots: list = field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self):
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, d: dict) -> "CachedAppInfo":
+    def from_dict(cls, d):
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 
@@ -130,7 +129,7 @@ class FixGameCache:
 
     # --- app info cache ---
 
-    def save_app_info(self, info: CachedAppInfo):
+    def save_app_info(self, info):
         """save cached app info to disk"""
         path = self.apps_dir / f"{info.app_id}.json"
         try:
@@ -138,7 +137,7 @@ class FixGameCache:
         except Exception as e:
             logger.error("Failed to save app info for %d: %s", info.app_id, e)
 
-    def load_app_info(self, app_id: int) -> Optional[CachedAppInfo]:
+    def load_app_info(self, app_id):
         """load cached app info from disk"""
         path = self.apps_dir / f"{app_id}.json"
         try:
@@ -151,7 +150,7 @@ class FixGameCache:
 
     # --- goldberg version ---
 
-    def get_goldberg_version(self) -> Optional[str]:
+    def get_goldberg_version(self):
         """get the cached Goldberg emulator version tag"""
         version_file = self.goldberg_dir / "version.txt"
         try:
@@ -161,7 +160,7 @@ class FixGameCache:
             pass
         return None
 
-    def set_goldberg_version(self, version: str):
+    def set_goldberg_version(self, version):
         """save the current Goldberg version tag"""
         version_file = self.goldberg_dir / "version.txt"
         try:
@@ -169,19 +168,19 @@ class FixGameCache:
         except Exception as e:
             logger.error("Failed to save Goldberg version: %s", e)
 
-    def has_goldberg_dlls(self) -> bool:
+    def has_goldberg_dlls(self):
         """check if we have the core Goldberg DLLs cached"""
         required = ["steam_api.dll", "steam_api64.dll"]
         return all((self.goldberg_dir / name).exists() for name in required)
 
-    def get_goldberg_dll_path(self, dll_name: str) -> Optional[Path]:
+    def get_goldberg_dll_path(self, dll_name):
         """get path to a cached Goldberg DLL"""
         path = self.goldberg_dir / dll_name
         return path if path.exists() else None
 
     # --- PICS data ---
 
-    def save_pics_data(self, app_id: int, data: dict):
+    def save_pics_data(self, app_id, data):
         """save raw PICS data for a game"""
         path = self.pics_dir / f"{app_id}.json"
         try:
@@ -189,7 +188,7 @@ class FixGameCache:
         except Exception as e:
             logger.error("Failed to save PICS data for %d: %s", app_id, e)
 
-    def load_pics_data(self, app_id: int) -> Optional[dict]:
+    def load_pics_data(self, app_id):
         """load cached PICS data"""
         path = self.pics_dir / f"{app_id}.json"
         try:
@@ -202,7 +201,7 @@ class FixGameCache:
     # --- lua parsing ---
 
     @staticmethod
-    def parse_lua_for_cache(lua_content: str, app_id: int) -> CachedAppInfo:
+    def parse_lua_for_cache(lua_content, app_id):
         """
         Parse lua content to extract DLC, depot, and launch info.
         This mirrors what Solus does when caching data from lua downloads.

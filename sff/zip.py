@@ -17,33 +17,33 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 from io import BytesIO
-from typing import Literal, Optional, Union, overload
 import zipfile
 from pathlib import Path
 
 from colorama import Fore, Style
+from typing import Literal, Union, overload
 
 
 @overload
-def read_lua_from_zip(path: Union[Path, BytesIO]) -> Union[str, None]: ...
+def read_lua_from_zip(path): ...
 
 
 @overload
 def read_lua_from_zip(
     path: Union[Path, BytesIO], decode: Literal[True]
-) -> Union[str, None]: ...
+): ...
 
 
 @overload
 def read_lua_from_zip(
     path: Union[Path, BytesIO], decode: Literal[False]
-) -> Union[bytes, None]: ...
+): ...
 
 
 def read_lua_from_zip(
     path: Union[Path, BytesIO],
-    decode: bool = True,
-    depotcache: Optional[Path] = None,
+    decode = True,
+    depotcache = None,
 ):
     # Read a lua file from a ZIP. Also extracts any .manifest files found in
     # the ZIP — directly into depotcache if provided, otherwise ./manifests/.
@@ -95,8 +95,8 @@ def read_lua_from_zip(
 
 
 def extract_manifests_from_zip_bytes(
-    data: bytes, depotcache: Path, staging: Optional[Path] = None
-) -> list[str]:
+    data = None
+):
     # Extract all .manifest files from ZIP bytes directly into depotcache.
     # This is the core function that ensures manifests land in the right place
     # before Steam starts a download, so they're already available locally.
@@ -122,7 +122,7 @@ def extract_manifests_from_zip_bytes(
     return written
 
 
-def read_file_from_zip_bytes(filename: Union[str, zipfile.ZipInfo], bytes: bytes):
+def read_file_from_zip_bytes(filename, bytes):
     try:
         with zipfile.ZipFile(BytesIO(bytes)) as f:
             return BytesIO(f.read(filename))
@@ -130,7 +130,7 @@ def read_file_from_zip_bytes(filename: Union[str, zipfile.ZipInfo], bytes: bytes
         return
 
 
-def read_nth_file_from_zip_bytes(nth: int, bytes: bytes):
+def read_nth_file_from_zip_bytes(nth, bytes):
     try:
         with zipfile.ZipFile(BytesIO(bytes)) as f:
             return BytesIO(f.read(f.filelist[nth].filename))
@@ -138,7 +138,7 @@ def read_nth_file_from_zip_bytes(nth: int, bytes: bytes):
         return
 
 
-def zip_folder(folder_path: Path, output_path: Path):
+def zip_folder(folder_path, output_path):
     tmp = BytesIO()
     with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for file in folder_path.rglob('*'):

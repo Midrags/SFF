@@ -25,11 +25,11 @@ import shutil
 from colorama import Fore, Style
 from sff.prompts import prompt_select
 from sff.http_utils import download_to_path
-from sff.online_fix import _extract_archive, _detect_archiver
+from sff.online_fix import _extract_archive_with_backup, _detect_archiver
 
 RYUU_URL = "https://generator.ryuu.lol/fixes"
 
-def get_ryuu_games() -> list[tuple[str, str]]:
+def get_ryuu_games():
     """
     Fetches the list of games from Ryuu's website.
     Returns: list of (Game Name, Download URL)
@@ -62,7 +62,7 @@ def get_ryuu_games() -> list[tuple[str, str]]:
         return []
 
 
-def search_ryuu(query_name: str, all_games: list[tuple[str, str]]) -> list[tuple[str, str]]:
+def search_ryuu(query_name, all_games: list[tuple[str, str]]):
     """
     Searches for a game by name in the list of games.
     """
@@ -83,7 +83,7 @@ def search_ryuu(query_name: str, all_games: list[tuple[str, str]]) -> list[tuple
     return matches
 
 
-def apply_ryuu_fix(game_name: str, game_folder: Path) -> bool:
+def apply_ryuu_fix(game_name, game_folder):
     all_games = get_ryuu_games()
     if not all_games:
         return False
@@ -135,7 +135,7 @@ def apply_ryuu_fix(game_name: str, game_folder: Path) -> bool:
             if not archiver_type:
                 print(Fore.RED + "No archiver found. Please install WinRAR or 7-Zip." + Style.RESET_ALL)
                 return False
-            if not _extract_archive(zip_path, game_folder, archiver_type, archiver_path, password=""):
+            if not _extract_archive_with_backup(str(zip_path), str(game_folder), archiver_type, archiver_path, game_name, pwd=""):
                 return False
                 
         print()

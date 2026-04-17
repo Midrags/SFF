@@ -21,7 +21,6 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Optional
 from zipfile import ZipFile
 
 import httpx
@@ -43,11 +42,11 @@ class GitHubReleaseDownloader:
         UnlockerType.UPLAY_R2: "https://api.github.com/repos/acidicoala/UplayR2Unlocker/releases/latest"
     }
     
-    def __init__(self, cache_dir: Path):
+    def __init__(self, cache_dir):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
     
-    async def download_latest(self, unlocker_type: UnlockerType) -> Optional[Path]:
+    async def download_latest(self, unlocker_type: UnlockerType):
         if unlocker_type not in self.RELEASE_URLS:
             logger.error(f"No release URL configured for {unlocker_type}")
             return None
@@ -145,7 +144,7 @@ class GitHubReleaseDownloader:
                 logger.error(f"Failed to extract ZIP for {unlocker_type.value}: {e}")
                 return None
     
-    def get_cached_dll(self, unlocker_type: UnlockerType) -> Optional[Path]:
+    def get_cached_dll(self, unlocker_type):
         unlocker_cache_dir = self.cache_dir / unlocker_type.value
         if not unlocker_cache_dir.exists():
             return None
@@ -159,7 +158,7 @@ class GitHubReleaseDownloader:
         dll_dir = self._find_dll_directory(latest_version, unlocker_type)
         return dll_dir if dll_dir else latest_version
     
-    def _find_dll_directory(self, root_dir: Path, unlocker_type: UnlockerType) -> Optional[Path]:
+    def _find_dll_directory(self, root_dir, unlocker_type):
         expected_dlls = {
             UnlockerType.SMOKEAPI: ["smoke_api32.dll", "smoke_api64.dll"],
             UnlockerType.CREAMAPI: ["steam_api.dll", "steam_api64.dll"],
@@ -192,7 +191,7 @@ class GitHubReleaseDownloader:
         logger.warning(f"Could not find DLLs for {unlocker_type.value} in {root_dir}")
         return None
     
-    def _get_local_resource(self, unlocker_type: UnlockerType) -> Optional[Path]:
+    def _get_local_resource(self, unlocker_type):
         from sff.utils import root_folder
         
         resource_map = {
@@ -216,7 +215,7 @@ class GitHubReleaseDownloader:
         logger.debug(f"No local resource found for {unlocker_type.value} at {resource_dir}")
         return None
     
-    def get_dll(self, unlocker_type: UnlockerType, architecture: str) -> Optional[Path]:
+    def get_dll(self, unlocker_type, architecture):
         dll_dir = self.get_cached_dll(unlocker_type)
         if not dll_dir:
             dll_dir = self._get_local_resource(unlocker_type)

@@ -26,7 +26,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -38,24 +37,24 @@ _GH_API = "https://api.github.com"
 _TREE_TTL = 3600
 _RESULT_TTL = 300
 
-_TREE: Optional[list] = None
-_TREE_FETCHED_AT: float = 0.0
-_TREE_MAP: dict[str, list[str]] = {}
-_DATES: dict[str, str] = {}
-_DATES_DIRTY: bool = False
-_RATE_REMAINING: int = 60
-_RESULT_CACHE: dict[str, tuple[float, list]] = {}
+_TREE = None
+_TREE_FETCHED_AT = 0.0
+_TREE_MAP = {}
+_DATES = {}
+_DATES_DIRTY = False
+_RATE_REMAINING = 60
+_RESULT_CACHE = {}
 
 
 @dataclass
 class ManifestEntry:
     manifest_id: str
     date: str
-    branch: str = "public"
-    size_mb: float = 0.0
-    source: str = ""
+    branch = "public"
+    size_mb = 0.0
+    source = ""
 
-    def __str__(self) -> str:
+    def __str__(self):
         size_str = f"  ({self.size_mb:.0f} MB)" if self.size_mb else ""
         return f"{self.date}  —  {self.manifest_id}  [{self.branch}]{size_str}"
 
@@ -64,13 +63,13 @@ class ManifestEntry:
 # Persistent cache helpers
 # ---------------------------------------------------------------------------
 
-def _sff_dir() -> Path:
+def _sff_dir():
     p = Path.home() / ".sff"
     p.mkdir(exist_ok=True)
     return p
 
 
-def _load_dates_cache() -> None:
+def _load_dates_cache():
     global _DATES
     try:
         p = _sff_dir() / "github_dates.json"
@@ -80,7 +79,7 @@ def _load_dates_cache() -> None:
         logger.debug("dates cache load error: %s", exc)
 
 
-def _save_dates_cache() -> None:
+def _save_dates_cache():
     global _DATES_DIRTY
     if not _DATES_DIRTY:
         return
@@ -98,10 +97,10 @@ _load_dates_cache()
 # Local fallback data (loaded once at import)
 # ---------------------------------------------------------------------------
 
-def _load_local_fallbacks() -> tuple[frozenset, dict]:
+def _load_local_fallbacks():
     lua_dir = Path(__file__).parent.parent / "lua"
-    dk_ids: frozenset = frozenset()
-    tokens: dict = {}
+    dk_ids = frozenset()
+    tokens = {}
     try:
         dk = json.loads((lua_dir / "fallback_depotkeys.json").read_text(encoding="utf-8"))
         dk_ids = frozenset(dk.keys())
@@ -122,15 +121,15 @@ _DEPOT_KEY_IDS, _FALLBACK_TOKENS = _load_local_fallbacks()
 # GitHub mirror tree (session + disk cached)
 # ---------------------------------------------------------------------------
 
-def _gh_headers() -> dict:
+def _gh_headers():
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    h: dict = {"Accept": "application/vnd.github.v3+json"}
+    h = {"Accept": "application/vnd.github.v3+json"}
     if token:
         h["Authorization"] = f"Bearer {token}"
     return h
 
 
-def _update_rate_limit(resp: httpx.Response) -> None:
+def _update_rate_limit(resp: httpx.Response):
     global _RATE_REMAINING
     try:
         _RATE_REMAINING = int(resp.headers.get("X-RateLimit-Remaining", _RATE_REMAINING))
@@ -138,7 +137,7 @@ def _update_rate_limit(resp: httpx.Response) -> None:
         pass
 
 
-def _get_mirror_tree() -> list[dict]:
+def _get_mirror_tree():
     """Return GitHub tree, fetching once per session (disk-backed with TTL)."""
     global _TREE, _TREE_FETCHED_AT, _TREE_MAP
     now = time.time()
@@ -176,8 +175,8 @@ def _get_mirror_tree() -> list[dict]:
     return _TREE
 
 
-def _build_tree_map(tree: list[dict]) -> dict[str, list[str]]:
-    result: dict[str, list[str]] = {}
+def _build_tree_map(tree):
+    result = {}
     for item in tree:
         m = re.match(r"^(\d+)_(\d+)\.manifest$", item.get("path", ""))
         if m:
@@ -185,7 +184,7 @@ def _build_tree_map(tree: list[dict]) -> dict[str, list[str]]:
     return result
 
 
-def _fetch_file_date(filename: str) -> str:
+def _fetch_file_date(filename):
     """Fetch commit date for one mirror file. Rate-limited; cached persistently."""
     global _DATES_DIRTY
     if filename in _DATES:
@@ -220,17 +219,17 @@ def _fetch_file_date(filename: str) -> str:
 # Source 1 — Steam CM
 # ---------------------------------------------------------------------------
 
-def _fetch_steam_cm_entries(app_id: str) -> dict[str, list[ManifestEntry]]:
+def _fetch_steam_cm_entries(app_id):
     """Get depot IDs + current manifests with real dates from Steam CM."""
-    result: dict[str, list[ManifestEntry]] = {}
+    result = {}
     try:
         from sff.steam_client import create_provider_for_current_thread
         prov = create_provider_for_current_thread()
         app_data = prov.get_single_app_info(int(app_id))
         if not app_data:
             return result
-        depots_raw: dict = app_data.get("depots", {})
-        branches_meta: dict = depots_raw.get("branches", {})
+        depots_raw = app_data.get("depots", {})
+        branches_meta = depots_raw.get("branches", {})
         for branch_name, branch_info in branches_meta.items():
             if not isinstance(branch_info, dict):
                 continue
@@ -261,7 +260,7 @@ def _fetch_steam_cm_entries(app_id: str) -> dict[str, list[ManifestEntry]]:
 # Source 3 — Morrenus SteamCMD
 # ---------------------------------------------------------------------------
 
-def _fetch_hubcap_depots(app_id: str) -> list[str]:
+def _fetch_hubcap_depots(app_id):
     """Get depot IDs from Hubcap/SteamCMD API."""
     try:
         resp = httpx.get(
@@ -290,7 +289,7 @@ _CHROME_PATHS = [
 ]
 
 
-def _ensure_chrome_for_testing() -> str:
+def _ensure_chrome_for_testing():
     """
     Download the full Chrome for Testing binary from Google if not cached.
     The full Chrome binary (chrome.exe) is required — chrome-headless-shell does
@@ -335,7 +334,7 @@ def _ensure_chrome_for_testing() -> str:
     return ""
 
 
-def _detect_sb_browser() -> tuple[str, str]:
+def _detect_sb_browser():
     """
     Return (browser_name, binary_path) for SeleniumBase UC mode.
     Preference order:
@@ -360,7 +359,7 @@ def _detect_sb_browser() -> tuple[str, str]:
     return 'chrome', ''   # last resort: let SeleniumBase try its own detection
 
 
-def _fetch_steamdb_seleniumbase(depot_id: str) -> list[ManifestEntry]:
+def _fetch_steamdb_seleniumbase(depot_id):
     """Try SteamDB via SeleniumBase UC mode (headless Chrome + CF bypass)."""
     try:
         from seleniumbase import SB
@@ -391,7 +390,7 @@ def _fetch_steamdb_seleniumbase(depot_id: str) -> list[ManifestEntry]:
 def _fetch_steamdb_batch(
     depot_ids: list[str],
     progress_cb=None,
-) -> dict[str, list[ManifestEntry]]:
+):
     """
     Open ONE SeleniumBase UC browser and scrape the SteamDB depot/manifests page
     for each depot_id sequentially.  Much faster than one browser per depot.
@@ -407,7 +406,7 @@ def _fetch_steamdb_batch(
         return {}
 
     n = len(depot_ids)
-    results: dict[str, list[ManifestEntry]] = {}
+    results = {}
     browser, binary = _detect_sb_browser()
     sb_kwargs = dict(uc=True, headless=True, block_images=True, browser=browser)
     if binary:
@@ -452,7 +451,7 @@ def _fetch_steamdb_batch(
     return results
 
 
-def _fetch_steamdb(depot_id: str) -> list[ManifestEntry]:
+def _fetch_steamdb(depot_id):
     """SteamDB: plain httpx first (likely blocked by CF), then SeleniumBase UC."""
     url = f"https://www.steamdb.info/depot/{depot_id}/manifests/"
     headers = {
@@ -473,7 +472,7 @@ def _fetch_steamdb(depot_id: str) -> list[ManifestEntry]:
     return _fetch_steamdb_seleniumbase(depot_id)
 
 
-def _parse_steamdb_html(html: str) -> list[ManifestEntry]:
+def _parse_steamdb_html(html):
     """
     Parse the SteamDB depot/manifests HTML table using BeautifulSoup.
 
@@ -488,7 +487,7 @@ def _parse_steamdb_html(html: str) -> list[ManifestEntry]:
     """
     from bs4 import BeautifulSoup
 
-    entries: list[ManifestEntry] = []
+    entries = []
     soup = BeautifulSoup(html, "html.parser")
 
     for table in soup.find_all("table"):
@@ -498,7 +497,7 @@ def _parse_steamdb_html(html: str) -> list[ManifestEntry]:
                 continue
 
             # Find whichever cell holds the manifest ID (15+ digit number)
-            manifest_id: str = ""
+            manifest_id = ""
             for cell in cells:
                 text = cell.get_text(strip=True)
                 if re.match(r"^\d{15,}$", text):
@@ -537,8 +536,8 @@ def _parse_steamdb_html(html: str) -> list[ManifestEntry]:
             ))
 
     # Deduplicate by manifest_id (keep first = newest from top of table)
-    seen: set[str] = set()
-    unique: list[ManifestEntry] = []
+    seen = set()
+    unique = []
     for e in entries:
         if e.manifest_id not in seen:
             seen.add(e.manifest_id)
@@ -551,13 +550,13 @@ def _parse_steamdb_html(html: str) -> list[ManifestEntry]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def has_depot_key(depot_id: str) -> bool:
+def has_depot_key(depot_id):
     """Return True if this depot has a known decryption key in fallback_depotkeys."""
     return str(depot_id) in _DEPOT_KEY_IDS
 
 
-def get_depot_manifests(depot_id: str, fetch_dates: bool = True,
-                        force_refresh: bool = False) -> list[ManifestEntry]:
+def get_depot_manifests(depot_id, fetch_dates = True,
+                        force_refresh = False):
     """
     Return manifest history for a depot from GitHub mirror + local fallbacks.
     Source 5 (SteamDB) fires only if nothing is found from other sources.
@@ -569,10 +568,10 @@ def get_depot_manifests(depot_id: str, fetch_dates: bool = True,
         if cached and (time.time() - cached[0]) < _RESULT_TTL:
             return cached[1]
 
-    entries: list[ManifestEntry] = []
-    seen: set[str] = set()
+    entries = []
+    seen = set()
 
-    def _add(e: ManifestEntry) -> None:
+    def _add(e):
         if e.manifest_id not in seen:
             seen.add(e.manifest_id)
             entries.append(e)
@@ -598,7 +597,7 @@ def get_depot_manifests(depot_id: str, fetch_dates: bool = True,
         for e in _fetch_steamdb(depot_id):
             _add(e)
 
-    def _sort_key(e: ManifestEntry) -> str:
+    def _sort_key(e):
         return e.date if re.match(r"\d{4}-\d{2}-\d{2}", e.date) else "0000-00-00"
 
     entries.sort(key=_sort_key, reverse=True)
@@ -606,7 +605,7 @@ def get_depot_manifests(depot_id: str, fetch_dates: bool = True,
     return entries
 
 
-def get_depots_for_app(app_id: str, progress_cb=None) -> dict[str, list[ManifestEntry]]:
+def get_depots_for_app(app_id, progress_cb=None):
     """
     Return {depot_id: [ManifestEntry, ...]} for all depots of an app.
     Depot IDs + current manifests come from Steam CM (Source 1).
@@ -627,17 +626,17 @@ def get_depots_for_app(app_id: str, progress_cb=None) -> dict[str, list[Manifest
     if not depot_ids:
         return {}
 
-    result: dict[str, list[ManifestEntry]] = {}
+    result = {}
     for depot_id in depot_ids:
-        merged: list[ManifestEntry] = list(steam_entries.get(depot_id, []))
-        seen: set[str] = {e.manifest_id for e in merged}
+        merged = list(steam_entries.get(depot_id, []))
+        seen = {e.manifest_id for e in merged}
         # fetch_dates=False: avoid exhausting the 60/hr GitHub rate limit on bulk load
         for e in get_depot_manifests(depot_id, fetch_dates=False):
             if e.manifest_id not in seen:
                 seen.add(e.manifest_id)
                 merged.append(e)
         if merged:
-            def _sort_key(e: ManifestEntry) -> str:
+            def _sort_key(e):
                 return e.date if re.match(r"\d{4}-\d{2}-\d{2}", e.date) else "0000-00-00"
             merged.sort(key=_sort_key, reverse=True)
             result[depot_id] = merged
@@ -656,7 +655,7 @@ def get_depots_for_app(app_id: str, progress_cb=None) -> dict[str, list[Manifest
             if new_entries:
                 result.setdefault(did, [])
                 result[did].extend(new_entries)
-                def _sort_key2(e: ManifestEntry) -> str:
+                def _sort_key2(e):
                     return e.date if re.match(r"\d{4}-\d{2}-\d{2}", e.date) else "0000-00-00"
                 result[did].sort(key=_sort_key2, reverse=True)
 
@@ -678,7 +677,7 @@ class VersionGroup:
     entry_map: dict[str, ManifestEntry]  # depot_id -> ManifestEntry (for metadata)
 
 
-def group_by_version(depot_history: dict[str, list[ManifestEntry]]) -> list["VersionGroup"]:
+def group_by_version(depot_history: dict[str, list[ManifestEntry]]):
     """
     Convert {depot_id: [ManifestEntry]} into a list of VersionGroup, newest-first.
     Groups by (date, branch, source). Mirror entries with non-date values
@@ -686,7 +685,7 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]]) -> list["Ver
     per source.
     """
     # bucket key -> list of (depot_id, entry)
-    buckets: dict[tuple, list[tuple[str, ManifestEntry]]] = {}
+    buckets = {}
 
     for depot_id, entries in depot_history.items():
         for entry in entries:
@@ -696,7 +695,7 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]]) -> list["Ver
             key = (bucket_date, entry.branch, entry.source)
             buckets.setdefault(key, []).append((depot_id, entry))
 
-    groups: list[VersionGroup] = []
+    groups = []
     for (bucket_date, branch, source), items in buckets.items():
         unique_depots = len({d for d, _ in items})
         depot_word = "depot" if unique_depots == 1 else "depots"
@@ -707,9 +706,9 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]]) -> list["Ver
             label = f"{bucket_date}  —  {branch}  —  {source}  ({unique_depots} {depot_word})"
             sort_date = bucket_date
 
-        entry_map: dict[str, ManifestEntry] = {}
-        entries_list: list[tuple[str, str]] = []
-        seen_pairs: set[tuple[str, str]] = set()
+        entry_map = {}
+        entries_list = []
+        seen_pairs = set()
         for depot_id, entry in items:
             pair = (depot_id, entry.manifest_id)
             if pair not in seen_pairs:
@@ -740,7 +739,7 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]]) -> list["Ver
         if group.date == "0000-00-00" or group.source == "Steam CM":
             continue  # skip archive / unknown-date groups and Steam CM (already complete)
 
-        depots_in_group: set[str] = {depot_id for depot_id, _ in group.entries}
+        depots_in_group = {depot_id for depot_id, _ in group.entries}
         added = 0
 
         for depot_id in all_depot_ids:
@@ -780,6 +779,6 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]]) -> list["Ver
 
 def get_manifests_for_date(
     depot_id: str, target_date: str
-) -> list[ManifestEntry]:
+):
     """Return all manifest entries for a specific date (YYYY-MM-DD)."""
     return [e for e in get_depot_manifests(depot_id) if e.date.startswith(target_date)]

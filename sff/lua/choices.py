@@ -42,7 +42,6 @@ from datetime import datetime
 
 from pathlib import Path
 
-from typing import Any, Optional
 
 
 
@@ -88,7 +87,7 @@ from sff.zip import read_lua_from_zip
 
 
 
-def select_from_saved_luas(saved_lua: Path, named_ids: NamedIDs) -> LuaResult:
+def select_from_saved_luas(saved_lua, named_ids):
 
     if len(named_ids) == 0:
 
@@ -96,7 +95,7 @@ def select_from_saved_luas(saved_lua: Path, named_ids: NamedIDs) -> LuaResult:
 
         return LuaResult(None, None, LuaChoice.ADD_LUA)
 
-    lua_path: Optional[Path] = prompt_select(
+    lua_path = prompt_select(
 
         "Choose a game:",
 
@@ -120,7 +119,7 @@ def select_from_saved_luas(saved_lua: Path, named_ids: NamedIDs) -> LuaResult:
 
 
 
-def add_new_lua(file: Optional[Path] = None) -> LuaResult:
+def add_new_lua(file = None):
 
     lua_path = file if file else prompt_file(
 
@@ -160,7 +159,7 @@ def add_new_lua(file: Optional[Path] = None) -> LuaResult:
 
 
 
-def search_game(os_type: OSType) -> Optional[str]:
+def search_game(os_type):
 
     all_games_file = (root_folder() / "all_games.txt")
 
@@ -200,9 +199,9 @@ def search_game(os_type: OSType) -> Optional[str]:
 
             set_setting(Settings.STEAM_WEB_API_KEY, api_key)
 
-        params: dict[str, str] = {"key": api_key, "max_results": "50000"}
+        params = {"key": api_key, "max_results": "50000"}
 
-        games: list[dict[str, Any]] = []
+        games = []
 
         print("Steam has limited this endpoint to 50k IDs per requests, so "
 
@@ -266,19 +265,19 @@ def search_game(os_type: OSType) -> Optional[str]:
 
 
 
-def download_lua(dest: Path, os_type: OSType) -> LuaResult:
+def download_lua(dest, os_type):
 
     reg = re.compile(r"(?<=store\.steampowered\.com\/app\/)\d+|\d+")
 
 
 
-    def validate_app_id(x: str) -> bool:
+    def validate_app_id(x):
 
         return bool(reg.search(x)) or x == ''
 
 
 
-    def filter_app_id(x: str) -> str:
+    def filter_app_id(x):
 
         if x == "":
 
@@ -292,7 +291,7 @@ def download_lua(dest: Path, os_type: OSType) -> LuaResult:
 
 
 
-    source: Optional[LuaEndpoint] = prompt_select(
+    source = prompt_select(
 
         "Select an endpoint:", list(LuaEndpoint), cancellable=True
 
@@ -304,7 +303,7 @@ def download_lua(dest: Path, os_type: OSType) -> LuaResult:
 
 
 
-    app_id: str = prompt_text(
+    app_id = prompt_text(
 
         "Enter the App ID or Store link. Leave it blank to search for games:",
 

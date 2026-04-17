@@ -50,7 +50,7 @@ _DEPOT_DEC_KEY_REGEX = re.compile(
 _GENERAL_ADDAPPID_REGEX = re.compile(r"^\s*addappid\s*\(\s*(\d+)", flags=re.MULTILINE)
 
 
-def parse_lua_contents(contents: str, path: Path) -> Optional[LuaParsedInfo]:
+def parse_lua_contents(contents, path):
     """
     Parse Lua contents into LuaParsedInfo without prompts.
     Returns None if parsing fails (no app ID or no decryption keys).
@@ -79,7 +79,7 @@ class LuaManager:
 
     def get_raw_lua(
         self, choice: LuaChoice, override: Optional[Path] = None
-    ) -> Optional[RawLua]:
+    ):
         while True:
             if choice == LuaChoice.SELECT_SAVED_LUA:
                 result = select_from_saved_luas(self.saved_lua, self.named_ids)
@@ -114,11 +114,11 @@ class LuaManager:
 
     def fetch_lua(
         self,
-        override_choice: Optional[LuaChoice] = None,
-        override_path: Optional[Path] = None,
-    ) -> Optional[LuaParsedInfo]:
+        override_choice = None,
+        override_path = None,
+    ):
         while True:
-            choice: Optional[LuaChoice] = (
+            choice = (
                 override_choice
                 if override_choice
                 else prompt_select("Choose:", list(LuaChoice), cancellable=True)
@@ -138,7 +138,7 @@ class LuaManager:
             print(f"App ID is {parsed.app_id}")
             return parsed
 
-    def backup_lua(self, lua: LuaParsedInfo):
+    def backup_lua(self, lua):
         target = self.saved_lua / f"{lua.app_id}.lua"
         if lua.path.suffix == ".zip":
             with target.open("w", encoding="utf-8") as f:

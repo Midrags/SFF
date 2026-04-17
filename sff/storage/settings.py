@@ -19,13 +19,13 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, Union, cast
 
 import msgpack  # type: ignore
 
 from sff.secret_store import keyring_decrypt, keyring_encrypt
 from sff.structs import Settings
 from sff.utils import root_folder
+from typing import cast
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ SETTINGS_FILE = root_folder(outside_internal=True) / "settings.bin"
 SETTINGS_VERSION = "1.0.0"  # For migration tracking
 
 
-def load_all_settings() -> dict[Any, Any]:
+def load_all_settings():
     SETTINGS_FILE.touch(exist_ok=True)
     with SETTINGS_FILE.open("rb") as f:
         data = f.read()
@@ -51,14 +51,14 @@ def load_all_settings() -> dict[Any, Any]:
     return settings
 
 
-def get_setting(key: Settings):
+def get_setting(key):
     # TODO: don't trigger I/O when last used command was also get_setting
     logger.debug(f"get_setting: {key.clean_name}")
     value = load_all_settings().get(key.key_name)
     return keyring_decrypt(value) if (value and key.hidden) else value
 
 
-def set_setting(key: Settings, value: Union[str, bool]):
+def set_setting(key, value):
     if not isinstance(value, str) and not isinstance(
         value, bool
     ):  # pyright: ignore[reportUnnecessaryIsInstance]
@@ -73,7 +73,7 @@ def set_setting(key: Settings, value: Union[str, bool]):
         f.write(msgpack.packb(settings))  # type: ignore
 
 
-def clear_setting(key: Settings):
+def clear_setting(key):
     logger.debug(f"clear_setting: {key.clean_name}")
     settings = load_all_settings()
     if key.key_name in settings:
@@ -82,7 +82,7 @@ def clear_setting(key: Settings):
             f.write(msgpack.packb(settings))  # type: ignore
 
 
-def resolve_advanced_mode() -> bool:
+def resolve_advanced_mode():
     adv_mode = get_setting(Settings.ADVANCED_MODE)
     if adv_mode is None or isinstance(adv_mode, str):
         adv_mode = False
@@ -90,7 +90,7 @@ def resolve_advanced_mode() -> bool:
     return adv_mode
 
 
-def export_settings(export_path: Path, include_sensitive: bool = False) -> bool:
+def export_settings(export_path, include_sensitive = False):
     try:
         settings = load_all_settings()
         export_data = {
@@ -132,7 +132,7 @@ def export_settings(export_path: Path, include_sensitive: bool = False) -> bool:
         return False
 
 
-def import_settings(import_path: Path) -> tuple[bool, str]:
+def import_settings(import_path):
     try:
         if not import_path.exists():
             return False, f"File not found: {import_path}"
@@ -188,7 +188,7 @@ def import_settings(import_path: Path) -> tuple[bool, str]:
         return False, f"Import failed: {e}"
 
 
-def migrate_settings(settings: dict[Any, Any]) -> dict[Any, Any]:
+def migrate_settings(settings):
     current_version = settings.get("_version", "0.0.0")
     
     if current_version == SETTINGS_VERSION:

@@ -41,31 +41,31 @@ class UnlockerBase(ABC):
     
     @property
     @abstractmethod
-    def unlocker_type(self) -> UnlockerType:
+    def unlocker_type(self):
         pass
 
     @property
     @abstractmethod
-    def supported_platforms(self) -> list[Platform]:
+    def supported_platforms(self):
         pass
 
     @property
     @abstractmethod
-    def display_name(self) -> str:
+    def display_name(self):
         pass
     
     @abstractmethod
-    def is_installed(self, game_dir: Path) -> bool:
+    def is_installed(self, game_dir):
         pass
     
     @abstractmethod
-    def install(self, game_dir: Path, dlc_ids: list[int], app_id: int) -> bool:
+    def install(self, game_dir, dlc_ids, app_id):
         pass
     
     @abstractmethod
-    def uninstall(self, game_dir: Path) -> bool:
+    def uninstall(self, game_dir):
         pass
     
     @abstractmethod
-    def generate_config(self, dlc_ids: list[int], app_id: int) -> dict:
+    def generate_config(self, dlc_ids, app_id):
         pass

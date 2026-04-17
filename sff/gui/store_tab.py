@@ -20,7 +20,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject, QUrl
 from PyQt6.QtGui import QDesktopServices, QColor, QBrush, QFont
@@ -69,7 +68,7 @@ class _ManualEntryDialog(QDialog):
             return
         self.accept()
 
-    def get_values(self) -> tuple[str, str]:
+    def get_values(self):
         return self._depot_edit.text().strip(), self._manifest_edit.text().strip()
 
 
@@ -79,7 +78,7 @@ class _DepotHistoryWorker(QObject):
     error = pyqtSignal(str)
     progress = pyqtSignal(str)     # live status messages (e.g. SteamDB per-depot)
 
-    def __init__(self, app_id: int, client=None):
+    def __init__(self, app_id, client=None):
         super().__init__()
         self.app_id = app_id
         self.client = client
@@ -133,7 +132,7 @@ class VersionPickerDialog(QDialog):
     """
 
     # Source -> header background color (dark tints)
-    _SOURCE_BG: dict[str, str] = {
+    _SOURCE_BG = {
         "Steam CM":       "#1e3a5f",
         "GitHub mirror":  "#1a3322",
         "local fallback": "#3a2e10",
@@ -141,8 +140,8 @@ class VersionPickerDialog(QDialog):
     }
     _DEFAULT_BG = "#2a2a2a"
 
-    def __init__(self, app_id: int, game_name: str, depot_history: dict,
-                 steam_path: Optional[Path], parent=None):
+    def __init__(self, app_id, game_name, depot_history,
+                 steam_path = None):
         super().__init__(parent)
         self.app_id = app_id
         self.game_name = game_name
@@ -253,8 +252,8 @@ class VersionPickerDialog(QDialog):
                     table_row += 1
 
                 # Wire master checkbox to toggle all depot checkboxes in this group
-                def _make_handler(start: int, count: int):
-                    def _handler(state: int) -> None:
+                def _make_handler(start, count):
+                    def _handler(state):
                         checked = (state == 2)
                         for _, _, c in self._checkboxes[start:start + count]:
                             c.blockSignals(True)
@@ -292,7 +291,7 @@ class VersionPickerDialog(QDialog):
         self._status_label = QLabel("")
         layout.addWidget(self._status_label)
 
-    def _make_add_handler(self, btn: QPushButton, group, hex_bg: str):
+    def _make_add_handler(self, btn, group, hex_bg):
         """Return a click handler that inserts a manual depot row above the '+' row."""
         def _handler():
             dlg = _ManualEntryDialog(self)
@@ -333,7 +332,7 @@ class VersionPickerDialog(QDialog):
 
         return _handler
 
-    def _get_checked(self) -> list[tuple[str, str]]:
+    def _get_checked(self):
         """Return [(depot_id, manifest_id)] for checked rows."""
         if not hasattr(self, "_checkboxes"):
             return []
@@ -368,7 +367,7 @@ class VersionPickerDialog(QDialog):
         self._dl_thread.started.connect(self._dl_worker.run)
         self._dl_thread.start()
 
-    def _on_download_done(self, ok: int, total: int):
+    def _on_download_done(self, ok, total):
         if self._dl_thread:
             self._dl_thread.quit()
             self._dl_thread.wait()
@@ -387,7 +386,7 @@ class _ManifestDownloadWorker(QObject):
     finished = pyqtSignal(int, int)
     progress = pyqtSignal(str)
 
-    def __init__(self, app_id: str, selections: list[tuple[str, str]], steam_path: Path):
+    def __init__(self, app_id, selections: list[tuple[str, str]], steam_path):
         super().__init__()
         self.app_id = app_id
         self.selections = selections
@@ -431,7 +430,7 @@ class _ManifestDownloadWorker(QObject):
 
 class StoreTab(QWidget):
 
-    def __init__(self, steam_path: Optional[Path] = None, parent=None):
+    def __init__(self, steam_path = None, parent=None):
         super().__init__(parent)
         self._client = None
         self._steam_path = steam_path
@@ -591,7 +590,7 @@ class StoreTab(QWidget):
             self._current_page += 1
             self._fetch(self._search_edit.text().strip())
 
-    def _fetch(self, query: str):
+    def _fetch(self, query):
         if not self._client:
             QMessageBox.warning(self, "Not Connected", "Connect with your API key first.")
             return
@@ -682,7 +681,7 @@ class StoreTab(QWidget):
         self._hist_thread.started.connect(self._hist_worker.run)
         self._hist_thread.start()
 
-    def _on_hist_done(self, app_id: int, game_name: str, hist: dict):
+    def _on_hist_done(self, app_id, game_name, hist):
         if self._hist_thread:
             self._hist_thread.quit()
             self._hist_thread.wait()
@@ -700,7 +699,7 @@ class StoreTab(QWidget):
         )
         dlg.exec()
 
-    def _on_hist_error(self, msg: str):
+    def _on_hist_error(self, msg):
         if self._hist_thread:
             self._hist_thread.quit()
             self._hist_thread.wait()

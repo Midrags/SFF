@@ -44,7 +44,6 @@ import sys
 
 from pathlib import Path
 
-from typing import Any, Optional, Union
 
 
 
@@ -58,7 +57,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def root_folder(outside_internal: bool = False):
+def root_folder(outside_internal = False):
 
     is_frozen = getattr(sys, "frozen", False)
 
@@ -100,17 +99,17 @@ def root_folder(outside_internal: bool = False):
 
 def enter_path(
 
-    obj: Union[vdf.VDFDict, dict[Any, Any]],
+    obj,
 
-    *paths: Union[int, str],
+    *paths,
 
-    mutate: bool = False,
+    mutate = False,
 
-    ignore_case: bool = False,
+    ignore_case = False,
 
-    default: Optional[Any] = None,
+    default = None,
 
-) -> Any:
+):
 
     """
 

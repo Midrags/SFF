@@ -20,7 +20,6 @@
 
 import logging
 import sys
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,7 @@ else:
 class KeyboardHandler:
     
     @staticmethod
-    def check_for_keypress() -> Optional[str]:
+    def check_for_keypress():
         if not KEYBOARD_AVAILABLE:
             return None
         
@@ -59,7 +58,7 @@ class KeyboardHandler:
         return None
     
     @staticmethod
-    def wait_for_key() -> str:
+    def wait_for_key():
         if not KEYBOARD_AVAILABLE:
             return input()
         
@@ -77,17 +76,17 @@ class KeyboardHandler:
             return ''
     
     @staticmethod
-    def is_number_key(key: str) -> bool:
+    def is_number_key(key):
         return key in ['1', '2', '3', '4', '5', '6', '7', '8', '9']
     
     @staticmethod
-    def get_number_from_key(key: str) -> Optional[int]:
+    def get_number_from_key(key):
         if KeyboardHandler.is_number_key(key):
             return int(key)
         return None
 
 
-def format_menu_with_shortcuts(items: list, start_index: int = 1) -> str:
+def format_menu_with_shortcuts(items, start_index = 1):
     lines = []
     for i, item in enumerate(items, start=start_index):
         if i <= 9:

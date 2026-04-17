@@ -22,12 +22,11 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
-def validate_game_directory(game_dir: Path) -> Tuple[bool, Optional[str]]:
+def validate_game_directory(game_dir):
     if not game_dir.exists():
         return False, f"Game directory does not exist: {game_dir}"
     
@@ -43,7 +42,7 @@ def validate_game_directory(game_dir: Path) -> Tuple[bool, Optional[str]]:
     return True, None
 
 
-def validate_write_permissions(directory: Path) -> Tuple[bool, Optional[str]]:
+def validate_write_permissions(directory):
     if not directory.exists():
         return False, f"Directory does not exist: {directory}"
     
@@ -59,7 +58,7 @@ def validate_write_permissions(directory: Path) -> Tuple[bool, Optional[str]]:
         return False, f"Cannot write to directory: {e}"
 
 
-def check_disk_space(directory: Path, required_bytes: int = 10 * 1024 * 1024) -> Tuple[bool, Optional[str]]:
+def check_disk_space(directory, required_bytes = 10 * 1024 * 1024):
     try:
         stat = shutil.disk_usage(directory)
         free_space = stat.free
@@ -73,7 +72,7 @@ def check_disk_space(directory: Path, required_bytes: int = 10 * 1024 * 1024) ->
         return True, None  # Assume OK if check fails
 
 
-def validate_dll_file(dll_path: Path) -> Tuple[bool, Optional[str]]:
+def validate_dll_file(dll_path):
     if not dll_path.exists():
         return False, f"DLL file does not exist: {dll_path}"
     
@@ -91,7 +90,7 @@ def validate_dll_file(dll_path: Path) -> Tuple[bool, Optional[str]]:
         return False, f"Cannot read DLL file: {e}"
 
 
-def validate_app_id(app_id: int) -> Tuple[bool, Optional[str]]:
+def validate_app_id(app_id):
     if app_id <= 0:
         return False, f"Invalid App ID: {app_id} (must be positive)"
     
@@ -101,7 +100,7 @@ def validate_app_id(app_id: int) -> Tuple[bool, Optional[str]]:
     return True, None
 
 
-def validate_dlc_ids(dlc_ids: list[int]) -> Tuple[bool, Optional[str]]:
+def validate_dlc_ids(dlc_ids):
     if not isinstance(dlc_ids, list):
         return False, f"DLC IDs must be a list, got {type(dlc_ids)}"
     
@@ -116,7 +115,7 @@ def validate_dlc_ids(dlc_ids: list[int]) -> Tuple[bool, Optional[str]]:
     return True, None
 
 
-def check_file_in_use(file_path: Path) -> Tuple[bool, Optional[str]]:
+def check_file_in_use(file_path):
     if not file_path.exists():
         return False, None  # Not in use if doesn't exist
     

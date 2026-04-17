@@ -23,7 +23,6 @@
 - Decryption keys: already in config.vdf via ConfigVDFWriter
 """
 
-from __future__ import annotations
 
 import logging
 import shutil
@@ -35,7 +34,7 @@ STPLUGIN_DIR = "stplug-in"
 CONFIG_DEPOTCACHE_SUBDIR = ("config", "depotcache")
 
 
-def install_lua_to_steam(steam_path: Path, app_id: str, lua_source_path: Path) -> bool:
+def install_lua_to_steam(steam_path, app_id, lua_source_path):
     if not lua_source_path.exists():
         logger.debug("LUA source not found: %s", lua_source_path)
         return False
@@ -51,7 +50,7 @@ def install_lua_to_steam(steam_path: Path, app_id: str, lua_source_path: Path) -
         return False
 
 
-def sync_manifest_to_config_depotcache(steam_path: Path, manifest_path: Path) -> bool:
+def sync_manifest_to_config_depotcache(steam_path, manifest_path):
     if not manifest_path.exists():
         return False
     try:
@@ -67,7 +66,7 @@ def sync_manifest_to_config_depotcache(steam_path: Path, manifest_path: Path) ->
         return False
 
 
-def remove_lua_from_steam(steam_path: Path, app_id: str | int) -> bool:
+def remove_lua_from_steam(steam_path, app_id: str | int):
     dest_dir = steam_path / "config" / STPLUGIN_DIR
     dest_file = dest_dir / f"{app_id}.lua"
     try:

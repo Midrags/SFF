@@ -18,7 +18,6 @@
 
 import json
 import time
-from typing import Any, Union
 
 import gevent
 from steam.client import SteamClient  # type: ignore
@@ -32,12 +31,12 @@ from sff.utils import enter_path
 logger = logging.getLogger(__name__)
 
 
-def get_product_info(provider: "SteamInfoProvider", app_ids: list[int]) -> ProductInfo:
+def get_product_info(provider: "SteamInfoProvider", app_ids):
     """Here for backwards compatibility"""
     return ProductInfo({"apps": provider.get_app_info(app_ids), "packages": {}})
 
 
-def create_provider_for_current_thread() -> "SteamInfoProvider":
+def create_provider_for_current_thread():
     client = SteamClient()
     return SteamInfoProvider(client)
 
@@ -45,7 +44,7 @@ def create_provider_for_current_thread() -> "SteamInfoProvider":
 _MAX_APP_INFO_RETRIES = 3
 
 
-def _get_product_info(client: SteamClient, app_ids: list[int]) -> ProductInfo:
+def _get_product_info(client, app_ids):
     if len(app_ids) == 0:
         raise ValueError("app_ids cannot be empty.")
     if not client.logged_on:
@@ -84,12 +83,12 @@ def _get_product_info(client: SteamClient, app_ids: list[int]) -> ProductInfo:
 
 class SteamInfoProvider:
 
-    def __init__(self, client: SteamClient):
+    def __init__(self, client):
         self.client = client
         self._cache: dict[int, Any] = {}
         self._persistent_cache = get_cache()
 
-    def get_app_info(self, app_ids: list[int]) -> dict[int, Any]:
+    def get_app_info(self, app_ids):
         missing = []
         for app_id in app_ids:
             if app_id not in self._cache:
@@ -103,7 +102,7 @@ class SteamInfoProvider:
         
         if missing:
             info = _get_product_info(self.client, missing)
-            apps: dict[int, Any] = info.get("apps", {})
+            apps = info.get("apps", {})
             valid_ids = set(apps.keys())
             invalid_ids = set(missing) - valid_ids
             
@@ -123,7 +122,7 @@ class SteamInfoProvider:
             if self._cache.get(app_id, {})
         }
 
-    def get_single_app_info(self, app_id: int) -> dict[str, Any]:
+    def get_single_app_info(self, app_id):
         result = self.get_app_info([app_id])
         return result.get(app_id, {})
 
@@ -132,14 +131,14 @@ class ParsedDLC:
     def __init__(
         self,
         depot_id: int,
-        dlc_data: dict[str, Any],
-        parent_data: dict[str, Any],
+        dlc_data,
+        parent_data,
         local_ids: list[int],
     ):
         self.id = depot_id
         self.name: str = enter_path(dlc_data, "common", "name")
         depots = enter_path(dlc_data, "depots")
-        parent_depots: dict[str, Union[dict[str, Any], str]] = enter_path(
+        parent_depots = enter_path(
             parent_data, "depots"
         )
 

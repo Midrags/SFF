@@ -22,9 +22,9 @@ import sys
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Literal, NamedTuple, NewType, Optional, Union
 
 from sff.utils import root_folder
+from typing import Any, Literal, NamedTuple, NewType, Optional, Union
 
 
 class LuaChoice(Enum):
@@ -209,22 +209,22 @@ class Settings(Enum):
     LANGUAGE = SettingItem("language", "Language (Requires Restart)", False, list(SupportedLanguages))
 
     @property
-    def key_name(self) -> str:
+    def key_name(self):
         "The key name of the setting (used in the savefile)"
         return self.value.key_name
 
     @property
-    def clean_name(self) -> str:
+    def clean_name(self):
         "The name of the setting as displayed in the Settings menu"
         return self.value.clean_name
 
     @property
-    def hidden(self) -> bool:
+    def hidden(self):
         "Whether the item is hidden (e.g. sensitive info)"
         return self.value.hidden
 
     @property
-    def type(self) -> SettingType:
+    def type(self):
         return self.value.type
 
 
@@ -282,7 +282,7 @@ class AppIDInfo:
     (Sometimes a Depot ID is inside the folder but without an App ID)"""
     name: str
     "Name of the app"
-    depots: list[int] = field(default_factory=list[int])
+    depots: list = field(default_factory=list)
     "(Optional) A list of Depot IDs under this app"
 
 

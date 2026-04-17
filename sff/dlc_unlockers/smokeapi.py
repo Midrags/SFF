@@ -59,18 +59,18 @@ class SmokeAPIUnlocker(UnlockerBase):
     SMOKEAPI_64_DLL = "smoke_api64.dll"
     
     @property
-    def unlocker_type(self) -> UnlockerType:
+    def unlocker_type(self):
         return UnlockerType.SMOKEAPI
 
     @property
-    def supported_platforms(self) -> list[Platform]:
+    def supported_platforms(self):
         return [Platform.STEAM]
 
     @property
-    def display_name(self) -> str:
+    def display_name(self):
         return "SmokeAPI"
     
-    def is_installed(self, game_dir: Path) -> bool:
+    def is_installed(self, game_dir):
         for backup_path in game_dir.rglob(f"*{self.BACKUP_SUFFIX}.dll"):
             backup_name = backup_path.name
             if backup_name.startswith("steam_api64") or backup_name.startswith("steam_api"):
@@ -79,10 +79,10 @@ class SmokeAPIUnlocker(UnlockerBase):
         
         return False
     
-    def _detect_architecture(self, game_dir: Path) -> Optional[str]:
+    def _detect_architecture(self, game_dir):
         return detect_steam_architecture(game_dir, self.BACKUP_SUFFIX)
 
-    def _find_all_installation_locations(self, game_dir: Path) -> list[InstallLocation]:
+    def _find_all_installation_locations(self, game_dir):
         raw = find_all_steam_api_locations(game_dir, self.BACKUP_SUFFIX)
         return [InstallLocation(path=p, dll_name=name, architecture=arch) for p, name, arch in raw]
     
@@ -92,7 +92,7 @@ class SmokeAPIUnlocker(UnlockerBase):
         smokeapi_dll_path: Path,
         config: Optional[dict],
         game_dir: Path
-    ) -> bool:
+    ):
         try:
             original_dll_path = location.path / location.dll_name
             backup_dll_path = location.path / f"{location.dll_name.replace('.dll', '')}{self.BACKUP_SUFFIX}.dll"
@@ -147,7 +147,7 @@ class SmokeAPIUnlocker(UnlockerBase):
             logger.error(f"Failed to install to {relative_path_str}: {e}")
             return False
     
-    def _uninstall_from_location(self, location: InstallLocation, game_dir: Path) -> bool:
+    def _uninstall_from_location(self, location, game_dir):
         try:
             original_dll_path = location.path / location.dll_name
             backup_dll_path = location.path / f"{location.dll_name.replace('.dll', '')}{self.BACKUP_SUFFIX}.dll"
@@ -187,7 +187,7 @@ class SmokeAPIUnlocker(UnlockerBase):
             logger.error(f"Failed to uninstall from {relative_path_str}: {e}")
             return False
     
-    def _find_steam_api_dll(self, game_dir: Path, dll_name: str) -> Optional[Path]:
+    def _find_steam_api_dll(self, game_dir, dll_name):
         dll_path = game_dir / dll_name
         if dll_path.exists():
             return dll_path
@@ -198,8 +198,8 @@ class SmokeAPIUnlocker(UnlockerBase):
         
         return None
 
-    def install(self, game_dir: Path, dlc_ids: list[int], app_id: int,
-                smokeapi_dir: Optional[Path] = None) -> bool:
+    def install(self, game_dir, dlc_ids, app_id,
+                smokeapi_dir = None):
         valid, error = validate_game_directory(game_dir)
         if not valid:
             logger.error(f"Invalid game directory: {error}")
@@ -311,7 +311,7 @@ class SmokeAPIUnlocker(UnlockerBase):
             logger.error(f"Unexpected error during installation: {e}")
             return False
     
-    def uninstall(self, game_dir: Path) -> bool:
+    def uninstall(self, game_dir):
         try:
             locations = []
             for backup_path in game_dir.rglob(f"*{self.BACKUP_SUFFIX}.dll"):
@@ -384,7 +384,7 @@ class SmokeAPIUnlocker(UnlockerBase):
             logger.error(f"Unexpected error during uninstallation: {e}")
             return False
     
-    def generate_config(self, dlc_ids: list[int], app_id: int) -> dict:
+    def generate_config(self, dlc_ids, app_id):
         # Include all DLCs in extra_dlcs so they show as available (avoids hiding LUA/GreenLuma DLCs)
         extra_dlcs = {str(dlc_id): {} for dlc_id in dlc_ids} if dlc_ids else {}
         return {
@@ -399,10 +399,10 @@ class SmokeAPIUnlocker(UnlockerBase):
             "extra_dlcs": extra_dlcs
         }
     
-    def has_locked_dlcs(self, dlc_ids: list[int]) -> bool:
+    def has_locked_dlcs(self, dlc_ids):
         return len(dlc_ids) > 0
 
-    def detect_proxy_mode(self, game_dir: Path) -> list[Path]:
+    def detect_proxy_mode(self, game_dir):
         proxy_files = []
         
         koaloader_configs = [

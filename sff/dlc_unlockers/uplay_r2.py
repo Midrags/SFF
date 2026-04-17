@@ -22,7 +22,6 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from typing import Optional
 
 from sff.dlc_unlockers.base import UnlockerBase, UnlockerType, Platform
 
@@ -40,26 +39,26 @@ class UplayR2Unlocker(UnlockerBase):
     UNLOCKER_DLL = "UplayR2Unlocker.dll"
     
     @property
-    def unlocker_type(self) -> UnlockerType:
+    def unlocker_type(self):
         return UnlockerType.UPLAY_R2
 
     @property
-    def supported_platforms(self) -> list[Platform]:
+    def supported_platforms(self):
         return [Platform.UBISOFT]
 
     @property
-    def display_name(self) -> str:
+    def display_name(self):
         return "Uplay R2 Unlocker"
     
-    def is_installed(self, game_dir: Path) -> bool:
+    def is_installed(self, game_dir):
         has_config = (game_dir / self.CONFIG_FILENAME).exists()
         
         has_backup = (game_dir / f"{self.TARGET_DLL.replace('.dll', '')}{self.BACKUP_SUFFIX}.dll").exists()
         
         return has_config and has_backup
     
-    def install(self, game_dir: Path, dlc_ids: list[int], app_id: int,
-                unlocker_dir: Optional[Path] = None) -> bool:
+    def install(self, game_dir, dlc_ids, app_id,
+                unlocker_dir = None):
         try:
             target_dll_path = game_dir / self.TARGET_DLL
             backup_dll_path = game_dir / f"{self.TARGET_DLL.replace('.dll', '')}{self.BACKUP_SUFFIX}.dll"
@@ -110,7 +109,7 @@ class UplayR2Unlocker(UnlockerBase):
             logger.error(f"Unexpected error during installation: {e}")
             return False
     
-    def uninstall(self, game_dir: Path) -> bool:
+    def uninstall(self, game_dir):
         try:
             config_path = game_dir / self.CONFIG_FILENAME
             if config_path.exists():
@@ -151,7 +150,7 @@ class UplayR2Unlocker(UnlockerBase):
             logger.error(f"Unexpected error during uninstallation: {e}")
             return False
     
-    def generate_config(self, dlc_ids: list[int], app_id: int) -> dict:
+    def generate_config(self, dlc_ids, app_id):
         return {
             "logging": False,
             "lang": "default",

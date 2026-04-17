@@ -20,7 +20,6 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 import PyQt6.QtWebEngineWidgets  # noqa: F401 - must import before QCoreApplication
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
@@ -58,7 +57,7 @@ fh.setFormatter(
 logger.addHandler(fh)
 
 
-def get_steam_path_gui() -> Optional[Path]:
+def get_steam_path_gui():
     path_str = get_setting(Settings.STEAM_PATH)
     if path_str:
         p = Path(path_str)
@@ -79,7 +78,7 @@ def get_steam_path_gui() -> Optional[Path]:
     return None
 
 
-def main() -> None:
+def main():
     lang = get_setting(Settings.LANGUAGE)
     if lang:
         from sff.i18n import set_language
@@ -145,7 +144,7 @@ def main() -> None:
     sys.exit(app.exec())
 
 
-def _show_error_and_exit(msg: str, log_path: str = "crash.log") -> None:
+def _show_error_and_exit(msg, log_path = "crash.log"):
     try:
         with open(log_path, "w", encoding="utf-8") as f:
             f.write(msg)

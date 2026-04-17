@@ -32,7 +32,6 @@ import tempfile
 import time
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote, unquote, urljoin
 
 import httpx
@@ -48,9 +47,9 @@ logger = logging.getLogger(__name__)
 CREDENTIALS_FILE = "credentials.json"
 ONLINE_FIX_BASE_URL = "https://online-fix.me"
 
-def _get_credentials_path() -> Path: return root_folder() / CREDENTIALS_FILE
+def _get_credentials_path(): return root_folder() / CREDENTIALS_FILE
 
-def _read_credentials() -> Tuple[Optional[str], Optional[str]]:
+def _read_credentials():
     username = get_setting(Settings.ONLINE_FIX_USER)
     password = get_setting(Settings.ONLINE_FIX_PASS)
     if username and password: return username, password
@@ -63,13 +62,13 @@ def _read_credentials() -> Tuple[Optional[str], Optional[str]]:
         except Exception: pass
     return None, None
 
-def _save_credentials(username: str, password: str) -> bool:
+def _save_credentials(username, password):
     try:
         set_setting(Settings.ONLINE_FIX_USER, username); set_setting(Settings.ONLINE_FIX_PASS, password)
         return True
     except Exception: return False
 
-def _detect_archiver() -> Tuple[Optional[str], Optional[str]]:
+def _detect_archiver():
     import shutil as sh
     for p in [sh.which("winrar"), r"C:\Program Files\WinRAR\winrar.exe", r"C:\Program Files (x86)\WinRAR\winrar.exe"]:
         if p and os.path.exists(p): return ("winrar", p)
@@ -77,7 +76,7 @@ def _detect_archiver() -> Tuple[Optional[str], Optional[str]]:
         if p and os.path.exists(p): return ("7z", p)
     return (None, None)
 
-def _download_with_session(url: str, cookies_list: list, user_agent: str, save_path: Path) -> bool:
+def _download_with_session(url, cookies_list, user_agent, save_path):
     """Stream download via HTTPX using browser-grade headers."""
     try:
         cookies = {c['name']: c['value'] for c in cookies_list}
@@ -95,7 +94,7 @@ def _download_with_session(url: str, cookies_list: list, user_agent: str, save_p
     except Exception as e:
         print(f"{Fore.RED}✗ Download stream interrupted: {e}{Style.RESET_ALL}"); return False
 
-def _run_extraction_with_timeout(cmd: list, timeout: int = 300) -> tuple:
+def _run_extraction_with_timeout(cmd, timeout=300):
     try:
         startupinfo = subprocess.STARTUPINFO(); startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = subprocess.SW_HIDE
@@ -106,7 +105,7 @@ def _run_extraction_with_timeout(cmd: list, timeout: int = 300) -> tuple:
         except subprocess.TimeoutExpired: process.kill(); return (False, None, None, "Timeout")
     except Exception as e: return (False, None, None, str(e))
 
-def _extract_archive_with_backup(archive: str, target: str, atype: str, apath: str, game_name: str, pwd: str = "online-fix.me") -> bool:
+def _extract_archive_with_backup(archive, target, atype, apath, game_name, pwd="online-fix.me"):
     backed_up = []
     try:
         temp_dir = tempfile.mkdtemp(prefix='sff_ext_final_')
@@ -139,7 +138,7 @@ def _extract_archive_with_backup(archive: str, target: str, atype: str, apath: s
         return False
     finally: shutil.rmtree(temp_dir, ignore_errors=True)
 
-def _find_archives_recursive(driver) -> List[Tuple[int, str]]:
+def _find_archives_recursive(driver):
     """Pierce through all frames recursively to find .rar/.zip file links."""
     results = []
     exts = [".rar", ".zip", ".7z"]
@@ -173,7 +172,7 @@ def _find_archives_recursive(driver) -> List[Tuple[int, str]]:
     except Exception: pass
     return results
 
-def _run_multiplayer_fix_process(game_name: str, game_folder: Path, username: str, password: str, atype: str, apath: str) -> bool:
+def _run_multiplayer_fix_process(game_name, game_folder, username, password, atype, apath):
     from selenium import webdriver
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
@@ -287,7 +286,7 @@ def _run_multiplayer_fix_process(game_name: str, game_folder: Path, username: st
     finally:
         if driver: driver.quit()
 
-def apply_multiplayer_fix(game_name: str, game_folder: Path) -> bool:
+def apply_multiplayer_fix(game_name, game_folder):
     username, password = _read_credentials()
     if not username:
         username = prompt_text("\nOnline-fix Username:"); password = prompt_secret("Password:")

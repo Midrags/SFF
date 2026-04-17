@@ -36,7 +36,6 @@ import shutil
 import subprocess
 import logging
 from pathlib import Path
-from typing import Optional
 from enum import Enum
 
 import httpx
@@ -93,21 +92,21 @@ class FixGameService:
         self,
         app_id: int,
         game_dir: str,
-        steam_web_api_key: Optional[str] = None,
-        language: str = "english",
-        steam_id: str = "76561198001737783",
-        player_name: str = "Player",
-        emu_mode: str = "regular",
-        skip_drm_check: bool = False,
-        skip_steamstub: bool = False,
-        skip_goldberg_update: bool = False,
+        steam_web_api_key = None,
+        language = "english",
+        steam_id = "76561198001737783",
+        player_name = "Player",
+        emu_mode = "regular",
+        skip_drm_check = False,
+        skip_steamstub = False,
+        skip_goldberg_update = False,
         log_func=None,
-        avatar_path: Optional[str] = None,
-        simple_settings: bool = False,
-        gse_auth_mode: str = "anonymous",
-        gse_username: str = "",
-        gse_password: str = "",
-    ) -> bool:
+        avatar_path = None,
+        simple_settings = False,
+        gse_auth_mode = "anonymous",
+        gse_username = "",
+        gse_password = "",
+    ):
         """
         Run the full Fix Game pipeline.
 
@@ -263,7 +262,7 @@ class FixGameService:
         log("\n=== Fix Game Complete ===")
         return True
 
-    def restore_game(self, game_dir: str, log_func=None) -> tuple[bool, str]:
+    def restore_game(self, game_dir, log_func=None):
         """
         Undo all Fix Game changes — restore originals, delete configs.
         """
@@ -289,7 +288,7 @@ class FixGameService:
         log("=== Restore Complete ===")
         return success, msg
 
-    def check_drm(self, app_id: int, log_func=None) -> DrmCheckResult:
+    def check_drm(self, app_id, log_func=None):
         """
         Check Steam Store API for DRM information.
         
@@ -342,7 +341,7 @@ class FixGameService:
             log(f"DRM check failed: {e}")
             return DrmCheckResult.ERROR
 
-    def _generate_launch_script(self, app_id: int, game_dir: str, emu_mode: str, log):
+    def _generate_launch_script(self, app_id, game_dir, emu_mode, log):
         """generate Launch.bat from PICS data or by finding the main exe"""
         game_path = Path(game_dir)
 
@@ -381,7 +380,7 @@ class FixGameService:
             log(f"\u2713 Created Launch.bat ({exe_rel})")
 
     @staticmethod
-    def _find_gse_exe() -> Optional[Path]:
+    def _find_gse_exe():
         """
         Locate generate_emu_config.exe in priority order:
         1. sys._MEIPASS (frozen single-file EXE — bundled data lives here,
@@ -424,7 +423,7 @@ class FixGameService:
         username: str,
         password: str,
         log,
-    ) -> bool:
+    ):
         """
         Run generate_emu_config.exe (GSE Fork) to build steam_settings.
 
@@ -543,7 +542,7 @@ class FixGameService:
 
         return True
 
-    def _extract_launch_configs(self, pics_data: dict) -> list[dict]:
+    def _extract_launch_configs(self, pics_data):
         """extract Windows launch configs from PICS data"""
         configs = []
         launch_data = pics_data.get("config", {}).get("launch", {})
@@ -562,7 +561,7 @@ class FixGameService:
 
         return configs
 
-    def cache_from_lua(self, lua_content: str, app_id: int):
+    def cache_from_lua(self, lua_content, app_id):
         """cache app info parsed from lua content"""
         info = self.cache.parse_lua_for_cache(lua_content, app_id)
         self.cache.save_app_info(info)
