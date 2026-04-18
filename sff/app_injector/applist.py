@@ -79,15 +79,12 @@ class AppListManager(AppInjectionManager):
             self.max_id_limit = None  # No setting = unlimited by default
         self.steam_path = steam_path
         self.provider = provider
-
         # App ID / Depot IDs mapped to their name and type
         self.id_map: dict[int, DepotOrAppID] = {}
-
         saved_applist = get_setting(Settings.APPLIST_FOLDER)
         self.applist_folder = (
             steam_path / "AppList" if saved_applist is None else Path(saved_applist)
         )
-
         if not self.applist_folder.exists():
             self.applist_folder = prompt_dir(
                 "Could not find AppList folder. " "Please specify the full path here:"
@@ -102,7 +99,6 @@ class AppListManager(AppInjectionManager):
                 "Change this in settings if it's the wrong folder."
             )
             set_setting(Settings.APPLIST_FOLDER, str(self.applist_folder.absolute()))
-
         if saved_applist:
             colorized = (
                 Fore.YELLOW + str(self.applist_folder.resolve()) + Style.RESET_ALL
@@ -137,9 +133,7 @@ class AppListManager(AppInjectionManager):
             file_idx = int(file.stem)
             if file_idx > self.last_idx:
                 self.last_idx = file_idx
-
             contents = file.read_text(encoding="utf-8").strip()
-
             if contents.isnumeric():
                 appid = int(contents)
             else:
@@ -159,40 +153,38 @@ class AppListManager(AppInjectionManager):
         if isinstance(data, int):
             app_ids = [data]
         elif isinstance(data, LuaParsedInfo):
-            app_ids = [int(x.depot_id) for x in data.depots]
+            seen = {int(data.app_id)}
+            app_ids = [int(data.app_id)]
+            for pair in data.depots:
+                id_int = int(pair.depot_id)
+                if id_int not in seen:
+                    seen.add(id_int)
+                    app_ids.append(id_int)
         else:
             app_ids = data
-
         local_ids_data = [] if skip_check else self.get_local_ids()
         local_ids = [x.app_id for x in local_ids_data]
         current_count = len(local_ids)
-        
         new_ids = [app_id for app_id in app_ids if app_id not in local_ids]
         existing_ids = [app_id for app_id in app_ids if app_id in local_ids]
-        
         for app_id in existing_ids:
             print(f"{app_id} already in AppList")
-        
         if not new_ids:
             return
-
         if current_count >= APPLIST_LIMIT_WARNING:
             print(
                 Fore.YELLOW
                 + "You have reached the AppList limit. Create a new AppList profile before adding more games."
                 + Style.RESET_ALL
             )
-
         new_count = len(new_ids)
         projected_total = current_count + new_count
-
         # Check limit upfront before adding any IDs (only if limit is set)
         if self.max_id_limit is not None:
             # Calculate how many need to be removed (account for current over-limit state)
             current_excess = max(0, current_count - self.max_id_limit)
             total_excess = max(0, projected_total - self.max_id_limit)
             excess_count = total_excess
-            
             if projected_total > self.max_id_limit:
                 if current_excess > 0:
                     print(
@@ -210,7 +202,6 @@ class AppListManager(AppInjectionManager):
                     Fore.YELLOW + f"You need to remove at least {excess_count} ID(s) to stay within the limit."
                     + Style.RESET_ALL
                 )
-                
                 if prompt_confirm(
                     f"Would you like to automatically remove {excess_count} oldest ID(s) to make room?",
                     default=True,
@@ -224,7 +215,6 @@ class AppListManager(AppInjectionManager):
                         + Style.RESET_ALL
                     )
                     return
-        
         for app_id in new_ids:
             new_idx = self.last_idx + 1
             with (self.applist_folder / f"{new_idx}.txt").open("w") as f:
@@ -234,7 +224,6 @@ class AppListManager(AppInjectionManager):
             print(
                 f"{app_id} added to AppList. " f"There are now {id_count} IDs stored."
             )
-        
         # Final check (shouldn't trigger if we handled it upfront, but safety check)
         if self.max_id_limit is not None:
             final_count = len(self.get_local_ids())
@@ -279,30 +268,22 @@ class AppListManager(AppInjectionManager):
     def _handle_id_limit_exceeded(self, excess_count):
         if self.max_id_limit is None:
             return  # No limit set, nothing to do
-        
         local_ids = self.get_local_ids(sort=True)
         current_count = len(local_ids)
-        
         if current_count <= self.max_id_limit:
             return
-        
         to_remove = excess_count + 1  # one extra to be safe
-        
         ids_to_remove = local_ids[:to_remove]
-        
         print(
             Fore.YELLOW + f"\nRemoving {len(ids_to_remove)} oldest ID(s) to make room:"
             + Style.RESET_ALL
         )
         for item in ids_to_remove:
             print(f"  - {item.app_id} ({item.path.name})")
-        
         paths_to_remove = [item.path for item in ids_to_remove]
         all_paths = [item.path for item in local_ids]
         self.delete_paths(paths_to_remove, all_paths)
-        
         self.get_local_ids()  # updates last_idx
-        
         remaining_count = len(self.get_local_ids())
         limit_text = f"limit: {self.max_id_limit}" if self.max_id_limit is not None else "unlimited"
         print(
@@ -318,14 +299,11 @@ class AppListManager(AppInjectionManager):
 
     def _update_depot_info(self, product_info):
         apps_data = enter_path(product_info, "apps")
-
         for app_id, app_details in apps_data.items():
             assert isinstance(app_id, int)
             app_name = enter_path(app_details, "common", "name")
             depots = enter_path(app_details, "depots")
-
             self.id_map[app_id] = DepotOrAppID(app_name, app_id, None)
-
             for depot_id in depots.keys():
                 if depot_id.isdigit():
                     depot_id = int(depot_id)
@@ -337,23 +315,27 @@ class AppListManager(AppInjectionManager):
     def _populate_id_map(self, app_ids):
         """populates `self.id_map` but with an extra layer of recursion in case an ID
         has been added that does not come with the parent ID"""
-        info = get_product_info(self.provider, list(app_ids))
-        self._update_depot_info(info)
-
-        still_missing = []
-
-        for app_id in app_ids:
-            if app_id not in self.id_map:
-                # There is a Depot ID in AppList without a corresponding base App ID
-                still_missing.append(self.tweak_last_digit(app_id))
-
-        if still_missing:
-            info = get_product_info(self.provider, still_missing)
+        try:
+            info = get_product_info(self.provider, list(app_ids))
             self._update_depot_info(info)
+            still_missing = []
+            for app_id in app_ids:
+                if app_id not in self.id_map:
+                    # There is a Depot ID in AppList without a corresponding base App ID
+                    still_missing.append(self.tweak_last_digit(app_id))
+            if still_missing:
+                info = get_product_info(self.provider, still_missing)
+                self._update_depot_info(info)
+        except Exception as e:
+            logger.warning("Steam info lookup failed in _populate_id_map: %s", e)
+            print(
+                Fore.YELLOW
+                + "Could not connect to Steam for game names \u2014 IDs will display as numbers."
+                + Style.RESET_ALL
+            )
 
     def _organize_ids(self, ids):
         organized = {}
-
         for app_id in ids:
             if app_id in self.id_map:
                 item = self.id_map[app_id]
@@ -378,7 +360,6 @@ class AppListManager(AppInjectionManager):
 
     def _menu_items_from_organized(self, organized):
         menu_items = []
-
         for app_id, info in organized.items():
             ext = "(MISSING)" if not info.exists else ""
             name = f"{app_id} - {info.name} {ext}"
@@ -426,19 +407,14 @@ class AppListManager(AppInjectionManager):
                 "add a game with the tool."
             )
             return
-
         # dict.fromkeys preserves insertion order unlike set()
         local_ids = list(dict.fromkeys([int(x.app_id) for x in path_and_ids]))
-
         self._populate_id_map(local_ids)
-
         organized = self._organize_ids(local_ids)
-
         # list of tuple(app name, app id)
         menu_items = self._menu_items_from_organized(organized)
         if len(menu_items) < len(local_ids):
             logger.warning("There are less menu items than actual IDs inside AppList.")
-
         ids_to_delete_list = prompt_select(
             "Select IDs to delete from AppList:",
             menu_items,
@@ -452,7 +428,6 @@ class AppListManager(AppInjectionManager):
             return
         ids_to_delete = set(ids_to_delete_list)
         self._prompt_include_depots(ids_to_delete, organized)
-
         paths_to_delete = self._get_paths_from_ids(ids_to_delete, path_and_ids)
         all_paths = [x.path for x in path_and_ids]
         self.delete_paths(paths_to_delete, all_paths)
@@ -498,7 +473,7 @@ class AppListManager(AppInjectionManager):
         else:
             print("All DLCs are in the AppList.")
 
-    def dlc_check(self, provider, base_id):
+    def dlc_check(self, provider, base_id, auto_add_depot_dlcs: bool = False):
         print("Checking for DLC...")
         try:
             base_info = get_product_info(provider, [base_id])
@@ -527,6 +502,7 @@ class AppListManager(AppInjectionManager):
             if dlc_info:
                 if apps := dlc_info.get("apps"):
                     unowned_non_depot_dlcs = []
+                    unowned_depot_dlcs_with_keys = []
                     local_ids = [x.app_id for x in self.get_local_ids()]
                     parsed_dlcs = [
                         ParsedDLC(int(depot_id), data, base_info_trimmed, local_ids)
@@ -554,6 +530,9 @@ class AppListManager(AppInjectionManager):
                             non_depot_dlc_count += 1
                             if not dlc.in_applist:
                                 unowned_non_depot_dlcs.append(dlc.id)
+                        elif dlc.type == DLCTypes.DEPOT:
+                            if not dlc.in_applist and key_map.get(dlc.id):
+                                unowned_depot_dlcs_with_keys.append(dlc.id)
                         rows_dlc.append((
                             str(dlc.id), dlc.name, dlc.type.value,
                             dlc.in_applist, key_map.get(dlc.id), manifest_map.get(dlc.id),
@@ -593,6 +572,23 @@ class AppListManager(AppInjectionManager):
                             "You'll have to find a lua that has "
                             "decryption keys for them."
                         )
+                    if unowned_depot_dlcs_with_keys:
+                        if auto_add_depot_dlcs:
+                            print(
+                                Fore.YELLOW
+                                + f"Auto-adding {len(unowned_depot_dlcs_with_keys)} DLC ID(s) to AppList: "
+                                + ", ".join(str(x) for x in unowned_depot_dlcs_with_keys)
+                                + Style.RESET_ALL
+                            )
+                            self.add_ids(unowned_depot_dlcs_with_keys, skip_check=False)
+                        else:
+                            print(
+                                f"{len(unowned_depot_dlcs_with_keys)} DLC(s) with available keys "
+                                f"are not in the AppList (IDs: "
+                                + ", ".join(str(x) for x in unowned_depot_dlcs_with_keys) + ")."
+                            )
+                            if prompt_confirm("Add these DLC IDs to the AppList?"):
+                                self.add_ids(unowned_depot_dlcs_with_keys, skip_check=False)
 
     def _profile_menu(self):
         choice = prompt_select(
@@ -600,7 +596,6 @@ class AppListManager(AppInjectionManager):
         )
         if choice is None:
             return
-
         if choice == AppListProfileChoice.CREATE:
             self._profile_create()
         elif choice == AppListProfileChoice.SWITCH:
@@ -812,5 +807,4 @@ class AppListManager(AppInjectionManager):
                 filter=digit_filter,
             )
             self.add_ids(ids)
-
         return MainReturnCode.LOOP_NO_PROMPT

@@ -1,0 +1,42 @@
+# Changelog
+
+All notable changes to SteaMidra are documented here.
+
+---
+
+## 4.8.3
+
+### New features
+- **SteamDB 3-layer scraping** — dramatically faster manifest history loading. Layer 1 uses `curl_cffi` Chrome impersonation (no browser, ~80% hit rate). Layer 2 reuses a cached `cf_clearance` cookie (25-min disk cache, no browser). Layer 3 falls back to SeleniumBase and automatically saves the cookie for the next run. Warm runs typically complete in 10–35s vs 2–4 min previously.
+- **DLC depot completeness** — manifest history now includes depots from DLC apps. The Steam CM fetcher reads `extended.listofdlc` and pulls depot manifests from each DLC app, so games with DLC show their full depot history.
+- **Linux: SLSSteam ID management** — "Manage SLSSteam IDs" menu option now works on Linux. Fully functional Add IDs and View/Delete IDs from the SLSSteam config.
+- **MIDI player rewrite** — playlist support, dynamic `.mid` / `.sf2` file scanning from the `c/` folder, COM-thread safety fix, and `IsFinished()` polling so tracks don't restart on loop.
+- **Settings applied live** — editing or deleting a setting in the GUI now takes effect immediately without restarting.
+
+### Fixes
+- **ACF writing reverted** — `write_acf` restored to `StateFlags=4` with `SizeOnDisk=0`, `BytesToDownload=0`, `BytesDownloaded=0`. Previously used `StateFlags=6` + `buildid=0` which caused Steam to show "Play" instead of "Update" for new installs.
+- **`_patch_acf_error_state` cleaned** — removed problematic `buildid=0` and `InstalledDepots`/`MountedDepots` deletion that caused game state corruption. Now only clears safe flags: `UpdateResult`, `FullValidateAfterNextUpdate`, `ScheduledAutoUpdate`, byte counters, and the Locked `StateFlags` bit.
+- **AppList depot completeness** — `add_ids()` now adds every unique depot/DLC ID from `LuaParsedInfo.depots`, not just the base `app_id`. Previously only the base app ID was added, causing GreenLuma to miss depot authentication and Steam to skip downloading large chunks of games (e.g., RE9 only downloading 1 GB instead of 76 GB).
+- **Code formatting cleanup** — removed excessive double-spacing and blank lines across all Python files while preserving copyright headers.
+- **Linux MIDI library path** — `MidiFiles.MIDI_PLAYER_DLL` now resolves to `.dll` on Windows and `.so` on Linux. Previously always pointed to `.dll`, silently skipping music on Linux even if the `.so` was compiled.
+- **Linux applist menu stub removed** — `applist_menu()` previously printed "Functionality for linux will be implemented soon." and returned immediately. It now routes correctly to `SLSManager` on Linux.
+- **`ManifestContext` TypeError** — `auto` field in the `ManifestContext` dataclass was missing its type annotation, causing `TypeError: __init__() got an unexpected keyword argument 'auto'` when downloading manifests with auto-fetch enabled.
+
+### Dependencies
+- Added `curl_cffi>=0.7` — required for SteamDB Layer 1 Chrome impersonation.
+
+---
+
+## 4.8.2
+
+- MIDI player integration: background playback thread, channel muting, soundfont support.
+- Live settings apply for GUI.
+- AppList profiles: create, switch, save, delete, rename.
+- Cloud Saves: backup and restore Steam userdata saves.
+- VDF Key Extractor: pull depot decryption keys from Steam's config.vdf.
+- GBE Token Generator: generate full Goldberg emulator configs with achievements, DLCs, and stats.
+- Fix Game pipeline: automate emulator application with SteamStub unpacking.
+- Store browser with pagination.
+- System tray icon.
+- Multi-language GUI (English + Portuguese).
+- 11+ themes.
