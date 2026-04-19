@@ -77,37 +77,50 @@ def get_oureverday(dest, app_id):
         print(Fore.RED + f"No valid depots exist on Steam for this App ID." + Style.RESET_ALL)
         return None
 
-    # Step 2: The GitLab Database
-    print(Fore.CYAN + f"[Step 3] Fetching latest Decryption Key database from GitLab..." + Style.RESET_ALL)
+    # Step 2: Bundled Local Key Database (primary — fast, offline, 290k+ entries)
+    print(Fore.CYAN + f"[Step 3] Loading bundled key database..." + Style.RESET_ALL)
     keys_dict = {}
-    try:
-        resp = _httpx.get(
-            "https://gitlab.com/SteamAutoCracks/ManifestHub/-/raw/main/depotkeys.json",
-            timeout=25,
-            follow_redirects=True,
-        )
-        if resp.status_code == 200:
-            keys_dict = resp.json()
-            print(Fore.GREEN + f"✅ Successfully downloaded key database from GitLab!" + Style.RESET_ALL)
-        else:
-            print(Fore.YELLOW + f"GitLab returned HTTP {resp.status_code}. Moving to local file final resort..." + Style.RESET_ALL)
-    except Exception as e:
-        print(Fore.YELLOW + f"GitLab repository unreachable ({e}). Moving to local file final resort..." + Style.RESET_ALL)
+    local_db = Path(__file__).parent / "fallback_depotkeys.json"
+    if local_db.exists():
+        try:
+            keys_dict = json.loads(local_db.read_text(encoding="utf-8"))
+            print(Fore.GREEN + f"✅ Loaded bundled key database ({len(keys_dict):,} entries)." + Style.RESET_ALL)
+        except Exception as e:
+            print(Fore.YELLOW + f"Failed to load bundled key database ({e}). Falling back to GitLab..." + Style.RESET_ALL)
+    else:
+        print(Fore.YELLOW + f"Bundled key database not found. Falling back to GitLab..." + Style.RESET_ALL)
 
-    # Step 3: "Last Complete Resort" Local Database
-    if not keys_dict:
-        print(Fore.CYAN + f"[Final Resort] Loading local keys from C:\\Users\\Syrer\\Downloads database backup..." + Style.RESET_ALL)
-        local_db = Path(__file__).parent / "fallback_depotkeys.json"
-        if local_db.exists():
-            try:
-                keys_dict = json.loads(local_db.read_text(encoding="utf-8"))
-                print(Fore.GREEN + f"✅ Successfully loaded local key database!" + Style.RESET_ALL)
-            except Exception as e:
-                print(Fore.RED + f"Failed to load local DB: {e}" + Style.RESET_ALL)
-                return None
+    # Check if any depot IDs are still missing from the local database
+    missing_depots = [d for d in depots if d not in keys_dict]
+
+    # Step 3: GitLab — only fetched if local file is missing or has gaps
+    if not keys_dict or missing_depots:
+        if not keys_dict:
+            print(Fore.CYAN + f"[Step 4] Fetching key database from GitLab (local unavailable)..." + Style.RESET_ALL)
         else:
-            print(Fore.RED + f"Local DB '{local_db.name}' not found." + Style.RESET_ALL)
-            return None
+            print(Fore.CYAN + f"[Step 4] {len(missing_depots)} depot(s) missing locally — supplementing from GitLab..." + Style.RESET_ALL)
+        try:
+            resp = _httpx.get(
+                "https://gitlab.com/SteamAutoCracks/ManifestHub/-/raw/main/depotkeys.json",
+                timeout=25,
+                follow_redirects=True,
+            )
+            if resp.status_code == 200:
+                gitlab_keys = resp.json()
+                added = 0
+                for d in (missing_depots if keys_dict else gitlab_keys):
+                    if d not in keys_dict and d in gitlab_keys:
+                        keys_dict[d] = gitlab_keys[d]
+                        added += 1
+                print(Fore.GREEN + f"✅ GitLab supplemented {added} additional key(s)." + Style.RESET_ALL)
+            else:
+                print(Fore.YELLOW + f"GitLab returned HTTP {resp.status_code}. Continuing with local keys only..." + Style.RESET_ALL)
+        except Exception as e:
+            print(Fore.YELLOW + f"GitLab unreachable ({e}). Continuing with local keys only..." + Style.RESET_ALL)
+
+    if not keys_dict:
+        print(Fore.RED + f"No key database available (local and GitLab both failed)." + Style.RESET_ALL)
+        return None
 
     # Generate the Lua File Dynamically
     lua_lines = [f"addappid({app_id})"]
