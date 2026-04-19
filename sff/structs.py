@@ -192,6 +192,7 @@ class Settings(Enum):
     )
     STEAM_WEB_API_KEY = SettingItem("steam_web_api_key", "Steam Web API Key", True, str)
     PLAY_MUSIC = SettingItem("play_music", "Play Music", False, bool)
+    THEME = SettingItem("theme", "Theme", False, str)
     ONLINE_FIX_USER = SettingItem("online_fix_user", "Online-fix.me Username", False, str)
     ONLINE_FIX_PASS = SettingItem("online_fix_pass", "Online-fix.me Password", True, str)
     PARALLEL_DOWNLOADS = SettingItem("parallel_downloads", "Parallel Download Workers", False, str)

@@ -91,7 +91,7 @@ class SteamStubUnpacker:
         name_lower = exe_path.name.lower()
         return any(skip in name_lower for skip in SKIP_PATTERNS)
 
-    def unpack_directory(self, directory, log_func=None):
+    def unpack_directory(self, directory, log_func=None, use_experimental=True):
         """
         Scan a directory recursively and unpack any SteamStub-protected .exe files.
         Returns the number of successfully unpacked files.
@@ -112,13 +112,13 @@ class SteamStubUnpacker:
         log(f"Found {len(exe_files)} executable(s) to scan")
         unpacked_count = 0
         for exe_path in exe_files:
-            result = self.unpack_file(str(exe_path), log_func)
+            result = self.unpack_file(str(exe_path), log_func, use_experimental=use_experimental)
             if result:
                 unpacked_count += 1
         log(f"Unpacked {unpacked_count} SteamStub-protected file(s)")
         return unpacked_count
 
-    def unpack_file(self, file_path, log_func=None):
+    def unpack_file(self, file_path, log_func=None, use_experimental=True):
         """
         Try to unpack a single executable.
         Returns True if SteamStub was detected and removed.
@@ -136,7 +136,10 @@ class SteamStubUnpacker:
             # Steamless outputs to {name}.unpacked.exe by default
             unpacked_path = exe_path.with_name(exe_path.stem + ".unpacked.exe")
             # run Steamless
-            cmd = [self.steamless_path, str(exe_path)]
+            cmd = [self.steamless_path, "--quiet"]
+            if use_experimental:
+                cmd.append("--exp")
+            cmd.append(str(exe_path))
             result = subprocess.run(
                 cmd,
                 capture_output=True,

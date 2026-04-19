@@ -111,7 +111,8 @@ class _FixWorker(QObject):
                  avatar_path: str, simple_settings: bool,
                  gse_auth_mode = "anonymous",
                  gse_username = "",
-                 gse_password = ""):
+                 gse_password = "",
+                 use_experimental_steamless: bool = True):
         super().__init__()
         self.game_path = game_path
         self.app_id = app_id
@@ -127,6 +128,7 @@ class _FixWorker(QObject):
         self.gse_auth_mode = gse_auth_mode
         self.gse_username = gse_username
         self.gse_password = gse_password
+        self.use_experimental_steamless = use_experimental_steamless
 
     def run(self):
         try:
@@ -137,6 +139,7 @@ class _FixWorker(QObject):
                 game_dir=str(self.game_path),
                 emu_mode=self.emu_mode.value,
                 skip_steamstub=not self.unpack_steamstub,
+                steamless_experimental=self.use_experimental_steamless,
                 skip_goldberg_update=not self.goldberg_update,
                 create_launch_bat=self.create_launch_bat,
                 log_func=self.log_msg.emit,
@@ -362,6 +365,10 @@ class FixGameTab(QWidget):
         self._chk_steamstub = QCheckBox("Auto-unpack SteamStub DRM (Steamless)")
         self._chk_steamstub.setChecked(True)
         opt_layout.addWidget(self._chk_steamstub)
+        self._chk_steamless_exp = QCheckBox("Use Experimental Features (needed for newer SteamStub variants)")
+        self._chk_steamless_exp.setChecked(True)
+        self._chk_steamstub.toggled.connect(self._chk_steamless_exp.setEnabled)
+        opt_layout.addWidget(self._chk_steamless_exp)
         # steam_settings generation mode
         config_layout = QHBoxLayout()
         config_layout.addWidget(QLabel("steam_settings:"))
@@ -558,6 +565,7 @@ class FixGameTab(QWidget):
             gse_auth,
             gse_user,
             gse_pass,
+            use_experimental_steamless=self._chk_steamless_exp.isChecked(),
         )
         self._worker.moveToThread(self._thread)
         self._worker.log_msg.connect(self._log_area.append)

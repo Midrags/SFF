@@ -127,7 +127,11 @@ class SFFMainWindow(QMainWindow):
         super().__init__()
         self.ui = ui
         self.steam_path = steam_path
-        self._current_theme = "dark"
+        from sff.storage.settings import get_setting
+        from sff.structs import Settings as _S
+        _saved_theme = get_setting(_S.THEME)
+        self._current_theme = _saved_theme if (_saved_theme and _saved_theme in THEMES) else "dark"
+        self._music_muted = False
         self._game_list = []
         self._stream_emitter = StreamEmitter()
         self._worker = None
@@ -295,6 +299,9 @@ class SFFMainWindow(QMainWindow):
             btn = QPushButton(label)
             btn.clicked.connect(lambda checked=False, f=func: self._run_tool(f))
             tools_row1.addWidget(btn)
+        self._mute_btn = QPushButton("🔇 Mute")
+        self._mute_btn.clicked.connect(self._toggle_mute)
+        tools_row1.addWidget(self._mute_btn)
         tools_row1.addStretch()
         tools_layout.addLayout(tools_row1)
         if sys.platform == "win32":
@@ -534,6 +541,22 @@ class SFFMainWindow(QMainWindow):
         _, style = THEMES[key]
         self.setStyleSheet(style)
         self.game_combo._update_arrow()
+        from sff.storage.settings import set_setting
+        from sff.structs import Settings as _S
+        set_setting(_S.THEME, key)
+
+    # ── Music mute ───────────────────────────────────────────────
+
+    def _toggle_mute(self):
+        if self.ui.midi_player is None:
+            return
+        self._music_muted = not self._music_muted
+        if self._music_muted:
+            self.ui.midi_player.set_range(0, 15, 0)
+            self._mute_btn.setText("🔊 Unmute")
+        else:
+            self.ui.midi_player.set_range(0, 15, 1)
+            self._mute_btn.setText("🔇 Mute")
 
     # ── Settings dialog ──────────────────────────────────────────
 
