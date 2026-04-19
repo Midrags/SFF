@@ -99,6 +99,7 @@ class FixGameService:
         emu_mode = "regular",
         skip_drm_check = False,
         skip_steamstub = False,
+        steamless_experimental: bool = True,
         skip_goldberg_update = False,
         create_launch_bat = True,
         log_func=None,
@@ -218,7 +219,7 @@ class FixGameService:
         if not skip_steamstub:
             log("\n--- Step 3: SteamStub Unpacking ---")
             if self.unpacker.is_available():
-                count = self.unpacker.unpack_directory(game_dir, log_func=log)
+                count = self.unpacker.unpack_directory(game_dir, log_func=log, use_experimental=steamless_experimental)
                 if count > 0:
                     log(f"Unpacked {count} SteamStub-protected file(s)")
                 else:
