@@ -36,6 +36,7 @@ Mirrors Solus GoldbergConfigGenerator.cs + GoldbergLogic.cs
 """
 
 import os
+import sys
 import json
 import logging
 import shutil
@@ -46,6 +47,23 @@ import httpx
 from sff.steam_store import get_dlc_list_from_store, get_dlc_names_from_store
 
 logger = logging.getLogger(__name__)
+
+
+def _get_gbe_saves_root() -> Path:
+    """Return the platform-aware GSE Saves root directory.
+    Matches the official gbe_fork README:
+      Windows: %APPDATA%\\GSE Saves
+      Linux:   $XDG_DATA_HOME/GSE Saves  (if set)
+               ~/.local/share/GSE Saves  (default)
+    """
+    if sys.platform == "win32":
+        appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+        return Path(appdata) / "GSE Saves"
+    xdg = os.environ.get("XDG_DATA_HOME")
+    if xdg:
+        return Path(xdg) / "GSE Saves"
+    return Path.home() / ".local" / "share" / "GSE Saves"
+
 
 STEAMCMD_API_URL = "https://steamcmd.morrenus.net/api"
 STEAM_WEB_API_URL = "https://api.steampowered.com"
@@ -147,8 +165,7 @@ class GoldbergConfigGenerator:
             # controller/controls.txt
             self._write_controller_config(settings_dir, log)
             # global GBE identity settings (%APPDATA%\GSE Saves\settings\) — applied to all games
-            _appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
-            global_dir = Path(_appdata) / "GSE Saves" / "settings"
+            global_dir = _get_gbe_saves_root() / "settings"
             self._write_global_settings(global_dir, player_name, steam_id, language, avatar_path, log)
             log("Config generation complete")
             return True

@@ -30,6 +30,8 @@ Mirrors Solus GoldbergApplier.cs
 
 import os
 import re
+import sys
+import stat
 import struct
 import shutil
 import logging
@@ -292,6 +294,95 @@ class GoldbergApplier:
             return True, f"Applied Goldberg to {replaced} DLL(s)"
         return False, "No DLLs were replaced"
 
+    # --- Linux native mode ---
+
+    @staticmethod
+    def detect_steam_api_linux(game_dir):
+        """
+        Find libsteam_api.so files in the game directory (native Linux games).
+        Returns list of paths found.
+        """
+        game_path = Path(game_dir)
+        paths = []
+        for so in game_path.rglob("libsteam_api.so"):
+            paths.append(str(so))
+        return paths
+
+    @staticmethod
+    def find_main_binary_linux(game_dir):
+        """
+        Find the main Linux game binary — largest ELF executable (no extension,
+        has execute permission, not a known helper).
+        Falls back to largest file with execute bit set.
+        """
+        SKIP = [
+            "unins", "setup", "install", "crash", "report",
+            "update", "patch", "helper", "tool",
+        ]
+        game_path = Path(game_dir)
+        best_path = None
+        best_size = 0
+        for f in game_path.rglob("*"):
+            if not f.is_file():
+                continue
+            if f.suffix in (".so", ".py", ".sh", ".txt", ".ini", ".json", ".cfg", ".pak"):
+                continue
+            name_lower = f.name.lower()
+            if any(skip in name_lower for skip in SKIP):
+                continue
+            # check execute bit
+            try:
+                mode = f.stat().st_mode
+                if not (mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
+                    continue
+                size = f.stat().st_size
+                # verify ELF magic
+                with open(f, "rb") as fh:
+                    magic = fh.read(4)
+                if magic != b"\x7fELF":
+                    continue
+                if size > best_size:
+                    best_size = size
+                    best_path = str(f)
+            except (OSError, PermissionError):
+                continue
+        return best_path
+
+    def apply_linux(self, game_dir, log_func=None):
+        """
+        Apply Goldberg in native Linux mode — replace libsteam_api.so.
+        Returns (success, message)
+        """
+        def log(msg):
+            if log_func:
+                log_func(msg)
+            logger.info(msg)
+        so_paths = self.detect_steam_api_linux(game_dir)
+        if not so_paths:
+            return False, "No libsteam_api.so found in game directory"
+        src = self.cache_dir / "libsteam_api.so"
+        if not src.exists():
+            return False, "Cached libsteam_api.so not found — run Goldberg update first"
+        replaced = 0
+        settings_dir = Path(game_dir) / "steam_settings"
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        for so_path in so_paths:
+            target = Path(so_path)
+            # scan interfaces from the original .so before replacing
+            self.generate_interfaces_file(str(target), str(settings_dir))
+            # backup original
+            backup = target.with_suffix(target.suffix + ".bak")
+            if not backup.exists():
+                shutil.copy2(target, backup)
+                log(f"Backed up {target.name} \u2192 {backup.name}")
+            # replace with Goldberg
+            shutil.copy2(src, target)
+            replaced += 1
+            log(f"\u2713 Replaced {target.name} with Goldberg")
+        if replaced > 0:
+            return True, f"Applied Goldberg (.so) to {replaced} file(s)"
+        return False, "No libsteam_api.so files were replaced"
+
     # --- ColdClient loader mode (Solus method) ---
 
     def apply_coldclient_loader(self, game_dir, app_id, log_func=None):
@@ -487,9 +578,30 @@ SteamClient={'steamclient64.dll' if is_64 else 'steamclient.dll'}
         log,
     ):
         """
-        Create a Windows .lnk shortcut on the Desktop for the given target exe.
-        Uses PowerShell WScript.Shell — no extra packages required.
+        Create a shortcut on the Desktop for the given target exe.
+        Windows: .lnk via PowerShell WScript.Shell.
+        Linux: .desktop file in ~/Desktop.
         """
+        if sys.platform != "win32":
+            try:
+                desktop = Path.home() / "Desktop"
+                desktop.mkdir(exist_ok=True)
+                safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in game_name)
+                desktop_file = desktop / f"{safe_name}.desktop"
+                content = (
+                    "[Desktop Entry]\n"
+                    "Type=Application\n"
+                    f"Name={game_name}\n"
+                    f"Exec={target_exe}\n"
+                    f"Path={working_dir}\n"
+                    "Terminal=false\n"
+                )
+                desktop_file.write_text(content, encoding="utf-8")
+                desktop_file.chmod(0o755)
+                log(f"\u2713 Created desktop shortcut: {desktop_file.name}")
+            except Exception as e:
+                log(f"Warning: could not create desktop shortcut ({e})")
+            return
         try:
             desktop = Path.home() / "Desktop"
             if not desktop.exists():

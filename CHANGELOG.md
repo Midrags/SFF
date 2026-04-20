@@ -4,6 +4,23 @@ All notable changes to SteaMidra are documented here.
 
 ---
 
+## 4.8.4
+
+### Linux Compatibility Overhaul
+- **Linux GBE files now fully bundled** — `third_party/gbe_fork_linux/` ships `libsteam_api.so` (x64), `libsteam_api32.so` (x32), and `generate_interfaces_x64/x32`. No internet needed on first run.
+- **Fixed archive path resolution** — x64 vs x32 `libsteam_api.so` are now correctly distinguished by their full archive path, not filename (both have the same name in the release archive).
+- **Linux generate_emu_config bundled** — `third_party/gbe_fork_tools_linux/` ships the Linux ELF binary. Works without Wine or any external tool.
+- **GSE tool updater: Linux support** — `gse_tool_updater.py` now finds and runs the bundled Linux binary, with optional update checking against `Detanup01/gbe_fork_tools` on GitHub.
+- **GSE tool updater: Windows bundled fallback** — if GitHub is unreachable, the Windows `generate_emu_config.exe` bundled in `third_party/gbe_fork_tools/` is now used as an offline fallback.
+- **Fix Game tab: Linux native checkbox** — new "Linux native game" checkbox (visible on Linux only, checked by default). Uncheck for Proton/Wine mode.
+- **Bundled Goldberg used on first launch** — previously, if "Check for updates" was unchecked and the cache was empty, the pipeline would abort. Now it automatically copies from `third_party/` on first run.
+- **XDG_DATA_HOME support** — GSE Saves root on Linux respects `$XDG_DATA_HOME` per the official gbe_fork README.
+- **Steamless via Wine** — `steamstub_unpacker.py` now runs `Steamless.CLI.exe` via Wine on Linux if Wine is available.
+- **Platform-aware launch scripts** — `launch.sh` for native Linux, `launch_wine.sh` + `LUTRIS_SETUP.txt` for Proton/Wine mode.
+- **Cache path XDG-compliant** — cache directory on Linux uses `~/.local/share/SteaMidra/fix_game_cache/`.
+
+---
+
 ## 4.8.3
 
 ### New features

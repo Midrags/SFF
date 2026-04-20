@@ -67,9 +67,9 @@ class UserInputFinder(PathFinderStrategy):
     def find(self):
         print("Couldn't find your Steam path.")
         return prompt_dir(
-            msg="Paste the path here (The folder that has steam.exe)",
+            msg="Paste the path here (The folder that has Steam)",
             custom_check=self.validator,
-            custom_msg="Make sure the folder has steam.exe in it"
+            custom_msg="Make sure the folder contains the Steam application"
         )
 
 

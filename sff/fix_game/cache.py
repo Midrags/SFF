@@ -24,6 +24,7 @@ Goldberg emulator version, and parsed lua data.
 """
 
 import os
+import sys
 import json
 import logging
 from pathlib import Path
@@ -33,8 +34,11 @@ logger = logging.getLogger(__name__)
 
 
 def _get_cache_dir():
-    """get the fix game cache directory"""
-    base = Path(os.environ.get("APPDATA", os.path.expanduser("~")))
+    """get the fix game cache directory (XDG-compliant on Linux)"""
+    if sys.platform == "win32":
+        base = Path(os.environ.get("APPDATA") or os.path.expanduser("~"))
+    else:
+        base = Path.home() / ".local" / "share"
     cache_dir = base / "SteaMidra" / "fix_game_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     _ensure_defender_exclusion(base / "SteaMidra")
@@ -167,9 +171,12 @@ class FixGameCache:
         except Exception as e:
             logger.error("Failed to save Goldberg version: %s", e)
 
-    def has_goldberg_dlls(self):
-        """check if we have the core Goldberg DLLs cached"""
-        required = ["steam_api.dll", "steam_api64.dll"]
+    def has_goldberg_dlls(self, linux_native: bool = False):
+        """check if we have the core Goldberg files cached"""
+        if linux_native:
+            required = ["libsteam_api.so"]
+        else:
+            required = ["steam_api.dll", "steam_api64.dll"]
         return all((self.goldberg_dir / name).exists() for name in required)
 
     def get_goldberg_dll_path(self, dll_name):

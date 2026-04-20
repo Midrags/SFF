@@ -28,6 +28,7 @@ V10x86, V20x86, V21x86, V30x86, V30x64, V31x86, V31x64
 """
 
 import os
+import sys
 import shutil
 import logging
 import subprocess
@@ -63,12 +64,15 @@ class SteamStubUnpacker:
     @staticmethod
     def _find_steamless():
         """try to find Steamless in third_party/ dirs"""
-        # check various locations relative to the project
         candidates = [
             Path(__file__).parent.parent.parent / "third_party" / STEAMLESS_EXE,
             Path(__file__).parent.parent.parent / "third_party" / "Steamless" / STEAMLESS_EXE,
-            Path(os.environ.get("APPDATA", "")) / "SteaMidra" / "tools" / STEAMLESS_EXE,
         ]
+        # APPDATA path is Windows-only
+        if sys.platform == "win32":
+            appdata = os.environ.get("APPDATA", "")
+            if appdata:
+                candidates.append(Path(appdata) / "SteaMidra" / "tools" / STEAMLESS_EXE)
         for p in candidates:
             if p.exists():
                 return str(p)
@@ -82,9 +86,20 @@ class SteamStubUnpacker:
                 return str(f)
         return None
 
+    @staticmethod
+    def _wine_available():
+        """check if wine is available in PATH (Linux only)"""
+        return shutil.which("wine") is not None
+
     def is_available(self):
-        """check if Steamless is available"""
-        return self.steamless_path is not None and Path(self.steamless_path).exists()
+        """check if Steamless is available.
+        On Linux, also requires wine to run the .exe.
+        """
+        if self.steamless_path is None or not Path(self.steamless_path).exists():
+            return False
+        if sys.platform != "win32":
+            return self._wine_available()
+        return True
 
     def _should_skip(self, exe_path):
         """check if an exe should be skipped (installers, redistributables, etc)"""
@@ -135,11 +150,13 @@ class SteamStubUnpacker:
         try:
             # Steamless outputs to {name}.unpacked.exe by default
             unpacked_path = exe_path.with_name(exe_path.stem + ".unpacked.exe")
-            # run Steamless
+            # run Steamless (via wine on Linux)
             cmd = [self.steamless_path, "--quiet"]
             if use_experimental:
                 cmd.append("--exp")
             cmd.append(str(exe_path))
+            if sys.platform != "win32":
+                cmd = ["wine"] + cmd
             result = subprocess.run(
                 cmd,
                 capture_output=True,

@@ -20,6 +20,7 @@
 
 import logging
 import os
+import sys
 from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
@@ -112,7 +113,8 @@ class _FixWorker(QObject):
                  gse_auth_mode = "anonymous",
                  gse_username = "",
                  gse_password = "",
-                 use_experimental_steamless: bool = True):
+                 use_experimental_steamless: bool = True,
+                 linux_native: bool = False):
         super().__init__()
         self.game_path = game_path
         self.app_id = app_id
@@ -129,6 +131,7 @@ class _FixWorker(QObject):
         self.gse_username = gse_username
         self.gse_password = gse_password
         self.use_experimental_steamless = use_experimental_steamless
+        self.linux_native = linux_native
 
     def run(self):
         try:
@@ -150,6 +153,7 @@ class _FixWorker(QObject):
                 gse_auth_mode=self.gse_auth_mode,
                 gse_username=self.gse_username,
                 gse_password=self.gse_password,
+                linux_native=self.linux_native,
             )
             if success:
                 self.log_msg.emit("Fix Game pipeline completed successfully!")
@@ -362,6 +366,13 @@ class FixGameTab(QWidget):
         self._chk_goldberg_update = QCheckBox("Check for Goldberg updates (downloads latest from GitHub)")
         self._chk_goldberg_update.setChecked(False)
         opt_layout.addWidget(self._chk_goldberg_update)
+        # Linux-only: toggle between native game vs Proton/Wine
+        self._chk_linux_native = QCheckBox(
+            "Linux native game (uses libsteam_api.so) — uncheck for Proton/Wine (.dll)"
+        )
+        self._chk_linux_native.setChecked(True)
+        self._chk_linux_native.setVisible(sys.platform != "win32")
+        opt_layout.addWidget(self._chk_linux_native)
         self._chk_steamstub = QCheckBox("Auto-unpack SteamStub DRM (Steamless)")
         self._chk_steamstub.setChecked(True)
         opt_layout.addWidget(self._chk_steamstub)
@@ -566,6 +577,7 @@ class FixGameTab(QWidget):
             gse_user,
             gse_pass,
             use_experimental_steamless=self._chk_steamless_exp.isChecked(),
+            linux_native=self._chk_linux_native.isChecked(),
         )
         self._worker.moveToThread(self._thread)
         self._worker.log_msg.connect(self._log_area.append)

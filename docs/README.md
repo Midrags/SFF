@@ -43,6 +43,9 @@ Using SteaMidra to install DLC unlockers (CreamInstaller-style). Credits for Cre
 [Troubleshooting](TROUBLESHOOTING.md)  
 Common problems and what to try. Steam errors, Chrome issues, login failures, and more.
 
+[Changelog](../CHANGELOG.md)  
+What changed in each release.
+
 **Credits**
 
 Made by Midrag and his brother. See the main [README](../README.md) for full credits including Lightse (GreenLuma patch), Hubcap Manifest, gbe_fork, and all other third-party tools. Use SteaMidra at your own risk.

@@ -42,7 +42,7 @@ import httpx
 
 from sff.fix_game.cache import FixGameCache
 from sff.fix_game.goldberg_updater import GoldbergUpdater
-from sff.fix_game.config_generator import GoldbergConfigGenerator
+from sff.fix_game.config_generator import GoldbergConfigGenerator, _get_gbe_saves_root
 from sff.fix_game.steamstub_unpacker import SteamStubUnpacker
 from sff.fix_game.goldberg_applier import GoldbergApplier
 
@@ -108,6 +108,7 @@ class FixGameService:
         gse_auth_mode = "anonymous",
         gse_username = "",
         gse_password = "",
+        linux_native: bool = False,
     ):
         """
         Run the full Fix Game pipeline.
@@ -124,6 +125,7 @@ class FixGameService:
             log_func: callback for status updates
             avatar_path: optional path to avatar image (.png/.jpg/.jpeg)
             simple_settings: if True, generate minimal configs without API calls
+            linux_native: True = native Linux game (use libsteam_api.so); False = Proton/Wine (use .dll)
         Returns True on success.
         """
         def log(msg):
@@ -133,6 +135,8 @@ class FixGameService:
         log(f"=== Fix Game Pipeline: App {app_id} ===")
         log(f"Game directory: {game_dir}")
         log(f"Mode: {emu_mode}")
+        if sys.platform != "win32":
+            log(f"Platform: Linux ({'native' if linux_native else 'Proton/Wine'})")
         # --- Step 0: DRM Detection ---
         if not skip_drm_check:
             log("\n--- Step 0: DRM Detection ---")
@@ -150,16 +154,18 @@ class FixGameService:
         # --- Step 1: Goldberg Auto-Update ---
         log("\n--- Step 1: Goldberg Update ---")
         if not skip_goldberg_update:
-            if not self.updater.ensure_goldberg(log_func=log):
+            if not self.updater.ensure_goldberg(log_func=log, linux_native=linux_native):
                 log("WARNING: Could not update Goldberg — using cached/bundled version")
-                if not self.cache.has_goldberg_dlls():
-                    log("ABORT: No Goldberg DLLs available")
+                if not self.cache.has_goldberg_dlls(linux_native=linux_native):
+                    log("ABORT: No Goldberg files available")
                     return False
         else:
             log("Goldberg auto-update skipped")
-            if not self.cache.has_goldberg_dlls():
-                log("ABORT: No Goldberg DLLs available and auto-update is disabled")
-                return False
+            if not self.cache.has_goldberg_dlls(linux_native=linux_native):
+                log("No cached files found — copying from bundled third_party...")
+                if not self.updater._copy_bundled_fallback(log, linux_native=linux_native):
+                    log("ABORT: No Goldberg files available (cache empty and bundled fallback failed)")
+                    return False
         # --- Step 2: Config Generation ---
         log("\n--- Step 2: Config Generation ---")
         cached_info = self.cache.load_app_info(app_id)
@@ -188,8 +194,7 @@ class FixGameService:
                     simple_mode=False,
                 )
             # always write global GBE identity settings regardless of which path was taken
-            _appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
-            global_dir = Path(_appdata) / "GSE Saves" / "settings"
+            global_dir = _get_gbe_saves_root() / "settings"
             generator._write_global_settings(
                 global_dir=global_dir,
                 player_name=player_name,
@@ -212,7 +217,7 @@ class FixGameService:
                 simple_mode=simple_settings,
             )
         # create and report the GSE Saves folder so users know where saves go
-        gse_saves = Path.home() / "AppData" / "Roaming" / "GSE Saves" / str(app_id)
+        gse_saves = _get_gbe_saves_root() / str(app_id)
         gse_saves.mkdir(parents=True, exist_ok=True)
         log(f"Save data: {gse_saves}")
         # --- Step 3: SteamStub Unpacking ---
@@ -229,12 +234,22 @@ class FixGameService:
         # --- Step 4: Goldberg Application ---
         log("\n--- Step 4: Goldberg Application ---")
         mode = EmuMode(emu_mode)
-        if mode == EmuMode.REGULAR:
+        if sys.platform != "win32" and linux_native:
+            success, msg = self.applier.apply_linux(game_dir, log_func=log)
+        elif mode == EmuMode.REGULAR:
             success, msg = self.applier.apply(game_dir, log_func=log)
         elif mode in (EmuMode.COLDCLIENT_LOADER, EmuMode.COLDCLIENT_SIMPLE, EmuMode.COLDCLIENT_ADVANCED):
-            success, msg = self.applier.apply_coldclient_loader(game_dir, app_id, log_func=log)
+            if sys.platform != "win32":
+                log("ColdClient mode is Windows-only — falling back to regular mode on Linux")
+                success, msg = self.applier.apply(game_dir, log_func=log)
+            else:
+                success, msg = self.applier.apply_coldclient_loader(game_dir, app_id, log_func=log)
         elif mode == EmuMode.COLDLOADER_DLL:
-            success, msg = self.applier.apply_coldloader_dll(game_dir, app_id, log_func=log)
+            if sys.platform != "win32":
+                log("ColdLoader DLL mode is Windows-only — falling back to regular mode on Linux")
+                success, msg = self.applier.apply(game_dir, log_func=log)
+            else:
+                success, msg = self.applier.apply_coldloader_dll(game_dir, app_id, log_func=log)
         else:
             success, msg = False, f"Unknown mode: {emu_mode}"
         log(msg)
@@ -243,7 +258,7 @@ class FixGameService:
         # --- Step 5: Launch.bat Generation ---
         if create_launch_bat:
             log("\n--- Step 5: Launch Script ---")
-            self._generate_launch_script(app_id, game_dir, emu_mode, log)
+            self._generate_launch_script(app_id, game_dir, emu_mode, log, linux_native=linux_native)
         else:
             log("\n--- Step 5: Launch Script (skipped) ---")
         log("\n=== Fix Game Complete ===")
@@ -314,9 +329,11 @@ class FixGameService:
             log(f"DRM check failed: {e}")
             return DrmCheckResult.ERROR
 
-    def _generate_launch_script(self, app_id, game_dir, emu_mode, log):
-        """generate Launch.bat from PICS data or by finding the main exe"""
+    def _generate_launch_script(self, app_id, game_dir, emu_mode, log, linux_native: bool = False):
+        """generate Launch.bat (Windows) or launch.sh / launch_wine.sh (Linux) from PICS data or main exe"""
         game_path = Path(game_dir)
+        is_linux = sys.platform != "win32"
+        is_wine_mode = is_linux and not linux_native
         # try to get launch configs from PICS cache
         pics_data = self.cache.load_pics_data(app_id)
         if pics_data:
@@ -327,36 +344,105 @@ class FixGameService:
                     args = config.get("arguments", "")
                     workdir = config.get("workingdir", "")
                     desc = config.get("description", f"Config {i}")
-                    bat_name = f"Launch{'_' + desc.replace(' ', '_') if i > 0 else ''}.bat"
-                    bat_content = f'@echo off\ncd /d "%~dp0{workdir}"\nstart "" "{exe}" {args}\n'
-                    (game_path / bat_name).write_text(bat_content, encoding="utf-8")
-                    log(f"✓ Created {bat_name} ({exe})")
+                    if is_linux:
+                        sh_suffix = "_wine" if is_wine_mode else ""
+                        sh_name = f"launch{sh_suffix}{'_' + desc.replace(' ', '_') if i > 0 else ''}.sh"
+                        exec_cmd = f'wine "{exe}" {args}' if is_wine_mode else f'"{exe}" {args}'
+                        sh_content = f'#!/bin/sh\ncd "$(dirname "$0"){("/" + workdir) if workdir else ""}"\nexec {exec_cmd}\n'
+                        script_path = game_path / sh_name
+                        script_path.write_text(sh_content, encoding="utf-8")
+                        script_path.chmod(0o755)
+                        log(f"✓ Created {sh_name} ({exe})")
+                    else:
+                        bat_name = f"Launch{'_' + desc.replace(' ', '_') if i > 0 else ''}.bat"
+                        bat_content = f'@echo off\ncd /d "%~dp0{workdir}"\nstart "" "{exe}" {args}\n'
+                        (game_path / bat_name).write_text(bat_content, encoding="utf-8")
+                        log(f"✓ Created {bat_name} ({exe})")
+                if is_wine_mode:
+                    self._write_lutris_setup(game_path, launch_configs[0].get("executable", "game.exe"), log)
                 return
-        # fallback: ColdClient loader mode
-        if emu_mode in ("coldclient_loader", "coldclient_simple", "coldclient_advanced"):
+        # fallback: ColdClient loader (Windows native or Linux Proton/Wine)
+        is_coldclient = emu_mode in ("coldclient_loader", "coldclient_simple", "coldclient_advanced")
+        if is_coldclient:
             for loader in ["steamclient_loader_x64.exe", "steamclient_loader_x32.exe"]:
                 if (game_path / loader).exists():
-                    bat_content = f'@echo off\ncd /d "%~dp0"\nstart "" "{loader}"\n'
-                    (game_path / "Launch.bat").write_text(bat_content, encoding="utf-8")
-                    log(f"✓ Created Launch.bat (via {loader})")
+                    if is_wine_mode:
+                        sh_content = f'#!/bin/sh\ncd "$(dirname \"$0\")"\nexec wine "{loader}"\n'
+                        script_path = game_path / "launch_wine.sh"
+                        script_path.write_text(sh_content, encoding="utf-8")
+                        script_path.chmod(0o755)
+                        log(f"\u2713 Created launch_wine.sh (wine {loader})")
+                        self._write_lutris_setup(game_path, loader, log)
+                    elif not is_linux:
+                        bat_content = f'@echo off\ncd /d "%~dp0"\nstart "" "{loader}"\n'
+                        (game_path / "Launch.bat").write_text(bat_content, encoding="utf-8")
+                        log(f"\u2713 Created Launch.bat (via {loader})")
                     return
-        # fallback: find largest exe
-        main_exe = self.applier.find_main_exe(game_dir)
-        if main_exe:
-            exe_rel = os.path.relpath(main_exe, game_dir)
-            bat_content = f'@echo off\ncd /d "%~dp0"\nstart "" "{exe_rel}"\n'
-            (game_path / "Launch.bat").write_text(bat_content, encoding="utf-8")
-            log(f"\u2713 Created Launch.bat ({exe_rel})")
+        # fallback: find largest executable
+        if is_wine_mode:
+            # Proton/Wine: find main .exe and wrap with wine
+            main_exe = self.applier.find_main_exe(game_dir)
+            if main_exe:
+                exe_name = Path(main_exe).name
+                sh_content = f'#!/bin/sh\ncd "$(dirname \"$0\")"\nexec wine "{exe_name}"\n'
+                script_path = game_path / "launch_wine.sh"
+                script_path.write_text(sh_content, encoding="utf-8")
+                script_path.chmod(0o755)
+                log(f"\u2713 Created launch_wine.sh (wine {exe_name})")
+                self._write_lutris_setup(game_path, exe_name, log)
+        elif is_linux:
+            main_bin = self.applier.find_main_binary_linux(game_dir)
+            if main_bin:
+                bin_rel = os.path.relpath(main_bin, game_dir)
+                sh_content = f'#!/bin/sh\ncd "$(dirname \"$0\")"\nexec "{bin_rel}"\n'
+                script_path = game_path / "launch.sh"
+                script_path.write_text(sh_content, encoding="utf-8")
+                script_path.chmod(0o755)
+                log(f"\u2713 Created launch.sh ({bin_rel})")
+        else:
+            main_exe = self.applier.find_main_exe(game_dir)
+            if main_exe:
+                exe_rel = os.path.relpath(main_exe, game_dir)
+                bat_content = f'@echo off\ncd /d "%~dp0"\nstart "" "{exe_rel}"\n'
+                (game_path / "Launch.bat").write_text(bat_content, encoding="utf-8")
+                log(f"\u2713 Created Launch.bat ({exe_rel})")
+
+    @staticmethod
+    def _write_lutris_setup(game_path: Path, exe_name: str, log):
+        """write LUTRIS_SETUP.txt with Lutris + Wine setup instructions for Proton/Wine mode"""
+        content = f"""To launch this game on Linux with Lutris:
+
+1. Open Lutris, click "+" (top-left), choose Wine as runner.
+2. Game Options:
+   - Executable: {exe_name}
+   - Wine prefix: Create a folder called 'prefix' in this game directory and select it.
+3. Runner Options:
+   - Wine version: select the latest 'lutris-*' Wine build.
+   - Optionally enable fsync / esync if your kernel supports it.
+4. Save and launch.
+
+Note: On first launch, saves will be in:
+  prefix/drive_c/users/<name>/AppData/Roaming/GSE Saves/
+
+For LAN multiplayer, use ZeroTier or similar VPN.
+Default Goldberg port: 47584 — make sure it is open in your firewall.
+"""
+        txt_path = game_path / "LUTRIS_SETUP.txt"
+        txt_path.write_text(content, encoding="utf-8")
+        log("\u2713 Created LUTRIS_SETUP.txt with Lutris/Wine instructions")
 
     @staticmethod
     def _find_gse_exe():
         """
-        Locate generate_emu_config.exe in priority order:
+        Locate generate_emu_config.exe in priority order (Windows only).
         1. sys._MEIPASS (frozen single-file EXE — bundled data lives here,
            NOT in Path(sys.executable).parent which is the EXE's own folder)
         2. Next to the EXE / project root (dev mode or one-folder distribution)
         3. %APPDATA%/SteaMidra/gse_tool/ (previously staged persistent copy)
+        Returns None on Linux (binary is Windows-only).
         """
+        if sys.platform != "win32":
+            return None
         rel = (Path("third_party") / "gbe_fork_tools"
                / "generate_emu_config" / "generate_emu_config.exe")
         # 1. Frozen single-file EXE: bundled files are in sys._MEIPASS
@@ -374,7 +460,7 @@ class FixGameService:
         except Exception:
             pass
         # 3. Persistent APPDATA staged copy (written on first successful run)
-        appdata = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+        appdata = Path(os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming"))
         p = appdata / "SteaMidra" / "gse_tool" / "generate_emu_config.exe"
         if p.exists():
             return p
@@ -408,7 +494,7 @@ class FixGameService:
         # Copy the entire tool folder to a persistent writable APPDATA location.
         # This ensures the tool can write output/ and keep its own state files,
         # and avoids issues with sys._MEIPASS being a read-constrained temp dir.
-        appdata = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+        appdata = Path(os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming"))
         run_dir = appdata / "SteaMidra" / "gse_tool"
         run_exe = run_dir / "generate_emu_config.exe"
         try:
@@ -497,13 +583,15 @@ class FixGameService:
             user_ini.write_text("[user::saves]\nsaves_folder_name=GSE Saves\n", encoding="utf-8")
         return True
 
-    def _extract_launch_configs(self, pics_data):
-        """extract Windows launch configs from PICS data"""
+    @staticmethod
+    def _extract_launch_configs(pics_data):
+        """extract platform-appropriate launch configs from PICS data"""
         configs = []
         launch_data = pics_data.get("config", {}).get("launch", {})
+        target_os = "linux" if sys.platform != "win32" else "windows"
         for key, value in launch_data.items():
-            oslist = value.get("config", {}).get("oslist", "windows")
-            if "windows" not in oslist.lower():
+            oslist = value.get("config", {}).get("oslist", "").lower()
+            if oslist and target_os not in oslist:
                 continue
             configs.append({
                 "executable": value.get("executable", ""),
