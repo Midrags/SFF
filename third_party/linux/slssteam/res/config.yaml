@@ -1,0 +1,109 @@
+#Example AppIds Config for those not familiar with YAML:
+#AppIds:
+#  - 440
+#  - 730
+#Take care of not messing up your spaces! Otherwise it won't work
+
+#Example of DlcData:
+#DlcData:
+#  AppId:
+#    FirstDlcAppId: "Dlc Name"
+#    SecondDlcAppId: "Dlc Name"
+
+#Example of DenuvoGames:
+#DenuvoGames:
+#  SteamId:
+#    -  AppId1
+#    -  AppId2
+
+#Example of FakeAppIds:
+#FakeAppIds:
+#  AppId1: FakeAppId1
+#  AppId2: FakeAppId2
+
+#Disables Family Share license locking for self and others
+DisableFamilyShareLock: yes
+
+#Switches to whitelist instead of the default blacklist
+UseWhitelist: no
+
+#Automatically filter Apps in CheckAppOwnership. Filters everything but Games and Applications. Should not affect DLC checks
+#Overrides black-/whitelist. Gets overriden by AdditionalApps
+AutoFilterList: yes
+
+#List of AppIds to ex-/include
+AppIds:
+
+#Enables playing of not owned games. Respects black-/whitelist AppIds
+PlayNotOwnedGames: no
+
+#Additional AppIds to inject (Overrides your black-/whitelist & also overrides OwnerIds for apps you got shared!) Best to use this only on games NOT in your library.
+AdditionalApps:
+
+#Extra Data for Dlcs belonging to a specific AppId. Only needed
+#when the App you're playing is hit by Steams 64 DLC limit
+DlcData:
+
+#Used to retrieve ProductInfo from Steam servers for some games
+AppTokens:
+
+#Fake Steam being offline for specified AppIds. Same format as AppIds
+FakeOffline:
+
+#Change AppIds of games to enable networking features
+#Use 0 as a key to set for all unowned Apps
+FakeAppIds:
+
+#Custom ingame statuses. Set AppId to 0 to disable
+IdleStatus:
+  AppId: 0
+  Title: ""
+
+UnownedStatus:
+  AppId: 0
+  Title: ""
+
+#Override game titles. Only works with owned appIds! For injected appIds use either UnownedStatus or combine them with FakeAppIds
+GameTitles:
+
+#Override purchase time stamps
+SubscriptionTimestamps:
+
+#Blocks games from unlocking on wrong accounts
+DenuvoGames:
+
+#Automatically disable SLSsteam when steamclient.so does not match a predefined file hash that is known to work
+#You should enable this if you're planing to use SLSsteam with Steam Deck's gamemode
+SafeMode: no
+
+#Toggles notifications via notify-send
+Notifications: yes
+
+#Warn user via notification when steamclient.so hash differs from known safe hash
+#Mostly useful for development so I don't accidentally miss an update
+WarnHashMissmatch: no
+
+#Notify when SLSsteam is done initializing
+NotifyInit: yes
+
+#Enable sending commands to SLSsteam via /tmp/SLSsteam.API
+API: no
+
+#Changes your account's E-Mail clientsided. Leave blank to disable
+FakeEmail: ""
+
+#Changes your wallet's balance clientsidedly. 0 to turn off
+FakeWalletBalance: 0
+
+#Log levels:
+#Once = 0
+#Debug = 1
+#Info = 2
+#NotifyShort = 3
+#NotifyLong = 4
+#Warn = 5
+#None = 6
+LogLevel: 2
+
+#Logs all calls to Steamworks (this makes the logfile huge! Only useful for debugging/analyzing
+ExtendedLogging: no

@@ -55,9 +55,20 @@ class RegistryFinder(PathFinderStrategy):
 
 class LinuxFinder(PathFinderStrategy):
     def find(self):
-        steam_dir = (Path.home() / ".steam/root").resolve()
-        if steam_dir.exists():
-            return steam_dir
+        candidates = [
+            Path.home() / ".steam" / "root",
+            Path.home() / ".steam" / "steam",
+            Path.home() / ".local" / "share" / "Steam",
+            Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / "data" / "Steam",
+        ]
+        for candidate in candidates:
+            try:
+                resolved = candidate.resolve()
+                if validate_steam_path(resolved):
+                    return resolved
+            except Exception:
+                pass
+        return None
 
 
 class UserInputFinder(PathFinderStrategy):

@@ -251,3 +251,5 @@ zope-event==6.0
 zope-interface==8.0.1
     # via gevent
 py7zr==0.22.0
+curl_cffi>=0.7
+    # via steam-manifest-decrypt (pyproject.toml) — curl_cffi Chrome impersonation for SteamDB CF bypass

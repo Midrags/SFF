@@ -37,6 +37,8 @@ pip install steam==1.4.4 --no-deps
 - **httpx** — HTTP client for web requests
 - **beautifulsoup4 / lxml** — HTML parsing for online-fix
 - **selenium** — Browser automation for multiplayer fix (Chrome required)
+- **seleniumbase** — UC mode for SteamDB Cloudflare bypass (Layer 3)
+- **curl_cffi** — Chrome impersonation for SteamDB fast path (Layer 1)
 - **PyQt6 / PyQt6-WebEngine** — GUI
 - **torpy / pysocks** — Pure-Python Tor fallback for GMRC request codes
 - **steam / gevent / protobuf** — Steam CDN and depot access

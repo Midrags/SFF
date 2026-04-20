@@ -66,6 +66,10 @@ class MainMenu(Enum):
         MANAGE_APPLIST = "Manage SLSSteam IDs"
     else:
         MANAGE_APPLIST = "Manage injected IDs"
+    if sys.platform == "linux":
+        LINUX_SETUP = "Set up Linux tools (SLSsteam + .NET 9)"
+        LINUX_DOWNLOAD = "Download a game (Linux)"
+        LINUX_ACHIEVEMENTS = "Generate achievements (SLScheevo)"
     ANALYTICS = "View analytics dashboard"
     CHECK_UPDATES = "Check for updates"
     INSTALL_MENU = "Install/Uninstall Context Menu"

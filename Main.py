@@ -138,6 +138,18 @@ def main(ui, args: argparse.Namespace):
     if menu_choice == MainMenu.MANAGE_APPLIST:
         return ui.applist_menu()
 
+    linux_setup_opt = getattr(MainMenu, "LINUX_SETUP", None)
+    if linux_setup_opt and menu_choice == linux_setup_opt:
+        return ui.linux_setup_handler()
+
+    linux_dl_opt = getattr(MainMenu, "LINUX_DOWNLOAD", None)
+    if linux_dl_opt and menu_choice == linux_dl_opt:
+        return ui.linux_download_handler()
+
+    linux_ach_opt = getattr(MainMenu, "LINUX_ACHIEVEMENTS", None)
+    if linux_ach_opt and menu_choice == linux_ach_opt:
+        return ui.linux_achievements_handler()
+
     if menu_choice in GAME_SPECIFIC_CHOICES:
         return ui.handle_game_specific(menu_choice)
 

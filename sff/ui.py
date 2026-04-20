@@ -1453,6 +1453,24 @@ class UI:
         return MainReturnCode.LOOP_NO_PROMPT
 
     @music_toggle_decorator
+    def linux_setup_handler(self):
+        from sff.linux.linux_download import handle_linux_setup
+        handle_linux_setup(self.steam_path)
+        return MainReturnCode.LOOP_NO_PROMPT
+
+    @music_toggle_decorator
+    def linux_download_handler(self):
+        from sff.linux.linux_download import handle_linux_download
+        handle_linux_download(self.steam_path)
+        return MainReturnCode.LOOP_NO_PROMPT
+
+    @music_toggle_decorator
+    def linux_achievements_handler(self):
+        from sff.linux.linux_download import handle_linux_achievements
+        handle_linux_achievements(self.steam_path)
+        return MainReturnCode.LOOP_NO_PROMPT
+
+    @music_toggle_decorator
     def analytics_dashboard_menu(self):
         print(Fore.CYAN + "\n=== Analytics Dashboard ===" + Style.RESET_ALL)
         dashboard = self.analytics_tracker.generate_dashboard_text()
