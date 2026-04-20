@@ -1,0 +1,12 @@
+# Rename this to: purchased_keys.txt
+# This file allows you to specify CD keys or proof-of-purchase keys for games and DLCs
+# These keys will be returned when the game calls RequestAppProofOfPurchaseKey() or RequestAllProofOfPurchaseKeys()
+#
+# Format: appid=KEY
+# Each line should contain one app ID and its corresponding key, separated by an equals sign
+# Lines starting with # are treated as comments
+# Empty lines are ignored
+#
+# Examples:
+# 480=AAAAA-BBBBB-CCCCC-DDDDD
+# 218620=XYZFJ-13370-98765
