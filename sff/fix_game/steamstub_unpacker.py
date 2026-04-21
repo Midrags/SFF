@@ -162,7 +162,7 @@ class SteamStubUnpacker:
                 capture_output=True,
                 text=True,
                 timeout=60,
-                cwd=str(exe_path.parent),
+                cwd=str(Path(self.steamless_path).parent),
             )
             # check if unpacked file was created
             if unpacked_path.exists():

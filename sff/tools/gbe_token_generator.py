@@ -124,22 +124,12 @@ class GBETokenGenerator:
                     "[app::general]\nbuild_id=0\n\n[app::dlcs]\nunlock_all=0\n",
                     encoding="utf-8"
                 )
-            # configs.main.ini
-            main_config = f"""[main::general]
-account_name={player_name}
-account_steamid={steam_id}
-language={language}
-
-[main::connectivity]
-disable_lan_only=1
-"""
-            (settings_dir / "configs.main.ini").write_text(main_config, encoding="utf-8")
-            log("✓ configs.main.ini")
-            # overlay
+            # configs.overlay.ini — experimental overlay OFF by default (crashes DX9/32-bit games)
             (settings_dir / "configs.overlay.ini").write_text(
-                "[overlay::general]\nenable_experimental_overlay=1\n", encoding="utf-8"
+                "[overlay::general]\nenable_experimental_overlay=0\n", encoding="utf-8"
             )
             log("✓ configs.overlay.ini")
+            log("⚠ configs.main.ini not written per-game — lives in global GSE Saves/settings/. Copy it to steam_settings/ manually if per-game network customisation is needed. Note: some games (e.g. YuGiOh) break if configs.main.ini is present in steam_settings/.")
             # languages
             languages = self._fetch_languages(app_id, log)
             (settings_dir / "supported_languages.txt").write_text(

@@ -148,8 +148,8 @@ class GoldbergConfigGenerator:
             # configs.app.ini (DLC + cloud saves — always fetched, even in simple mode)
             self._write_app_config(app_id, settings_dir, dlc_list, cloud_save_paths, log,
                                    skip_api=False)
-            # configs.overlay.ini (per-game — overlay disabled for simple/regular mode)
-            self._write_overlay_config(settings_dir, log, enable_overlay=not simple_mode)
+            # configs.overlay.ini (per-game — experimental overlay off by default; on by default crashes DX9/32-bit games)
+            self._write_overlay_config(settings_dir, log, enable_overlay=False)
             if not simple_mode:
                 # achievements.json
                 if self.steam_web_api_key:

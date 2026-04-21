@@ -200,11 +200,33 @@ def get_hubcap(dest, app_id, depotcache = None):
                 print(Fore.YELLOW + "\nYou can update your API key in Settings later." + Style.RESET_ALL)
                 return None
         elif stats_resp.status_code != 200:
-            print(
-                Fore.RED
-                + f"\nHubcap Manifest API returned HTTP {stats_resp.status_code}."
-                + Style.RESET_ALL
-            )
+            detail = ""
+            try:
+                detail = stats_resp.json().get("detail", "")
+            except Exception:
+                pass
+            if detail:
+                print(Fore.RED + f"\nHubcap error: {detail}" + Style.RESET_ALL)
+                if "discord" in detail.lower():
+                    print(
+                        Fore.YELLOW
+                        + "You must be a member of the Hubcap Discord server to use this API.\n"
+                          "Join at: https://discord.gg/hubcap — then re-authenticate to get a valid key."
+                        + Style.RESET_ALL
+                    )
+                elif "state" in detail.lower():
+                    print(
+                        Fore.YELLOW
+                        + "OAuth state error — your authentication session expired or was already used.\n"
+                          "Go to https://hubcapmanifest.com and log in again to get a fresh API key."
+                        + Style.RESET_ALL
+                    )
+            else:
+                print(
+                    Fore.RED
+                    + f"\nHubcap Manifest API returned HTTP {stats_resp.status_code}."
+                    + Style.RESET_ALL
+                )
             return None
         data = stats_resp.json()
         break
