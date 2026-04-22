@@ -1,1 +1,0 @@
-~/games/my_game/my_game_executable
