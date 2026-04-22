@@ -34,12 +34,34 @@ die() {
 }
 
 # ── Prerequisite check ────────────────────────────────────────────────────────
+# These packages must be installed on the BUILD MACHINE so PyInstaller can
+# find and bundle the .so files into the AppImage.  End users need NOTHING
+# extra — the AppImage is self-contained (like the Windows EXE).
+#
+# One-time install command:
+#   sudo apt install python3.12 python3.12-venv python3.12-dev wget \
+#       libfuse2 libatomic1 libnss3 libnspr4 libxkbfile1 \
+#       libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-image0 \
+#       libxcb-keysyms1 libxcb-util1 libxcb-render-util0 libxcb-icccm4 \
+#       libxcb-shape0 libasound2t64
 echo "==> Checking prerequisites..."
-MISSING=0
-command -v python3.12 >/dev/null 2>&1 || { echo "  MISSING: python3.12 — fix: sudo apt install python3.12 python3.12-venv python3.12-dev"; MISSING=1; }
-command -v wget       >/dev/null 2>&1 || { echo "  MISSING: wget       — fix: sudo apt install wget"; MISSING=1; }
-dpkg -l libfuse2 >/dev/null 2>&1      || { echo "  MISSING: libfuse2   — fix: sudo apt install libfuse2"; MISSING=1; }
-[ "$MISSING" = "1" ] && die "Install the missing packages above, then re-run this script."
+MISSING_PKGS=()
+command -v python3.12 >/dev/null 2>&1 || MISSING_PKGS+=("python3.12 python3.12-venv python3.12-dev")
+command -v wget       >/dev/null 2>&1 || MISSING_PKGS+=("wget")
+for _pkg in libfuse2 libatomic1 libnss3 libnspr4 libxkbfile1 \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-image0 \
+            libxcb-keysyms1 libxcb-util1 libxcb-render-util0 libxcb-icccm4 \
+            libxcb-shape0; do
+    dpkg -l "$_pkg" >/dev/null 2>&1 || MISSING_PKGS+=("$_pkg")
+done
+# libasound2 was renamed to libasound2t64 on Ubuntu 24.04+
+dpkg -l libasound2t64 >/dev/null 2>&1 || dpkg -l libasound2 >/dev/null 2>&1 || MISSING_PKGS+=("libasound2t64")
+if [ "${#MISSING_PKGS[@]}" -gt 0 ]; then
+    echo ""
+    echo "  Missing packages detected. Run:"
+    echo "    sudo apt install ${MISSING_PKGS[*]}"
+    die "Install the missing packages above, then re-run this script."
+fi
 echo "    All prerequisites present."
 
 # ── Step 1: Virtual environment ───────────────────────────────────────────────
@@ -78,6 +100,9 @@ if [ "$FORCE_FRESH" = "1" ] || ! python -c "import PyQt6" 2>/dev/null; then
 
     pip install "steam==1.4.4" --no-deps \
         || die "Failed to install steam package."
+
+    pip install seleniumbase --no-deps \
+        || die "Failed to install seleniumbase."
 
     pip install pyinstaller \
         || die "Failed to install pyinstaller."

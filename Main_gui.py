@@ -94,14 +94,15 @@ def main():
         else (OSType.LINUX if sys.platform == "linux" else OSType.OTHER)
     )
 
+    _steam_exe = "steam.exe" if sys.platform == "win32" else "steam"
     steam_path = get_steam_path_gui()
     while steam_path is None:
         QMessageBox.warning(
             None,
-            "Steam path required",
-            "Steam installation path could not be found. Please select the folder that contains steam.exe.",
+            "Steam path required — SteaMidra",
+            f"Steam installation path could not be found. Please select the folder that contains {_steam_exe}.",
         )
-        path = QFileDialog.getExistingDirectory(None, "Select Steam folder (contains steam.exe)")
+        path = QFileDialog.getExistingDirectory(None, f"Select Steam folder (contains {_steam_exe})")
         if not path:
             sys.exit(0)
         path_obj = Path(path)

@@ -12,6 +12,7 @@
 
 import os
 import sys
+import glob as _glob
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 
@@ -69,11 +70,75 @@ c_dir = os.path.join(spec_root, 'c')
 if os.path.exists(c_dir):
     datas.append((c_dir, 'c'))
 
+# ── Bundle system libs required by Qt6WebEngine ──────────────────────────────
+# pyqt6-webengine-qt6 (PyPI) links against these system libs at compile time
+# but does NOT ship them. Bundle them here so the AppImage is self-contained
+# and end users need zero additional installs (just like the Windows EXE).
+#
+# Build machine requirement (one-time, developer only):
+#   sudo apt install libatomic1 libnss3 libnspr4 libxkbfile1 \
+#       libxkbcommon-x11-0 libxcb-cursor0 libxcb-xkb1 libxcb-image0 \
+#       libxcb-keysyms1 libxcb-util1 libxcb-render-util0 libxcb-icccm4 \
+#       libxcb-shape0 libasound2
+
+_SYSLIB_BASE = '/usr/lib/x86_64-linux-gnu'
+
+def _find_syslib(pattern):
+    """Return up to 1 (path, dest_dir) tuple for a system library glob."""
+    # Try exact versioned name first, then glob
+    hits = (
+        _glob.glob(f'{_SYSLIB_BASE}/{pattern}') +
+        _glob.glob(f'{_SYSLIB_BASE}/{pattern}.*')
+    )
+    return [(_p, '.') for _p in hits[:1]]
+
+_syslib_binaries = []
+_missing = []
+
+for _lib, _pkg in [
+    # GCC atomics — needed by libQt6WebEngineCore, libQt6Pdf, libavcodec
+    ('libatomic.so.1',              'libatomic1'),
+    # NSS/NSPR — needed by Chromium (QtWebEngine) for SSL/TLS
+    ('libnss3.so',                  'libnss3'),
+    ('libnssutil3.so',              'libnss3'),
+    ('libsmime3.so',                'libnss3'),
+    ('libnspr4.so',                 'libnspr4'),
+    ('libplc4.so',                  'libnspr4'),
+    ('libplds4.so',                 'libnspr4'),
+    # X11 keyboard handling
+    ('libxkbfile.so.1',             'libxkbfile1'),
+    ('libxkbcommon-x11.so.0',       'libxkbcommon-x11-0'),
+    # XCB extensions (required by the xcb QPA platform plugin)
+    ('libxcb-cursor.so.0',          'libxcb-cursor0'),
+    ('libxcb-xkb.so.1',             'libxcb-xkb1'),
+    ('libxcb-image.so.0',           'libxcb-image0'),
+    ('libxcb-keysyms.so.1',         'libxcb-keysyms1'),
+    ('libxcb-util.so.1',            'libxcb-util1'),
+    ('libxcb-render-util.so.0',     'libxcb-render-util0'),
+    ('libxcb-icccm.so.4',           'libxcb-icccm4'),
+    ('libxcb-shape.so.0',           'libxcb-shape0'),
+    # ALSA audio (optional but avoids startup crashes on some Qt builds)
+    ('libasound.so.2',              'libasound2'),
+]:
+    _found = _find_syslib(_lib)
+    if _found:
+        _syslib_binaries += _found
+    else:
+        _missing.append((_lib, _pkg))
+
+if _missing:
+    print('\nWARNING: The following system libs were NOT found on this build machine.')
+    print('         The AppImage will be missing them and may crash on target systems.')
+    print('         Fix with:')
+    print('           sudo apt install ' + ' '.join(p for _, p in _missing))
+    for _lib, _ in _missing:
+        print(f'  - {_lib}')
+
 # ── Analysis ──────────────────────────────────────────────────────────────────
 a = Analysis(
     ['Main_gui.py'],
     pathex=[spec_root],
-    binaries=_qt_binaries,
+    binaries=_qt_binaries + _syslib_binaries,
     datas=datas,
     hiddenimports=_qt_hidden + [
         # Prompts / CLI utils (used in sff modules)

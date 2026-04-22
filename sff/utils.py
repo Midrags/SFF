@@ -21,7 +21,7 @@
 
 
 import logging
-
+import os
 import sys
 
 from pathlib import Path
@@ -39,11 +39,19 @@ def root_folder(outside_internal = False):
 
     if is_frozen:
 
-        # Running as compiled EXE
-        exe_dir = Path(sys.executable).resolve().parent
-        # For frozen EXE, both internal and external paths are the same
-        # Everything (settings, c folder, static, third_party) is in the EXE directory
-        return exe_dir
+        if outside_internal:
+            # outside_internal=True → caller wants a WRITABLE directory for user data
+            # (settings.bin, debug.log, recent_files.json, exports, …).
+            # On AppImage the squashfs mount is read-only, so use the directory that
+            # contains the .AppImage file instead (set by the AppImage runtime).
+            appimage = os.environ.get('APPIMAGE')
+            if appimage:
+                return Path(appimage).resolve().parent
+
+        # Bundled app data or Windows EXE: directory next to the executable.
+        # On AppImage this is the squashfs mount (read-only, fine for data reads).
+        # On Windows this is the writable EXE directory (fine for everything).
+        return Path(sys.executable).resolve().parent
 
     else:
 
