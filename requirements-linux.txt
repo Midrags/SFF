@@ -26,7 +26,7 @@ greenlet==3.2.4
 h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
-idna==3.11
+idna>=3.10
 importlib-metadata==8.7.1
 inquirerpy @ git+https://github.com/kazhala/InquirerPy@714d9068896c1a1f9f4d1354f43f922cd5cfe16d
 jaraco-classes==3.4.0
@@ -40,7 +40,7 @@ mdurl==0.1.2
 more-itertools==10.8.0
 msgpack==1.1.2
 outcome==1.3.0.post0
-packaging==26.0
+packaging>=26.0
 pathvalidate==3.3.1
 pfzy==0.3.4
 Pillow==11.2.1
@@ -64,16 +64,16 @@ requests==2.32.5
 rich==13.9.4
 selenium==4.36.0
 seleniumbase>=4.32
-setuptools==82.0.0
+setuptools>=82.0.0
 six==1.17.0
 sniffio==1.3.1
 sortedcontainers==2.4.0
 torpy==1.1.6
 tqdm==4.67.3
-trio==0.31.0
+trio>=0.31.0
 trio-websocket==0.12.2
 typing-extensions==4.15.0
-urllib3==2.6.3
+urllib3>=2.5.0,<3.0
 vdf==3.4
 wcwidth==0.6.0
 websocket-client==1.9.0
