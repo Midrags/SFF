@@ -10,13 +10,13 @@
 # Note: win10toast and pywin32-ctypes are Windows-only and are NOT listed here.
 # ---------------------------------------------------------------
 anyio==4.12.1
-attrs==25.4.0
+attrs>=25.4.0
 backports-tarfile==1.2.0
-beautifulsoup4==4.12.3
+beautifulsoup4>=4.12.0
 cachetools==6.2.6
 certifi==2026.2.25
 cffi==2.0.0
-charset-normalizer==3.4.4
+charset-normalizer>=3.4.0,<4
 colorama==0.4.6
 configupdater==3.2
 exceptiongroup==1.3.1
@@ -60,9 +60,9 @@ pyqt6-webengine==6.10.0
 pyqt6-webengine-qt6==6.10.2
 pysocks==1.7.1
 pyyaml==6.0.3
-requests==2.32.5
+requests>=2.32.4
 rich==13.9.4
-selenium==4.36.0
+selenium>=4.36.0
 seleniumbase>=4.32
 setuptools>=82.0.0
 six==1.17.0
@@ -76,8 +76,8 @@ typing-extensions==4.15.0
 urllib3>=2.5.0,<3.0
 vdf==3.4
 wcwidth==0.6.0
-websocket-client==1.9.0
-wsproto==1.2.0
+websocket-client>=1.8.0
+wsproto>=1.2.0
 zipp==3.23.0
 zope-event==6.0
 zope-interface==8.0.1
