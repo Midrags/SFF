@@ -4,6 +4,21 @@ All notable changes to SteaMidra are documented here.
 
 ---
 
+## 4.9.0
+
+### CreamAPI Multiplayer Fix (new feature)
+- **Apply CreamAPI Multiplayer Fix** — new menu item. Installs bundled CreamAPI v5.3.0.0 (nonlog build) to spoof your game as Spacewar (AppID 480) for online multiplayer. No credentials, no browser, no external downloads required.
+- **Restore CreamAPI Multiplayer Fix** — new menu item to undo the fix and restore original DLLs.
+- **Classic mode** (default): replaces `steam_api.dll` / `steam_api64.dll` in-place; `cream_api.ini` placed next to the DLL.
+- **Proxy mode** (anti-cheat fallback): CreamAPI installed as `winmm.dll`; original Steam API DLLs untouched.
+- **Anti-cheat detection**: automatically scans for EasyAntiCheat and BattlEye folders/files; suggests Proxy mode if found.
+- **Linux platform selection**: on Linux, user chooses Proton/Wine (Windows .dll) or Native Linux (.so). ELF bitness is read from the header to select x64 vs x86 `.so` automatically.
+- **Spacewar auto-check**: reads all Steam library ACF files to detect if Spacewar (AppID 480) is already installed. If not, shows a one-time `steam://install/480` prompt and stores a marker file so the user is never prompted again after the first time.
+- **Existing online-fix.me button unchanged** — both methods coexist in the menu.
+- **Version bump**: 4.8.4 → 4.9.0
+
+---
+
 ## 4.8.4
 
 ### Linux Compatibility Overhaul

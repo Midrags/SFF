@@ -87,6 +87,8 @@ a = Analysis(
         'gevent',
         'sff.manifest.collections',
         'sff.manifest.workshop_tracker',
+        'sff.fix_game.online_fix_applier',
+        'sff.linux.steam_process',
         'psutil',
         'colorama',
         'httpx',

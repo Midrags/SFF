@@ -1,5 +1,18 @@
 # Multiplayer Fix
 
+SteaMidra has **two** separate multiplayer fix options:
+
+| Option | Method | Requires account? |
+|---|---|---|
+| **Apply CreamAPI Multiplayer Fix** | Bundled CreamAPI, spoofs AppID to 480 (Spacewar) | No |
+| **Apply multiplayer fix (online-fix.me)** | Downloads fix from online-fix.me | Yes |
+
+> For the CreamAPI method, see [CREAMAPI_FIX.md](CREAMAPI_FIX.md).
+
+---
+
+## online-fix.me method
+
 SteaMidra can download and apply multiplayer fixes from online-fix.me for supported games.
 
 **What you need**

@@ -14,8 +14,6 @@ Steam has updated and if you accidentally update your Steam client to a version 
 
 SteaMidra helps you set up games to work with Steam using Lua scripts, manifests, and GreenLuma. It writes the right files into your Steam folder so games and DLC can run. It does not replace or crack Steam itself.
 
-> ⚠️ **Multiplayer fix is currently not working.** online-fix.me has updated their site which broke the integration. A fix is being worked on. In the meantime, use the **Fixes/Bypasses (Ryuu)** option which includes multiplayer and game fixes for many titles.
-
 Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
 **Small video about SteaMidra:** [YouTube Tutorial](https://youtu.be/cFfItiV8-pk)
@@ -26,7 +24,8 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
 - Download and use Lua files for games, download manifests, and set up GreenLuma.
 - Write Lua and manifest data into Steam's config so games work with or without an extra injector.
-- Other features: multiplayer fixes (online-fix.me), **game fixes/bypasses (Ryuu)**, DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
+- Multiplayer fixes: **CreamAPI Multiplayer Fix** (bundled, no account needed — spoofs AppID to Spacewar 480) and **online-fix.me** integration. Also **game fixes/bypasses (Ryuu)**.
+- DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
 - **Linux support** — SLSSteam ID management, platform-aware MIDI, and Linux-compatible auto-update.

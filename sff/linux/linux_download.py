@@ -18,11 +18,12 @@
 
 import re
 import shutil
+import time
 from pathlib import Path
 
 from colorama import Fore, Style
 
-from sff.linux import acf_writer, depot_downloader, permissions, slscheevo, slssteam
+from sff.linux import acf_writer, depot_downloader, permissions, slscheevo, slssteam, steam_process
 from sff.linux.dotnet import ensure_dotnet_9
 from sff.linux.depot_downloader import MANIFESTS_TMP
 from sff.lua.manager import LuaManager
@@ -288,10 +289,33 @@ def handle_linux_setup(steam_path: Path) -> None:
         ],
         cancellable=True,
     )
+    install_ok = False
     if choice == "bundled":
-        slssteam.install_bundled(steam_path)
+        install_ok = slssteam.install_bundled(steam_path)
     elif choice == "github":
-        slssteam.install_from_github(steam_path)
+        install_ok = slssteam.install_from_github(steam_path)
+
+    if install_ok:
+        print(Fore.GREEN + "\nSLSteam installed successfully." + Style.RESET_ALL)
+        if prompt_confirm("Restart Steam now to activate SLSteam? (recommended)"):
+            print("Stopping Steam...")
+            steam_process.kill_steam()
+            time.sleep(2)
+            print("Starting Steam with SLSteam injection...")
+            result = steam_process.start_steam()
+            if result == "NEEDS_USER_PATH":
+                print(
+                    Fore.YELLOW
+                    + "SLSteam libraries not found at default paths.\n"
+                    + "Please restart Steam manually — it will pick up SLSteam via steam.sh."
+                    + Style.RESET_ALL
+                )
+        else:
+            print(
+                Fore.YELLOW
+                + "Remember to restart Steam manually for SLSteam to take effect."
+                + Style.RESET_ALL
+            )
 
     print(Fore.GREEN + "\nSetup complete." + Style.RESET_ALL)
 
