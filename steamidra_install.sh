@@ -148,6 +148,7 @@ create_launcher_script() {
     mkdir -p "$BIN_DIR"
     cat > "$BIN_DIR/steamidra" <<EOF
 #!/usr/bin/env bash
+export QTWEBENGINE_DISABLE_SANDBOX=1
 exec "$target" "\$@"
 EOF
     chmod +x "$BIN_DIR/steamidra"

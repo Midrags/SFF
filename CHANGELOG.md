@@ -16,7 +16,7 @@ All notable changes to SteaMidra are documented here.
 - **Spacewar auto-check**: reads all Steam library ACF files to detect if Spacewar (AppID 480) is already installed. If not, shows a one-time `steam://install/480` prompt and stores a marker file so the user is never prompted again after the first time.
 - **Existing online-fix.me button unchanged** — both methods coexist in the menu.
 - **Version bump**: 4.8.4 → 4.9.0
-
+G
 ---
 
 ## 4.8.4

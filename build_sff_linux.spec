@@ -13,16 +13,29 @@
 import os
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_all
 
 block_cipher = None
 
 spec_root = os.path.abspath(SPECPATH)
 icon_path  = os.path.join(spec_root, 'SFF.png')
 
+# ── PyQt6 / WebEngine — must use collect_all, NOT just hiddenimports ──────────
+# hiddenimports only works for pure-Python modules.
+# PyQt6 is a compiled C extension with Qt shared libraries that require
+# collect_all() to be properly bundled into the output directory.
+_qt6  = collect_all('PyQt6')
+_wec  = collect_all('PyQt6.QtWebEngineCore')
+_wew  = collect_all('PyQt6.QtWebEngineWidgets')
+
+_qt_datas    = _qt6[0] + _wec[0] + _wew[0]
+_qt_binaries = _qt6[1] + _wec[1] + _wew[1]
+_qt_hidden   = _qt6[2] + _wec[2] + _wew[2]
+
 # ── Data files ────────────────────────────────────────────────────────────────
 datas = [
     ('static', 'static'),
-]
+] + _qt_datas
 
 # third_party tools (gbe_fork, linux deps, online_fix DLLs, etc.)
 third_party_dir = os.path.join(spec_root, 'third_party')
@@ -60,17 +73,9 @@ if os.path.exists(c_dir):
 a = Analysis(
     ['Main_gui.py'],
     pathex=[spec_root],
-    binaries=[],
+    binaries=_qt_binaries,
     datas=datas,
-    hiddenimports=[
-        # Qt / GUI
-        'PyQt6',
-        'PyQt6.QtCore',
-        'PyQt6.QtGui',
-        'PyQt6.QtWidgets',
-        'PyQt6.sip',
-        'PyQt6.QtWebEngineCore',
-        'PyQt6.QtWebEngineWidgets',
+    hiddenimports=_qt_hidden + [
         # Prompts / CLI utils (used in sff modules)
         'prompt_toolkit',
         'colorama',

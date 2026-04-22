@@ -2,9 +2,10 @@
 # Use this file on Linux Mint, Ubuntu, Debian, and other Linux distros.
 # Identical to requirements.txt but excludes Windows-only packages.
 #
-# Installation:
+# IMPORTANT — install using the -r flag (do NOT copy-paste the contents):
 #   pip install -r requirements-linux.txt
 #   pip install steam==1.4.4 --no-deps
+#   pip install pyinstaller   # only needed if building an AppImage
 #
 # Note: win10toast and pywin32-ctypes are Windows-only and are NOT listed here.
 # ---------------------------------------------------------------
