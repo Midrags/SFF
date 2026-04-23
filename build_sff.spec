@@ -46,6 +46,21 @@ third_party_dir = os.path.join(spec_root, 'third_party')
 if os.path.exists(third_party_dir):
     datas.append((third_party_dir, 'third_party'))
 
+# DLC unlocker bundled resources (CreamAPI, SmokeAPI, Koaloader, UplayR1/R2 DLLs)
+dlc_resources_dir = os.path.join(spec_root, 'sff', 'dlc_unlockers', 'resources')
+if os.path.exists(dlc_resources_dir):
+    datas.append((dlc_resources_dir, 'sff/dlc_unlockers/resources'))
+
+# Lua depot keys / tokens (required for manifest depot key operations)
+lua_dir = os.path.join(spec_root, 'sff', 'lua')
+if os.path.exists(lua_dir):
+    datas.append((lua_dir, 'sff/lua'))
+
+# MIDI player library, soundfont, and MIDI files
+c_dir = os.path.join(spec_root, 'c')
+if os.path.exists(c_dir):
+    datas.append((c_dir, 'c'))
+
 # Add icon assets if they exist
 if os.path.exists(os.path.join(spec_root, 'sff.png')):
     datas.append(('sff.png', '.'))

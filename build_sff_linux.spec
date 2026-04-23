@@ -43,6 +43,11 @@ third_party_dir = os.path.join(spec_root, 'third_party')
 if os.path.exists(third_party_dir):
     datas.append((third_party_dir, 'third_party'))
 
+# DLC unlocker bundled resources (CreamAPI, SmokeAPI, Koaloader, UplayR1/R2 DLLs)
+dlc_resources_dir = os.path.join(spec_root, 'sff', 'dlc_unlockers', 'resources')
+if os.path.exists(dlc_resources_dir):
+    datas.append((dlc_resources_dir, 'sff/dlc_unlockers/resources'))
+
 # Icon
 if os.path.exists(os.path.join(spec_root, 'SFF.png')):
     datas.append(('SFF.png', '.'))

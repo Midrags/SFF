@@ -40,7 +40,10 @@ def _load_language_file(language):
 class Translator:
     def __init__(self, language = None):
         if not LOCALES_DIR.exists():
-            LOCALES_DIR.mkdir(parents=True, exist_ok=True)
+            try:
+                LOCALES_DIR.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass  # Read-only fs (AppImage squashfs) — locales are bundled or fall back to keys
         if language in ["Auto", None, ""]:
             try:
                 language_sys = locale.getdefaultlocale()[0]
