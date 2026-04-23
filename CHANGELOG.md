@@ -4,6 +4,21 @@ All notable changes to SteaMidra are documented here.
 
 ---
 
+## 4.9.1
+
+### online-fix.me Multiplayer Fix — complete rewrite
+- **SeleniumBase UC mode** — Cloudflare bypass + ad blocking built-in. No more manual Chrome setup.
+- **3-layer ad popup prevention** — extracts the uploads URL directly from the game page before clicking (Layer 1); falls back to smart 15s polling that closes only confirmed ad tabs and preserves the uploads tab (Layer 2); final page-source re-scan fallback (Layer 3).
+- **Smart file server navigation** — automatically enters subfolders (`Fix Repair/`, `Generic/`, `Steam/`, `Patch/`) before scanning for archives.
+- **OFME exclusion** — files containing "OFME" in the name (full game packages, typically 800 MB+) are completely excluded from download candidates.
+- **401 error handling** — proactive browser refresh after initial navigation + up to 3 in-loop refresh retries when the file server returns 401, resolving transient nginx authentication failures automatically.
+- **Re-apply fix replaces files** — applying the fix a second time now replaces existing fix files directly. The original `.bak` of the game's own DLL is preserved; no redundant second-level backups are created.
+
+### Removed
+- **CreamAPI Multiplayer Fix** — "Apply CreamAPI Multiplayer Fix" and "Restore CreamAPI Multiplayer Fix" menu items removed. The bundled CreamAPI DLLs remain in `third_party/online_fix/` for potential future use.
+
+---
+
 ## 4.9.0
 
 ### CreamAPI Multiplayer Fix (new feature)

@@ -140,7 +140,6 @@ a = Analysis(
         'sff.fix_game.config_generator',
         'sff.fix_game.steamstub_unpacker',
         'sff.fix_game.goldberg_applier',
-        'sff.fix_game.online_fix_applier',
         'sff.fix_game.gse_tool_updater',
         'sff.linux.steam_process',
         'sff.tools',

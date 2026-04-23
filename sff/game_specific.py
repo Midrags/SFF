@@ -44,7 +44,6 @@ from sff.manifest.ugc_resolver import (
     WorkshopItemContext,
     get_workshop_time_updated,
 )
-from sff.fix_game.online_fix_applier import OnlineFixApplier
 from sff.online_fix import apply_multiplayer_fix as apply_online_fix
 from sff.prompts import (
     prompt_confirm,
@@ -70,36 +69,6 @@ from sff.strings import STEAM_WEB_API_KEY
 from sff.utils import enter_path, root_folder
 from typing import Literal, NamedTuple, Optional, overload
 
-
-def _ensure_spacewar_prompted(steam_root: Path) -> None:
-    """
-    Check whether Spacewar (AppID 480) is installed.
-    If not, show a one-time install prompt and create a marker file
-    so the prompt is never repeated after the first use.
-    """
-    from sff.storage.acf import find_and_parse_acf
-    try:
-        acf, _ = find_and_parse_acf(steam_root, "480")
-        if acf is not None:
-            return
-    except Exception:
-        pass
-    marker = root_folder(outside_internal=True) / ".creamapi_spacewar_prompted"
-    if marker.exists():
-        return
-    from colorama import Fore, Style
-    print(
-        Fore.YELLOW
-        + "\n\u26a0  Spacewar (AppID 480) must be installed in Steam for CreamAPI to work."
-        + Style.RESET_ALL
-    )
-    print("Open Steam and paste the following URL in your browser address bar:")
-    print("  steam://install/480")
-    print("(Spacewar will appear under Tools in your Steam library once installed)\n")
-    try:
-        marker.touch()
-    except Exception:
-        pass
 
 logger = logging.getLogger(__name__)
 
@@ -566,84 +535,6 @@ class GameHandler:
             print("\n" + Fore.RED + "Failed to apply multiplayer fix." + Style.RESET_ALL)
             print("Check the error messages above for details.")
 
-    def apply_creamapi_fix(self, app_info):
-        print("\n" + Fore.CYAN + "Apply CreamAPI Multiplayer Fix" + Style.RESET_ALL)
-        print("Installs CreamAPI to spoof this game as Spacewar (AppID 480) for online play.")
-        print("No credentials or external downloads needed — CreamAPI is bundled locally.\n")
-        game_name = self._resolve_game_name(app_info)
-        print(f"Game:   {Fore.YELLOW}{game_name}{Style.RESET_ALL}")
-        print(f"Folder: {Fore.YELLOW}{app_info.path}{Style.RESET_ALL}")
-        print(f"AppID:  {Fore.YELLOW}{app_info.app_id}{Style.RESET_ALL} -> spoofed to 480 (Spacewar)\n")
-
-        platform_hint = "windows"
-        if sys.platform == "linux":
-            plat_choice = prompt_select(
-                "Game type:",
-                ["Proton/Wine (Windows .dll)", "Native Linux (.so)"],
-            )
-            platform_hint = "linux" if "Linux" in plat_choice else "windows"
-
-        ac_detected = OnlineFixApplier.detect_anticheat(app_info.path)
-        mode = "classic"
-        if ac_detected:
-            print(
-                Fore.YELLOW
-                + f"\u26a0  Anti-cheat detected: {', '.join(ac_detected)}"
-                + Style.RESET_ALL
-            )
-            print("Classic mode (DLL replacement) may be blocked by anti-cheat.")
-            if prompt_confirm(
-                "Use Proxy mode instead (installs as winmm.dll, original DLLs untouched)?",
-                default=True,
-            ):
-                mode = "proxy"
-
-        _ensure_spacewar_prompted(self.steam_root)
-
-        if not prompt_confirm("Apply CreamAPI multiplayer fix?"):
-            return
-
-        print()
-        applier = OnlineFixApplier()
-        success, msg = applier.apply(
-            app_info.path,
-            platform_hint=platform_hint,
-            mode=mode,
-            log_func=print,
-        )
-
-        if success:
-            print("\n" + Fore.GREEN + f"\u2714 {msg}" + Style.RESET_ALL)
-            print("\nHOW TO USE:")
-            print("  1. Launch the game .exe DIRECTLY (not from Steam library)")
-            print("  2. Keep Steam running and logged in")
-            print("  3. Steam overlay should show 'Playing Spacewar' (top-right) = working")
-            print("  4. Invite friends via Steam overlay — all players need this fix")
-            if platform_hint == "linux" or sys.platform == "linux":
-                print()
-                print("Proton tip: add the following to Steam launch options:")
-                print('  WINEDLLOVERRIDES="steam_api64=n,b" %command%')
-        else:
-            print("\n" + Fore.RED + f"\u2717 {msg}" + Style.RESET_ALL)
-
-    def restore_creamapi_fix(self, app_info):
-        print("\n" + Fore.CYAN + "Restore CreamAPI Multiplayer Fix" + Style.RESET_ALL)
-        game_name = self._resolve_game_name(app_info)
-        print(f"Game:   {Fore.YELLOW}{game_name}{Style.RESET_ALL}")
-        print(f"Folder: {Fore.YELLOW}{app_info.path}{Style.RESET_ALL}\n")
-        applier = OnlineFixApplier()
-        if not applier.is_applied(app_info.path):
-            print(Fore.YELLOW + "No CreamAPI fix found in this game directory." + Style.RESET_ALL)
-            return
-        if not prompt_confirm("Remove CreamAPI and restore original DLLs?"):
-            return
-        print()
-        success, msg = applier.restore(app_info.path, log_func=print)
-        if success:
-            print("\n" + Fore.GREEN + f"\u2714 {msg}" + Style.RESET_ALL)
-        else:
-            print("\n" + Fore.RED + f"\u2717 {msg}" + Style.RESET_ALL)
-
     def apply_ryuu_fix(self, app_info):
         print("\n" + Fore.CYAN + "Fixes/Bypasses (generator.ryuu.lol)" + Style.RESET_ALL)
         print("This will search and apply a game fix or bypass from Ryuu's repository.")
@@ -862,10 +753,6 @@ class GameHandler:
             self.check_mod_updates(app_info.app_id)
         elif choice == MainMenu.MULTIPLAYER_FIX:
             self.apply_multiplayer_fix(app_info)
-        elif choice == MainMenu.CREAMAPI_MP_FIX:
-            self.apply_creamapi_fix(app_info)
-        elif choice == MainMenu.CREAMAPI_MP_RESTORE:
-            self.restore_creamapi_fix(app_info)
         elif choice == MainMenu.RYUU_FIX:
             self.apply_ryuu_fix(app_info)
         elif choice == MainMenu.MANAGE_DLC_UNLOCKERS:

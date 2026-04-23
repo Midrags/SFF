@@ -16,7 +16,7 @@ for arg in "$@"; do
 done
 
 APP_NAME="SteaMidra"
-APP_VERSION="4.9.0"
+APP_VERSION="4.9.1"
 ARCH="x86_64"
 APPIMAGE_OUT="${APP_NAME}-${APP_VERSION}-${ARCH}.AppImage"
 APPDIR="${APP_NAME}.AppDir"

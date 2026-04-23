@@ -38,7 +38,7 @@ datas = [
     ('static', 'static'),
 ] + _qt_datas
 
-# third_party tools (gbe_fork, linux deps, online_fix DLLs, etc.)
+# third_party tools (gbe_fork, linux deps, etc.)
 third_party_dir = os.path.join(spec_root, 'third_party')
 if os.path.exists(third_party_dir):
     datas.append((third_party_dir, 'third_party'))
@@ -181,7 +181,6 @@ a = Analysis(
         'sff.fix_game.config_generator',
         'sff.fix_game.steamstub_unpacker',
         'sff.fix_game.goldberg_applier',
-        'sff.fix_game.online_fix_applier',
         'sff.fix_game.gse_tool_updater',
         'sff.linux',
         'sff.linux.dotnet',

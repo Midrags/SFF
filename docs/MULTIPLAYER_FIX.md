@@ -1,34 +1,32 @@
 # Multiplayer Fix
 
-SteaMidra has **two** separate multiplayer fix options:
-
-| Option | Method | Requires account? |
-|---|---|---|
-| **Apply CreamAPI Multiplayer Fix** | Bundled CreamAPI, spoofs AppID to 480 (Spacewar) | No |
-| **Apply multiplayer fix (online-fix.me)** | Downloads fix from online-fix.me | Yes |
-
-> For the CreamAPI method, see [CREAMAPI_FIX.md](CREAMAPI_FIX.md).
+SteaMidra can download and apply multiplayer fixes from online-fix.me for supported games.
 
 ---
 
 ## online-fix.me method
 
-SteaMidra can download and apply multiplayer fixes from online-fix.me for supported games.
-
 **What you need**
 
 An account on online-fix.me. Create one on their website. You will enter your username and password in SteaMidra the first time you use the feature. SteaMidra stores them securely.
 
-Depending on the version of SteaMidra, you may need extra Python packages. If the project includes a batch file for online-fix requirements, run it. Otherwise the Setup Guide or project README will say what to install (for example httpx, beautifulsoup4, lxml, or selenium).
-
 **How to use it**
 
-Run SteaMidra, then choose "Apply multiplayer fix (online-fix.me)" or the equivalent from the menu. Pick your Steam library and the game. SteaMidra will log in, find the fix, download it, and extract it into the game folder. The first time you may need to enter your online-fix.me credentials.
+Open SteaMidra and choose **Apply multiplayer fix (online-fix.me)**. Select your game from the list. SteaMidra will:
+
+1. Open Chrome with Cloudflare bypass and ad blocking active
+2. Log in to online-fix.me automatically
+3. Find your game on the site using fuzzy name matching
+4. Navigate to the file server, automatically entering subfolders like `Fix Repair/` or `Generic/`
+5. Download only the actual fix file (full game packages are excluded automatically)
+6. Extract it directly into your game folder, preserving originals as `.bak` backups
+
+Re-applying the fix a second time replaces the fix files directly — the original `.bak` backup of your game's DLL is preserved.
 
 **If something goes wrong**
 
-If login fails, check your username and password on the online-fix.me website. If the game is not found, try the full official game name. If downloads or extraction fail, check your internet connection and antivirus. If it still fails, check debug.log in the SteaMidra folder or ask for help on Discord.
+If login fails, check your username and password on the online-fix.me website. If the game is not found, try the full official game name. If the file server shows 401, SteaMidra retries automatically (up to 3 times). If it still fails, check debug.log in the SteaMidra folder or ask for help on Discord.
 
 **Responsibility**
 
-Use this feature at your own risk. SteaMidra only automates downloading and extracting files from online-fix.me. Respect the site’s rules and the game’s terms.
+Use this feature at your own risk. SteaMidra only automates downloading and extracting files from online-fix.me. Respect the site's rules and the game's terms.

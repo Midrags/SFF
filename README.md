@@ -24,7 +24,7 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
 - Download and use Lua files for games, download manifests, and set up GreenLuma.
 - Write Lua and manifest data into Steam's config so games work with or without an extra injector.
-- Multiplayer fixes: **CreamAPI Multiplayer Fix** (bundled, no account needed — spoofs AppID to Spacewar 480) and **online-fix.me** integration. Also **game fixes/bypasses (Ryuu)**.
+- Multiplayer fixes: **online-fix.me** integration (fully automated — Cloudflare bypass, ad blocking, smart file server navigation) and **game fixes/bypasses (Ryuu)**.
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
