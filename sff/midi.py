@@ -47,6 +47,7 @@ class MidiPlayer:
         self._monitor_thread = None
         self.used_channels: list = []
         self.channel_is_active: dict = {}
+        self._muted: bool = False
         self.player_lib.StartPlayback.argtypes = [
             ctypes.c_char_p,
             ctypes.c_char_p,
@@ -110,6 +111,8 @@ class MidiPlayer:
                     next_track = self.playlist[self._current_idx]
                     logger.debug(f"Advancing to track {self._current_idx}: {next_track.name}")
                     self._start_track(next_track)
+                    if self._muted:
+                        self.set_range(0, 15, 0)
             except Exception as e:
                 logger.warning(f"Playlist monitor error: {e}")
 
@@ -144,6 +147,10 @@ class MidiPlayer:
     def set_range(self, start, end, state):
         for x in range(start, end + 1):
             self.set_channel(x, state)
+
+    def set_muted(self, muted: bool):
+        self._muted = muted
+        self.set_range(0, 15, 0 if muted else 1)
 
     def stop(self):
         self._running = False

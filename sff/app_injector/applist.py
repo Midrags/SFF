@@ -602,6 +602,8 @@ class AppListManager(AppInjectionManager):
             self._profile_switch()
         elif choice == AppListProfileChoice.SAVE:
             self._profile_save()
+        elif choice == AppListProfileChoice.MERGE:
+            self._profile_merge()
         elif choice == AppListProfileChoice.DELETE:
             self._profile_delete()
         elif choice == AppListProfileChoice.RENAME:
@@ -728,6 +730,59 @@ class AppListManager(AppInjectionManager):
             )
         else:
             print(Fore.RED + "Failed to save profile." + Style.RESET_ALL)
+
+    def _profile_merge(self):
+        profiles = list_profiles()
+        if len(profiles) < 2:
+            print(
+                Fore.YELLOW
+                + "Need at least 2 profiles to merge. Create more profiles first."
+                + Style.RESET_ALL
+            )
+            return
+        source = prompt_select(
+            "Merge FROM (source profile):", [(p, p) for p in profiles], cancellable=True
+        )
+        if source is None:
+            return
+        dest_options = [(p, p) for p in profiles if p != source]
+        dest = prompt_select(
+            f"Merge INTO (destination profile — IDs from '{source}' will be added):",
+            dest_options,
+            cancellable=True,
+        )
+        if dest is None:
+            return
+        src_ids = load_profile(source)
+        dst_ids = load_profile(dest)
+        if src_ids is None:
+            print(Fore.RED + f"Could not load source profile '{source}'." + Style.RESET_ALL)
+            return
+        if dst_ids is None:
+            print(Fore.RED + f"Could not load destination profile '{dest}'." + Style.RESET_ALL)
+            return
+        merged = sorted(set(dst_ids) | set(src_ids))
+        new_ids = len(merged) - len(set(dst_ids))
+        if new_ids == 0:
+            print(
+                Fore.YELLOW
+                + f"'{source}' has no new IDs that aren't already in '{dest}'. Nothing changed."
+                + Style.RESET_ALL
+            )
+            return
+        if not prompt_confirm(
+            f"Add {new_ids} new ID(s) from '{source}' into '{dest}' (total: {len(merged)} IDs)?",
+            default=True,
+        ):
+            return
+        if save_profile(dest, merged):
+            print(
+                Fore.GREEN
+                + f"Merged {new_ids} new ID(s) from '{source}' into '{dest}' (total: {len(merged)} IDs)."
+                + Style.RESET_ALL
+            )
+        else:
+            print(Fore.RED + "Failed to save merged profile." + Style.RESET_ALL)
 
     def _profile_delete(self):
         profiles = list_profiles()

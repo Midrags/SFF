@@ -119,6 +119,7 @@ class AppListProfileChoice(Enum):
     CREATE = "Create profile"
     SWITCH = "Switch to profile"
     SAVE = "Save current AppList to profile"
+    MERGE = "Merge another profile into a profile"
     DELETE = "Delete profile"
     RENAME = "Rename profile"
 

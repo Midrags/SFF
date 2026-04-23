@@ -271,6 +271,16 @@ class SFFMainWindow(QMainWindow):
             row2.addWidget(btn)
         row2.addStretch()
         ga_layout.addLayout(row2)
+        row3 = QHBoxLayout()
+        for label, choice in [
+            (T("CreamAPI MP Fix"), MainMenu.CREAMAPI_MP_FIX),
+            (T("Restore CreamAPI"), MainMenu.CREAMAPI_MP_RESTORE),
+        ]:
+            btn = QPushButton(label)
+            btn.clicked.connect(lambda checked=False, c=choice: self._run_game_action(c))
+            row3.addWidget(btn)
+        row3.addStretch()
+        ga_layout.addLayout(row3)
         layout.addWidget(game_actions_group)
         # ── Lua / Manifest Processing ────────────────────────────
         lua_group = QGroupBox(T("Lua / Manifest Processing"))
@@ -551,12 +561,8 @@ class SFFMainWindow(QMainWindow):
         if self.ui.midi_player is None:
             return
         self._music_muted = not self._music_muted
-        if self._music_muted:
-            self.ui.midi_player.set_range(0, 15, 0)
-            self._mute_btn.setText("🔊 Unmute")
-        else:
-            self.ui.midi_player.set_range(0, 15, 1)
-            self._mute_btn.setText("🔇 Mute")
+        self.ui.midi_player.set_muted(self._music_muted)
+        self._mute_btn.setText("🔊 Unmute" if self._music_muted else "🔇 Mute")
 
     # ── Settings dialog ──────────────────────────────────────────
 
