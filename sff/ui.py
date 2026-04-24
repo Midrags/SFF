@@ -239,7 +239,7 @@ class UI:
 
     def _edit_settings_submenu(self):
         win_only = [Settings.APPLIST_FOLDER, Settings.GL_VERSION]
-        linux_only = [Settings.SLS_CONFIG_LOCATION]
+        linux_only = [Settings.SLS_CONFIG_LOCATION, Settings.STEAMGRIDDB_API_KEY]
         if self.os_type == OSType.WINDOWS:
             ignore = linux_only
         elif self.os_type == OSType.LINUX:
@@ -1468,6 +1468,40 @@ class UI:
     def linux_achievements_handler(self):
         from sff.linux.linux_download import handle_linux_achievements
         handle_linux_achievements(self.steam_path)
+        return MainReturnCode.LOOP_NO_PROMPT
+
+    @music_toggle_decorator
+    def linux_shortcuts_handler(self):
+        from sff.linux.desktop_shortcuts import create_shortcut
+        from sff.prompts import prompt_text
+        from sff.storage.settings import get_setting
+        appid = prompt_text("Enter the App ID for the shortcut:")
+        if not appid or not appid.strip().isdigit():
+            print(Fore.RED + "Invalid App ID." + Style.RESET_ALL)
+            return MainReturnCode.LOOP_NO_PROMPT
+        appid = appid.strip()
+        from sff.steam_store import get_app_name_from_store
+        game_name = get_app_name_from_store(int(appid)) or f"App {appid}"
+        print(Fore.CYAN + f"Creating shortcut for: {game_name} ({appid})" + Style.RESET_ALL)
+        sgdb_key = get_setting(Settings.STEAMGRIDDB_API_KEY) or ""
+        create_shortcut(appid, game_name, sgdb_api_key=sgdb_key)
+        return MainReturnCode.LOOP_NO_PROMPT
+
+    @music_toggle_decorator
+    def check_game_updates_menu(self):
+        from sff.manifest.update_check import check_game_updates
+        print(Fore.CYAN + "\n=== Check Game Updates ===" + Style.RESET_ALL)
+        results = check_game_updates(self.provider)
+        if not results:
+            print("No tracked games found. Download a game first to enable update tracking.")
+        else:
+            for appid, status, detail in results:
+                if status == "update_available":
+                    print(Fore.YELLOW + f"  {appid}: UPDATE AVAILABLE — {detail}" + Style.RESET_ALL)
+                elif status == "up_to_date":
+                    print(Fore.GREEN + f"  {appid}: Up to date" + Style.RESET_ALL)
+                else:
+                    print(f"  {appid}: {detail}")
         return MainReturnCode.LOOP_NO_PROMPT
 
     @music_toggle_decorator

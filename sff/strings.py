@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
-VERSION = "4.9.1"
+VERSION = "5.0.0"
 # NOTE: Public key shared by oureveryday (https://github.com/SteamAutoCracks/Steam-auto-crack/issues/33)
 STEAM_WEB_API_KEY = "1DD0450A99F573693CD031EBB160907D"
 GITHUB_USERNAME = "Midrags"

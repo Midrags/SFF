@@ -150,6 +150,13 @@ def main(ui, args: argparse.Namespace):
     if linux_ach_opt and menu_choice == linux_ach_opt:
         return ui.linux_achievements_handler()
 
+    linux_shortcuts_opt = getattr(MainMenu, "LINUX_SHORTCUTS", None)
+    if linux_shortcuts_opt and menu_choice == linux_shortcuts_opt:
+        return ui.linux_shortcuts_handler()
+
+    if menu_choice == MainMenu.CHECK_GAME_UPDATES:
+        return ui.check_game_updates_menu()
+
     if menu_choice in GAME_SPECIFIC_CHOICES:
         return ui.handle_game_specific(menu_choice)
 
@@ -274,6 +281,14 @@ if __name__ == "__main__":
         input("Press Enter to exit the program...")
         sys.exit()
     logger.debug(f"Init finished in {time.time() - start_time}s")
+
+    if os_type == OSType.WINDOWS:
+        try:
+            from sff.storage.vdf import auto_fix_greenluma_offline
+            if auto_fix_greenluma_offline(steam_path):
+                print(Fore.YELLOW + "Auto-fixed Offline Mode to prevent GreenLuma issues." + Style.RESET_ALL)
+        except Exception:
+            pass
     return_code = None
     first_launch = True
     while True:

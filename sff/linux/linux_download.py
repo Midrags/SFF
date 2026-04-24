@@ -77,6 +77,7 @@ def _build_game_data(lua_parsed, steam_path: Path) -> dict:
         "buildid": "0",
         "depots": depots_dict,
         "manifests": manifests,
+        "token": getattr(lua_parsed, "app_token", ""),
     }
 
 
@@ -128,49 +129,37 @@ def _move_manifests_to_depotcache(dest_path: Path, print_fn=print) -> None:
 
 def _add_to_slssteam(game_data: dict, selected_depots: list, steam_path: Path, print_fn=print) -> None:
     try:
-        from sff.app_injector.sls import SLSManager
-        sls = SLSManager(steam_path, None)
+        from sff.linux import yaml_config
 
-        appid_int = int(game_data["appid"])
-        sls.add_ids(appid_int)
+        config_path = yaml_config.get_user_config_path()
+        if not config_path.exists():
+            print_fn(Fore.YELLOW + "SLSsteam config not found — skipping config update." + Style.RESET_ALL)
+            return
+
+        appid = str(game_data["appid"])
+        game_name = game_data.get("game_name", "")
+
+        yaml_config.add_additional_app(config_path, appid, game_name)
+        print_fn(f"Added AppID {appid} to SLSsteam config.")
 
         token = game_data.get("token")
         if token:
-            from sff.storage.settings import get_setting
-            from sff.structs import Settings
-            try:
-                import yaml
-                config_path = sls.sls_config_path
-                with config_path.open(encoding="utf-8") as f:
-                    cfg = yaml.safe_load(f)
-                if isinstance(cfg, dict):
-                    tokens = cfg.setdefault("AppTokens", {})
-                    tokens[str(game_data["appid"])] = token
-                    with config_path.open("w", encoding="utf-8") as f:
-                        yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
-            except Exception as e:
-                print_fn(Fore.YELLOW + f"Could not write AppToken: {e}" + Style.RESET_ALL)
+            yaml_config.add_app_token(config_path, appid, token)
+            print_fn(f"Added AppToken for {appid}.")
 
         dlcs = [
             dp for dp in selected_depots
-            if str(dp) != str(game_data["appid"])
+            if str(dp) != appid
         ]
         if len(dlcs) > 64:
-            try:
-                import yaml
-                config_path = sls.sls_config_path
-                with config_path.open(encoding="utf-8") as f:
-                    cfg = yaml.safe_load(f)
-                if isinstance(cfg, dict):
-                    dlc_data = cfg.setdefault("DlcData", {})
-                    app_entry = dlc_data.setdefault(str(game_data["appid"]), {})
-                    for dlc_id in dlcs:
-                        app_entry[str(dlc_id)] = {}
-                    with config_path.open("w", encoding="utf-8") as f:
-                        yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True)
-                    print_fn(f"Added {len(dlcs)} DLCs to SLSsteam DlcData.")
-            except Exception as e:
-                print_fn(Fore.YELLOW + f"Could not write DlcData: {e}" + Style.RESET_ALL)
+            for dlc_id in dlcs:
+                yaml_config.add_dlc_data(config_path, appid, str(dlc_id))
+            print_fn(f"Added {len(dlcs)} DLCs to SLSsteam DlcData.")
+
+        yaml_config.ensure_slssteam_api_enabled(config_path)
+
+        from sff.linux.slssteam import api_send
+        api_send("RELOAD")
 
     except Exception as e:
         print_fn(Fore.YELLOW + f"SLSsteam config update failed: {e}" + Style.RESET_ALL)
@@ -237,6 +226,13 @@ def handle_linux_download(steam_path: Path) -> None:
 
     ok = depot_downloader.run_download(game_data, selected_depots, dest_path)
 
+    if ok and game_data.get("manifests"):
+        try:
+            from sff.manifest.update_check import save_depot_tracking
+            save_depot_tracking(appid, game_data["manifests"], game_data.get("token", ""))
+        except Exception:
+            pass
+
     acf_writer.create_acf(game_data, dest_path, selected_depots)
 
     _move_manifests_to_depotcache(dest_path)
@@ -247,6 +243,18 @@ def handle_linux_download(steam_path: Path) -> None:
         pass
 
     _add_to_slssteam(game_data, selected_depots, steam_path)
+
+    if prompt_confirm("Add FakeAppId for online multiplayer? (maps to Spacewar 480)"):
+        try:
+            from sff.linux import yaml_config
+            config_path = yaml_config.get_user_config_path()
+            if config_path.exists():
+                yaml_config.add_fake_app_id(config_path, appid, game_name)
+                print(f"FakeAppId {appid} → 480 (Spacewar) added.")
+            else:
+                print(Fore.YELLOW + "SLSsteam config not found — skipping." + Style.RESET_ALL)
+        except Exception as e:
+            print(Fore.YELLOW + f"Could not add FakeAppId: {e}" + Style.RESET_ALL)
 
     game_dir = dest_path / "steamapps" / "common" / game_data["installdir"]
     if game_dir.exists():

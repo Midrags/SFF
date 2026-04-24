@@ -572,7 +572,7 @@ class SFFMainWindow(QMainWindow):
         layout = QVBoxLayout(dlg)
         layout.addWidget(QLabel("Double-click a setting to edit. Select and press Delete to clear."))
         win_only = {Settings.APPLIST_FOLDER, Settings.GL_VERSION}
-        linux_only = {Settings.SLS_CONFIG_LOCATION}
+        linux_only = {Settings.SLS_CONFIG_LOCATION, Settings.STEAMGRIDDB_API_KEY}
         skip: set[Settings] = set()
         if sys.platform == "win32":
             skip = linux_only

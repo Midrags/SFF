@@ -28,7 +28,7 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
-- **Linux support** — SLSSteam ID management, platform-aware MIDI, and Linux-compatible auto-update.
+- **Linux support** — SLSsteam integration (YAML config, API pipe, FakeAppIds), desktop shortcuts with icon fetching, game update tracker, platform-aware MIDI, and Linux-compatible auto-update.
 - **Fast SteamDB manifest history** — 3-layer CF bypass (curl_cffi → cached cookie → SeleniumBase). Warm runs ~10-35s. Full DLC depot history included.
 
 ---

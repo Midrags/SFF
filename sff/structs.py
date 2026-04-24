@@ -70,6 +70,8 @@ class MainMenu(Enum):
         LINUX_SETUP = "Set up Linux tools (SLSsteam + .NET 9)"
         LINUX_DOWNLOAD = "Download a game (Linux)"
         LINUX_ACHIEVEMENTS = "Generate achievements (SLScheevo)"
+        LINUX_SHORTCUTS = "Create Linux desktop shortcut"
+    CHECK_GAME_UPDATES = "Check game update status"
     ANALYTICS = "View analytics dashboard"
     CHECK_UPDATES = "Check for updates"
     INSTALL_MENU = "Install/Uninstall Context Menu"
@@ -213,6 +215,7 @@ class Settings(Enum):
     MANIFESTHUB_API_KEY = SettingItem("manifesthub_api_key", "ManifestHub API Key (manifesthub1.filegear-sg.me, 24h)", True, str)
     MANIFESTHUB_KEY_EXPIRY = SettingItem("manifesthub_key_expiry", "ManifestHub Key Expiry (UTC epoch, managed automatically)", False, str)
     LANGUAGE = SettingItem("language", "Language (Requires Restart)", False, list(SupportedLanguages))
+    STEAMGRIDDB_API_KEY = SettingItem("steamgriddb_api_key", "SteamGridDB API Key (optional, for shortcut icons)", True, str)
 
     @property
     def key_name(self):
@@ -324,6 +327,8 @@ class LuaParsedInfo(RawLua):
     app_id: str
     "The base app ID"
     depots: list[DepotKeyPair]
+    app_token: str = ""
+    "PICS access token from addtoken() in Lua (optional)"
 
 
 NamedIDs = NewType("NamedIDs", dict[str, str])

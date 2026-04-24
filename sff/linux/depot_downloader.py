@@ -121,4 +121,10 @@ def run_download(
     except Exception:
         pass
 
+    try:
+        import shutil
+        shutil.rmtree(MANIFESTS_TMP, ignore_errors=True)
+    except Exception:
+        pass
+
     return all_ok

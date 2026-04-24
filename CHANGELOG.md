@@ -4,6 +4,27 @@ All notable changes to SteaMidra are documented here.
 
 ---
 
+## 5.0.0
+
+### ACCELA Linux Integration
+- **Robust YAML config manager** — atomic writes with backups for SLSsteam `config.yaml`. Targeted section edits, indentation fixes, and safe concurrent access.
+- **App token extraction** — `addtoken()` calls in Lua files are now parsed automatically and passed to depot downloads for authenticated access.
+- **FakeAppIds prompt** — after a successful Linux download, SteaMidra prompts to add the game's AppID to the SLSsteam FakeAppIds list.
+- **SLSsteam API pipe** — sends config reload signals to a running SLSsteam instance via `/tmp/SLSsteam.API`, so changes take effect without restarting Steam.
+- **SLSsteam bug fixes** — corrected Flatpak LD_AUDIT path, added `.so` file copy fallback, fixed hash URL for update checks.
+- **GreenLuma auto offline fix** — on Windows startup, automatically resets Steam's `WantsOfflineMode` if GreenLuma is detected, preventing the "offline mode" loop.
+- **Depot Downloader cleanup** — temporary manifest files are now cleaned up after all downloads complete.
+- **Linux desktop shortcuts** — create `.desktop` shortcuts for installed games with icon fetching from Steam CDN (SteamGridDB as optional fallback).
+- **Game update tracker** — saves depot manifest IDs after download and checks for updates against the Steam API on demand.
+
+### online-fix.me Multiplayer Fix
+- **OFME files excluded** — online-fix.me blocks direct download of full game (OFME) packages; SteaMidra now navigates straight to the Fix Repair subfolder and downloads only the fix archive.
+
+### Version bump
+- 4.9.1 → 5.0.0
+
+---
+
 ## 4.9.1
 
 ### online-fix.me Multiplayer Fix — complete rewrite

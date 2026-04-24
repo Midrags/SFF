@@ -124,3 +124,27 @@ def ensure_library_has_app(steam_path, library_path, app_id):
         return False
     except Exception:
         return False
+
+
+def auto_fix_greenluma_offline(steam_path: Path) -> bool:
+    """Auto-fix WantsOfflineMode on startup to prevent GreenLuma breakage.
+
+    When Steam is closed with Offline Mode enabled, launching with GreenLuma
+    can break Steam.  This sets WantsOfflineMode to "0" for all users.
+    Returns True if a fix was applied.
+    """
+    login_file = steam_path / "config" / "loginusers.vdf"
+    if not login_file.exists():
+        return False
+    try:
+        data = vdf_load(login_file)
+        fixed = False
+        for user in data.get("users", {}).values():
+            if user.get("WantsOfflineMode") == "1":
+                user["WantsOfflineMode"] = "0"
+                fixed = True
+        if fixed:
+            vdf_dump(login_file, data)
+        return fixed
+    except Exception:
+        return False

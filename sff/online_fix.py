@@ -42,7 +42,7 @@ import httpx
 from colorama import Fore, Style
 from tqdm import tqdm
 
-from sff.prompts import prompt_secret, prompt_text
+from sff.prompts import prompt_secret, prompt_select, prompt_text
 from sff.storage.settings import Settings, get_setting, set_setting
 from sff.utils import root_folder
 
@@ -258,7 +258,10 @@ def _extract_archive_with_backup(archive, target, atype, apath, game_name, pwd="
 
 
 def _find_archives_recursive(driver):
-    """Pierce through all iframes recursively to find .rar/.zip/.7z download links."""
+    """Pierce through all iframes recursively to find .rar/.zip/.7z download links.
+
+    Returns a list of (score, url) tuples.
+    """
     from selenium.webdriver.common.by import By
     results = []
     exts = [".rar", ".zip", ".7z"]
@@ -272,8 +275,6 @@ def _find_archives_recursive(driver):
                     text = (lnk.text or "").strip().lower()
                     full = urljoin(driver.current_url, href)
                     if any(full.lower().endswith(ext) for ext in exts):
-                        if "ofme" in full.lower():
-                            continue
                         score = 0
                         if "fix" in full.lower() or "fix" in text:
                             score += 10
@@ -559,11 +560,11 @@ def _run_multiplayer_fix_process(game_name, game_folder, username, password, aty
                     print(Fore.RED + "✗ Access denied after 3 refresh attempts." + Style.RESET_ALL)
                     return False
                 browser_401_retries = 0
-                # Enter subdirectory first (Fix Repair, Generic, etc.) before scanning root
+                # Enter subdirectory first (Fix Repair, Generic, etc.) before scanning
                 if _try_enter_subfolder(driver):
                     time.sleep(2)
                     continue
-                # Scan for archives at current level (OFME files excluded)
+                # Scan for archives at current level
                 archives = _find_archives_recursive(driver)
                 if archives:
                     break
