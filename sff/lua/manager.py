@@ -48,9 +48,6 @@ _DEPOT_DEC_KEY_REGEX = re.compile(
     flags=re.MULTILINE,
 )
 _GENERAL_ADDAPPID_REGEX = re.compile(r"^\s*addappid\s*\(\s*(\d+)", flags=re.MULTILINE)
-_ADDTOKEN_REGEX = re.compile(
-    r'addtoken\s*\(\s*\d+\s*,\s*"([^"]+)"\s*\)', flags=re.IGNORECASE
-)
 
 
 def parse_lua_contents(contents, path):
@@ -67,9 +64,7 @@ def parse_lua_contents(contents, path):
         return None
     depot_pairs = [DepotKeyPair(*x) for x in depot_dec_key]
     depot_pairs.extend([DepotKeyPair(x, "") for x in ids_with_no_key])
-    token_match = _ADDTOKEN_REGEX.search(contents)
-    app_token = token_match.group(1) if token_match else ""
-    return LuaParsedInfo(path, contents, app_id, depot_pairs, app_token=app_token)
+    return LuaParsedInfo(path, contents, app_id, depot_pairs)
 
 
 class LuaManager:

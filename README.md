@@ -24,11 +24,12 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
 - Download and use Lua files for games, download manifests, and set up GreenLuma.
 - Write Lua and manifest data into Steam's config so games work with or without an extra injector.
-- Multiplayer fixes: **online-fix.me** integration (fully automated — Cloudflare bypass, ad blocking, smart file server navigation) and **game fixes/bypasses (Ryuu)**.
+- Multiplayer fixes: **CreamAPI Multiplayer Fix** (bundled, no account needed — spoofs AppID to Spacewar 480) and **online-fix.me** integration. Also **game fixes/bypasses (Ryuu)**.
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
-- **Linux support** — SLSsteam integration (YAML config, API pipe, FakeAppIds), desktop shortcuts with icon fetching, game update tracker, platform-aware MIDI, and Linux-compatible auto-update.
+- **Linux support** — SLSSteam ID management, platform-aware MIDI, and Linux-compatible auto-update.
+- **Direct game download** — Store tab downloads game files via DepotDownloaderMod, writes the ACF with the correct build ID and latest manifest IDs so Steam shows Play immediately after install.
 - **Fast SteamDB manifest history** — 3-layer CF bypass (curl_cffi → cached cookie → SeleniumBase). Warm runs ~10-35s. Full DLC depot history included.
 
 ---

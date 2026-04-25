@@ -155,6 +155,49 @@ class SFFMainWindow(QMainWindow):
         scroll.setWidget(scroll_widget)
         main_tab_layout.addWidget(scroll, stretch=1)
         self.tabs.addTab(main_tab_widget, "Main")
+        from sff.gui.help_buttons import add_help_button
+        add_help_button(
+            layout,
+            "Main Hub",
+            "SteaMidra Main Hub\n\n"
+            "Game / Path:\n"
+            "  Select a Steam game from the dropdown or browse to a game\n"
+            "  folder outside Steam. Used by all Game Actions below.\n\n"
+            "Game Actions:\n"
+            "  - Crack game (gbe_fork): Replace steam_api DLLs with Goldberg\n"
+            "    Emulator so the game runs without Steam ownership.\n"
+            "  - Remove SteamStub: Strip Valve's SteamStub DRM wrapper from\n"
+            "    a game executable using Steamless.\n"
+            "  - UserGameStats: Download achievement data for the selected game.\n"
+            "  - DLC check: See which DLCs exist and which are unlocked.\n"
+            "  - Workshop item: Download a Steam Workshop mod by ID.\n"
+            "  - Open Workshop: Browse the Workshop for the selected game.\n"
+            "  - Check mod updates: See if downloaded Workshop mods have\n"
+            "    newer versions available.\n"
+            "  - Multiplayer fix: Apply online-fix.me multiplayer patches.\n"
+            "  - Fixes/Bypasses (Ryuu): Apply community-maintained fixes.\n"
+            "  - DLC Unlockers: Manage CreamAPI / SmokeAPI / other DLC\n"
+            "    unlocker DLLs for the selected game.\n"
+            "  - SteamAutoCrack: Run the SteamAutoCrack CLI tool on the game.\n\n"
+            "Lua / Manifest Processing:\n"
+            "  - Download Games: Parse a .lua file and download all game\n"
+            "    files (depots, manifests, ACF) to your Steam library.\n"
+            "  - Download manifests only: Download just the .manifest files\n"
+            "    without game content.\n"
+            "  - Recent .lua files: Re-open a previously used .lua file.\n"
+            "  - Update all manifests: Refresh manifests for all previously\n"
+            "    downloaded games.\n\n"
+            "Library & Steam Tools:\n"
+            "  - Manage AppList IDs: Add/remove App IDs in the GreenLuma\n"
+            "    AppList folder so Steam shows them in your library.\n"
+            "  - Offline mode fix: Patch config.vdf so Steam starts in\n"
+            "    offline mode reliably.\n"
+            "  - Mute: Toggle background music on/off.\n"
+            "  - Remove game from library: Remove a game's ACF and AppList entry.\n"
+            "  - Context menu: Add/remove SteaMidra from Windows Explorer\n"
+            "    right-click menu.",
+            parent_widget=self,
+        )
         from sff.gui.store_tab import StoreTab
         from sff.gui.downloads_tab import DownloadsTab
         from sff.gui.fix_game_tab import FixGameTab
@@ -239,7 +282,22 @@ class SFFMainWindow(QMainWindow):
         # ── Game Actions (need selected game) ────────────────────
         game_actions_group = QGroupBox(T("Game Actions"))
         ga_layout = QVBoxLayout(game_actions_group)
+        ga_layout.setSpacing(6)
+        _TOOLTIPS = {
+            T("Crack game (gbe_fork)"): "Replace steam_api DLLs with Goldberg Emulator",
+            T("Remove SteamStub (Steamless)"): "Strip Valve's SteamStub DRM from a game executable",
+            T("UserGameStats"): "Download achievement / stats data for this game",
+            T("DLC check"): "See which DLCs exist and which are unlocked",
+            T("Workshop item"): "Download a Steam Workshop mod by its ID",
+            T("Open Workshop"): "Browse the Steam Workshop for this game",
+            T("Check mod updates"): "Check if downloaded Workshop mods have newer versions",
+            T("Multiplayer fix"): "Apply online-fix.me multiplayer patches",
+            T("Fixes/Bypasses (Ryuu)"): "Apply community-maintained fixes from Ryuu's collection",
+            T("DLC Unlockers"): "Manage CreamAPI / SmokeAPI / other DLC unlocker DLLs",
+            T("SteamAutoCrack"): "Run the SteamAutoCrack CLI tool on this game",
+        }
         row1 = QHBoxLayout()
+        row1.setSpacing(4)
         for label, choice in [
             (T("Crack game (gbe_fork)"), MainMenu.CRACK_GAME),
             (T("Remove SteamStub (Steamless)"), MainMenu.REMOVE_DRM),
@@ -247,11 +305,13 @@ class SFFMainWindow(QMainWindow):
             (T("DLC check"), MainMenu.DLC_CHECK),
         ]:
             btn = QPushButton(label)
+            btn.setToolTip(_TOOLTIPS.get(label, ""))
             btn.clicked.connect(lambda checked=False, c=choice: self._run_game_action(c))
             row1.addWidget(btn)
         row1.addStretch()
         ga_layout.addLayout(row1)
         row2 = QHBoxLayout()
+        row2.setSpacing(4)
         for label, choice in [
             (T("Workshop item"), MainMenu.DL_WORKSHOP_ITEM),
             (T("Open Workshop"), None),
@@ -262,6 +322,7 @@ class SFFMainWindow(QMainWindow):
             (T("SteamAutoCrack"), None),
         ]:
             btn = QPushButton(label)
+            btn.setToolTip(_TOOLTIPS.get(label, ""))
             if choice is not None:
                 btn.clicked.connect(lambda checked=False, c=choice: self._run_game_action(c))
             elif label == T("SteamAutoCrack"):
@@ -572,7 +633,7 @@ class SFFMainWindow(QMainWindow):
         layout = QVBoxLayout(dlg)
         layout.addWidget(QLabel("Double-click a setting to edit. Select and press Delete to clear."))
         win_only = {Settings.APPLIST_FOLDER, Settings.GL_VERSION}
-        linux_only = {Settings.SLS_CONFIG_LOCATION, Settings.STEAMGRIDDB_API_KEY}
+        linux_only = {Settings.SLS_CONFIG_LOCATION}
         skip: set[Settings] = set()
         if sys.platform == "win32":
             skip = linux_only

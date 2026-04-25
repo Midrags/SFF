@@ -95,6 +95,24 @@ class CloudSavesTab(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
+        from sff.gui.help_buttons import add_help_button
+        add_help_button(
+            layout,
+            "Cloud Saves",
+            "Cloud Saves — Backup & Restore\n\n"
+            "Backup and restore Steam cloud save files. Useful for\n"
+            "transferring saves between accounts or keeping a safety copy.\n\n"
+            "Setup:\n"
+            "  1. Set your Steam installation path.\n"
+            "  2. Enter your Steam32 ID (find yours at steamid.xyz).\n"
+            "  3. Click 'Scan Games' to find games with save data.\n\n"
+            "Backup: Select a game and destination folder. Creates a\n"
+            "  structured backup of the game's remote/ save folder.\n\n"
+            "Import (Restore): Browse to a previously created backup\n"
+            "  folder and restore saves back to Steam. Your current saves\n"
+            "  are automatically backed up first as a safety measure.",
+            parent_widget=self,
+        )
         # ── Setup group ──────────────────────────────────────────
         setup_group = QGroupBox("Steam Setup")
         setup_layout = QVBoxLayout(setup_group)

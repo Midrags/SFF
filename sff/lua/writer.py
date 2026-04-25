@@ -18,10 +18,13 @@
 
 
 import shutil
+import time
 
 from dataclasses import dataclass
 
 from pathlib import Path
+
+import sys
 
 from typing import Optional
 
@@ -109,6 +112,69 @@ class ACFWriter:
             # Clear stale error state so Steam doesn't keep retrying a
             # failed update — this is what causes "NO INTERNET CONNECTION"
             self._patch_acf_error_state(acf_file)
+
+    def write_acf_direct(
+        self,
+        lua: LuaParsedInfo,
+        manifest_override: Optional[dict] = None,
+        size_on_disk: int = 0,
+        buildid: str = "0",
+        empty_depots: bool = False,
+    ):
+        app_name = get_game_name(lua.app_id)
+        app_id_str = str(lua.app_id)
+        installdir = sanitize_filename(app_name).replace("'", "").strip()
+        if not installdir:
+            installdir = app_id_str
+            print(
+                f"Warning: could not determine install directory name. "
+                f"Using '{installdir}' as fallback — rename the folder manually if needed."
+            )
+        print(f"installdir will be set to: {installdir}")
+        acf_file = self.steam_lib_path / f"steamapps/appmanifest_{lua.app_id}.acf"
+        app_state: dict = {
+            "appid": app_id_str,
+            "Universe": "1",
+            "name": app_name,
+            "StateFlags": "4",
+            "installdir": installdir,
+            "LastUpdated": str(int(time.time())),
+            "UpdateResult": "0",
+            "SizeOnDisk": str(size_on_disk),
+            "buildid": str(buildid),
+        }
+        if manifest_override:
+            if empty_depots:
+                app_state["InstalledDepots"] = {}
+            elif sys.platform == "win32":
+                app_state["InstalledDepots"] = {
+                    str(depot_id): {"manifest": str(manifest_id), "size": "0"}
+                    for depot_id, manifest_id in manifest_override.items()
+                }
+                app_state["MountedDepots"] = {
+                    str(depot_id): str(manifest_id)
+                    for depot_id, manifest_id in manifest_override.items()
+                }
+            else:
+                app_state["InstalledDepots"] = {}
+                app_state["UserConfig"] = {
+                    "platform_override_dest": "linux",
+                    "platform_override_source": "windows",
+                }
+                app_state["MountedConfig"] = {
+                    "platform_override_dest": "linux",
+                    "platform_override_source": "windows",
+                }
+            print(
+                f"InstalledDepots set for {len(manifest_override)} depot(s) → "
+                + ", ".join(
+                    f"{d}:{m}" for d, m in list(manifest_override.items())[:3]
+                )
+                + ("..." if len(manifest_override) > 3 else "")
+            )
+        acf_contents = {"AppState": app_state}
+        vdf_dump(acf_file, acf_contents)
+        print(f"Wrote .acf file to {acf_file}")
 
     @staticmethod
 

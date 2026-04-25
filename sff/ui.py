@@ -239,7 +239,7 @@ class UI:
 
     def _edit_settings_submenu(self):
         win_only = [Settings.APPLIST_FOLDER, Settings.GL_VERSION]
-        linux_only = [Settings.SLS_CONFIG_LOCATION, Settings.STEAMGRIDDB_API_KEY]
+        linux_only = [Settings.SLS_CONFIG_LOCATION]
         if self.os_type == OSType.WINDOWS:
             ignore = linux_only
         elif self.os_type == OSType.LINUX:
@@ -881,11 +881,13 @@ class UI:
 
     def process_from_store(self, app_id: str, manifest_override: dict, use_hubcap: bool):
         """Full download pipeline triggered from the Store tab version picker.
-        Works identically to process_lua_full but:
-        - app_id and source are already known (no prompts for those)
-        - manifest IDs come from the user's version picker selection, not auto-fetch
+        Downloads game files via DepotDownloaderMod, then writes ACF so
+        Steam shows a Play button instead of Update/Install.
         """
         import time
+        from pathvalidate import sanitize_filename
+        from sff.dotnet_utils import ensure_dotnet_9
+        from sff.depot_downloader import run_download, MANIFESTS_TMP
         from sff.lua.choices import download_lua_direct
         from sff.lua.manager import parse_lua_contents
         start_time = time.time()
@@ -954,27 +956,80 @@ class UI:
             str(parsed_lua.app_id),
             backup_target,
         )
-        print(Fore.YELLOW + "\nACF Writing:" + Style.RESET_ALL)
-        acf.write_acf(parsed_lua)
-        acf.patch_workshop_acf(parsed_lua)
-        ensure_library_has_app(self.steam_path, lib_path, str(parsed_lua.app_id))
-        print(
-            Fore.YELLOW
-            + f"\nDownloading {len(manifest_override)} selected manifest(s):"
-            + Style.RESET_ALL
-        )
         use_parallel = get_setting(Settings.USE_PARALLEL_DOWNLOADS)
+        print(Fore.YELLOW + "\nPre-downloading manifests for DepotDownloaderMod:" + Style.RESET_ALL)
         if use_parallel:
             downloader.download_manifests_parallel(parsed_lua, auto_manifest=False, manifest_override=manifest_override)
         else:
             downloader.download_manifests(parsed_lua, auto_manifest=False, manifest_override=manifest_override)
+        print(Fore.YELLOW + "\nChecking .NET 9 runtime:" + Style.RESET_ALL)
+        if not ensure_dotnet_9():
+            print(Fore.RED + ".NET 9 is required for DepotDownloaderMod. Aborting download." + Style.RESET_ALL)
+            return MainReturnCode.LOOP_NO_PROMPT
+        game_name_str = get_game_name(parsed_lua.app_id)
+        installdir = sanitize_filename(game_name_str).replace("'", "").strip()
+        if not installdir:
+            installdir = str(parsed_lua.app_id)
+        game_data = {
+            "appid": str(parsed_lua.app_id),
+            "depots": {
+                dp.depot_id: {"key": dp.decryption_key}
+                for dp in parsed_lua.depots
+                if dp.decryption_key
+            },
+            "manifests": manifest_override,
+            "installdir": installdir,
+        }
+        selected_depots = list(manifest_override.keys())
+        print(Fore.YELLOW + "\nDownloading game files via DepotDownloaderMod:" + Style.RESET_ALL)
+        download_ok, size_on_disk = run_download(
+            game_data, selected_depots, lib_path, self.steam_path, print_fn=print,
+        )
+        try:
+            import shutil as _shutil
+            _shutil.rmtree(MANIFESTS_TMP, ignore_errors=True)
+        except Exception:
+            pass
+        _depotcache = lib_path / "depotcache"
+        for _did, _mid in manifest_override.items():
+            try:
+                (_depotcache / f"{_did}_{_mid}.manifest").unlink(missing_ok=True)
+            except Exception:
+                pass
+        buildid = "0"
+        acf_manifest_map = dict(manifest_override)
+        try:
+            app_data = provider.get_single_app_info(int(parsed_lua.app_id))
+            bid = (
+                app_data.get("depots", {})
+                .get("branches", {})
+                .get("public", {})
+                .get("buildid")
+            )
+            if bid:
+                buildid = str(bid)
+                print(Fore.GREEN + f"Resolved buildid: {buildid}" + Style.RESET_ALL)
+            else:
+                print(Fore.YELLOW + "Could not resolve buildid from Steam API — using 0" + Style.RESET_ALL)
+            all_depots = app_data.get("depots", {})
+            for depot_id in list(acf_manifest_map.keys()):
+                mani_pub = all_depots.get(str(depot_id), {}).get("manifests", {}).get("public", {})
+                latest_gid = mani_pub.get("gid") if isinstance(mani_pub, dict) else mani_pub
+                if latest_gid:
+                    acf_manifest_map[depot_id] = str(latest_gid)
+        except Exception as exc:
+            print(Fore.YELLOW + f"Warning: Failed to fetch buildid/latest manifest GIDs: {exc}" + Style.RESET_ALL)
+        print(Fore.YELLOW + "\nACF Writing (post-download):" + Style.RESET_ALL)
+        acf.write_acf_direct(parsed_lua, acf_manifest_map, size_on_disk, buildid=buildid)
+        acf.patch_workshop_acf(parsed_lua)
+        ensure_library_has_app(self.steam_path, lib_path, str(parsed_lua.app_id))
         if self.download_manager and _tracking_item:
-            self.download_manager.complete_external(_tracking_item, success=True)
+            self.download_manager.complete_external(_tracking_item, success=download_ok)
         duration = time.time() - start_time
         self.analytics_tracker.record_operation(
             "process_from_store",
             app_id=int(parsed_lua.app_id),
-            success=True,
+            success=download_ok,
             duration=duration,
         )
         self.notification_service.show_success(
@@ -983,11 +1038,19 @@ class UI:
         )
         if steam_proc:
             steam_proc.prompt_launch_or_restart()
-        print(
-            Fore.GREEN
-            + "\nSuccess! Your game should show up in the library ready to \"update\"."
-            + Style.RESET_ALL
-        )
+        if download_ok:
+            print(
+                Fore.GREEN
+                + "\nDownload complete! Game ready to play."
+                + Style.RESET_ALL
+            )
+        else:
+            print(
+                Fore.YELLOW
+                + "\nDownload finished with warnings. Check output above. "
+                + "Game may still work — try launching from Steam."
+                + Style.RESET_ALL
+            )
         return MainReturnCode.LOOP
 
     def manage_context_menu(self):
@@ -1468,40 +1531,6 @@ class UI:
     def linux_achievements_handler(self):
         from sff.linux.linux_download import handle_linux_achievements
         handle_linux_achievements(self.steam_path)
-        return MainReturnCode.LOOP_NO_PROMPT
-
-    @music_toggle_decorator
-    def linux_shortcuts_handler(self):
-        from sff.linux.desktop_shortcuts import create_shortcut
-        from sff.prompts import prompt_text
-        from sff.storage.settings import get_setting
-        appid = prompt_text("Enter the App ID for the shortcut:")
-        if not appid or not appid.strip().isdigit():
-            print(Fore.RED + "Invalid App ID." + Style.RESET_ALL)
-            return MainReturnCode.LOOP_NO_PROMPT
-        appid = appid.strip()
-        from sff.steam_store import get_app_name_from_store
-        game_name = get_app_name_from_store(int(appid)) or f"App {appid}"
-        print(Fore.CYAN + f"Creating shortcut for: {game_name} ({appid})" + Style.RESET_ALL)
-        sgdb_key = get_setting(Settings.STEAMGRIDDB_API_KEY) or ""
-        create_shortcut(appid, game_name, sgdb_api_key=sgdb_key)
-        return MainReturnCode.LOOP_NO_PROMPT
-
-    @music_toggle_decorator
-    def check_game_updates_menu(self):
-        from sff.manifest.update_check import check_game_updates
-        print(Fore.CYAN + "\n=== Check Game Updates ===" + Style.RESET_ALL)
-        results = check_game_updates(self.provider)
-        if not results:
-            print("No tracked games found. Download a game first to enable update tracking.")
-        else:
-            for appid, status, detail in results:
-                if status == "update_available":
-                    print(Fore.YELLOW + f"  {appid}: UPDATE AVAILABLE — {detail}" + Style.RESET_ALL)
-                elif status == "up_to_date":
-                    print(Fore.GREEN + f"  {appid}: Up to date" + Style.RESET_ALL)
-                else:
-                    print(f"  {appid}: {detail}")
         return MainReturnCode.LOOP_NO_PROMPT
 
     @music_toggle_decorator

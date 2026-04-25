@@ -17,10 +17,8 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 import hashlib
-import logging
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -59,10 +57,10 @@ def patch_steam_sh(steam_path: Path, print_fn=print) -> bool:
 
     is_flatpak = ".var/app/com.valvesoftware.Steam" in str(steam_path)
     if is_flatpak:
-        flatpak_sls = Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / ".local" / "share" / "SLSsteam"
+        flatpak_base = Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / "data" / "Steam"
         ld_audit = (
-            f"{flatpak_sls}/library-inject.so"
-            f":{flatpak_sls}/SLSsteam.so"
+            f"{flatpak_base}/.local/share/SLSsteam/library-inject.so"
+            f":{flatpak_base}/.local/share/SLSsteam/SLSsteam.so"
         )
     else:
         ld_audit = (
@@ -126,12 +124,8 @@ def install_bundled(steam_path: Path, print_fn=print) -> bool:
         return False
 
     ensure_default_config()
-    _copy_so_to_flatpak(steam_path, print_fn)
     patch_steam_sh(steam_path, print_fn)
     create_steam_cfg(steam_path, print_fn)
-    version_file = Path.home() / ".local" / "share" / "SteaMidra" / "SLSsteam" / "VERSION"
-    version_file.parent.mkdir(parents=True, exist_ok=True)
-    version_file.write_text("bundled", encoding="utf-8")
     print_fn(Fore.GREEN + "SLSsteam installed successfully." + Style.RESET_ALL)
     return True
 
@@ -222,7 +216,6 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
 
     if success:
         ensure_default_config()
-        _copy_so_to_flatpak(steam_path, print_fn)
         patch_steam_sh(steam_path, print_fn)
         create_steam_cfg(steam_path, print_fn)
         version = data.get("tag_name", "unknown")
@@ -250,81 +243,16 @@ def check_steamclient_hash() -> dict:
 
     try:
         import httpx
-        import yaml
         resp = httpx.get(
-            "https://raw.githubusercontent.com/AceSLS/SLSsteam/refs/heads/main/res/updates.yaml",
+            "https://raw.githubusercontent.com/AceSLS/SLSsteam/main/updates.yaml",
             timeout=10, follow_redirects=True,
         )
         if resp.status_code == 200:
-            data = yaml.safe_load(resp.text)
-            safe_hashes = data.get("SafeModeHashes", {}) if isinstance(data, dict) else {}
-            all_hashes = {
-                h for bucket in safe_hashes.values()
-                if isinstance(bucket, list) for h in bucket
-            }
-            if all_hashes and sha256 not in all_hashes:
+            import re
+            hashes = re.findall(r"hash:\s*([a-fA-F0-9]{64})", resp.text)
+            if hashes and sha256 not in hashes:
                 result["mismatch"] = True
     except Exception:
         pass
 
     return result
-
-
-def _copy_so_to_flatpak(steam_path: Path, print_fn=print) -> bool:
-    """Copy .so files to Flatpak sandbox path if Steam is Flatpak."""
-    if ".var/app/com.valvesoftware.Steam" not in str(steam_path):
-        return False
-    dest = Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / ".local" / "share" / "SLSsteam"
-    dest.mkdir(parents=True, exist_ok=True)
-    for fname in ("SLSsteam.so", "library-inject.so"):
-        src = SLSSTEAM_INSTALL_DIR / fname
-        if src.exists():
-            try:
-                shutil.copy2(src, dest / fname)
-            except Exception as e:
-                print_fn(Fore.YELLOW + f"Could not copy {fname} to Flatpak path: {e}" + Style.RESET_ALL)
-    return True
-
-
-def check_update_available() -> dict:
-    """Check if a newer SLSsteam version is available on GitHub.
-
-    Returns dict: {installed, installed_version, update_available, latest_version}
-    """
-    result = {
-        "installed": is_installed(),
-        "installed_version": None,
-        "update_available": False,
-        "latest_version": None,
-    }
-    version_file = Path.home() / ".local" / "share" / "SteaMidra" / "SLSsteam" / "VERSION"
-    if version_file.exists():
-        result["installed_version"] = version_file.read_text(encoding="utf-8").strip()
-    try:
-        import httpx
-        resp = httpx.get(
-            "https://api.github.com/repos/AceSLS/SLSsteam/releases/latest",
-            timeout=10, follow_redirects=True,
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            latest = data.get("tag_name", "")
-            result["latest_version"] = latest
-            if result["installed_version"] and latest and result["installed_version"] != latest:
-                result["update_available"] = True
-    except Exception:
-        pass
-    return result
-
-
-def api_send(command: str) -> bool:
-    """Send command to running SLSsteam via named pipe."""
-    if sys.platform != "linux":
-        return False
-    try:
-        with open("/tmp/SLSsteam.API", "w") as f:
-            f.write(command)
-            f.flush()
-        return True
-    except OSError:
-        return False

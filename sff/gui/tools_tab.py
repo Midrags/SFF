@@ -42,6 +42,24 @@ class ToolsTab(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
+        from sff.gui.help_buttons import add_help_button
+        add_help_button(
+            layout,
+            "Tools",
+            "Tools — Extra Utilities\n\n"
+            "GBE Token Generator:\n"
+            "  Generate Goldberg Emulator configuration files (user_steam_id,\n"
+            "  account_name, etc.) for games you own on your Steam account.\n"
+            "  Requires a Steam Web API key and the game to be owned by your\n"
+            "  logged-in Steam account.\n"
+            "  Get your API key: steamcommunity.com/dev/apikey\n\n"
+            "VDF Depot Key Extractor:\n"
+            "  Read decryption keys from your Steam config.vdf file. These\n"
+            "  keys are used to decrypt game manifests and are needed for\n"
+            "  downloading older game versions. The extracted keys are shown\n"
+            "  in a table you can copy from.",
+            parent_widget=self,
+        )
         # GBE Token Generator
         gbe_group = QGroupBox("GBE Token Generator")
         gbe_layout = QVBoxLayout(gbe_group)

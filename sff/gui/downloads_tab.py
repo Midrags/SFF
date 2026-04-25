@@ -46,6 +46,23 @@ class DownloadsTab(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
+        from sff.gui.help_buttons import add_help_button
+        add_help_button(
+            layout,
+            "Download Tracking",
+            "Download Tracking\n\n"
+            "Monitor all your game downloads in real-time.\n\n"
+            "Sections:\n"
+            "  - Active Download: Shows the currently downloading game\n"
+            "    with a progress bar and speed indicator.\n"
+            "  - Queue: Games waiting to be downloaded next.\n"
+            "  - Completed: Successfully finished downloads with timestamps.\n"
+            "  - Failed: Downloads that encountered errors. Select one and\n"
+            "    click Retry to try again.\n"
+            "  - Download History: Full log of all past downloads.\n\n"
+            "This tab auto-refreshes every second.",
+            parent_widget=self,
+        )
         # active download
         active_group = QGroupBox("Active Download")
         active_layout = QVBoxLayout(active_group)

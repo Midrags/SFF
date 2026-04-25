@@ -1,0 +1,4 @@
+# Multiplayer fix (online-fix.me) deps are in the main requirements.
+# Install everything with: pip install -r requirements.txt
+# If grpcio-tools fails, use: pip install -r requirements-consumer.txt
+-r requirements.txt

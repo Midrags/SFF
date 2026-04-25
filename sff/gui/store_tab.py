@@ -447,6 +447,29 @@ class StoreTab(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
+        from sff.gui.help_buttons import add_help_button
+        add_help_button(
+            layout,
+            "Store",
+            "Store — Download Older Game Versions\n\n"
+            "Browse the Hubcap Manifest library to find games and their\n"
+            "version history. Pick any past version and download the full\n"
+            "game files directly into your Steam library.\n\n"
+            "How it works:\n"
+            "  1. Enter your free Hubcap API key and click Connect.\n"
+            "  2. Search for a game by name or App ID.\n"
+            "  3. Click 'Download (choose version)' to see all available\n"
+            "     versions grouped by date and source.\n"
+            "  4. Check the version you want and click Download Selected.\n"
+            "  5. The game files are downloaded using DepotDownloaderMod\n"
+            "     and installed to your Steam library automatically.\n\n"
+            "Requirements:\n"
+            "  - Free Hubcap API key (get one at hubcapmanifest.com)\n"
+            "  - .NET 9 runtime (for DepotDownloaderMod)\n\n"
+            "Tip: You can also enter an App ID directly without connecting\n"
+            "to the API — useful for quick lookups.",
+            parent_widget=self,
+        )
         # API key config
         key_group = QGroupBox("API Configuration")
         key_layout = QHBoxLayout(key_group)

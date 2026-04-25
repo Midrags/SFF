@@ -225,6 +225,34 @@ class FixGameTab(QWidget):
         layout = QVBoxLayout(_inner)
         _scroll.setWidget(_inner)
         outer.addWidget(_scroll)
+        from sff.gui.help_buttons import add_help_button
+        add_help_button(
+            layout,
+            "Fix Game",
+            "Fix Game — Make Games Playable\n\n"
+            "Automatically apply a Steam emulator so games run without\n"
+            "Steam ownership verification. Handles DLL replacement,\n"
+            "configuration, and DRM removal in one click.\n\n"
+            "Emulator Modes:\n"
+            "  - Regular: Simplest mode — replaces steam_api.dll with\n"
+            "    Goldberg Emulator. Works for most games.\n"
+            "  - ColdClient Simple: Uses a loader + Python config. Fetches\n"
+            "    DLC info from Steam API automatically. No login needed.\n"
+            "  - ColdClient Advanced: Uses the GSE Fork tool for the best\n"
+            "    DLC and achievement coverage. Can optionally log in with\n"
+            "    Steam credentials for richer data.\n"
+            "  - ColdLoader DLL: Proxy DLL method for games that need it.\n\n"
+            "Options:\n"
+            "  - Auto-unpack SteamStub DRM: Automatically strips Valve's\n"
+            "    DRM wrapper using Steamless before applying the emulator.\n"
+            "  - steam_settings mode: Simple (fast) or Advanced (fetches\n"
+            "    DLCs, languages, depot info).\n"
+            "  - Create Launch.bat: Generates a batch file for ColdClient.\n"
+            "  - Check for Goldberg updates: Downloads the latest emulator\n"
+            "    from GitHub before applying.\n\n"
+            "Revert Changes: Restores original DLLs and removes steam_settings.",
+            parent_widget=self,
+        )
         # --- Target Game ---
         target_group = QGroupBox("Target Game")
         target_layout = QVBoxLayout(target_group)
