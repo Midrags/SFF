@@ -46,7 +46,8 @@ Create a folder anywhere, name it `SteaMidra`, and place `SteaMidra_GUI.exe` and
 Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: https://www.up-4ever.net/lyoi96gger8y
 
 Extract the ZIP — you will see three folders. You only need `NormalModePatch.rar`.
-Extract `NormalModePatch.rar` and place all files from it into your `SteaMidra\Greenluma` folder.
+Extract `NormalModePatch.rar` and place all files from it into your `SteaMidra\Greenluma` folder or inside `steam directory`.
+Create AppList folder where GreenLuma file are located.
 
 ### Step 3: Setup GreenLuma
 
