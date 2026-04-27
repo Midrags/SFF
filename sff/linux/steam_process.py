@@ -42,12 +42,12 @@ _library_inject_so_path_cache: str | None = None
 # Default locations where SLSteam installs its .so files
 _DEFAULT_SLSSTEAM_PATHS = [
     str(Path.home() / ".local" / "share" / "SLSsteam" / "SLSsteam.so"),
-    str(Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / "data" / "Steam" /
+    str(Path.home() / ".var" / "app" / "com.valvesoftware.Steam" /
         ".local" / "share" / "SLSsteam" / "SLSsteam.so"),
 ]
 _DEFAULT_LIBRARY_INJECT_PATHS = [
     str(Path.home() / ".local" / "share" / "SLSsteam" / "library-inject.so"),
-    str(Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / "data" / "Steam" /
+    str(Path.home() / ".var" / "app" / "com.valvesoftware.Steam" /
         ".local" / "share" / "SLSsteam" / "library-inject.so"),
 ]
 

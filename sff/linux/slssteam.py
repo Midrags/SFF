@@ -26,6 +26,8 @@ from colorama import Fore, Style
 
 from sff.utils import root_folder
 
+VERSION_FILE = Path.home() / ".local" / "share" / "SteaMidra" / "SLSsteam" / "VERSION"
+
 SLSSTEAM_INSTALL_DIR = Path.home() / ".local" / "share" / "SLSsteam"
 SLSSTEAM_CONFIG_DIR = Path.home() / ".config" / "SLSsteam"
 
@@ -57,7 +59,7 @@ def patch_steam_sh(steam_path: Path, print_fn=print) -> bool:
 
     is_flatpak = ".var/app/com.valvesoftware.Steam" in str(steam_path)
     if is_flatpak:
-        flatpak_base = Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / "data" / "Steam"
+        flatpak_base = Path.home() / ".var" / "app" / "com.valvesoftware.Steam"
         ld_audit = (
             f"{flatpak_base}/.local/share/SLSsteam/library-inject.so"
             f":{flatpak_base}/.local/share/SLSsteam/SLSsteam.so"
@@ -130,6 +132,71 @@ def install_bundled(steam_path: Path, print_fn=print) -> bool:
     return True
 
 
+def _setup_config_from_extracted(extract_dir: Path) -> bool:
+    """Set up SLSsteam config from extracted archive's res/config.yaml.
+    Falls back to bundled template if not found. No-ops if user config exists."""
+    config_path = SLSSTEAM_CONFIG_DIR / "config.yaml"
+    if config_path.exists():
+        return False
+    SLSSTEAM_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    template = next(extract_dir.rglob("res/config.yaml"), None) if extract_dir.exists() else None
+    if template and template.exists():
+        shutil.copy2(template, config_path)
+        return True
+    fallback = get_bundle_dir() / "res" / "config.yaml"
+    if fallback.exists():
+        shutil.copy2(fallback, config_path)
+        return True
+    return False
+
+
+def _copy_so_to_flatpak(print_fn=print) -> None:
+    """Copy SLSsteam .so files to Flatpak Steam's local share dir."""
+    src = SLSSTEAM_INSTALL_DIR
+    dst = (
+        Path.home() / ".var" / "app" / "com.valvesoftware.Steam"
+        / ".local" / "share" / "SLSsteam"
+    )
+    try:
+        dst.mkdir(parents=True, exist_ok=True)
+        for so_name in ("SLSsteam.so", "library-inject.so"):
+            src_so = src / so_name
+            if src_so.exists():
+                shutil.copy2(src_so, dst / so_name)
+                print_fn(Fore.GREEN + f"Copied {so_name} to Flatpak path." + Style.RESET_ALL)
+    except Exception as e:
+        print_fn(Fore.YELLOW + f"Could not copy .so files to Flatpak path: {e}" + Style.RESET_ALL)
+
+
+def get_installed_version() -> str | None:
+    """Return the installed SLSsteam version string, or None if not tracked."""
+    if VERSION_FILE.exists():
+        return VERSION_FILE.read_text(encoding="utf-8").strip() or None
+    return None
+
+
+def check_update_available(print_fn=print) -> dict:
+    """Check GitHub for a newer SLSsteam release.
+    Returns dict with keys: installed, latest, update_available."""
+    installed = get_installed_version()
+    result = {"installed": installed, "latest": None, "update_available": False}
+    try:
+        import httpx
+        resp = httpx.get(
+            "https://api.github.com/repos/AceSLS/SLSsteam/releases/latest",
+            timeout=10,
+            follow_redirects=True,
+        )
+        resp.raise_for_status()
+        latest = resp.json().get("tag_name", "")
+        result["latest"] = latest
+        if installed and latest and installed != latest:
+            result["update_available"] = True
+    except Exception as e:
+        print_fn(Fore.YELLOW + f"Could not check for SLSsteam updates: {e}" + Style.RESET_ALL)
+    return result
+
+
 def install_from_github(steam_path: Path, print_fn=print) -> bool:
     try:
         import httpx
@@ -169,6 +236,7 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
     extract_dir = Path(tempfile.gettempdir()) / "slssteam_extract"
     if extract_dir.exists():
         shutil.rmtree(extract_dir)
+    extract_dir.mkdir(parents=True, exist_ok=True)
 
     seven_zip = shutil.which("7z") or shutil.which("7za")
     if not seven_zip:
@@ -182,8 +250,11 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
             capture_output=True, text=True
         )
         if result.returncode != 0:
-            print_fn(Fore.RED + "Extraction failed." + Style.RESET_ALL)
-            return False
+            setup_sh_check = next(extract_dir.rglob("setup.sh"), None)
+            if not setup_sh_check:
+                print_fn(Fore.RED + "Extraction failed and setup.sh not found." + Style.RESET_ALL)
+                return False
+            print_fn(Fore.YELLOW + "7z exited non-zero but setup.sh found — continuing." + Style.RESET_ALL)
     except Exception as e:
         print_fn(Fore.RED + f"Extraction error: {e}" + Style.RESET_ALL)
         return False
@@ -193,8 +264,11 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
     setup_sh = next(extract_dir.rglob("setup.sh"), None)
     if not setup_sh:
         print_fn(Fore.RED + "setup.sh not found in extracted archive." + Style.RESET_ALL)
+        shutil.rmtree(extract_dir, ignore_errors=True)
         return False
 
+    is_flatpak = ".var/app/com.valvesoftware.Steam" in str(steam_path)
+    success = False
     try:
         setup_sh.chmod(0o755)
         proc = subprocess.Popen(
@@ -211,17 +285,20 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
     except Exception as e:
         print_fn(Fore.RED + f"setup.sh error: {e}" + Style.RESET_ALL)
         success = False
-    finally:
-        shutil.rmtree(extract_dir, ignore_errors=True)
 
     if success:
-        ensure_default_config()
+        _setup_config_from_extracted(extract_dir)
+        if is_flatpak:
+            _copy_so_to_flatpak(print_fn)
+
+    shutil.rmtree(extract_dir, ignore_errors=True)
+
+    if success:
         patch_steam_sh(steam_path, print_fn)
         create_steam_cfg(steam_path, print_fn)
         version = data.get("tag_name", "unknown")
-        version_file = Path.home() / ".local" / "share" / "SteaMidra" / "SLSsteam" / "VERSION"
-        version_file.parent.mkdir(parents=True, exist_ok=True)
-        version_file.write_text(version, encoding="utf-8")
+        VERSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+        VERSION_FILE.write_text(version, encoding="utf-8")
         print_fn(Fore.GREEN + f"SLSsteam {version} installed from GitHub." + Style.RESET_ALL)
 
     return success
@@ -243,13 +320,20 @@ def check_steamclient_hash() -> dict:
 
     try:
         import httpx
+        import yaml
         resp = httpx.get(
-            "https://raw.githubusercontent.com/AceSLS/SLSsteam/main/updates.yaml",
+            "https://raw.githubusercontent.com/AceSLS/SLSsteam/refs/heads/main/res/updates.yaml",
             timeout=10, follow_redirects=True,
         )
         if resp.status_code == 200:
-            import re
-            hashes = re.findall(r"hash:\s*([a-fA-F0-9]{64})", resp.text)
+            data_yaml = yaml.safe_load(resp.text)
+            hashes = []
+            for entries in data_yaml.get("SafeModeHashes", {}).values():
+                if isinstance(entries, list):
+                    for entry in entries:
+                        parts = str(entry).strip().split()
+                        if parts:
+                            hashes.append(parts[0])
             if hashes and sha256 not in hashes:
                 result["mismatch"] = True
     except Exception:

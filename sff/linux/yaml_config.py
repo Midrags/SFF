@@ -19,8 +19,7 @@
 """
 Robust YAML config manager for SLSsteam's config.yaml.
 
-Ported from ACCELA's yaml_config_manager.py.  All Qt/QSettings dependencies
-removed — config path is always passed as an argument.
+All Qt/QSettings dependencies removed — config path is always passed as an argument.
 
 Features:
 - Atomic writes (temp file + os.replace) — crash-safe

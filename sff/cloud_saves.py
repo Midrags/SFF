@@ -24,13 +24,14 @@ and provides timestamped restore points.
 """
 
 import os
-import sys
 import shutil
 import logging
 import json
 import time
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
+
+from sff.utils import root_folder
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +46,7 @@ def _load_all_games_cache():
         return _ALL_GAMES_CACHE
     _ALL_GAMES_CACHE = {}
     try:
-        if getattr(sys, "frozen", False):
-            base = Path(sys._MEIPASS)  # type: ignore[attr-defined]
-        else:
-            base = Path(__file__).parent.parent
+        base = root_folder(outside_internal=True)
         txt = base / "all_games.txt"
         if not txt.exists():
             return _ALL_GAMES_CACHE

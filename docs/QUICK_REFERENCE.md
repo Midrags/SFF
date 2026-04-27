@@ -23,10 +23,6 @@ Process recent .lua file: Opens your last processed files so you can run them ag
 
 Scan game library: Lets SteaMidra find games in your Steam libraries.
 
-Apply CreamAPI Multiplayer Fix: Installs bundled CreamAPI to spoof AppID as Spacewar (480) for online play. No account needed. Launch the game .exe directly after applying.
-
-Restore CreamAPI Multiplayer Fix: Removes CreamAPI and restores the original DLLs from backup.
-
 Settings: Change Steam path, GreenLuma folder, and other options.
 
 **Keyboard**

@@ -64,10 +64,10 @@ SteaMidra writes the ACF file with:
 
 After this, Steam shows a **Play** button immediately — no update prompt.
 
-> **Note:** The actual game files are downloaded using the manifest IDs you selected. The ACF is written with the latest CDN manifest IDs so Steam's update checker is satisfied. This is the same approach used by ACCELA.
+> **Note:** The actual game files are downloaded using the manifest IDs you selected. The ACF is written with the latest CDN manifest IDs so Steam's update checker is satisfied.
 
 ### Process a .lua file (Manifest downloads only)
-Like the main option but skips AppList, config.vdf, and ACF steps — only does the .lua input, backup, and manifest downloads. Has an extra prompt asking if you want to move the manifest files to a different folder (useful for sending to a Linux machine via ACCELA). Hidden by default; enable Advanced Mode in Settings to see it.
+Like the main option but skips AppList, config.vdf, and ACF steps — only does the .lua input, backup, and manifest downloads. Has an extra prompt asking if you want to move the manifest files to a different folder. Hidden by default; enable Advanced Mode in Settings to see it.
 
 ### Process recent .lua file
 Opens a list of the last .lua files you processed so you can run one again quickly without browsing for the file.
@@ -104,11 +104,6 @@ Downloads the achievements schema for a game. Uncracked games can use Steam's ow
 ### Apply multiplayer fix (online-fix.me)
 Logs into online-fix.me, finds the fix for your game, downloads it, and extracts it into the game folder. You need an account on online-fix.me. SteaMidra stores your credentials securely after the first use. See [Multiplayer Fix](MULTIPLAYER_FIX.md) for more detail.
 
-### Apply CreamAPI Multiplayer Fix
-Installs bundled CreamAPI v5.3.0.0 to spoof your game as Spacewar (AppID 480) for online multiplayer. No account or browser needed — the DLLs ship with SteaMidra. Supports Classic mode (replaces `steam_api64.dll`) and Proxy mode (installs as `winmm.dll`, safer for anti-cheat games). On Linux, you choose between Proton/Wine (.dll) or Native Linux (.so). SteaMidra automatically checks whether Spacewar is installed and reminds you to install it (`steam://install/480`) once if it isn't. After applying, launch the game `.exe` directly — the Steam overlay should say "Playing Spacewar". See [CreamAPI Fix](CREAMAPI_FIX.md) for full detail.
-
-### Restore CreamAPI Multiplayer Fix
-Removes CreamAPI files and restores the original DLLs from the backups created during installation. Use this to undo the CreamAPI multiplayer fix for any game.
 
 ### Fixes/Bypasses (Ryuu)
 Searches [generator.ryuu.lol](https://generator.ryuu.lol/fixes) for a fix or bypass for your game. No account needed — it fetches the public list, lets you search with fuzzy matching, downloads the fix, and extracts it straight into the game folder. This is a second source of fixes that often covers games not found on online-fix.me. See [Ryuu Fixes](RYUU_FIX.md) for more detail.

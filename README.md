@@ -24,13 +24,13 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
 - Download and use Lua files for games, download manifests, and set up GreenLuma.
 - Write Lua and manifest data into Steam's config so games work with or without an extra injector.
-- Multiplayer fixes: **CreamAPI Multiplayer Fix** (bundled, no account needed — spoofs AppID to Spacewar 480) and **online-fix.me** integration. Also **game fixes/bypasses (Ryuu)**.
+- Multiplayer fixes: **online-fix.me** integration and **game fixes/bypasses (Ryuu)**.
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
 - **Linux support** — SLSSteam ID management, platform-aware MIDI, and Linux-compatible auto-update.
-- **Direct game download** — Store tab downloads game files via DepotDownloaderMod, writes the ACF with the correct build ID and latest manifest IDs so Steam shows Play immediately after install.
-- **Fast SteamDB manifest history** — 3-layer CF bypass (curl_cffi → cached cookie → SeleniumBase). Warm runs ~10-35s. Full DLC depot history included.
+- **Main tab "Download Game"** — downloads the **latest version** of a game directly from Steam (fast, no .NET required). Processes the Lua file, writes decryption keys, registers AppList/SLSsteam IDs, and triggers Steam to download the game files natively.
+- **Store tab** — browse Hubcap's manifest library to find and download **older or specific versions** of a game via DepotDownloaderMod (.NET 9 required, slower). Use this when you need a specific game version, not the latest.
 
 ---
 
@@ -46,7 +46,8 @@ Create a folder anywhere, name it `SteaMidra`, and place `SteaMidra_GUI.exe` and
 Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: https://www.up-4ever.net/lyoi96gger8y
 
 Extract the ZIP — you will see three folders. You only need `NormalModePatch.rar`.
-Extract `NormalModePatch.rar` and place all files from it into your `SteaMidra\Greenluma` folder.
+Extract `NormalModePatch.rar` and place all files from it into your `SteaMidra\Greenluma` folder or inside `steam directory`.
+Create AppList folder where GreenLuma file are located.
 
 ### Step 3: Setup GreenLuma
 
@@ -67,7 +68,7 @@ GreenLuma has a hard limit of 130–134 App IDs. To use more games, use AppList 
 4. **Save current AppList to profile** – saves your current IDs into a profile (new or existing).
 5. **Delete / Rename** – manage profile names and remove unused profiles.
 
-When you reach 130 IDs, SteaMidra will remind you to create a new profile. Create an empty profile, switch to it, then add more games.
+When your AppList reaches 130 IDs, SteaMidra shows a popup dialog reminding you to create a new profile. Create an empty profile, switch to it, then add more games.
 
 ---
 

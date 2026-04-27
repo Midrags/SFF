@@ -34,13 +34,16 @@ Before changing important files, SteaMidra can make backups. How many backups to
 
 In menus you can often press a number to choose an option. Escape or Back goes back. Ctrl+C exits SteaMidra.
 
-**Download tracking (GUI)**
+**Downloading games**
 
-When you use "Download Games" in the GUI, the download is tracked in the Downloads tab. You can see which game is downloading and when it completes. This works for the main game download flow (manifest downloads + ACF writing).
+SteaMidra has two separate download paths:
+
+- **Main tab “Download Games”** — downloads the **latest version** of a game directly from Steam. Fast, no .NET required. SteaMidra processes your Lua file, writes decryption keys, registers the AppList/SLSsteam IDs, and triggers Steam to download game files natively. Progress is tracked in the Downloads tab.
+- **Store tab** — lets you find and download **older or specific versions** of a game using Hubcap’s manifest library. Slower: it fetches the full depot and manifest ID list first, then downloads the game files via DepotDownloaderMod (.NET 9 required). Use this when you need a version other than the current latest.
 
 **Store browser (GUI)**
 
-The Store tab lets you search the Morrenus manifest library by game name or App ID. You need a Morrenus API key (set it in Settings). Results are paginated and show available manifests for each game.
+The Store tab lets you search the Hubcap manifest library by game name or App ID. You need a Hubcap API key (set it in Settings). Results are paginated and show available depot/manifest combinations for each game.
 
 **Themes (GUI)**
 

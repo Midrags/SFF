@@ -293,25 +293,45 @@ def handle_linux_setup(steam_path: Path) -> None:
     print("\n[2/2] SLSsteam setup...")
     if slssteam.is_installed():
         print(Fore.GREEN + "SLSsteam is already installed." + Style.RESET_ALL)
-        if not prompt_confirm("Reinstall/update SLSsteam?"):
+        installed_ver = slssteam.get_installed_version()
+        if installed_ver:
+            print(f"  Installed version: {installed_ver}")
+        action = prompt_select(
+            "What would you like to do?",
+            [
+                ("Check for updates", "check"),
+                ("Reinstall/update from GitHub", "reinstall"),
+                ("Skip", "skip"),
+            ],
+            cancellable=True,
+        )
+        if action is None or action == "skip":
             print(Fore.GREEN + "\nSetup complete." + Style.RESET_ALL)
             return
+        if action == "check":
+            info = slssteam.check_update_available()
+            if info["update_available"]:
+                print(
+                    Fore.YELLOW
+                    + f"Update available: {info['installed']} → {info['latest']}"
+                    + Style.RESET_ALL
+                )
+                if not prompt_confirm("Install update now?", default=True):
+                    print(Fore.GREEN + "\nSetup complete." + Style.RESET_ALL)
+                    return
+            else:
+                latest = info.get("latest") or "unknown"
+                current = info.get("installed") or "unknown"
+                print(
+                    Fore.GREEN
+                    + f"Already up to date (installed: {current}, latest: {latest})."
+                    + Style.RESET_ALL
+                )
+                return
     else:
         print("SLSsteam is not installed.")
 
-    choice = prompt_select(
-        "Install SLSsteam from:",
-        [
-            ("Bundled version (offline, always works)", "bundled"),
-            ("Latest GitHub release (requires internet + 7z)", "github"),
-        ],
-        cancellable=True,
-    )
-    install_ok = False
-    if choice == "bundled":
-        install_ok = slssteam.install_bundled(steam_path)
-    elif choice == "github":
-        install_ok = slssteam.install_from_github(steam_path)
+    install_ok = slssteam.install_from_github(steam_path)
 
     if install_ok:
         print(Fore.GREEN + "\nSLSteam installed successfully." + Style.RESET_ALL)

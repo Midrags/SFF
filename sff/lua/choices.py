@@ -116,7 +116,7 @@ def add_new_lua(file = None):
 
 def search_game(os_type):
 
-    all_games_file = (root_folder() / "all_games.txt")
+    all_games_file = (root_folder(outside_internal=True) / "all_games.txt")
 
     if all_games_file.exists():
 

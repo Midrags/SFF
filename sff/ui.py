@@ -747,7 +747,7 @@ class UI:
                 print(f"{file.name} moved")
             do_zip = prompt_confirm(
                 "Would you like to ZIP these files along with the lua? "
-                "(Can be used for ACCELA on Linux)"
+                "(Zip manifests for use on Linux)"
             )
             if do_zip:
                 with (dst / f"{parsed_lua.app_id}.lua").open(

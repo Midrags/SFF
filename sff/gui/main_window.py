@@ -46,6 +46,7 @@ from PyQt6.QtWidgets import (
     QTabWidget,
 )
 
+from sff.app_injector.applist import APPLIST_LIMIT_WARNING
 from sff.gui.themes import THEMES
 from sff.i18n import T
 from sff.structs import MainMenu, MainReturnCode
@@ -507,10 +508,32 @@ class SFFMainWindow(QMainWindow):
             self._worker_thread = None
             self._worker = None
             self._append_log(f"--- Done: {label} ---\n")
+            self._check_applist_limit_warning()
         self._worker.finished.connect(_on_finish)
         self._worker.error.connect(lambda msg: self._append_log(f"Error: {msg}\n"))
         self._worker_thread.started.connect(self._worker.run)
         self._worker_thread.start()
+
+    def _check_applist_limit_warning(self):
+        """Show a one-time popup per session if AppList reaches 130+ IDs."""
+        if getattr(self, "_applist_limit_warned", False):
+            return
+        if self.ui.app_list_man is None:
+            return
+        try:
+            count = len(self.ui.app_list_man.get_local_ids())
+            if count >= APPLIST_LIMIT_WARNING:
+                self._applist_limit_warned = True
+                QMessageBox.warning(
+                    self,
+                    "AppList Limit Reached",
+                    f"Your AppList has {count} App IDs.\n"
+                    "GreenLuma has a hard limit of \u2248130\u2013134 IDs.\n\n"
+                    "Create a new AppList profile before adding more games:\n"
+                    "Main tab \u2192 Manage AppList IDs \u2192 AppList Profiles \u2192 Create profile",
+                )
+        except Exception:
+            pass
 
     def _open_workshop(self):
         acf = self._get_selected_acf()
