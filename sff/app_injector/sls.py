@@ -45,18 +45,24 @@ class SLSManager(AppInjectionManager):
         self.steam_path = steam_path
         self.provider = provider
         saved_path = get_setting(Settings.SLS_CONFIG_LOCATION)
-        self.sls_config_path = (
-            (Path.home() / ".config/SLSsteam/config.yaml")
-            if saved_path is None
-            else Path(saved_path)
-        )
+        if saved_path is None:
+            from sff.linux.slssteam import detect_steam_type, get_slssteam_config_dir
+            self.sls_config_path = get_slssteam_config_dir(detect_steam_type()) / "config.yaml"
+        else:
+            self.sls_config_path = Path(saved_path)
         if not self.sls_config_path.exists():
-            self.sls_config_path = prompt_file(
-                "Could not find SLSSteam config file. "
-                "Please specify the full path here:"
+            print(
+                Fore.YELLOW
+                + "\n[SLSsteam] Config file not found at: "
+                + str(self.sls_config_path)
+                + "\n"
+                + "SLSsteam creates its config automatically the first time Steam runs with it active.\n"
+                + "Please launch Steam now, then close it and retry this action in SteaMidra."
+                + Style.RESET_ALL
             )
-            set_setting(
-                Settings.SLS_CONFIG_LOCATION, str(self.sls_config_path.absolute())
+            raise FileNotFoundError(
+                f"SLSsteam config not found at {self.sls_config_path}. "
+                "Launch Steam once to let SLSsteam generate it."
             )
         elif saved_path is None:
             colorized = (
