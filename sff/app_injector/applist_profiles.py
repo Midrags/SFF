@@ -30,7 +30,7 @@ from sff.utils import root_folder
 logger = logging.getLogger(__name__)
 
 PROFILES_DIR = root_folder(outside_internal=True) / "applist_profiles"
-DEFAULT_LIMIT = 134  # GreenLuma 1.7.0 hard limit
+DEFAULT_LIMIT = None  # No hard limit by default
 
 
 def _sanitize_filename(name):
@@ -56,7 +56,7 @@ def _resolve_limit():
                 return n
         except (ValueError, TypeError):
             pass
-    return DEFAULT_LIMIT
+    return None
 
 
 def ensure_profiles_dir():

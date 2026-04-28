@@ -61,7 +61,6 @@ from typing import Union
 
 logger = logging.getLogger(__name__)
 
-APPLIST_LIMIT_WARNING = 130  # GreenLuma 1.7.0; recommend creating a profile at this point
 
 
 class AppListManager(AppInjectionManager):
@@ -171,12 +170,6 @@ class AppListManager(AppInjectionManager):
             print(f"{app_id} already in AppList")
         if not new_ids:
             return
-        if current_count >= APPLIST_LIMIT_WARNING:
-            print(
-                Fore.YELLOW
-                + "You have reached the AppList limit. Create a new AppList profile before adding more games."
-                + Style.RESET_ALL
-            )
         new_count = len(new_ids)
         projected_total = current_count + new_count
         # Check limit upfront before adding any IDs (only if limit is set)
@@ -683,13 +676,7 @@ class AppListManager(AppInjectionManager):
         self._ensure_current_applist_saved()
         success, count = profile_switch(selected, self.applist_folder)
         if success:
-            limit = get_profile_limit()
-            full_ids = load_profile(selected)
-            truncated = full_ids is not None and count < len(full_ids)
-            msg = f"Switched to profile '{selected}' ({count} IDs written to AppList)."
-            if truncated:
-                msg += f" Truncated to {limit} (GreenLuma limit)."
-            print(Fore.GREEN + msg + Style.RESET_ALL)
+            print(Fore.GREEN + f"Switched to profile '{selected}' ({count} IDs written to AppList)." + Style.RESET_ALL)
         else:
             print(Fore.RED + "Failed to switch profile." + Style.RESET_ALL)
 
