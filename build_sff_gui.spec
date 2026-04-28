@@ -24,14 +24,6 @@ datas = [
     ('static', 'static'),
 ]
 
-# Bundle Chrome for Testing so SteamDB scraping works without a download
-_chrome_dir = os.path.join(os.environ.get('USERPROFILE', ''), '.sff', 'chrome-for-testing', 'chrome-win64')
-if os.path.exists(_chrome_dir):
-    datas.append((_chrome_dir, 'chrome-bundled'))
-    print(f"Bundling Chrome for Testing from: {_chrome_dir}")
-else:
-    print("WARNING: Chrome for Testing not found at ~/.sff/chrome-for-testing/chrome-win64 — SteamDB scraping will auto-download at runtime")
-
 # Include third_party tools if present
 third_party_dir = os.path.join(spec_root, 'third_party')
 if os.path.exists(third_party_dir):
