@@ -34,7 +34,7 @@
 
 
 
-VERSION = "5.2.0"
+VERSION = "5.3.0"
 
 # NOTE: Public key shared by oureveryday (https://github.com/SteamAutoCracks/Steam-auto-crack/issues/33)
 

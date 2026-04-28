@@ -47,10 +47,15 @@ def root_folder(outside_internal = False):
             appimage = os.environ.get('APPIMAGE')
             if appimage:
                 return Path(appimage).resolve().parent
+            return Path(sys.executable).resolve().parent
 
-        # Bundled app data or Windows EXE: directory next to the executable.
-        # On AppImage this is the squashfs mount (read-only, fine for data reads).
-        # On Windows this is the writable EXE directory (fine for everything).
+        # PyInstaller 6.x places ALL bundled data in sys._MEIPASS, not next to the EXE.
+        # One-file build  → _MEIPASS = %TEMP%\_MEIXXXXX\  (temporary extraction dir)
+        # One-dir  build  → _MEIPASS = <exe_dir>\_internal\
+        # This makes the EXE self-contained regardless of where the user places it.
+        meipass = getattr(sys, '_MEIPASS', None)
+        if meipass:
+            return Path(meipass).resolve()
         return Path(sys.executable).resolve().parent
 
     else:

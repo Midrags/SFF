@@ -1087,30 +1087,23 @@ class UI:
         release_url = resp.get("html_url") or RELEASE_PAGE_URL
         is_frozen = getattr(sys, "frozen", False)
         assets = resp.get("assets") or []
-        # Prefer OS-specific package for frozen Windows; else use any release .zip (e.g. SteaMidra-vX.Y.Z.zip)
         download_url = None
         asset_name = None
-        use_os_package = False
-        if os_type == OSType.WINDOWS:
-            target_prefix = WINDOWS_RELEASE_PREFIX
-        elif os_type == OSType.LINUX:
-            target_prefix = LINUX_RELEASE_PREFIX
-        else:
-            target_prefix = ""
         for asset in assets:
             name = asset.get("name") or ""
             url = asset.get("browser_download_url")
             if not url:
                 continue
             name_lower = name.lower()
-            if is_frozen and os_type == OSType.WINDOWS and (
-                name_lower.startswith(target_prefix.lower()) or target_prefix.lower() in name_lower
-            ):
+            if os_type == OSType.WINDOWS and "windows" in name_lower and name_lower.endswith(".zip"):
                 download_url = url
                 asset_name = name
-                use_os_package = True
                 break
-        if not use_os_package:
+            if os_type == OSType.LINUX and "linux" in name_lower and name_lower.endswith(".zip"):
+                download_url = url
+                asset_name = name
+                break
+        if download_url is None:
             for asset in assets:
                 name = asset.get("name") or ""
                 url = asset.get("browser_download_url")
@@ -1142,23 +1135,16 @@ class UI:
                 inner.rmdir()
             # Now tmp_update has Main.py, sff/, etc. at top level. Updater script copies to app_dir.
             if sys.platform == "win32":
-                # When frozen (EXE), do not relaunch EXE—user must rebuild for updates to take effect.
                 main_py = app_dir / "Main.py"
                 run_cmd = app_dir / "update_run.cmd"
-                if is_frozen:
-                    post_update = (
-                        "echo Update complete. Rebuild the EXE to use the new version.\n"
-                        "pause\n"
-                    )
-                else:
-                    run_cmd.write_text(
-                        f'start "" "{sys.executable}" "{main_py.resolve()}"',
-                        encoding="utf-8",
-                    )
-                    post_update = (
-                        "call " + subprocess.list2cmdline([str(run_cmd)]) + "\n"
-                        "del /q " + subprocess.list2cmdline([str(run_cmd)]) + " 2>nul\n"
-                    )
+                run_cmd.write_text(
+                    f'start "" "{sys.executable}" "{main_py.resolve()}"',
+                    encoding="utf-8",
+                )
+                post_update = (
+                    "call " + subprocess.list2cmdline([str(run_cmd)]) + "\n"
+                    "del /q " + subprocess.list2cmdline([str(run_cmd)]) + " 2>nul\n"
+                )
                 updater_bat = app_dir / "tmp_updater.bat"
                 updater_bat.write_text(
                     "@echo off\n"
@@ -1178,10 +1164,7 @@ class UI:
                 )
             else:
                 # When frozen, do not relaunch—user must rebuild. Otherwise relaunch via python Main.py.
-                if is_frozen:
-                    launcher_shell = "echo 'Update complete. Rebuild the executable to use the new version.'\n"
-                else:
-                    launcher_shell = "exec " + " ".join(shutil.quote(str(x)) for x in [sys.executable, str(app_dir / "Main.py")]) + "\n"
+                launcher_shell = "exec " + " ".join(shutil.quote(str(x)) for x in [sys.executable, str(app_dir / "Main.py")]) + "\n"
                 updater_sh = app_dir / "tmp_updater.sh"
                 updater_sh.write_text(
                     "#!/bin/sh\n"
@@ -1200,15 +1183,118 @@ class UI:
                 )
             print(Fore.GREEN + "Update will apply and the app will restart. Exiting..." + Style.RESET_ALL)
             sys.exit(0)
+        def _do_windows_frozen_update():
+            if not download_url or not asset_name:
+                return False
+            print(f"Downloading {asset_name}...")
+            if not download_to_path(download_url, update_zip):
+                print(Fore.RED + "Download failed." + Style.RESET_ALL)
+                return False
+            print("Extracting update...")
+            if tmp_update.exists():
+                shutil.rmtree(tmp_update, ignore_errors=True)
+            tmp_update.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(update_zip) as zf:
+                zf.extractall(tmp_update)
+            entries = list(tmp_update.iterdir())
+            if len(entries) == 1 and entries[0].is_dir():
+                inner = entries[0]
+                for p in inner.iterdir():
+                    shutil.move(str(p), str(tmp_update / p.name))
+                inner.rmdir()
+            exe_name = Path(sys.executable).name
+            convert = subprocess.list2cmdline
+            internal_dir = str(app_dir / "_internal")
+            updater_bat = app_dir / "tmp_updater.bat"
+            updater_bat.write_text(
+                "@echo off\n"
+                "timeout /t 3 /nobreak >nul\n"
+                f"taskkill /F /PID {os.getpid()} >nul 2>&1\n"
+                "rmdir /s /q " + convert([internal_dir]) + " >nul 2>&1\n"
+                "robocopy " + convert([str(tmp_update), str(app_dir)]) + " /E /IS /IT >nul 2>&1\n"
+                "if %errorlevel% GEQ 8 (\n"
+                "  echo Robocopy error! Update may be incomplete. Check your SteaMidra folder.\n"
+                "  pause\n"
+                "  goto :end\n"
+                ")\n"
+                "rmdir /s /q " + convert([str(tmp_update)]) + " >nul 2>&1\n"
+                "del /q " + convert([str(update_zip)]) + " >nul 2>&1\n"
+                "start \"\" " + convert([str(app_dir / exe_name)]) + "\n"
+                ":end\n"
+                "(goto) 2>nul & del \"%~f0\"\n",
+                encoding="utf-8",
+            )
+            subprocess.Popen(
+                ["cmd", "/c", str(updater_bat)],
+                creationflags=subprocess.DETACHED_PROCESS,
+                cwd=str(app_dir),
+            )
+            print(Fore.GREEN + "Update started. SteaMidra will restart automatically." + Style.RESET_ALL)
+            sys.exit(0)
+
+        def _do_linux_frozen_update():
+            if not download_url or not asset_name:
+                return
+            print(f"Downloading {asset_name}...")
+            if not download_to_path(download_url, update_zip):
+                print(Fore.RED + "Download failed." + Style.RESET_ALL)
+                return
+            print("Extracting update...")
+            if tmp_update.exists():
+                shutil.rmtree(tmp_update, ignore_errors=True)
+            tmp_update.mkdir(parents=True, exist_ok=True)
+            with zipfile.ZipFile(update_zip) as zf:
+                zf.extractall(tmp_update)
+            entries = list(tmp_update.iterdir())
+            if len(entries) == 1 and entries[0].is_dir():
+                inner = entries[0]
+                for p in inner.iterdir():
+                    shutil.move(str(p), str(tmp_update / p.name))
+                inner.rmdir()
+            update_zip.unlink(missing_ok=True)
+            install_sh = tmp_update / "steamidra_install.sh"
+            if not install_sh.exists():
+                print(Fore.RED + "steamidra_install.sh not found in update package." + Style.RESET_ALL)
+                return
+            install_sh.chmod(0o755)
+            install_cmd = f"cd {shutil.quote(str(tmp_update))} && bash steamidra_install.sh; exec bash"
+            terminals = [
+                ["x-terminal-emulator", "-e", "bash", "-c", install_cmd],
+                ["gnome-terminal", "--", "bash", "-c", install_cmd],
+                ["konsole", "-e", "bash", "-c", install_cmd],
+                ["xterm", "-e", "bash", "-c", install_cmd],
+            ]
+            launched = False
+            for term_cmd in terminals:
+                if shutil.which(term_cmd[0]):
+                    try:
+                        subprocess.Popen(term_cmd)
+                        launched = True
+                        break
+                    except Exception:
+                        pass
+            if not launched:
+                try:
+                    subprocess.Popen(["bash", str(install_sh)], cwd=str(tmp_update))
+                    launched = True
+                except Exception:
+                    pass
+            if launched:
+                print(Fore.GREEN + "Install script launched. SteaMidra will close now." + Style.RESET_ALL)
+                sys.exit(0)
+            else:
+                print(Fore.RED + "Could not launch a terminal. Run steamidra_install.sh manually from:" + Style.RESET_ALL)
+                print(f"  {tmp_update}")
+
         if not is_frozen:
             if download_url and prompt_confirm("Download and update automatically?"):
                 _do_auto_update()
             if prompt_confirm("Open the release page in your browser?"):
                 webbrowser.open(release_url)
             return MainReturnCode.LOOP_NO_PROMPT
-        if self.os_type == OSType.LINUX:
+        if os_type == OSType.LINUX:
             if download_url and prompt_confirm("Download and update automatically?"):
-                _do_auto_update()
+                _do_linux_frozen_update()
             if prompt_confirm("Open the release page in your browser?"):
                 webbrowser.open(release_url)
             return MainReturnCode.LOOP_NO_PROMPT
@@ -1216,67 +1302,9 @@ class UI:
             if prompt_confirm("Open the release page in your browser?"):
                 webbrowser.open(release_url)
             return MainReturnCode.LOOP_NO_PROMPT
-        if use_os_package and download_url and asset_name:
-            # Frozen Windows with OS-specific package: full in-place update (aria2c + extract + bat)
-            print(f"Download URL: {download_url}")
-            aria2c_exe = root_folder() / "third_party/aria2c/aria2c.exe"
-            subprocess.run(
-                [
-                    aria2c_exe,
-                    "-x",
-                    "64",
-                    "-k",
-                    "1K",
-                    "-s",
-                    "64",
-                    "-d",
-                    str(Path.cwd().resolve()),
-                    download_url,
-                ]
-            )
-            zip_name = Path(download_url).name
-            print(
-                Fore.GREEN
-                + "\n\nThe cursed update is about to begin. Prepare yourself."
-                + Style.RESET_ALL
-            )
-            tmp_dir = Path.cwd() / "tmp"
-            zip_path = Path.cwd() / zip_name
-            with zipfile.ZipFile(zip_path) as zf:
-                zf.extractall(tmp_dir)
-            zip_path.unlink(missing_ok=True)
-            updater = Path.cwd() / "tmp_updater.bat"
-            with updater.open("w", encoding="utf-8") as f:
-                nul = [">", "NUL"]
-                internal_dir = str(Path.cwd() / "_internal")
-                sff_exe = str(Path.cwd() / "SteaMidra.exe")
-                tmp_dir = str(Path.cwd() / "tmp")
-                convert = subprocess.list2cmdline
-                f.writelines(
-                    [
-                        "@echo off\n",
-                        "echo Killing SteaMidra...\n",
-                        f"taskkill /F /PID {os.getpid()}\n",
-                        "echo SteaMidra killed. Deleting old files...\n",
-                        convert(["rmdir", "/s", "/q", internal_dir, *nul]) + "\n",
-                        convert(["del", "/q", sff_exe, *nul]) + "\n",
-                        "echo Old files deleted. Moving in new files...\n",
-                        convert(["robocopy", "/E", "/MOVE", "/IS", "/IT", tmp_dir, str(Path.cwd()), *nul])
-                        + "\n",
-                        "echo UPDATE COMPLETE!!!! You can close this now\n",
-                        '(goto) 2>nul & del "%~f0"',
-                    ]
-                )
-            command = convert(["cmd", "/k", str(updater.resolve())])
-            subprocess.Popen(
-                command, creationflags=subprocess.DETACHED_PROCESS, shell=True  # type:ignore
-            )
-            return MainReturnCode.LOOP_NO_PROMPT
-        if download_url:
-            _do_auto_update()
-        print("No update package found. Opening release page.")
-        if prompt_confirm("Open the release page in your browser?"):
-            webbrowser.open(release_url)
+        if not download_url or not _do_windows_frozen_update():
+            if prompt_confirm("Open the release page in your browser?"):
+                webbrowser.open(release_url)
         return MainReturnCode.LOOP_NO_PROMPT
 
     def update_all_manifests(self):

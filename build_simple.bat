@@ -56,19 +56,17 @@ echo ========================================
 echo BUILD SUCCESSFUL!
 echo ========================================
 echo.
-echo Executable: dist\SteaMidra.exe
+echo Folder:     dist\SteaMidra\
+echo Executable: dist\SteaMidra\SteaMidra.exe
 echo.
 
-if exist "dist\SteaMidra.exe" (
-    python -c "import os; size = os.path.getsize('dist/SteaMidra.exe'); print(f'Size: {size / (1024*1024):.1f} MB')"
-    echo.
-    echo Refreshing icon for SteaMidra.exe (so Windows shows the new icon)...
-    move /y "dist\SteaMidra.exe" "dist\SteaMidra_temp.exe" >nul
-    move /y "dist\SteaMidra_temp.exe" "dist\SteaMidra.exe" >nul
+if exist "dist\SteaMidra\SteaMidra.exe" (
+    python -c "import os; size = sum(os.path.getsize(os.path.join(r,f)) for r,d,files in os.walk('dist/SteaMidra') for f in files); print(f'Total size: {size / (1024*1024):.1f} MB')"
 )
 
 echo.
-echo You can now run: dist\SteaMidra.exe
-echo Settings will be saved in: dist\settings.bin
+echo You can now run: dist\SteaMidra\SteaMidra.exe
+echo Zip the dist\SteaMidra\ folder for distribution.
+echo Settings will be saved next to the EXE.
 echo.
 pause

@@ -148,7 +148,6 @@ class SteamProcess:
                         time.sleep(2)
                         if is_proc_running(self.exe_name):
                             print("Could not close Steam. Please close it manually.")
-                            input("Press Enter after closing Steam...")
                         break
                     else:
                         print("Skipping Steam restart.")
@@ -160,11 +159,18 @@ class SteamProcess:
         if injector is None:
             print("Could not find any matching executables. Launch it yourself.")
             return False
-        print("Launching Steam with administrator privileges...")
+        print("Launching Steam...")
         try:
             import ctypes
             import sys
-            # Use ShellExecute with 'runas' verb to run as administrator
+            already_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
+            if already_admin:
+                # Already elevated — ShellExecuteW("runas") would fail with Access Denied.
+                # Launch the injector directly; it inherits the elevated token.
+                subprocess.Popen([injector], cwd=str(self.steam_path))
+                print("Steam launched successfully!")
+                return True
+            # Not admin — use ShellExecute with 'runas' verb to request elevation
             ret = ctypes.windll.shell32.ShellExecuteW(
                 None,                    # hwnd
                 "runas",                 # operation (run as admin)
@@ -177,29 +183,33 @@ class SteamProcess:
             if ret > 32:
                 print("Steam launched successfully!")
                 return True
-            else:
-                # Error codes: https://docs.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew
-                error_messages = {
-                    0: "Out of memory or resources",
-                    2: "File not found",
-                    3: "Path not found",
-                    5: "Access denied",
-                    8: "Out of memory",
-                    26: "Sharing violation",
-                    27: "File association incomplete or invalid",
-                    28: "DDE timeout",
-                    29: "DDE transaction failed",
-                    30: "DDE busy",
-                    31: "No file association",
-                    32: "DLL not found"
-                }
-                error_msg = error_messages.get(ret, f"Unknown error (code {ret})")
-                print(f"\nFailed to launch Steam: {error_msg}")
-                print("Please launch Steam manually from your Start Menu or Desktop.")
-                input("Press Enter after launching Steam...")
-                return False
+            # ShellExecuteW failed — try launching without elevation as a last resort
+            error_messages = {
+                0: "Out of memory or resources",
+                2: "File not found",
+                3: "Path not found",
+                5: "Access denied",
+                8: "Out of memory",
+                26: "Sharing violation",
+                27: "File association incomplete or invalid",
+                28: "DDE timeout",
+                29: "DDE transaction failed",
+                30: "DDE busy",
+                31: "No file association",
+                32: "DLL not found"
+            }
+            error_msg = error_messages.get(ret, f"Unknown error (code {ret})")
+            print(f"ShellExecute failed ({error_msg}), trying without elevation...")
+            try:
+                subprocess.Popen([injector], cwd=str(self.steam_path))
+                print("Steam launched (elevation skipped). GreenLuma injection may not work if admin rights are required.")
+                return True
+            except Exception:
+                pass
+            print(f"\nFailed to launch Steam: {error_msg}")
+            print("Please launch Steam manually from your Start Menu or Desktop.")
+            return False
         except Exception as e:
             print(f"\nError launching Steam: {e}")
             print("Please launch Steam manually from your Start Menu or Desktop.")
-            input("Press Enter after launching Steam...")
             return False

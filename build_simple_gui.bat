@@ -55,19 +55,17 @@ echo ========================================
 echo BUILD SUCCESSFUL!
 echo ========================================
 echo.
-echo Executable: dist\SteaMidra_GUI.exe
+echo Folder:     dist\SteaMidra_GUI\
+echo Executable: dist\SteaMidra_GUI\SteaMidra_GUI.exe
 echo.
 
-if exist "dist\SteaMidra_GUI.exe" (
-    python -c "import os; size = os.path.getsize('dist/SteaMidra_GUI.exe'); print(f'Size: {size / (1024*1024):.1f} MB')"
-    echo.
-    echo Refreshing icon for SteaMidra_GUI.exe...
-    move /y "dist\SteaMidra_GUI.exe" "dist\SteaMidra_GUI_temp.exe" >nul
-    move /y "dist\SteaMidra_GUI_temp.exe" "dist\SteaMidra_GUI.exe" >nul
+if exist "dist\SteaMidra_GUI\SteaMidra_GUI.exe" (
+    python -c "import os; size = sum(os.path.getsize(os.path.join(r,f)) for r,d,files in os.walk('dist/SteaMidra_GUI') for f in files); print(f'Total size: {size / (1024*1024):.1f} MB')"
 )
 
 echo.
-echo You can now run: dist\SteaMidra_GUI.exe
-echo Settings will be saved in: dist\settings.bin
+echo You can now run: dist\SteaMidra_GUI\SteaMidra_GUI.exe
+echo Zip the dist\SteaMidra_GUI\ folder for distribution.
+echo Settings will be saved next to the EXE.
 echo.
 pause

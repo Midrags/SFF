@@ -29,8 +29,8 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
 - **Linux support** — SLSSteam ID management, platform-aware MIDI, and Linux-compatible auto-update.
-- **Main tab "Download Game"** — downloads the **latest version** of a game directly from Steam (fast, no .NET required). Processes the Lua file, writes decryption keys, registers AppList/SLSsteam IDs, and triggers Steam to download the game files natively.
-- **Store tab** — browse Hubcap's manifest library to find and download **older or specific versions** of a game via DepotDownloaderMod (.NET 9 required, slower). Use this when you need a specific game version, not the latest.
+- **Main tab "Download Game"** — ⭐ **THIS IS THE MAIN WAY TO DOWNLOAD GAMES.** Downloads the **latest version** of a game directly from Steam (fast, no .NET required). Processes the Lua file, writes decryption keys, registers AppList/SLSsteam IDs, and triggers Steam to download the game files natively. Use this for 99% of games.
+- **Store tab** — browse Hubcap's manifest library to find and download **older or specific versions** of a game via DepotDownloaderMod (.NET 9 required, slower). Use this **only** when you need a specific older version of a game, not the latest.
 
 ---
 
@@ -39,7 +39,7 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 ### Step 1: SteaMidra
 
 Download the latest version from [here](https://github.com/Midrags/SFF/releases/latest).
-Create a folder anywhere, name it `SteaMidra`, and place `SteaMidra_GUI.exe` and `SteamKillInject.exe` inside it.
+You will get a ZIP file (`SteaMidra-5.3.0-windows.zip`). Extract it anywhere — you will see a folder containing `SteaMidra_GUI.exe` and an `_internal/` folder. Place this folder wherever you want (e.g. `C:\SteaMidra\`). Run `SteaMidra_GUI.exe` from inside it.
 
 ### Step 2: GreenLuma
 
@@ -142,8 +142,6 @@ See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for common problems and s
 **gbe_fork tools** – Build and packaging tools for gbe_fork. License in `third_party_licenses/gbe_fork_tools.LICENSE`.
 
 **Steamless** – The "Remove SteamStub DRM" feature uses **Steamless** by Atom0s for stripping Steam DRM from executables. License in `third_party_licenses/steamless.LICENSE`.
-
-**aria2** – Used internally for fast file downloads. License in `third_party_licenses/aria2.LICENSE`.
 
 **fzf** – Used for fuzzy search in menus (CLI). License in `third_party_licenses/fzf.LICENSE`.
 

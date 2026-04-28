@@ -40,13 +40,21 @@ In the GUI, clicking "Remove SteamStub" opens a file picker. Navigate to your ga
 
 ## SteamAutoCrack not found / "Failed to extract" error
 
-SteamAutoCrack is bundled inside `SteaMidra_GUI.exe` and is found automatically. You do **not** need to download or extract it manually.
+SteamAutoCrack is bundled inside the `_internal/` folder (shipped alongside `SteaMidra_GUI.exe`) and is found automatically. You do **not** need to download or extract it manually.
 
 If you still see this error:
 - Make sure you are using the latest version of SteaMidra.
 - Install SteaMidra in a short path like `C:\SFF\` — very long install paths can cause Windows path-length errors (260-character limit).
 
-If you previously tried to fix this by extracting the SteamAutoCrack release ZIP into the `third_party\SteamAutoCrack\` folder, **delete those extracted files**. The full archive contains hundreds of deeply-nested .NET build files that cause the "Failed to extract … fopen: No such file or directory" error. Only the CLI bundled inside the EXE is needed.
+If you previously tried to fix this by extracting the SteamAutoCrack release ZIP into the `third_party\SteamAutoCrack\` folder, **delete those extracted files**. The full archive contains hundreds of deeply-nested .NET build files that cause the "Failed to extract … fopen: No such file or directory" error. Only the CLI bundled in `_internal/` is needed.
+
+---
+
+## Antivirus flags SteaMidra files
+
+Starting with version 5.3.0, SteaMidra uses the one-dir distribution format. All files are pre-extracted into the `_internal/` folder next to `SteaMidra_GUI.exe` at install time. Nothing is extracted to `%TEMP%` at runtime, which greatly reduces false positives.
+
+If your antivirus still flags files, add your SteaMidra folder (e.g. `C:\SteaMidra\`) to your AV exclusions. The `_internal/` folder contains Python runtime files and bundled tools — none of them are malware.
 
 ---
 

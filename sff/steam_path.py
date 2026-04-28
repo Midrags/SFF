@@ -17,6 +17,7 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 import logging
+import os
 import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -55,17 +56,17 @@ class RegistryFinder(PathFinderStrategy):
 
 class LinuxFinder(PathFinderStrategy):
     def find(self):
+        home = Path.home()
         candidates = [
-            Path.home() / ".steam" / "root",
-            Path.home() / ".steam" / "steam",
-            Path.home() / ".local" / "share" / "Steam",
-            Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / "data" / "Steam",
+            home / ".steam" / "steam",
+            home / ".local" / "share" / "Steam",
+            home / ".var" / "app" / "com.valvesoftware.Steam" / "data" / "Steam",
+            home / "snap" / "steam" / "common" / ".steam" / "steam",
         ]
         for candidate in candidates:
             try:
-                resolved = candidate.resolve()
-                if validate_steam_path(resolved):
-                    return resolved
+                if (candidate / "steamapps").is_dir():
+                    return Path(os.path.realpath(candidate))
             except Exception:
                 pass
         return None

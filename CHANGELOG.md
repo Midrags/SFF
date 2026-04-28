@@ -1,5 +1,18 @@
 # Changelog
 
+## 5.3.0
+
+### Fixes
+- **Steam launch "Access Denied" fix** — SteaMidra now checks if it is already running as administrator. If it is, it launches Steam directly instead of requesting elevation again (which caused an "Access Denied" error on Windows 11).
+- **Auto-updater fixed for Windows EXE builds** — now downloads the release ZIP, extracts it next to the EXE, replaces the `_internal/` folder via a batch script, and relaunches automatically. No more aria2c or manual steps.
+- **Auto-updater fixed for Linux AppImage builds** — downloads the release ZIP, extracts it, then runs `steamidra_install.sh` in your terminal automatically.
+
+### Improvements
+- **Windows EXE is now distributed as a ZIP folder** (`SteaMidra-5.3.0-windows.zip`). Extract once anywhere, run `SteaMidra_GUI.exe` from the extracted folder. This replaces the single-file EXE.
+- **No more temp folder extraction on startup** — files are pre-extracted into `_internal/` at install time. Startup is faster and antivirus false positives are greatly reduced.
+
+---
+
 ## 5.2.0
 
 ### AppList popup notification (GUI)
