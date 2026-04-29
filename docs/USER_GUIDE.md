@@ -145,10 +145,10 @@ Search and browse the Morrenus manifest library. Enter your API key in Settings 
 View and manage active and queued downloads. When you use "Download Games" on the Main tab, downloads appear here with progress tracking.
 
 ### Fix Game Tab
-Automate the emulator application pipeline. Choose an emulator mode (Regular Goldberg, ColdClient Loader, or ColdLoader DLL), toggle SteamStub auto-unpack, and configure generation options. Select a game and click Fix to apply.
+Automate the emulator application pipeline. Choose an emulator mode (Regular Goldberg, ColdClient Loader, or ColdLoader DLL), toggle SteamStub auto-unpack, and configure generation options. Select a game and click Fix to apply. Achievements, stats, DLC, and language configs are automatically generated using the Steam Web API key from Settings (no input required).
 
 ### Tools Tab
-- **GBE Token Generator** — Generate full Goldberg emulator configs (achievements, DLCs, stats, icons) for a game. Requires a Steam Web API key.
+- **GBE Token Generator** — Generate full Goldberg emulator configs (achievements, DLCs, stats, icons) for a game. The Steam Web API key is auto-filled from Settings on startup. If you haven’t set a key, the built-in default key is used automatically.
 - **VDF Depot Key Extractor** — Extract decryption keys from Steam's config.vdf and display them in a table.
 
 ### Cloud Saves Tab

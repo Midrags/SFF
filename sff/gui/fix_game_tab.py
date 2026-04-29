@@ -338,7 +338,7 @@ class FixGameTab(QWidget):
             "but fails on games that require steamclient.dll."
         )
         mode_tip.setWordWrap(True)
-        mode_tip.setStyleSheet("color: #a0a0a0; font-size: 11px; padding: 2px 0px 4px 0px;")
+        mode_tip.setStyleSheet("color: #a0a0a0; font-size: 10px; padding: 2px 0px 4px 0px;")
         opt_layout.addWidget(mode_tip)
         # GSE Fork options panel — only visible when ColdClient Advanced is selected
         self._gse_group = QGroupBox("GSE Fork Options")
@@ -391,9 +391,16 @@ class FixGameTab(QWidget):
             pass
         self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
         self._gse_login_radio.toggled.connect(self._on_gse_auth_changed)
+        # Row: Goldberg update + Launch.bat (administrative options)
+        row_admin = QHBoxLayout()
         self._chk_goldberg_update = QCheckBox("Check for Goldberg updates (downloads latest from GitHub)")
         self._chk_goldberg_update.setChecked(False)
-        opt_layout.addWidget(self._chk_goldberg_update)
+        row_admin.addWidget(self._chk_goldberg_update)
+        self._chk_launchbat = QCheckBox("Create Launch.bat (For ColdClient)")
+        self._chk_launchbat.setChecked(False)
+        row_admin.addWidget(self._chk_launchbat)
+        row_admin.addStretch()
+        opt_layout.addLayout(row_admin)
         # Linux-only: toggle between native game vs Proton/Wine
         self._chk_linux_native = QCheckBox(
             "Linux native game (uses libsteam_api.so) — uncheck for Proton/Wine (.dll)"
@@ -401,13 +408,17 @@ class FixGameTab(QWidget):
         self._chk_linux_native.setChecked(True)
         self._chk_linux_native.setVisible(sys.platform != "win32")
         opt_layout.addWidget(self._chk_linux_native)
+        # Row: SteamStub + Experimental (related options)
+        row_stub = QHBoxLayout()
         self._chk_steamstub = QCheckBox("Auto-unpack SteamStub DRM (Steamless)")
         self._chk_steamstub.setChecked(True)
-        opt_layout.addWidget(self._chk_steamstub)
+        row_stub.addWidget(self._chk_steamstub)
         self._chk_steamless_exp = QCheckBox("Use Experimental Features (needed for newer SteamStub variants)")
         self._chk_steamless_exp.setChecked(True)
         self._chk_steamstub.toggled.connect(self._chk_steamless_exp.setEnabled)
-        opt_layout.addWidget(self._chk_steamless_exp)
+        row_stub.addWidget(self._chk_steamless_exp)
+        row_stub.addStretch()
+        opt_layout.addLayout(row_stub)
         # steam_settings generation mode
         config_layout = QHBoxLayout()
         config_layout.addWidget(QLabel("steam_settings:"))
@@ -421,9 +432,6 @@ class FixGameTab(QWidget):
         config_layout.addWidget(self._radio_advanced)
         config_layout.addStretch()
         opt_layout.addLayout(config_layout)
-        self._chk_launchbat = QCheckBox("Create Launch.bat (For ColdClient)")
-        self._chk_launchbat.setChecked(False)
-        opt_layout.addWidget(self._chk_launchbat)
         layout.addWidget(opt_group)
         # --- Action buttons ---
         btn_layout = QHBoxLayout()

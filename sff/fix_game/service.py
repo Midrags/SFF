@@ -168,6 +168,11 @@ class FixGameService:
                     return False
         # --- Step 2: Config Generation ---
         log("\n--- Step 2: Config Generation ---")
+        if not steam_web_api_key:
+            from sff.storage.settings import get_setting
+            from sff.structs import Settings
+            from sff.strings import STEAM_WEB_API_KEY as _DEFAULT_KEY
+            steam_web_api_key = get_setting(Settings.STEAM_WEB_API_KEY) or _DEFAULT_KEY
         cached_info = self.cache.load_app_info(app_id)
         generator = GoldbergConfigGenerator(steam_web_api_key)
         if emu_mode == EmuMode.COLDCLIENT_ADVANCED.value:

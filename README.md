@@ -39,7 +39,7 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 ### Step 1: SteaMidra
 
 Download the latest version from [here](https://github.com/Midrags/SFF/releases/latest).
-You will get a ZIP file (`SteaMidra-5.3.0-windows.zip`). Extract it anywhere — you will see a folder containing `SteaMidra_GUI.exe` and an `_internal/` folder. Place this folder wherever you want (e.g. `C:\SteaMidra\`). Run `SteaMidra_GUI.exe` from inside it.
+You will get a ZIP file (`SteaMidra-5.4.0-windows.zip`). Extract it anywhere — you will see a folder containing `SteaMidra_GUI.exe` and an `_internal/` folder. Place this folder wherever you want (e.g. `C:\SteaMidra\`). Run `SteaMidra_GUI.exe` from inside it.
 
 ### Step 2: GreenLuma
 

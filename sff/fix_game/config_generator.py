@@ -150,6 +150,8 @@ class GoldbergConfigGenerator:
                                    skip_api=False)
             # configs.overlay.ini (per-game — experimental overlay off by default; on by default crashes DX9/32-bit games)
             self._write_overlay_config(settings_dir, log, enable_overlay=False)
+            # configs.main.ini (per-game — sets allow_unknown_stats and other per-game overrides)
+            self._write_main_config(settings_dir, log)
             if not simple_mode:
                 # achievements.json
                 if self.steam_web_api_key:
@@ -297,10 +299,9 @@ saves_folder_name=GSE Saves
         (settings_dir / "configs.user.ini").write_text(content, encoding="utf-8")
         log("\u2713 Created configs.user.ini")
 
-    def _write_main_config(self, settings_dir, log, enable_avatar = False):
+    def _write_main_config(self, settings_dir, log):
         """write configs.main.ini with full commented template"""
-        avatar_val = "1" if enable_avatar else "0"
-        content = f"""# ##############################################################################
+        content = """# ##############################################################################
 
 [main::general]
 # use new app ticket format (recommended)
@@ -319,10 +320,6 @@ block_unknown_clients=0
 # default=0
 steam_deck=0
 
-# enable account avatar (requires account_avatar.png/jpg in steam_settings/)
-# default=0
-enable_account_avatar={avatar_val}
-
 # enable voice chat (experimental)
 # default=0
 enable_voice_chat=0
@@ -334,7 +331,7 @@ disable_leaderboards_create_unknown=0
 
 # allow stats not defined in stats.json to be set/read
 # default=0
-allow_unknown_stats=0
+allow_unknown_stats=1
 
 # track achievement progress (fraction displayed in overlay)
 # default=1
@@ -440,6 +437,18 @@ upload_achievements_icons_to_gpu=1
 # minimum allowed value=1
 # default=10
 fps_averaging_window=10
+# always show user info in overlay corner (even without pressing shift+tab)
+# default=0
+overlay_always_show_user_info=0
+# always show FPS counter
+# default=0
+overlay_always_show_fps=0
+# always show frametime
+# default=0
+overlay_always_show_frametime=0
+# always show playtime
+# default=0
+overlay_always_show_playtime=0
 
 [overlay::appearance]
 # load custom TrueType font from a path, it could be absolute, or relative
@@ -648,6 +657,9 @@ Stats_Pos_y=0.0
                 data = resp.json()
             achievements = data.get("game", {}).get("availableGameStats", {}).get("achievements", [])
             if achievements:
+                for ach in achievements:
+                    if "hidden" in ach and not isinstance(ach["hidden"], str):
+                        ach["hidden"] = str(int(ach["hidden"]))
                 (settings_dir / "achievements.json").write_text(
                     json.dumps(achievements, indent=2), encoding="utf-8"
                 )
@@ -655,12 +667,23 @@ Stats_Pos_y=0.0
             else:
                 log("No achievements found for this game")
             # also save stats if available
-            stats = data.get("game", {}).get("availableGameStats", {}).get("stats", [])
-            if stats:
+            raw_stats = data.get("game", {}).get("availableGameStats", {}).get("stats", [])
+            if raw_stats:
+                gbe_stats = []
+                for s in raw_stats:
+                    t = s.get("type", "int")
+                    if isinstance(t, int):
+                        t = {1: "int", 2: "float", 3: "avgrate"}.get(t, "int")
+                    gbe_stats.append({
+                        "name": s.get("name", ""),
+                        "type": t,
+                        "default": str(s.get("defaultvalue", "0")),
+                        "global": "0",
+                    })
                 (settings_dir / "stats.json").write_text(
-                    json.dumps(stats, indent=2), encoding="utf-8"
+                    json.dumps(gbe_stats, indent=2), encoding="utf-8"
                 )
-                log(f"✓ Saved {len(stats)} stats")
+                log(f"✓ Saved {len(gbe_stats)} stats")
         except Exception as e:
             log(f"Could not fetch achievements: {e}")
 

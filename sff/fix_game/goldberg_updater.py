@@ -41,26 +41,26 @@ LINUX_RELEASE_ASSET_NAME = "emu-linux-release.tar.bz2"
 
 # files we need from the Windows release archive
 REQUIRED_FILES = {
-    # regular mode
-    "steam_api.dll": "release/steam_api.dll",
-    "steam_api64.dll": "release/steam_api64.dll",
-    # coldclient mode
-    "steamclient.dll": "release/steamclient.dll",
-    "steamclient64.dll": "release/steamclient64.dll",
-    "steamclient_loader_x32.exe": "release/steamclient_loader_x32.exe",
-    "steamclient_loader_x64.exe": "release/steamclient_loader_x64.exe",
+    # regular mode — experimental builds (include overlay support, ~19 MB)
+    "steam_api.dll":              "release/experimental/x32/steam_api.dll",
+    "steam_api64.dll":            "release/experimental/x64/steam_api64.dll",
+    # coldclient mode — full steamclient emulator (~19 MB)
+    "steamclient.dll":            "release/steamclient_experimental/steamclient.dll",
+    "steamclient64.dll":          "release/steamclient_experimental/steamclient64.dll",
+    "steamclient_loader_x32.exe": "release/steamclient_experimental/steamclient_loader_x32.exe",
+    "steamclient_loader_x64.exe": "release/steamclient_experimental/steamclient_loader_x64.exe",
     # extra DLLs for coldclient injection
-    "steamclient_extra_x32.dll": "release/extra_dlls/steamclient_extra_x32.dll",
-    "steamclient_extra_x64.dll": "release/extra_dlls/steamclient_extra_x64.dll",
+    "steamclient_extra_x32.dll":  "release/steamclient_experimental/extra_dlls/steamclient_extra_x32.dll",
+    "steamclient_extra_x64.dll":  "release/steamclient_experimental/extra_dlls/steamclient_extra_x64.dll",
     # overlay renderer — required when any overlay is enabled in steam_settings
-    "GameOverlayRenderer.dll":   "release/GameOverlayRenderer.dll",
-    "GameOverlayRenderer64.dll": "release/GameOverlayRenderer64.dll",
+    "GameOverlayRenderer.dll":    "release/steamclient_experimental/GameOverlayRenderer.dll",
+    "GameOverlayRenderer64.dll":  "release/steamclient_experimental/GameOverlayRenderer64.dll",
 }
 
 # generate_interfaces tool (Windows)
 TOOLS_FILES = {
-    "generate_interfaces_x32.exe": "release/tools/generate_interfaces_x32.exe",
-    "generate_interfaces_x64.exe": "release/tools/generate_interfaces_x64.exe",
+    "generate_interfaces_x32.exe": "release/tools/generate_interfaces/generate_interfaces_x32.exe",
+    "generate_interfaces_x64.exe": "release/tools/generate_interfaces/generate_interfaces_x64.exe",
 }
 
 # files we need from the Linux release archive (.tar.bz2)
@@ -68,6 +68,8 @@ TOOLS_FILES = {
 LINUX_REQUIRED_FILES = {
     "libsteam_api.so":   "release/regular/x64/libsteam_api.so",
     "libsteam_api32.so": "release/regular/x32/libsteam_api.so",  # same filename, different dir
+    "steamclient.so":    "release/regular/x64/steamclient.so",
+    "steamclient32.so":  "release/regular/x32/steamclient.so",
 }
 
 # Linux generate_interfaces tools
@@ -302,15 +304,16 @@ class GoldbergUpdater:
                     archive.extractall(path=tmpdir)
                     extracted_count = 0
                     tmppath = Path(tmpdir)
-                    for dest_name in files_to_extract:
-                        found = self._find_file(tmppath, dest_name)
+                    for dest_name, archive_path in files_to_extract.items():
+                        full = tmppath / archive_path
+                        found = full if full.exists() else self._find_file(tmppath, Path(archive_path).name)
                         if found:
                             dest = self.cache_dir / dest_name
                             dest.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copy2(found, dest)
                             extracted_count += 1
                         else:
-                            logger.debug("File not found in archive: %s", dest_name)
+                            logger.debug("File not found in archive: %s (path: %s)", dest_name, archive_path)
                     log(f"Extracted {extracted_count} files")
             (self.cache_dir / "version.txt").write_text(tag, encoding="utf-8")
             log(f"Goldberg {tag} cached successfully")
@@ -436,8 +439,9 @@ class GoldbergUpdater:
                     log(f"{tool_name} extraction failed: {result.stderr}")
                     return False
             extracted_count = 0
-            for dest_name in files_to_extract:
-                found = self._find_file(extract_dir, dest_name)
+            for dest_name, archive_path in files_to_extract.items():
+                full = extract_dir / archive_path
+                found = full if full.exists() else self._find_file(extract_dir, Path(archive_path).name)
                 if found:
                     dest = self.cache_dir / dest_name
                     shutil.copy2(found, dest)

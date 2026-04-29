@@ -11,6 +11,8 @@ To use it, extract emu-linux-release.tar.bz2 here manually.
 Required files (from release/ inside the archive):
   libsteam_api.so       — 64-bit Goldberg steam_api replacement
   libsteam_api32.so     — 32-bit Goldberg steam_api replacement
+  steamclient.so        — 64-bit steamclient (for games that load it directly)
+  steamclient32.so      — 32-bit steamclient (for games that load it directly)
 
 Optional tools (from release/tools/ inside the archive):
   generate_interfaces_x64 — generates steam_interfaces.txt from .so

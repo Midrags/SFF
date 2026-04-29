@@ -17,7 +17,7 @@ What you need to use SteaMidra and how to get started.
 
 Download the latest release from [GitHub Releases](https://github.com/Midrags/SFF/releases/latest).
 
-Create a folder (e.g. `SteaMidra`) and place `SteaMidra_GUI.exe` and `SteamKillInject.exe` inside it.
+Extract the ZIP anywhere — you will get a folder with `SteaMidra_GUI.exe` and an `_internal/` folder inside. Place the whole folder wherever you want (e.g. `C:\SteaMidra\`) and run `SteaMidra_GUI.exe` from inside it.
 
 ---
 
@@ -41,7 +41,7 @@ Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest Green
 
 ## Multiplayer fix (online-fix.me)
 
-> ⚠️ **Currently not working.** online-fix.me has updated their site which broke the integration. A fix is being worked on. Use the **Fixes/Bypasses (Ryuu)** option in the meantime.
+You could use mutliplayer fix option to get the multiplayer fix from online-fix.me. Or use the **Fixes/Bypasses (Ryuu)** option for both online fixes and game bypasses/fixes.
 
 When the feature is restored, you will need:
 

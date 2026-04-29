@@ -1,5 +1,27 @@
 # Changelog
 
+## 5.4.0
+
+### GBE Fork Update
+- **Updated Windows GBE fork DLLs** — `steam_api.dll`, `steam_api64.dll`, `steamclient.dll`, `steamclient64.dll`, `GameOverlayRenderer.dll`, `GameOverlayRenderer64.dll` now use the experimental builds (~19 MB) which include full overlay support.
+- **Fixed DLL extraction bug** — Goldberg auto-updater now correctly extracts experimental DLLs instead of the smaller regular builds. Full archive path is matched first before filename-only fallback.
+- **Added Linux `steamclient.so`** — `steamclient.so` (x64) and `steamclient32.so` (x32) are now downloaded and deployed for Linux native games that load steamclient directly.
+
+### Achievement & Config Generation Fixes
+- **Achievements now always generated** — Fix Game pipeline now automatically uses the saved/default Steam Web API key if none is explicitly provided. Achievements were silently skipped before.
+- **Per-game `configs.main.ini` now written** — `steam_settings/configs.main.ini` is generated for each game with `allow_unknown_stats=1` so stats work even without a full `stats.json`.
+- **Stats format fixed** — `stats.json` now uses the correct GBE fork field names (`name`, `type`, `default`, `global`) instead of raw Steam API fields.
+- **Achievement `hidden` field fixed** — `achievements.json` `hidden` field is now always a string (`"0"` or `"1"`) as required by GBE fork.
+- **Overlay config updated** — `configs.overlay.ini` now includes 4 new options from the latest GBE fork release: `overlay_always_show_user_info`, `overlay_always_show_fps`, `overlay_always_show_frametime`, `overlay_always_show_playtime`.
+
+### Tools Tab
+- **GBE Token Generator pre-fills API key** — Steam Web API key is now auto-filled from saved settings (or default key) on startup. Generation no longer aborts if the field is empty — uses default key as fallback. Key is saved to settings after successful generation.
+
+### UI Improvements
+- **Fix Game tab decluttered** — checkboxes grouped into logical rows: Goldberg update + Launch.bat in one row; SteamStub + Experimental in one row. Reduces vertical space.
+
+---
+
 ## 5.3.0
 
 ### Fixes

@@ -76,6 +76,15 @@ class ToolsTab(QWidget):
         self._gbe_api_key.setEchoMode(QLineEdit.EchoMode.Password)
         self._gbe_api_key.setPlaceholderText("Enter your Steam Web API key")
         key_layout.addWidget(self._gbe_api_key)
+        try:
+            from sff.storage.settings import get_setting
+            from sff.structs import Settings
+            from sff.strings import STEAM_WEB_API_KEY as _DEFAULT_KEY
+            _pre = get_setting(Settings.STEAM_WEB_API_KEY) or _DEFAULT_KEY
+            if _pre:
+                self._gbe_api_key.setText(_pre)
+        except Exception:
+            pass
         gbe_layout.addLayout(key_layout)
         key_hint = QLabel("Get your Steam Web API key at: https://steamcommunity.com/dev/apikey")
         key_hint.setOpenExternalLinks(False)
@@ -150,7 +159,10 @@ class ToolsTab(QWidget):
     def _gen_gbe_token(self):
         api_key = self._gbe_api_key.text().strip()
         if not api_key:
-            QMessageBox.warning(self, "Missing API Key", "Please enter your Steam Web API key.")
+            from sff.strings import STEAM_WEB_API_KEY as _DEFAULT_KEY
+            api_key = _DEFAULT_KEY
+        if not api_key:
+            QMessageBox.warning(self, "Missing API Key", "No Steam Web API key available.")
             return
         app_id_str = self._gbe_app_id.text().strip()
         if not app_id_str.isdigit():
@@ -169,6 +181,12 @@ class ToolsTab(QWidget):
             )
             if success:
                 self._gbe_log.append("\nDone! Config package generated successfully.")
+                try:
+                    from sff.storage.settings import set_setting
+                    from sff.structs import Settings
+                    set_setting(Settings.STEAM_WEB_API_KEY, api_key)
+                except Exception:
+                    pass
             else:
                 self._gbe_log.append("\nGeneration failed. Check the log above.")
         except Exception as e:
