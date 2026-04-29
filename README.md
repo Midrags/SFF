@@ -39,7 +39,7 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 ### Step 1: SteaMidra
 
 Download the latest version from [here](https://github.com/Midrags/SFF/releases/latest).
-You will get a ZIP file (`SteaMidra-5.4.0-windows.zip`). Extract it anywhere — you will see a folder containing `SteaMidra_GUI.exe` and an `_internal/` folder. Place this folder wherever you want (e.g. `C:\SteaMidra\`). Run `SteaMidra_GUI.exe` from inside it.
+You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere — you will see a folder containing `SteaMidra_GUI.exe` and an `_internal/` folder. Place this folder wherever you want (e.g. `C:\SteaMidra\`). Run `SteaMidra_GUI.exe` from inside it.
 
 ### Step 2: GreenLuma
 
@@ -52,7 +52,7 @@ Create AppList folder where GreenLuma file are located.
 ### Step 3: Setup GreenLuma
 
 Go into the GreenLuma folder and run `GreenLumaSettings2025.exe`.
-Type `2` in the terminal and press Enter, then set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`) and `GreenLuma_2025_x64.dll` (default: `SteaMidra\Greenluma\GreenLuma_2025_x64.dll`).
+Type `2` in the terminal and press Enter, then set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`) and `GreenLuma_2025_x64.dll` (example: `SteaMidra\Greenluma\GreenLuma_2025_x64.dll`).
 
 > Running from source (Python)? See the [Python Setup Guide](docs/PYTHON_SETUP.md).
 
