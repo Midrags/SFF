@@ -606,6 +606,35 @@ def _detect_sb_browser(progress_cb=None):
     return 'chrome', ''   # last resort: let SeleniumBase try its own detection
 
 
+def _cleanup_chrome_for_testing():
+    """Kill any orphaned Chrome for Testing / ChromeDriver processes.
+
+    SeleniumBase UC mode can leave zombie processes when the driver is
+    disconnected during Cloudflare bypass.  This only targets Chrome instances
+    from ``chrome-for-testing`` or ``chrome-bundled`` directories — the user's
+    regular Chrome browser is never touched.
+    """
+    import subprocess, sys
+    try:
+        if sys.platform == "win32":
+            subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "Get-Process chrome -EA 0 | "
+                 "Where-Object { $_.Path -and "
+                 "($_.Path -like '*chrome-for-testing*' -or $_.Path -like '*chrome-bundled*') } | "
+                 "Stop-Process -Force -EA 0; "
+                 "Get-Process chromedriver -EA 0 | Stop-Process -Force -EA 0"],
+                capture_output=True, timeout=10,
+            )
+        else:
+            subprocess.run(["pkill", "-f", "chrome-for-testing"],
+                           capture_output=True, timeout=5)
+            subprocess.run(["pkill", "-f", "chromedriver"],
+                           capture_output=True, timeout=5)
+    except Exception:
+        pass
+
+
 def _fetch_steamdb_seleniumbase(depot_id):
     """Try SteamDB via SeleniumBase UC mode (headless Chrome + CF bypass)."""
     try:
@@ -643,6 +672,8 @@ def _fetch_steamdb_seleniumbase(depot_id):
     except Exception as exc:
         logger.debug("SteamDB SeleniumBase failed for depot %s: %s", depot_id, exc)
         return []
+    finally:
+        _cleanup_chrome_for_testing()
 
 
 def _fetch_steamdb_batch(
@@ -783,6 +814,8 @@ def _fetch_steamdb_batch(
                     results[depot_id] = []
     except Exception as exc:
         logger.debug("SteamDB batch browser failed: %s", exc)
+    finally:
+        _cleanup_chrome_for_testing()
 
     return results
 
