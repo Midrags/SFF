@@ -47,7 +47,7 @@ _DATES_DIRTY = False
 _RATE_REMAINING = 60
 _RESULT_CACHE = {}
 
-_CF_COOKIE_TTL = 1500  # 25 minutes
+_CF_COOKIE_TTL = 3600  # 1 hour
 _CF_COOKIE_CACHE = {}  # {cf_clearance, user_agent, saved_at}
 
 
@@ -620,12 +620,23 @@ def _fetch_steamdb_seleniumbase(depot_id):
         if binary:
             sb_kwargs["binary_location"] = binary
         with SB(**sb_kwargs) as sb:
+            sb.driver.set_page_load_timeout(30)
+            sb.driver.set_script_timeout(30)
             sb.uc_open_with_reconnect(url, 6)
             try:
                 sb.wait_for_element('td.tabular-nums', timeout=6)
             except Exception:
                 sb.sleep(2)
             entries = _parse_steamdb_html(sb.get_page_source())
+            try:
+                for ck in sb.driver.get_cookies():
+                    if ck.get("name") == "cf_clearance":
+                        ua = sb.driver.execute_script("return navigator.userAgent;")
+                        _save_cf_cookie_cache(ck["value"], ua or "")
+                        logger.debug("SteamDB single-depot: cf_clearance cookie saved")
+                        break
+            except Exception:
+                pass
             if entries:
                 logger.debug("SteamDB SeleniumBase: %d entries for depot %s", len(entries), depot_id)
             return entries
@@ -637,14 +648,17 @@ def _fetch_steamdb_seleniumbase(depot_id):
 def _fetch_steamdb_batch(
     depot_ids: list[str],
     progress_cb=None,
+    app_id=None,
 ):
     """
     Open ONE SeleniumBase UC browser and scrape the SteamDB depot/manifests page
     for each depot_id sequentially.  Much faster than one browser per depot.
+    If *app_id* is given, the first page visit goes to /app/{id}/depots/ to solve
+    CF and discover additional depot IDs in the same session.
     Returns {depot_id: [ManifestEntry, ...]}.
     progress_cb(msg: str) is called before each depot if provided.
     """
-    if not depot_ids:
+    if not depot_ids and not app_id:
         return {}
     try:
         from seleniumbase import SB
@@ -652,7 +666,6 @@ def _fetch_steamdb_batch(
         logger.debug("seleniumbase not installed, skipping SteamDB batch scrape")
         return {}
 
-    n = len(depot_ids)
     results = {}
     browser, binary = _detect_sb_browser(progress_cb=progress_cb)
     sb_kwargs = dict(uc=True, headless=True, block_images=True, browser=browser)
@@ -677,10 +690,51 @@ def _fetch_steamdb_batch(
 
     try:
         with SB(**sb_kwargs) as sb:
-            for i, depot_id in enumerate(depot_ids):
+            sb.driver.set_page_load_timeout(30)
+            sb.driver.set_script_timeout(30)
+
+            # Step 0: visit app/depots page to solve CF + discover extra depots
+            extra_depot_ids = []
+            if app_id:
+                try:
+                    app_url = f"https://www.steamdb.info/app/{app_id}/depots/"
+                    if progress_cb:
+                        try:
+                            progress_cb(f"SteamDB: discovering depots for app {app_id}\u2026")
+                        except Exception:
+                            pass
+                    sb.uc_open_with_reconnect(app_url, 5)
+                    try:
+                        sb.wait_for_element('a[href*="/depot/"]', timeout=7)
+                    except Exception:
+                        sb.sleep(3)
+                    app_html = sb.get_page_source()
+                    discovered = _parse_steamdb_app_depots(app_html)
+                    depot_id_set = set(depot_ids)
+                    extra_depot_ids = [d for d in discovered if d not in depot_id_set]
+                    if extra_depot_ids:
+                        logger.debug("SteamDB: discovered %d extra depot(s) from app page", len(extra_depot_ids))
+                    if not cookie_saved:
+                        try:
+                            for ck in sb.driver.get_cookies():
+                                if ck.get("name") == "cf_clearance":
+                                    ua = sb.driver.execute_script("return navigator.userAgent;")
+                                    _save_cf_cookie_cache(ck["value"], ua or "")
+                                    cookie_saved = True
+                                    logger.debug("SteamDB batch: cf_clearance cookie saved from app page")
+                                    break
+                        except Exception:
+                            pass
+                except Exception as exc:
+                    logger.debug("SteamDB app depots page failed for app %s: %s", app_id, exc)
+
+            all_depot_ids = list(depot_ids) + extra_depot_ids
+            n = len(all_depot_ids)
+
+            for i, depot_id in enumerate(all_depot_ids):
                 if progress_cb:
                     try:
-                        progress_cb(f"SteamDB: depot {i + 1}/{n} ({depot_id})…")
+                        progress_cb(f"SteamDB: depot {i + 1}/{n} ({depot_id})\u2026")
                     except Exception:
                         pass
                 url = f"https://www.steamdb.info/depot/{depot_id}/manifests/"
@@ -733,15 +787,16 @@ def _fetch_steamdb_batch(
     return results
 
 
-def _fetch_steamdb_all(depot_ids: list, progress_cb=None) -> dict:
+def _fetch_steamdb_all(depot_ids: list, progress_cb=None, app_id=None) -> dict:
     """
     Unified 3-layer SteamDB fetcher.
     Layer 1: curl_cffi Chrome impersonation (fast, no browser)
     Layer 2: httpx + cached cf_clearance cookie (fast, no browser)
     Layer 3: SeleniumBase batch (always works, saves cookie for next run)
+    If *app_id* is given, Layer 3 also visits /app/{id}/depots/ to discover extra depots.
     Returns {depot_id: [ManifestEntry, ...]} for all depots.
     """
-    if not depot_ids:
+    if not depot_ids and not app_id:
         return {}
 
     results = {}
@@ -775,9 +830,9 @@ def _fetch_steamdb_all(depot_ids: list, progress_cb=None) -> dict:
         remaining = [d for d in remaining if not results.get(d)]
         logger.debug("Layer2 done: %d total hits, %d remaining", len(results), len(remaining))
 
-    # Layer 3 — SeleniumBase batch (guaranteed CF bypass)
-    if remaining:
-        layer3 = _fetch_steamdb_batch(remaining, progress_cb=progress_cb)
+    # Layer 3 — SeleniumBase batch (guaranteed CF bypass + app depot discovery)
+    if remaining or app_id:
+        layer3 = _fetch_steamdb_batch(remaining, progress_cb=progress_cb, app_id=app_id)
         for did, entries in layer3.items():
             results.setdefault(did, entries)
 
@@ -875,6 +930,27 @@ def _parse_steamdb_html(html):
     return unique
 
 
+def _parse_steamdb_app_depots(html: str) -> list:
+    """Extract depot IDs from a SteamDB app depots page (/app/{id}/depots/).
+
+    Finds all ``<a href="/depot/{digits}...">`` links on the page and returns
+    a deduplicated list of depot ID strings.
+    """
+    from bs4 import BeautifulSoup
+
+    depot_ids = []
+    seen = set()
+    soup = BeautifulSoup(html, "html.parser")
+    for a in soup.find_all("a", href=True):
+        m = re.match(r"/depot/(\d+)", a["href"])
+        if m:
+            did = m.group(1)
+            if did not in seen:
+                seen.add(did)
+                depot_ids.append(did)
+    return depot_ids
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -921,10 +997,22 @@ def get_depot_manifests(depot_id, fetch_dates = True,
                            date="(local fallback)", branch="public",
                            source="local fallback"))
 
-    # Source 5 — SteamDB last resort
+    # Source 5 — SteamDB fast-path (cookie only; browser handled by get_depots_for_app batch)
     if not entries:
-        for e in _fetch_steamdb(depot_id):
-            _add(e)
+        cf_c, cf_ua = _get_valid_cf_cookie()
+        if cf_c:
+            try:
+                url_s = f"https://www.steamdb.info/depot/{depot_id}/manifests/"
+                resp = httpx.get(
+                    url_s, headers=_steamdb_headers_base(cf_ua),
+                    cookies={"cf_clearance": cf_c}, timeout=8,
+                    follow_redirects=True,
+                )
+                if resp.status_code == 200:
+                    for e in _parse_steamdb_html(resp.text):
+                        _add(e)
+            except Exception:
+                pass
 
     def _sort_key(e):
         return e.date if re.match(r"\d{4}-\d{2}-\d{2}", e.date) else "0000-00-00"
@@ -1035,7 +1123,7 @@ def get_depots_for_app(app_id, progress_cb=None, force_refresh=False):
     ]
     if needs_steamdb:
         logger.debug("SteamDB 3-layer scraping %d depots for historical data", len(needs_steamdb))
-        for did, sdb_entries in _fetch_steamdb_all(needs_steamdb, progress_cb=progress_cb).items():
+        for did, sdb_entries in _fetch_steamdb_all(needs_steamdb, progress_cb=progress_cb, app_id=app_id).items():
             # Deduplicate on (manifest_id, date) so DLC depots with a single
             # manifest still appear under their historical SteamDB date even
             # when Steam CM already reported that manifest under a different date.
