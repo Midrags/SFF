@@ -46,6 +46,7 @@ from PyQt6.QtWidgets import (
     QTabWidget,
 )
 
+from sff.gui.log_window import GlobalLogWindow, QtLogHandler
 from sff.gui.themes import THEMES
 from sff.i18n import T
 from sff.structs import MainMenu, MainReturnCode
@@ -134,6 +135,14 @@ class SFFMainWindow(QMainWindow):
         self._music_muted = False
         self._game_list = []
         self._stream_emitter = StreamEmitter()
+        self._log_window = GlobalLogWindow(self)
+        self._log_handler = QtLogHandler()
+        self._log_handler.setFormatter(
+            __import__('logging').Formatter("%(name)s — %(message)s")
+        )
+        self._log_handler.setLevel(__import__('logging').DEBUG)
+        self._log_handler.record_emitted.connect(self._log_window.append_record)
+        __import__('logging').getLogger().addHandler(self._log_handler)
         self._worker = None
         self._worker_thread = None
         self.setWindowTitle("SteaMidra")
@@ -407,6 +416,8 @@ class SFFMainWindow(QMainWindow):
         help_menu.addAction(T("Analytics dashboard")).triggered.connect(
             lambda: self._run_tool(lambda: self.ui.analytics_dashboard_menu())
         )
+        logs_action = menubar.addAction("Logs")
+        logs_action.triggered.connect(self._show_log_window)
         self._stream_emitter.text_written.connect(self._append_log)
         self._set_theme(self._current_theme)
         self._on_source_changed()
@@ -588,6 +599,11 @@ class SFFMainWindow(QMainWindow):
         self._start_worker(func, label)
 
     # ── Log ──────────────────────────────────────────────────────
+
+    def _show_log_window(self):
+        self._log_window.show()
+        self._log_window.raise_()
+        self._log_window.activateWindow()
 
     def _append_log(self, text):
         text = _ANSI_RE.sub("", text)

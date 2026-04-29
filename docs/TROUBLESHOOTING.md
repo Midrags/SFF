@@ -62,15 +62,11 @@ If your antivirus still flags files, add your SteaMidra folder (e.g. `C:\SteaMid
 
 If the multiplayer fix needs a browser and you get a Chrome or ChromeDriver error, make sure Chrome is installed and up to date. Try closing all Chrome windows and running SteaMidra again, or run it as administrator.
 
-> ⚠️ The multiplayer fix feature is currently not working due to an online-fix.me site update. Use **Fixes/Bypasses (Ryuu)** as an alternative.
-
 ---
 
 ## Login failed (online-fix.me)
 
 Check your username and password on the online-fix.me website. If you can log in there, update your credentials in SteaMidra under Settings. Some games may no longer be available on the site.
-
-> ⚠️ The multiplayer fix feature is currently not working due to an online-fix.me site update. Use **Fixes/Bypasses (Ryuu)** as an alternative.
 
 ---
 

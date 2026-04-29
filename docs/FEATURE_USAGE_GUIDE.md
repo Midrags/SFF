@@ -43,7 +43,11 @@ SteaMidra has two separate download paths:
 
 **Store browser (GUI)**
 
-The Store tab lets you search the Hubcap manifest library by game name or App ID. You need a Hubcap API key (set it in Settings). Results are paginated and show available depot/manifest combinations for each game.
+The Store tab lets you search the Hubcap manifest library by game name or App ID. You need a Hubcap API key (set it in Settings). Results are paginated. Click **Download (choose version)** to fetch the full depot and manifest history from multiple sources (Steam CM, GitHub mirror, SteamDB) and pick a specific version to download. If the version list looks incomplete, click **Force Refresh** to ignore the disk cache and re-fetch all historical manifests from scratch.
+
+**Floating Log Viewer**
+
+Click the **Logs** button in the menu bar (to the right of Help) to open the floating log viewer. It shows all Python logging output from the entire app — every tab, every background operation. You can filter by level (DEBUG, INFO, WARNING, ERROR), clear the log, or copy everything to the clipboard. Closing the window just hides it; click Logs again to bring it back.
 
 **Themes (GUI)**
 

@@ -139,7 +139,7 @@ Edit, export, or import SteaMidra settings. Settings are usually set automatical
 The GUI uses a tabbed interface. All CLI features are on the **Main** tab. The other tabs are:
 
 ### Store Tab
-Search and browse the Morrenus manifest library. Enter your API key in Settings first. Search by game name or App ID, paginate through results, and view available manifests.
+Search and browse the Hubcap manifest library. Enter your API key in Settings first. Search by game name or App ID, paginate through results, and pick a version to download.
 
 ### Downloads Tab
 View and manage active and queued downloads. When you use "Download Games" on the Main tab, downloads appear here with progress tracking.
@@ -153,7 +153,7 @@ Automate the emulator application pipeline. Choose an emulator mode (Regular Gol
 
 ### Cloud Saves Tab
 Two modes:
-- **STFixer Mode** — Patches broken save behavior in Capcom games (based on STFixer by Selectively11). Enable Cloud Fix and Morrenus Fallback.
+- **STFixer Mode** — Patches broken save behavior in Capcom games (based on STFixer by Selectively11). Enable Cloud Fix and Hubcap Fallback.
 - **Backup/Restore Mode** — Create, list, restore, and delete save backups per game.
 
 ---

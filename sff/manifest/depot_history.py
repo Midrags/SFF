@@ -472,7 +472,11 @@ def _fetch_steamdb_layer1(depot_ids: list) -> dict:
     if not depot_ids:
         return {}
     try:
-        return asyncio.run(_fetch_steamdb_curl_cffi_async(depot_ids))
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(_fetch_steamdb_curl_cffi_async(depot_ids))
+        finally:
+            loop.close()
     except Exception as exc:
         logger.debug("curl_cffi Layer1 batch failed: %s", exc)
         return {}
@@ -526,7 +530,7 @@ _CHROME_PATHS = [
 ]
 
 
-def _ensure_chrome_for_testing():
+def _ensure_chrome_for_testing(progress_cb=None):
     """
     Download the full Chrome for Testing binary from Google if not cached.
     The full Chrome binary (chrome.exe) is required — chrome-headless-shell does
@@ -543,6 +547,11 @@ def _ensure_chrome_for_testing():
         return str(chrome_exe)
 
     logger.info("Chrome for Testing not found — downloading (~300 MB, one-time)...")
+    if progress_cb:
+        try:
+            progress_cb("Downloading Chrome for Testing (~300 MB, one-time setup)…")
+        except Exception:
+            pass
     try:
         api = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
         with urllib.request.urlopen(api, timeout=20) as resp:
@@ -561,13 +570,18 @@ def _ensure_chrome_for_testing():
         zip_path.unlink(missing_ok=True)
         if chrome_exe.exists():
             logger.info("Chrome for Testing ready: %s", chrome_exe)
+            if progress_cb:
+                try:
+                    progress_cb("Chrome for Testing ready — starting SteamDB scrape…")
+                except Exception:
+                    pass
             return str(chrome_exe)
     except Exception as exc:
         logger.debug("Chrome for Testing download failed: %s", exc)
     return ""
 
 
-def _detect_sb_browser():
+def _detect_sb_browser(progress_cb=None):
     """
     Return (browser_name, binary_path) for SeleniumBase UC mode.
     Preference order:
@@ -586,7 +600,7 @@ def _detect_sb_browser():
         if os.path.exists(path):
             return 'chrome', path
     # 3. Auto-download Chrome for Testing
-    chrome = _ensure_chrome_for_testing()
+    chrome = _ensure_chrome_for_testing(progress_cb=progress_cb)
     if chrome:
         return 'chrome', chrome
     return 'chrome', ''   # last resort: let SeleniumBase try its own detection
@@ -640,7 +654,7 @@ def _fetch_steamdb_batch(
 
     n = len(depot_ids)
     results = {}
-    browser, binary = _detect_sb_browser()
+    browser, binary = _detect_sb_browser(progress_cb=progress_cb)
     sb_kwargs = dict(uc=True, headless=True, block_images=True, browser=browser)
     if binary:
         sb_kwargs["binary_location"] = binary
@@ -683,17 +697,17 @@ def _fetch_steamdb_batch(
                 if i > 0:
                     sb.sleep(1)
                 try:
-                    sb.uc_open_with_reconnect(url, 4)
+                    sb.uc_open_with_reconnect(url, 5)
                     try:
-                        sb.wait_for_element('td.tabular-nums', timeout=3)
+                        sb.wait_for_element('td.tabular-nums', timeout=7)
                     except Exception:
-                        sb.sleep(1)
+                        sb.sleep(3)
                     html = sb.get_page_source()
                     entries = _parse_steamdb_html(html)
                     if not entries and 'td.tabular-nums' not in html:
                         logger.debug("SteamDB batch: CF suspected for depot %s, retrying", depot_id)
-                        sb.uc_open_with_reconnect(url, 5)
-                        sb.sleep(3)
+                        sb.uc_open_with_reconnect(url, 6)
+                        sb.sleep(5)
                         entries = _parse_steamdb_html(sb.get_page_source())
                     # After first successful browser load, extract cf_clearance and save
                     if not cookie_saved:
@@ -920,7 +934,7 @@ def get_depot_manifests(depot_id, fetch_dates = True,
     return entries
 
 
-def get_depots_for_app(app_id, progress_cb=None):
+def get_depots_for_app(app_id, progress_cb=None, force_refresh=False):
     """
     Return {depot_id: [ManifestEntry, ...]} for all depots of an app.
 
@@ -950,7 +964,10 @@ def get_depots_for_app(app_id, progress_cb=None):
         return {}
 
     # ── Load disk cache ──────────────────────────────────────────────────────
-    cached_depots, _ = _load_app_depot_cache(app_id)
+    if force_refresh:
+        cached_depots = None
+    else:
+        cached_depots, _ = _load_app_depot_cache(app_id)
 
     fresh_depots = []   # depot_ids whose cache is up-to-date → skip scraping
     stale_depots = []   # depot_ids that need a fresh scrape
@@ -959,7 +976,11 @@ def get_depots_for_app(app_id, progress_cb=None):
         cm_manifest_ids = {e.manifest_id for e in steam_entries.get(depot_id, [])}
         if cached_depots and depot_id in cached_depots:
             cached_manifest_ids = {raw["manifest_id"] for raw in cached_depots[depot_id]}
-            if cm_manifest_ids and cm_manifest_ids.issubset(cached_manifest_ids):
+            has_historical = any(
+                raw.get("source", "") not in ("Steam CM", "Steam CM (DLC)")
+                for raw in cached_depots[depot_id]
+            )
+            if cm_manifest_ids and cm_manifest_ids.issubset(cached_manifest_ids) and has_historical:
                 fresh_depots.append(depot_id)
                 continue
         stale_depots.append(depot_id)
@@ -997,7 +1018,7 @@ def get_depots_for_app(app_id, progress_cb=None):
                     seen.add((e.manifest_id, e.date))
                     merged.append(e)
         # fetch_dates=False: avoid exhausting the 60/hr GitHub rate limit on bulk load
-        for e in get_depot_manifests(depot_id, fetch_dates=False):
+        for e in get_depot_manifests(depot_id, fetch_dates=False, force_refresh=force_refresh):
             if (e.manifest_id, e.date) not in seen:
                 seen.add((e.manifest_id, e.date))
                 merged.append(e)

@@ -41,12 +41,16 @@ Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest Green
 
 ## Multiplayer fix (online-fix.me)
 
-You could use mutliplayer fix option to get the multiplayer fix from online-fix.me. Or use the **Fixes/Bypasses (Ryuu)** option for both online fixes and game bypasses/fixes.
+Use the **Apply multiplayer fix (online-fix.me)** option to download and apply a multiplayer fix for your game directly from online-fix.me.
 
-When the feature is restored, you will need:
+What you need:
 
-- A browser (Chrome recommended) and an archiver (7-Zip or WinRAR).
-- An account on online-fix.me.
+- An account on online-fix.me (create one on their website).
+- Chrome installed and an archiver (7-Zip or WinRAR) for extraction.
+
+SteaMidra will log in, find the fix for your game, download it, and extract it into the game folder automatically. Your credentials are stored securely after the first use.
+
+You can also use **Fixes/Bypasses (Ryuu)** as an additional source — no account needed, and it covers many games not found on online-fix.me.
 
 ---
 

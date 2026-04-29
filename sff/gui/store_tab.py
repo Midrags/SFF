@@ -76,10 +76,11 @@ class _DepotHistoryWorker(QObject):
     error = pyqtSignal(str)
     progress = pyqtSignal(str)     # live status messages (e.g. SteamDB per-depot)
 
-    def __init__(self, app_id, client=None):
+    def __init__(self, app_id, client=None, force_refresh=False):
         super().__init__()
         self.app_id = app_id
         self.client = client
+        self.force_refresh = force_refresh
 
     def run(self):
         try:
@@ -90,7 +91,7 @@ class _DepotHistoryWorker(QObject):
                 except Exception as e:
                     logger.debug(f"Morrenus depot list (unused): {e}")
             from sff.manifest.depot_history import get_depots_for_app
-            result = get_depots_for_app(str(self.app_id), progress_cb=self.progress.emit)
+            result = get_depots_for_app(str(self.app_id), progress_cb=self.progress.emit, force_refresh=self.force_refresh)
             self.finished.emit(result)
         except Exception as e:
             self.error.emit(str(e))
@@ -443,6 +444,7 @@ class StoreTab(QWidget):
         self._thread = None
         self._hist_worker = None
         self._hist_thread = None
+        self._fetching = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -514,6 +516,11 @@ class StoreTab(QWidget):
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setAlternatingRowColors(True)
         layout.addWidget(self._table)
+        self._table.selectionModel().selectionChanged.connect(
+            lambda: self._dl_btn.setEnabled(
+                bool(self._table.selectedItems()) and not self._fetching
+            )
+        )
         # pagination
         page_layout = QHBoxLayout()
         self._prev_btn = QPushButton("← Previous")
@@ -539,6 +546,13 @@ class StoreTab(QWidget):
         self._dl_btn.setEnabled(True)
         self._dl_btn.clicked.connect(self._open_version_picker)
         dl_row.addWidget(self._dl_btn)
+        self._refresh_btn = QPushButton("🔄 Force Refresh")
+        self._refresh_btn.setToolTip(
+            "Ignore disk cache and re-fetch all depot manifest history from scratch "
+            "(use this if version history seems incomplete or outdated)"
+        )
+        self._refresh_btn.clicked.connect(self._open_version_picker_force_refresh)
+        dl_row.addWidget(self._refresh_btn)
         self._appid_edit = QLineEdit()
         self._appid_edit.setPlaceholderText("App ID (optional)")
         self._appid_edit.setMaximumWidth(130)
@@ -644,11 +658,9 @@ class StoreTab(QWidget):
         self._prev_btn.setEnabled(self._current_page > 1)
         self._next_btn.setEnabled(self._current_page < self._total_pages)
         self._status_label.setText(f"Showing {len(games)} results (page {self._current_page}/{self._total_pages})")
-        # Enable download button when rows exist
-        self._dl_btn.setEnabled(len(games) > 0)
-        self._table.selectionModel().selectionChanged.connect(
-            lambda: self._dl_btn.setEnabled(bool(self._table.selectedItems()))
-        )
+        # Enable download button when rows exist (only if not currently fetching)
+        if not self._fetching:
+            self._dl_btn.setEnabled(len(games) > 0)
 
     def _on_error(self, msg):
         self._search_btn.setEnabled(True)
@@ -657,29 +669,47 @@ class StoreTab(QWidget):
             self._thread.wait()
         self._status_label.setText(f"Error: {msg}")
 
-    def _open_version_picker(self):
+    def _resolve_app_id_for_picker(self):
+        """Return (app_id, game_name) from AppID field or table selection, or (None, None)."""
         direct = self._appid_edit.text().strip()
         if direct.isdigit():
-            app_id = int(direct)
-            game_name = f"App {app_id}"
-        else:
-            row = self._table.currentRow()
-            if row < 0:
-                QMessageBox.information(
-                    self, "Select a game",
-                    "Click a row in the table or enter an App ID in the field next to this button."
-                )
-                return
-            app_id_item = self._table.item(row, 0)
-            name_item = self._table.item(row, 1)
-            if not app_id_item:
-                return
-            app_id = int(app_id_item.text())
-            game_name = name_item.text() if name_item else f"App {app_id}"
+            return int(direct), f"App {direct}"
+        row = self._table.currentRow()
+        if row < 0:
+            QMessageBox.information(
+                self, "Select a game",
+                "Click a row in the table or enter an App ID in the field next to this button."
+            )
+            return None, None
+        app_id_item = self._table.item(row, 0)
+        name_item = self._table.item(row, 1)
+        if not app_id_item:
+            return None, None
+        return int(app_id_item.text()), (name_item.text() if name_item else f"App {app_id_item.text()}")
+
+    def _open_version_picker(self):
+        app_id, game_name = self._resolve_app_id_for_picker()
+        if app_id is None:
+            return
+        self._start_hist_fetch(app_id, game_name, force_refresh=False)
+
+    def _open_version_picker_force_refresh(self):
+        app_id, game_name = self._resolve_app_id_for_picker()
+        if app_id is None:
+            return
+        self._start_hist_fetch(app_id, game_name, force_refresh=True)
+
+    def _start_hist_fetch(self, app_id, game_name, force_refresh=False):
+        if self._fetching:
+            return
+        self._fetching = True
         self._status_label.setText(f"Fetching depot history for {game_name}…")
         self._dl_btn.setEnabled(False)
+        self._refresh_btn.setEnabled(False)
+        self._search_btn.setEnabled(False)
+        self._browse_btn.setEnabled(False)
         self._hist_thread = QThread()
-        self._hist_worker = _DepotHistoryWorker(app_id=app_id, client=self._client)
+        self._hist_worker = _DepotHistoryWorker(app_id=app_id, client=self._client, force_refresh=force_refresh)
         self._hist_worker.moveToThread(self._hist_thread)
         self._hist_worker.finished.connect(
             lambda hist: self._on_hist_done(app_id, game_name, hist)
@@ -693,7 +723,11 @@ class StoreTab(QWidget):
         if self._hist_thread:
             self._hist_thread.quit()
             self._hist_thread.wait()
+        self._fetching = False
         self._dl_btn.setEnabled(True)
+        self._refresh_btn.setEnabled(True)
+        self._search_btn.setEnabled(True)
+        self._browse_btn.setEnabled(True)
         self._status_label.setText(
             f"Loaded history for {game_name} — {sum(len(v) for v in hist.values())} manifest entries"
             if hist else f"No manifest history found for {game_name}"
@@ -715,5 +749,9 @@ class StoreTab(QWidget):
         if self._hist_thread:
             self._hist_thread.quit()
             self._hist_thread.wait()
+        self._fetching = False
         self._dl_btn.setEnabled(True)
+        self._refresh_btn.setEnabled(True)
+        self._search_btn.setEnabled(True)
+        self._browse_btn.setEnabled(True)
         self._status_label.setText(f"Error fetching depot history: {msg}")

@@ -2,6 +2,17 @@
 
 ## 5.4.0
 
+### Store Tab — Bug Fixes & Improvements
+- **Crash fix** — Download button can no longer be re-enabled by table row clicks or incoming search results while a depot history fetch is already in progress. All three re-enable paths are now guarded by a `_fetching` flag, preventing a second fetch thread from starting concurrently.
+- **All historical manifest IDs now fetched** — Cache freshness check now requires at least one non-Steam-CM source entry (GitHub mirror or SteamDB). Previously a cache containing only the current Steam CM manifest would be served as "fresh" indefinitely, hiding all historical manifests from the version picker.
+- **Force Refresh button** — New button next to Download bypasses both the disk cache and the in-memory session cache entirely. Use it when version history looks incomplete or you want to force a fresh SteamDB scrape.
+- **SteamDB batch scraper timeouts improved** — `uc_open_with_reconnect` increased 4→5 s, `wait_for_element` 3→7 s, fallback sleep 1→3 s, retry sleep 3→5 s. Greatly reduces Cloudflare challenge failures during multi-depot batch scraping.
+- **asyncio loop fix** — `_fetch_steamdb_layer1` (curl_cffi fast path) now uses `asyncio.new_event_loop()` + `run_until_complete()` instead of `asyncio.run()`, fixing silent failures on Windows when called inside a QThread.
+- **Chrome download progress** — Status label now shows "Downloading Chrome for Testing (~300 MB, one-time setup)…" during the one-time Chrome for Testing download instead of appearing to hang silently.
+
+### UI — Floating Log Viewer
+- **"Logs" button in menu bar** — New button to the right of Help opens a floating, non-modal log viewer showing all Python `logging` output from every part of the app (Fix Game, Store, Tools, and everything else). Supports DEBUG / INFO / WARNING / ERROR level filter, Clear, and Copy All. Closing the window hides it; it can be re-opened at any time.
+
 ### GBE Fork Update
 - **Updated Windows GBE fork DLLs** — `steam_api.dll`, `steam_api64.dll`, `steamclient.dll`, `steamclient64.dll`, `GameOverlayRenderer.dll`, `GameOverlayRenderer64.dll` now use the experimental builds (~19 MB) which include full overlay support.
 - **Fixed DLL extraction bug** — Goldberg auto-updater now correctly extracts experimental DLLs instead of the smaller regular builds. Full archive path is matched first before filename-only fallback.

@@ -80,7 +80,7 @@ SteaMidra has a full graphical interface.
 - **Tabbed interface** — Main, Store, Downloads, Fix Game, Tools, and Cloud Saves tabs.
 - Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.
 - All actions as buttons: crack, DRM removal, DLC check, workshop items, multiplayer fix, **Fixes/Bypasses (Ryuu)**, DLC unlockers, and more.
-- **Store browser** — search and browse the Hubcap Manifest library with pagination.
+- **Store browser** — search and browse the Hubcap Manifest library with pagination. Download button opens a version picker with full depot/manifest history (SteamDB + GitHub mirror sources). **Force Refresh** button bypasses cache to re-scrape all historical manifests.
 - **Fix Game pipeline** — automate emulator application (Goldberg, ColdClient, ColdLoader) with SteamStub unpacking.
 - **GBE Token Generator** — generate full Goldberg emulator configs with achievements, DLCs, stats, and icons.
 - **Cloud Saves** — Steam userdata save backup/restore. Scans `Steam/userdata/<steam32id>/` for all games with saves, lets you back up the `remote/` folder to any destination, and restore it back with one click (automatic safety backup before overwrite).
@@ -90,7 +90,7 @@ SteaMidra has a full graphical interface.
 - **11+ themes** including Dracula, Nord, Cyberpunk, and more.
 - **System tray icon** for quick show/hide and exit.
 - **Multi-language support** — switch between English and Portuguese in Settings (more locales can be added).
-- Log output shown in the window so you can see what's happening.
+- **Log viewer** — "Logs" button in the menu bar (right of Help) opens a floating window showing all log output from every tab (Fix Game, Store, Tools, and more). Filterable by level (DEBUG/INFO/WARNING/ERROR), with Clear and Copy All buttons.
 - Any prompts that would normally appear in the terminal show up as dialog boxes instead.
 
 ---
