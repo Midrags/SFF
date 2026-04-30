@@ -23,7 +23,7 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 ## Features
 
 - Download and use Lua files for games, download manifests, and set up GreenLuma.
-- Write Lua and manifest data into Steam's config so games work with or without an extra injector.
+- Write Lua and manifest data into Steam's config.
 - Multiplayer fixes: **online-fix.me** integration and **game fixes/bypasses (Ryuu)**.
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
