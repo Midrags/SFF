@@ -80,6 +80,23 @@ class WebBridge(QObject):
 
     def _run_async(self, func, *args, on_done=None, on_error=None, **kwargs):
         """Spawn a QThread worker for the given function."""
+        # Forward stdout/stderr from the background thread to the parent window's
+        # StreamEmitter so that print() output appears in the Modern UI log panel.
+        # Classic UI's _start_worker does this too; we mirror that behaviour here.
+        parent = self.parent()
+        stream = getattr(parent, '_stream_emitter', None) if parent else None
+        if stream is not None:
+            _orig_func = func
+            def func(*_a, **_kw):   # noqa: E731
+                import sys as _sys
+                _old_out, _old_err = _sys.stdout, _sys.stderr
+                _sys.stdout = stream
+                _sys.stderr = stream
+                try:
+                    return _orig_func(*_a, **_kw)
+                finally:
+                    _sys.stdout = _old_out
+                    _sys.stderr = _old_err
         thread = QThread()
         worker = _Worker(func, *args, **kwargs)
         worker.moveToThread(thread)

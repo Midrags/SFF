@@ -194,7 +194,7 @@ def _run_multiplayer_fix_process(game_name, game_folder, username, password, aty
         driver = webdriver.Chrome(options=opts); wait = WebDriverWait(driver, 15)
         print(Fore.GREEN + "✓ Secure engine ready" + Style.RESET_ALL)
         # Searching with explicit Story query
-        driver.get(f"https://online-fix.me/index.php?do=search&subaction=search&story={quote(re.sub(r'[^\\w\\s]', '', game_name))}")
+        driver.get(f"https://online-fix.me/index.php?do=search&subaction=search&story={quote(re.sub(r'[^\w\s]', '', game_name))}")
         # QUALITY GATE: Restrict search to dle-content to avoid "thank you" links in footers/sidebars
         try: wait.until(EC.presence_of_element_located((By.ID, "dle-content")))
         except Exception: pass
@@ -277,5 +277,15 @@ def apply_multiplayer_fix(game_name, game_folder):
         if not username: return False
         _save_credentials(username, password)
     atype, apath = _detect_archiver()
-    if not atype: return False
+    if not atype:
+        print(Fore.RED + "✗ No archive tool found. Install 7-Zip or WinRAR to apply the fix." + Style.RESET_ALL)
+        return False
+    # Pre-flight: verify site is reachable before launching ChromeDriver
+    print(Fore.CYAN + "Checking connectivity to online-fix.me..." + Style.RESET_ALL)
+    try:
+        httpx.get(ONLINE_FIX_BASE_URL, timeout=10, follow_redirects=True)
+    except Exception as _conn_err:
+        print(Fore.RED + "✗ Cannot reach online-fix.me. Check your internet connection, disable VPN if active, and verify the site is accessible in your browser." + Style.RESET_ALL)
+        logger.debug("online-fix.me pre-flight failed: %s", _conn_err)
+        return False
     return _run_multiplayer_fix_process(game_name, game_folder, username, password, atype, apath)

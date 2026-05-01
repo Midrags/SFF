@@ -501,6 +501,9 @@ class GameHandler:
     def _resolve_game_name(self, app_info):
         """Helper: resolve game name from ACF or Steam Store fallback."""
         game_name = "Unknown"
+        # Outside-Steam mode uses app_id "0" — skip ACF/Store lookups and use folder name
+        if not app_info.app_id or str(app_info.app_id).strip() == "0":
+            return app_info.path.name or "Unknown"
         steamapps_for_game = app_info.path.parent.parent
         acf_path = steamapps_for_game / f"appmanifest_{app_info.app_id}.acf"
         if acf_path.exists():
