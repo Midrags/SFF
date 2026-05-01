@@ -21,6 +21,18 @@ import os
 import sys
 from pathlib import Path
 
+
+class _NullWriter:
+    def write(self, *a): pass
+    def flush(self): pass
+
+
+if sys.stderr is None:
+    sys.stderr = _NullWriter()
+if sys.stdout is None:
+    sys.stdout = _NullWriter()
+
+
 import PyQt6.QtWebEngineWidgets  # noqa: F401 - must import before QCoreApplication
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
 

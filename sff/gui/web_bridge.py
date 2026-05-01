@@ -904,6 +904,67 @@ class WebBridge(QObject):
         from PyQt6.QtWidgets import QApplication
         QApplication.clipboard().setText(text)
 
+    @pyqtSlot(result=str)
+    def browse_game_folder(self):
+        """Open a native folder-picker dialog and return the selected path (or '')."""
+        from PyQt6.QtWidgets import QFileDialog
+        path = QFileDialog.getExistingDirectory(self.parent(), "Select game folder")
+        return path or ""
+
+    @pyqtSlot(str, str, str)
+    def run_game_action_outside(self, game_path, app_id, action):
+        """Run a game action against a folder outside the Steam library.
+        Builds ACFInfo from the explicit path instead of scanning steamapps."""
+        from pathlib import Path as _Path
+        from sff.game_specific import ACFInfo
+
+        p = _Path(game_path)
+        if not p.is_dir():
+            self._emit_task_result(action, False, f"Folder not found: {game_path}")
+            return
+
+        acf = ACFInfo(app_id or "0", p)
+
+        if action == "steam_auto":
+            from sff.steamauto import get_steamauto_cli_path
+            if get_steamauto_cli_path() is None:
+                self._emit_task_result("steam_auto", False, "SteamAutoCrack CLI not found")
+                return
+            parent = self.parent()
+            if parent and hasattr(parent, '_run_steam_auto_with_acf'):
+                parent._run_steam_auto_with_acf(acf)
+            return
+
+        def _do():
+            from sff.structs import MainMenu
+            game_action_map = {
+                "crack": MainMenu.CRACK_GAME,
+                "steamstub": MainMenu.REMOVE_DRM,
+                "dlc_check": MainMenu.DLC_CHECK,
+                "workshop": MainMenu.DL_WORKSHOP_ITEM,
+                "multiplayer": MainMenu.MULTIPLAYER_FIX,
+                "community_fixes": MainMenu.RYUU_FIX,
+                "achievements": MainMenu.DL_USER_GAME_STATS,
+                "dlc_unlockers": MainMenu.MANAGE_DLC_UNLOCKERS,
+                "check_mod_updates": MainMenu.CHECK_MOD_UPDATES,
+            }
+            menu_choice = game_action_map.get(action)
+            if menu_choice is None:
+                return f"Unknown action: {action}"
+            try:
+                self._ui.run_game_action_with_selection(menu_choice, acf)
+                return None
+            except Exception as e:
+                return str(e)
+
+        def _on_done(error_msg):
+            if error_msg:
+                self._emit_task_result(action, False, str(error_msg))
+            else:
+                self._emit_task_result(action, True, f"Action '{action}' completed")
+
+        self._run_async(_do, on_done=_on_done)
+
     # ── SYNC slots — fast, no I/O ────────────────────────────────
 
     @pyqtSlot(result=str)

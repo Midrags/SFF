@@ -8,6 +8,7 @@ window.App = (function() {
 
     var _currentPage = 'home';
     var _platform = 'win32';
+    var _outsideMode = false;
 
     function init() {
         Components.initModals();
@@ -230,6 +231,28 @@ window.App = (function() {
     }
 
     function _initGlobalListeners() {
+        // Game source toggle (Steam vs outside)
+        var srcSteam   = document.getElementById('game-source-steam');
+        var srcOutside = document.getElementById('game-source-outside');
+        if (srcSteam) srcSteam.addEventListener('change', function() {
+            _outsideMode = false;
+            document.getElementById('steam-mode-row').style.display   = '';
+            document.getElementById('outside-mode-row').style.display  = 'none';
+        });
+        if (srcOutside) srcOutside.addEventListener('change', function() {
+            _outsideMode = true;
+            document.getElementById('steam-mode-row').style.display   = 'none';
+            document.getElementById('outside-mode-row').style.display  = '';
+        });
+
+        // Browse button — opens native folder picker via bridge
+        var browseBtn = document.getElementById('outside-path-browse');
+        if (browseBtn) browseBtn.addEventListener('click', function() {
+            Bridge.callSync('browse_game_folder', function(path) {
+                if (path) document.getElementById('outside-path-display').value = path;
+            });
+        });
+
         // Restart Steam button
         var restartBtn = document.getElementById('btn-restart-steam');
         if (restartBtn) {
@@ -500,6 +523,19 @@ window.App = (function() {
             'mute_toggle', 'remove_game', 'context_menu', 'applist_menu', 'offline_fix',
             'check_updates', 'scan_library', 'analytics'
         ];
+        // Outside-Steam game action
+        if (_outsideMode && nonGameActions.indexOf(action) === -1) {
+            var gamePath     = (document.getElementById('outside-path-display') || {}).value || '';
+            var outsideAppId = (document.getElementById('outside-appid') || {}).value || '0';
+            if (!gamePath) {
+                Components.showToast('warning', 'Please select a game folder first.');
+                return;
+            }
+            Bridge.call('run_game_action_outside', gamePath, outsideAppId || '0', action);
+            return;
+        }
+
+        // Steam game action
         var appId = _getSelectedGameId();
         if (nonGameActions.indexOf(action) === -1 && !appId) {
             Components.showToast('warning', 'Please select a game from the dropdown first.');

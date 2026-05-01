@@ -78,11 +78,28 @@
 
             <div class="section-group">
                 <h2 class="section-title">Select Game</h2>
-                <div class="input-group" style="max-width:500px">
+                <div class="game-source-row">
+                    <label class="game-source-label">
+                        <input type="radio" id="game-source-steam" name="game-source" checked>
+                        <span>Steam games</span>
+                    </label>
+                    <label class="game-source-label">
+                        <input type="radio" id="game-source-outside" name="game-source">
+                        <span>Games outside of Steam</span>
+                    </label>
+                </div>
+                <div id="steam-mode-row" class="input-group" style="max-width:500px;margin-top:8px">
                     <select id="home-game-select" data-tooltip="Select a game from your Steam libraries for quick actions">
                         <option value="">-- Select a game --</option>
                     </select>
                     <button id="home-game-refresh" class="btn" data-tooltip="Rescan installed games">↻</button>
+                </div>
+                <div id="outside-mode-row" class="outside-game-row" style="display:none;margin-top:8px">
+                    <input type="text" id="outside-path-display" class="outside-path-input" readonly placeholder="No folder selected" data-tooltip="Game folder path">
+                    <button id="outside-path-browse" class="btn" data-tooltip="Browse for game folder">📁 Browse</button>
+                    <label class="outside-appid-label" data-tooltip="Optional — leave blank if unknown">App ID:
+                        <input type="text" id="outside-appid" class="outside-appid-input" placeholder="Optional">
+                    </label>
                 </div>
             </div>
 

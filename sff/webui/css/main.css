@@ -707,6 +707,69 @@ input:focus, select:focus {
     word-break: break-word;
 }
 
+/* ── Game source toggle ─────────────────────────────── */
+
+.game-source-row {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.game-source-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.game-source-label input[type="radio"] {
+    accent-color: var(--accent, #e94560);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.outside-game-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.outside-path-input {
+    flex: 1;
+    min-width: 180px;
+    max-width: 340px;
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    opacity: 0.85;
+}
+
+.outside-appid-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.outside-appid-input {
+    width: 80px;
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+}
+
 /* ── Home two-column layout ─────────────────────────── */
 
 .home-layout {

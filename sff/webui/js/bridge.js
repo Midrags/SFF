@@ -161,6 +161,8 @@ window.Bridge = (function() {
             revert_game: function() {},
             get_fix_game_list: function(cb) { if (cb) cb('[]'); },
             get_applist_games: function(cb) { if (cb) cb('[]'); },
+            browse_game_folder: function(cb) { if (cb) cb(''); },
+            run_game_action_outside: function() {},
         };
         _ready = true;
         _readyCallbacks.forEach(function(cb) { cb(_py); });
