@@ -1,5 +1,22 @@
 # Changelog
 
+## 5.5.0
+
+### Modern UI — New Browser-Based Interface
+
+- **New modern interface** built with QWebEngine — replaces the classic Qt widget UI as the primary interface. All tabs are accessible from a sidebar with a clean, themed layout.
+- **Home tab** — select a game from a dropdown populated from all your Steam libraries. Refresh button rescans instantly; the list also refreshes automatically after a download and every 10 minutes.
+- **Store tab** — browse and search the Hubcap manifest library. Switch between grid and list view, sort by latest or other criteria, and paginate through results. Download opens the version picker for full depot/manifest history.
+- **Library tab** — view all installed Steam games across your libraries.
+- **Downloads tab** — live progress bars for active downloads and a full download history.
+- **Fix Game tab** — full emulator setup pipeline: apply Goldberg, ColdClient, or ColdLoader; remove SteamStub DRM; launch script generation.
+- **Tools tab** — GBE Token Generator (generates full Goldberg configs with achievements, stats, DLCs, depots, and icons), VDF Key Extractor, and embedded Workshop browser.
+- **Cloud Saves tab** — scan all games with cloud saves, back up the `remote/` folder to any destination, and restore with one click (automatic safety backup created before any overwrite).
+- **Settings tab** — theme picker (11+ themes), Steam path, API keys, AppList profile management, and all other preferences.
+- Tooltips on every control, toast notifications for actions, and a floating log viewer accessible from any tab.
+
+---
+
 ## 5.4.0
 
 ### Store Tab — Bug Fixes & Improvements

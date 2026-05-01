@@ -1321,32 +1321,39 @@ class UI:
             if self.app_list_man
             else None
         )
+        excluded_set = set(
+            x.strip() for x in
+            (get_setting(Settings.MANIFEST_UPDATE_EXCLUDES) or "").split(",")
+            if x.strip()
+        )
         explored_ids = []
         for lib in steam_libs:
             steamapps = lib / "steamapps"
             acf_files = steamapps.glob("*.acf")
             for acf_file in acf_files:
                 acf = ACFParser(acf_file)
-                if not acf.needs_update():
-                    continue
                 if acf.id not in applist_ids:
+                    continue
+                if str(acf.id) in excluded_set:
+                    print(Fore.LIGHTBLACK_EX + f"Skipping {acf.name} (excluded from updates)" + Style.RESET_ALL)
                     continue
                 if acf.id in explored_ids:
                     continue
+                in_backup = str(acf.id) in lua_manager.named_ids
+                if not in_backup:
+                    print(Fore.YELLOW + f"Skipping {acf.name} — no saved .lua (run Download Games first)" + Style.RESET_ALL)
+                    continue
                 print(
-                    Fore.YELLOW + f"\n{acf.name} needs an update!\n" + Style.RESET_ALL
+                    Fore.YELLOW + f"\nUpdating manifests for {acf.name}...\n" + Style.RESET_ALL
                 )
                 explored_ids.append(acf.id)
-                in_backup = str(acf.id) in lua_manager.named_ids
                 # TODO: DRY this
                 parsed_lua = lua_manager.fetch_lua(
                     LuaChoice.ADD_LUA,
-                    lua_manager.saved_lua / f"{acf.id}.lua" if in_backup else None,
+                    lua_manager.saved_lua / f"{acf.id}.lua",
                 )
                 if parsed_lua is None:
                     return MainReturnCode.LOOP_NO_PROMPT
-                if not in_backup:
-                    lua_manager.backup_lua(parsed_lua)
                 install_lua_to_steam(
                     self.steam_path,
                     str(parsed_lua.app_id),
@@ -1439,6 +1446,11 @@ class UI:
         lua_manager = LuaManager(self.os_type)
         provider = self._steam_provider()
         downloader = ManifestDownloader(provider, self.steam_path)
+        excluded_set = set(
+            x.strip() for x in
+            (get_setting(Settings.MANIFEST_UPDATE_EXCLUDES) or "").split(",")
+            if x.strip()
+        )
         updated_count = 0
         explored_ids = []
         for lib in steam_libs:
@@ -1446,24 +1458,26 @@ class UI:
             acf_files = steamapps.glob("*.acf")
             for acf_file in acf_files:
                 acf = ACFParser(acf_file)
-                if not acf.needs_update():
-                    continue
                 if acf.id not in applist_ids:
+                    continue
+                if str(acf.id) in excluded_set:
+                    print(f"Skipping {acf.name} (excluded from updates)")
                     continue
                 if acf.id in explored_ids:
                     continue
-                print(f"Updating {acf.name}...")
-                explored_ids.append(acf.id)
                 in_backup = str(acf.id) in lua_manager.named_ids
+                if not in_backup:
+                    print(Fore.YELLOW + f"Skipping {acf.name} — no saved .lua (run Download Games first)" + Style.RESET_ALL)
+                    continue
+                print(f"Updating manifests for {acf.name}...")
+                explored_ids.append(acf.id)
                 parsed_lua = lua_manager.fetch_lua(
                     LuaChoice.ADD_LUA,
-                    lua_manager.saved_lua / f"{acf.id}.lua" if in_backup else None,
+                    lua_manager.saved_lua / f"{acf.id}.lua",
                 )
                 if parsed_lua is None:
                     print(Fore.RED + f"✗ Failed to fetch lua for {acf.name}" + Style.RESET_ALL)
                     continue
-                if not in_backup:
-                    lua_manager.backup_lua(parsed_lua)
                 install_lua_to_steam(
                     self.steam_path,
                     str(parsed_lua.app_id),

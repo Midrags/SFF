@@ -16,14 +16,14 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 
 Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
-**Small video about SteaMidra:** [YouTube Tutorial](https://youtu.be/cFfItiV8-pk)
+**Old video about SteaMidra (only for python setup, so most users won't need this just go to releases) will create a new one soon:** [YouTube Tutorial](https://youtu.be/cFfItiV8-pk)
 
 ---
 
 ## Features
 
 - Download and use Lua files for games, download manifests, and set up GreenLuma.
-- Write Lua and manifest data into Steam's config so games work with or without an extra injector.
+- Write Lua and manifest data into Steam's config.
 - Multiplayer fixes: **online-fix.me** integration and **game fixes/bypasses (Ryuu)**.
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
@@ -39,20 +39,33 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 ### Step 1: SteaMidra
 
 Download the latest version from [here](https://github.com/Midrags/SFF/releases/latest).
-You will get a ZIP file (`SteaMidra-5.4.0-windows.zip`). Extract it anywhere — you will see a folder containing `SteaMidra_GUI.exe` and an `_internal/` folder. Place this folder wherever you want (e.g. `C:\SteaMidra\`). Run `SteaMidra_GUI.exe` from inside it.
+You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere — you will see a folder containing `SteaMidra_GUI.exe` and an `_internal/` folder. Place this folder wherever you want (e.g. `C:\SteaMidra\`).
+
+**Do not run SteaMidra yet.** Complete Steps 2 and 3 first so all folders exist before first launch.
 
 ### Step 2: GreenLuma
 
-Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: https://www.up-4ever.net/lyoi96gger8y
+Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: [GreenLuma Link](https://www.up-4ever.net/1xi5stm9ah0u)
 
-Extract the ZIP — you will see three folders. You only need `NormalModePatch.rar`.
-Extract `NormalModePatch.rar` and place all files from it into your `SteaMidra\Greenluma` folder or inside `steam directory`.
-Create AppList folder where GreenLuma file are located.
+Extract the ZIP — you will see three folders. You only need `NormalModePatch.rar`. Extract it and choose one of the two setup methods below:
+
+**Method A — Separate folder (next to SteaMidra)**
+1. Create a `Greenluma` folder next to `SteaMidra_GUI.exe` (e.g. `C:\SteaMidra\Greenluma\`).
+2. Copy all files from `NormalModePatch.rar` into `C:\SteaMidra\Greenluma\`.
+3. Create an `AppList` folder inside it: `C:\SteaMidra\Greenluma\AppList\`.
+
+**Method B — Inside Steam folder (simpler)**
+1. Copy all files from `NormalModePatch.rar` directly into `C:\Program Files (x86)\Steam\`.
+2. Create an `AppList` folder inside Steam: `C:\Program Files (x86)\Steam\AppList\`.
 
 ### Step 3: Setup GreenLuma
 
-Go into the GreenLuma folder and run `GreenLumaSettings2025.exe`.
-Type `2` in the terminal and press Enter, then set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`) and `GreenLuma_2025_x64.dll` (default: `SteaMidra\Greenluma\GreenLuma_2025_x64.dll`).
+Go into whichever folder you chose in Step 2 and run `GreenLumaSettings_2025.exe`.
+
+- Type `2` and press Enter — set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`) and to `GreenLuma_2025_x64.dll` (example for Method A: `C:\SteaMidra\Greenluma\GreenLuma_2025_x64.dll`; for Method B: `C:\Program Files (x86)\Steam\GreenLuma_2025_x64.dll`).
+- Type `4` and press Enter — disables GreenLuma's questions/prompts on every Steam launch.
+
+Now run `SteaMidra_GUI.exe`. On first launch it will ask you to select your AppList folder — point it to the one you created in Step 2 (e.g. `C:\SteaMidra\Greenluma\AppList` or `C:\Program Files (x86)\Steam\AppList`). You are all set. See the [User Guide](docs/USER_GUIDE.md) for how to add games.
 
 > Running from source (Python)? See the [Python Setup Guide](docs/PYTHON_SETUP.md).
 
@@ -74,7 +87,9 @@ When your AppList reaches 130 IDs, SteaMidra shows a popup dialog reminding you 
 
 ## GUI features
 
-SteaMidra has a full graphical interface.
+SteaMidra has a full graphical interface with a **Modern UI** (new in 5.5.0) and the classic Qt interface.
+
+**Modern UI** — the new default interface, built with QWebEngine. Accessible from a clean sidebar with 8 tabs: Home (game picker with auto-refresh), Store (search/browse Hubcap, grid/list, pagination), Library (installed games), Downloads (live progress + history), Fix Game (full emulator pipeline), Tools (GBE Token Generator, VDF Extractor, Workshop), Cloud Saves (scan/backup/restore), and Settings. Supports 11+ themes, tooltips, and toast notifications.
 
 **What the GUI gives you:**
 - **Tabbed interface** — Main, Store, Downloads, Fix Game, Tools, and Cloud Saves tabs.

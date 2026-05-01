@@ -62,6 +62,11 @@ locales_dir = os.path.join(spec_root, 'sff', 'locales')
 if os.path.exists(locales_dir):
     datas.append((locales_dir, 'sff/locales'))
 
+# Web UI assets (HTML/CSS/JS)
+webui_dir = os.path.join(spec_root, 'sff', 'webui')
+if os.path.exists(webui_dir):
+    datas.append((webui_dir, 'sff/webui'))
+
 # Lua / depot keys
 lua_dir = os.path.join(spec_root, 'sff', 'lua')
 if os.path.exists(lua_dir):

@@ -62,6 +62,11 @@ all_games_txt = os.path.join(spec_root, 'all_games.txt')
 if os.path.exists(all_games_txt):
     datas.append((all_games_txt, '.'))
 
+# Include sff/webui/ folder (HTML/CSS/JS web UI assets)
+webui_dir = os.path.join(spec_root, 'sff', 'webui')
+if os.path.exists(webui_dir):
+    datas.append((webui_dir, 'sff/webui'))
+
 # Include c/ folder (MIDI player library, soundfont, and MIDI files)
 c_dir = os.path.join(spec_root, 'c')
 if os.path.exists(c_dir):
@@ -85,6 +90,7 @@ a = Analysis(
         'PyQt6.sip',
         'PyQt6.QtWebEngineCore',
         'PyQt6.QtWebEngineWidgets',
+        'PyQt6.QtWebChannel',
         'prompt_toolkit',
         'selenium',
         'selenium.webdriver',

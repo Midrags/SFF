@@ -1,0 +1,831 @@
+/* SteaMidra — Premium Layer v3 */
+/* Soft ambient sections, no cards, just content + glow */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
+
+/* ── Background Atmosphere ─────────────────── */
+
+body {
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 10%, rgba(74, 158, 255, 0.05) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 90%, rgba(140, 100, 255, 0.04) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 40% at 85% 15%, rgba(255, 120, 80, 0.03) 0%, transparent 45%),
+    radial-gradient(ellipse 40% 30% at 15% 85%, rgba(80, 200, 150, 0.025) 0%, transparent 40%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  padding: 32px 32px;
+}
+
+/* ── Typography ─────────────────────────────── */
+
+h1, h2, h3, h4 {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+h1 { font-size: 26px; font-weight: 800; }
+h2 { font-size: 18px; font-weight: 700; }
+h3 { font-size: 15px; font-weight: 600; }
+
+.page-header {
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-header h1 {
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.page-subtitle {
+  font-size: 13.5px;
+  opacity: 0.45;
+}
+
+.section-group {
+  margin-bottom: 36px;
+}
+
+.section-title {
+  font-family: 'Manrope', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  opacity: 0.35;
+  margin-bottom: 16px;
+  display: block;
+}
+
+/* ── Action Grid — No Cards, Just Hover Zones ─────── */
+
+.action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.action-card {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  transition: all 0.25s ease;
+  background: rgba(255, 255, 255, 0.02);
+  position: relative;
+}
+
+.action-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(74, 158, 255, 0.1), rgba(74, 158, 255, 0.05));
+  transition: width 0.3s ease;
+  border-radius: 14px 0 0 14px;
+}
+
+.action-card:hover {
+  background: rgba(74, 158, 255, 0.06);
+  border-color: rgba(74, 158, 255, 0.2);
+}
+
+.action-card:hover::before {
+  width: 100%;
+}
+
+.action-icon {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border-radius: 0;
+  transition: all 0.25s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.action-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.75;
+  position: relative;
+  z-index: 1;
+}
+
+.action-card:hover .action-icon {
+  background: transparent;
+  box-shadow: none;
+}
+
+.action-card:hover .action-icon svg {
+  stroke: #fff;
+}
+
+.action-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.action-desc {
+  display: block;
+  font-size: 11.5px;
+  opacity: 0.45;
+  line-height: 1.4;
+}
+
+/* ── Action Cards Grid ─────────────────────────── */
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.25s ease;
+  text-align: center;
+}
+
+.action-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(74, 158, 255, 0.08), transparent);
+  transition: width 0.3s ease;
+  border-radius: 14px 0 0 14px;
+}
+
+.action-card:hover {
+  background: rgba(74, 158, 255, 0.06);
+  border-color: rgba(74, 158, 255, 0.2);
+}
+
+.action-card:hover::before {
+  width: 100%;
+}
+
+.action-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border-radius: 0;
+  transition: all 0.25s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.action-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.75;
+  position: relative;
+  z-index: 1;
+}
+
+.action-card:hover .action-icon {
+  background: transparent;
+  box-shadow: none;
+}
+
+.action-card:hover .action-icon svg {
+  stroke: #fff;
+}
+
+.action-title {
+  font-size: 13px;
+  font-weight: 600;
+  position: relative;
+  z-index: 1;
+}
+
+.action-chevron {
+  display: none;
+}
+
+/* Compact cards */
+.action-grid.small .action-card {
+  flex-direction: column;
+  padding: 18px 14px;
+}
+
+/* Compact buttons in grid */
+.action-grid.small .action-card {
+  min-width: 140px;
+  padding: 14px 14px;
+  gap: 10px;
+}
+
+.action-grid.small .action-icon {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 8px;
+}
+
+.action-grid.small .action-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Fix Game — Step Descriptions ─────────────────── */
+
+.step-desc {
+  font-size: 12.5px;
+  opacity: 0.5;
+  margin: 4px 0 14px;
+  line-height: 1.5;
+}
+
+.option-hint {
+  display: block;
+  font-size: 11.5px;
+  opacity: 0.45;
+  line-height: 1.4;
+  margin-left: 26px;
+  margin-top: 2px;
+  margin-bottom: 6px;
+}
+
+/* ── Game Grid — Vertical Card Grid ─────────────────── */
+
+.game-card {
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+}
+
+.game-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 8px 28px rgba(74, 158, 255, 0.18);
+  border-color: rgba(74, 158, 255, 0.3);
+}
+
+.game-card-img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 0;
+  background: var(--bg);
+  flex-shrink: unset;
+  display: block;
+}
+
+.game-card-body {
+  padding: 12px 14px;
+}
+
+.game-card-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.game-card-appid {
+  font-size: 11px;
+  opacity: 0.4;
+}
+
+.game-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 12px;
+  position: relative;
+  z-index: 1;
+}
+
+/* List view */
+.game-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.game-list-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
+  position: relative;
+  transition: all 0.25s ease;
+}
+
+.game-list-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(74, 158, 255, 0.1), transparent);
+  transition: width 0.3s ease;
+  border-radius: 14px 0 0 14px;
+}
+
+.game-list-item:hover {
+  background: rgba(74, 158, 255, 0.06);
+  border-color: rgba(74, 158, 255, 0.2);
+}
+
+.game-list-item:hover::before {
+  width: 100%;
+}
+
+.game-list-thumb {
+  width: 64px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.game-list-info {
+  flex: 1;
+}
+
+.game-list-name {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.game-list-actions {
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Buttons ─────────────────────────────── */
+
+.btn {
+  border-radius: 10px;
+  font-weight: 600;
+  padding: 10px 20px;
+  transition: all 0.2s ease;
+  font-family: 'Manrope', sans-serif;
+  font-size: 13px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px rgba(74, 158, 255, 0.2);
+}
+
+.btn-primary:hover {
+  opacity: 0.88;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(74, 158, 255, 0.3);
+}
+
+/* ── Inputs ─────────────────────────────── */
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select {
+  border-radius: 10px;
+  font-weight: 500;
+  font-family: 'Manrope', sans-serif;
+  font-size: 13.5px;
+}
+
+input:focus, select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(74, 158, 255, 0.1);
+}
+
+.input-group {
+  margin-bottom: 14px;
+}
+
+.input-group label {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.4;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+/* ── Store Controls ─────────────────────────────── */
+
+.store-controls {
+  margin-bottom: 28px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.search-bar {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.search-bar input {
+  border-radius: 10px;
+  flex: 1;
+}
+
+.connect-banner {
+  border-radius: 16px;
+  padding: 28px;
+  border: 1px solid rgba(74, 158, 255, 0.15);
+  background: rgba(74, 158, 255, 0.04);
+  margin-bottom: 24px;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+/* ── Tool Cards — No Card Look ─────────────────────── */
+
+.tool-card {
+  padding: 0;
+  border: none;
+  background: none;
+  margin-bottom: 28px;
+}
+
+.tool-card h2 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.tool-desc {
+  font-size: 13px;
+  opacity: 0.5;
+  margin-bottom: 16px;
+}
+
+/* ── Fix Game — Sections Without Boxes ─────────────── */
+
+.fixgame-layout {
+  max-width: 700px;
+}
+
+.fixgame-step {
+  padding: 0;
+  margin-bottom: 24px;
+  border: none;
+  background: none;
+}
+
+.fixgame-step .section-title {
+  margin-bottom: 12px;
+}
+
+.fixgame-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* ── Settings — Sections Without Boxes ────────────── */
+
+.settings-section {
+  padding: 0;
+  margin-bottom: 28px;
+  border: none;
+  background: none;
+}
+
+.settings-section h2 {
+  margin-bottom: 16px;
+}
+
+.theme-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.theme-swatch {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.theme-swatch:hover {
+  transform: scale(1.04);
+}
+
+.theme-swatch.active {
+  box-shadow: 0 0 16px rgba(74, 158, 255, 0.25);
+}
+
+/* ── Data Tables — Minimal ─────────────────────── */
+
+.data-table {
+  border: none;
+  background: none;
+  margin-top: 16px;
+}
+
+.data-table table {
+  width: 100%;
+}
+
+.data-table th,
+.data-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table th {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  opacity: 0.35;
+  text-transform: uppercase;
+}
+
+.data-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* ── Log Output ─────────────────────────────── */
+
+.log-output {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.log-output h3 {
+  font-size: 10px;
+  opacity: 0.4;
+}
+
+/* ── Log Panel ─────────────────────────────── */
+
+.log-panel-dialog {
+  border-radius: 18px;
+  border: 1px solid var(--border);
+}
+
+/* ── Modals ─────────────────────────────── */
+
+.modal-content {
+  border-radius: 18px;
+  border: 1px solid var(--border);
+}
+
+.modal-header {
+  border-radius: 18px 18px 0 0;
+}
+
+/* ── Cloud Saves ─────────────────────────────── */
+
+.cloudsaves-setup {
+  padding: 0;
+  border: none;
+  background: none;
+  margin-bottom: 24px;
+}
+
+.cloudsaves-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* ── Downloads ─────────────────────────────── */
+
+.downloads-section {
+  margin-bottom: 28px;
+}
+
+.downloads-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.download-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
+  position: relative;
+  transition: all 0.25s ease;
+}
+
+.download-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(74, 158, 255, 0.1), transparent);
+  transition: width 0.3s ease;
+  border-radius: 12px 0 0 12px;
+}
+
+.download-item:hover {
+  background: rgba(74, 158, 255, 0.06);
+  border-color: rgba(74, 158, 255, 0.2);
+}
+
+.download-item:hover::before {
+  width: 100%;
+}
+
+.download-item-name {
+  font-weight: 600;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
+
+.download-item-status {
+  font-size: 12px;
+  opacity: 0.4;
+}
+
+.download-progress-bar {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 8px;
+}
+
+.download-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* ── Library ─────────────────────────────── */
+
+.library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.library-option {
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
+  transition: all 0.2s ease;
+}
+
+.library-option:hover {
+  background: rgba(74, 158, 255, 0.06);
+  border-color: rgba(74, 158, 255, 0.2);
+}
+
+.library-controls {
+  margin-bottom: 16px;
+}
+
+/* ── Empty State ─────────────────────────────── */
+
+.empty-state {
+  padding: 48px 24px;
+  opacity: 0.4;
+}
+
+/* ── Loading ─────────────────────────────── */
+
+.loading-skeleton {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.skeleton-card {
+  flex: 1;
+  min-width: 180px;
+  height: 60px;
+  border-radius: 14px;
+}
+
+/* ── Pagination ─────────────────────────────── */
+
+.pagination {
+  margin-top: 28px;
+}
+
+/* ── Profile Controls ─────────────────────────────── */
+
+.profile-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.profile-controls select {
+  min-width: 160px;
+}
+
+/* ── Scrollbar ─────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--border);
+}
+
+/* ── Library Grid — Compact Overrides ─────────────────── */
+
+#library-grid {
+  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  gap: 12px;
+}
+
+#library-grid .game-card-img {
+  height: 98px;
+}
+
+#library-grid .game-card-img-placeholder {
+  height: 98px;
+}
+
+#library-grid .game-card-body {
+  padding: 8px 10px;
+}
+
+#library-grid .game-card-name {
+  font-size: 12px;
+}
+
+#library-grid .game-card-actions {
+  padding: 4px 10px 8px;
+}
+
+#library-grid .game-card-actions .btn {
+  padding: 4px 8px;
+  font-size: 11px;
+}

@@ -1,0 +1,145 @@
+/* SteaMidra — All 11 themes as CSS custom properties */
+/* Source: sff/gui/themes.py */
+
+:root, [data-theme="dark"] {
+    --bg: #2d2d2d;
+    --fg: #e8e8e8;
+    --card-bg: #3c3c3c;
+    --accent: #4a9eff;
+    --border: #555;
+    --btn-bg: #404040;
+    --btn-hover: #505050;
+    --input-bg: #3c3c3c;
+    --sidebar-bg: #252525;
+    --sidebar-active: #4a9eff;
+}
+
+[data-theme="light"] {
+    --bg: #fafafa;
+    --fg: #111;
+    --card-bg: #fff;
+    --accent: #2563eb;
+    --border: #ccc;
+    --btn-bg: #fff;
+    --btn-hover: #f0f0f0;
+    --input-bg: #fff;
+    --sidebar-bg: #f5f5f5;
+    --sidebar-active: #2563eb;
+}
+
+[data-theme="cherry"] {
+    --bg: #1a0a0a;
+    --fg: #f0c0c0;
+    --card-bg: #2d1010;
+    --accent: #e84040;
+    --border: #5a2020;
+    --btn-bg: #2d1010;
+    --btn-hover: #4a1818;
+    --input-bg: #1f0c0c;
+    --sidebar-bg: #150808;
+    --sidebar-active: #e84040;
+}
+
+[data-theme="sunset"] {
+    --bg: #1a0f0a;
+    --fg: #f0d8c0;
+    --card-bg: #2d1810;
+    --accent: #e88040;
+    --border: #5a3820;
+    --btn-bg: #2d1810;
+    --btn-hover: #4a2818;
+    --input-bg: #1f110c;
+    --sidebar-bg: #150c08;
+    --sidebar-active: #e88040;
+}
+
+[data-theme="forest"] {
+    --bg: #0a1a0a;
+    --fg: #c0f0c0;
+    --card-bg: #102d10;
+    --accent: #40e840;
+    --border: #205a20;
+    --btn-bg: #102d10;
+    --btn-hover: #184a18;
+    --input-bg: #0c1f0c;
+    --sidebar-bg: #081508;
+    --sidebar-active: #40e840;
+}
+
+[data-theme="grape"] {
+    --bg: #120a1a;
+    --fg: #d0c0f0;
+    --card-bg: #1c102d;
+    --accent: #8040e8;
+    --border: #38205a;
+    --btn-bg: #1c102d;
+    --btn-hover: #28184a;
+    --input-bg: #140c1f;
+    --sidebar-bg: #0e0815;
+    --sidebar-active: #8040e8;
+}
+
+[data-theme="cyberpunk"] {
+    --bg: #0a0a1a;
+    --fg: #00ffcc;
+    --card-bg: #10102d;
+    --accent: #ff006a;
+    --border: #20205a;
+    --btn-bg: #10102d;
+    --btn-hover: #18184a;
+    --input-bg: #0a0a1a;
+    --sidebar-bg: #06061a;
+    --sidebar-active: #ff006a;
+}
+
+[data-theme="pink"] {
+    --bg: #1a0a18;
+    --fg: #f0c0e8;
+    --card-bg: #2d101c;
+    --accent: #e84393;
+    --border: #5a2050;
+    --btn-bg: #2d101c;
+    --btn-hover: #4a1830;
+    --input-bg: #1f0c1a;
+    --sidebar-bg: #150815;
+    --sidebar-active: #e84393;
+}
+
+[data-theme="nord"] {
+    --bg: #2e3440;
+    --fg: #d8dee9;
+    --card-bg: #3b4252;
+    --accent: #88c0d0;
+    --border: #4c566a;
+    --btn-bg: #3b4252;
+    --btn-hover: #434c5e;
+    --input-bg: #2e3440;
+    --sidebar-bg: #272d38;
+    --sidebar-active: #88c0d0;
+}
+
+[data-theme="dracula"] {
+    --bg: #282a36;
+    --fg: #f8f8f2;
+    --card-bg: #44475a;
+    --accent: #bd93f9;
+    --border: #44475a;
+    --btn-bg: #44475a;
+    --btn-hover: #6272a4;
+    --input-bg: #282a36;
+    --sidebar-bg: #21222c;
+    --sidebar-active: #bd93f9;
+}
+
+[data-theme="pastel"] {
+    --bg: #faf0e6;
+    --fg: #333333;
+    --card-bg: #fff8f0;
+    --accent: #e6a07c;
+    --border: #d4b8a0;
+    --btn-bg: #f0e0d0;
+    --btn-hover: #e8d0bc;
+    --input-bg: #fff8f0;
+    --sidebar-bg: #f0e6d8;
+    --sidebar-active: #e6a07c;
+}

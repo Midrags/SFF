@@ -20,5 +20,6 @@
 
 from sff.gui.main_window import SFFMainWindow
 from sff.gui.themes import THEMES
+from sff.gui.web_bridge import WebBridge
 
-__all__ = ["SFFMainWindow", "THEMES"]
+__all__ = ["SFFMainWindow", "THEMES", "WebBridge"]

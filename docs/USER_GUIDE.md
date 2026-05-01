@@ -1,5 +1,32 @@
 # SteaMidra User Guide
 
+## Modern UI (new in 5.5.0)
+
+SteaMidra 5.5.0 introduces a new browser-based interface built with QWebEngine. It launches by default alongside the classic interface. Navigate using the sidebar on the left.
+
+### Tabs
+
+**Home** — pick a game from the dropdown (scanned from all Steam libraries). Click ↻ to rescan manually. The list refreshes automatically after any download and every 10 minutes.
+
+**Store** — search or browse the Hubcap manifest library. Switch between grid and list view, sort results, and page through them. Click a game to open the version picker with full depot/manifest history, then download directly.
+
+**Library** — shows all games installed across your Steam libraries.
+
+**Downloads** — live progress for active downloads and a history of completed ones.
+
+**Fix Game** — select an installed game (or browse manually), pick an emulator mode (Goldberg, ColdClient, ColdLoader), and apply the full fix pipeline. Optionally remove SteamStub DRM and generate launch scripts.
+
+**Tools**
+- *GBE Token Generator* — enter an App ID and your Steam Web API key, pick an output folder, and generate a complete Goldberg config package (achievements, stats, DLCs, depots, icons).
+- *VDF Key Extractor* — extract depot decryption keys from Steam's `config.vdf`.
+- *Workshop Browser* — open the embedded Steam Workshop browser to find and download workshop items.
+
+**Cloud Saves** — enter your Steam path and Steam32 ID, then scan. Select a game from the results to back up its `remote/` folder to a destination of your choice, or restore from a previous backup (a safety backup is created automatically before any overwrite).
+
+**Settings** — change theme (11+ options), Steam path, API keys, AppList profiles, and all other preferences. Settings apply immediately.
+
+---
+
 ## Menu options
 
 ### Process a .lua file

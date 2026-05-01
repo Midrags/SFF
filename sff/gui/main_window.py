@@ -19,8 +19,11 @@ import re
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, QUrl, pyqtSignal
 from PyQt6.QtGui import QTextCursor
+from PyQt6.QtWebChannel import QWebChannel
+from PyQt6.QtWebEngineCore import QWebEngineSettings
+from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -142,7 +145,9 @@ class SFFMainWindow(QMainWindow):
         )
         self._log_handler.setLevel(__import__('logging').DEBUG)
         self._log_handler.record_emitted.connect(self._log_window.append_record)
+        self._log_handler.record_emitted.connect(self._forward_log_to_web)
         __import__('logging').getLogger().addHandler(self._log_handler)
+        self._stream_emitter.text_written.connect(self._forward_stdout_to_web)
         self._worker = None
         self._worker_thread = None
         self.setWindowTitle("SteaMidra")
@@ -153,8 +158,35 @@ class SFFMainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         root_layout = QVBoxLayout(central)
+
+        # ── Web UI toggle bar ──
+        toggle_bar = QHBoxLayout()
+        self._web_ui_toggle = QPushButton(T("Switch to Classic UI"))
+        self._web_ui_toggle.setToolTip(T("Toggle between the classic tab UI and the new web-based UI"))
+        self._web_ui_toggle.clicked.connect(self._toggle_web_ui)
+        toggle_bar.addStretch()
+        toggle_bar.addWidget(self._web_ui_toggle)
+        root_layout.addLayout(toggle_bar)
+
+        # ── Classic tab UI (hidden by default — new UI is primary) ──
         self.tabs = QTabWidget()
+        self.tabs.setVisible(False)
         root_layout.addWidget(self.tabs)
+
+        # ── New Web UI (visible by default) ──
+        self._web_view = QWebEngineView()
+        root_layout.addWidget(self._web_view)
+        self._web_channel = QWebChannel()
+        from sff.gui.web_bridge import WebBridge
+        self._web_bridge = WebBridge(ui=ui, steam_path=steam_path, parent=self)
+        self._web_channel.registerObject("bridge", self._web_bridge)
+        self._web_view.page().setWebChannel(self._web_channel)
+        # Allow loading Steam CDN images from local file:// page
+        self._web_view.page().settings().setAttribute(
+            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
+        )
+        self._web_ui_active = True
+        self._web_ui_loaded = False
         main_tab_widget = QWidget()
         main_tab_layout = QVBoxLayout(main_tab_widget)
         scroll = QScrollArea()
@@ -197,8 +229,8 @@ class SFFMainWindow(QMainWindow):
             "  - Update all manifests: Refresh manifests for all previously\n"
             "    downloaded games.\n\n"
             "Library & Steam Tools:\n"
-            "  - Manage AppList IDs: Add/remove App IDs in the GreenLuma\n"
-            "    AppList folder so Steam shows them in your library.\n"
+            "  - Manage AppList Profiles: Create, switch, save, merge,\n"
+            "    delete, or rename GreenLuma AppList profiles.\n"
             "  - Offline mode fix: Patch config.vdf so Steam starts in\n"
             "    offline mode reliably.\n"
             "  - Mute: Toggle background music on/off.\n"
@@ -363,7 +395,7 @@ class SFFMainWindow(QMainWindow):
         tools_layout = QVBoxLayout(tools_group)
         tools_row1 = QHBoxLayout()
         for label, func in [
-            (T("Manage AppList IDs"), lambda: self.ui.applist_menu()),
+            (T("Manage AppList Profiles"), lambda: self.ui.applist_menu()),
             (T("Offline mode fix"), lambda: self.ui.offline_fix_menu()),
         ]:
             btn = QPushButton(label)
@@ -422,6 +454,10 @@ class SFFMainWindow(QMainWindow):
         self._set_theme(self._current_theme)
         self._on_source_changed()
         self._refresh_game_list()
+        # Start with new web UI by default — hide menu bar
+        menubar.setVisible(False)
+        self._load_web_ui()
+        self._web_ui_loaded = True
 
     # ── Path / game source helpers ───────────────────────────────
 
@@ -495,9 +531,46 @@ class SFFMainWindow(QMainWindow):
         app_id = self.outside_appid_edit.text().strip() or "0"
         return ACFInfo(app_id, path)
 
+    # ── Web UI toggle ────────────────────────────────────────────
+
+    def _toggle_web_ui(self):
+        """Toggle between classic tab UI and new web-based UI."""
+        self._web_ui_active = not self._web_ui_active
+
+        if self._web_ui_active:
+            # Load web UI on first use
+            if not self._web_ui_loaded:
+                self._load_web_ui()
+                self._web_ui_loaded = True
+            self.tabs.setVisible(False)
+            self._web_view.setVisible(True)
+            self.menuBar().setVisible(False)
+            self._web_ui_toggle.setText(T("Switch to Classic UI"))
+        else:
+            self.tabs.setVisible(True)
+            self._web_view.setVisible(False)
+            self.menuBar().setVisible(True)
+            self._web_ui_toggle.setText(T("Switch to New UI"))
+
+    def _load_web_ui(self):
+        """Load index.html into the QWebEngineView."""
+        if getattr(sys, 'frozen', False):
+            webui_dir = Path(sys._MEIPASS) / "sff" / "webui"
+        else:
+            webui_dir = Path(__file__).resolve().parent.parent / "webui"
+
+        index_path = webui_dir / "index.html"
+        if index_path.exists():
+            self._web_view.setUrl(QUrl.fromLocalFile(str(index_path)))
+        else:
+            import logging
+            logging.getLogger(__name__).error(
+                "Web UI not found at %s", index_path
+            )
+
     # ── Worker management ────────────────────────────────────────
 
-    def _start_worker(self, func, label: str = "action"):
+    def _start_worker(self, func, label: str = "action", on_done=None):
         if self._worker_thread is not None and self._worker_thread.isRunning():
             QMessageBox.information(self, "Busy", "An action is already running.")
             return
@@ -518,6 +591,8 @@ class SFFMainWindow(QMainWindow):
             self._worker_thread = None
             self._worker = None
             self._append_log(f"--- Done: {label} ---\n")
+            if on_done:
+                on_done()
         self._worker.finished.connect(_on_finish)
         self._worker.error.connect(lambda msg: self._append_log(f"Error: {msg}\n"))
         self._worker_thread.started.connect(self._worker.run)
@@ -594,6 +669,22 @@ class SFFMainWindow(QMainWindow):
             run_steamauto(game_path, app_id, print_func=print)
         self._start_worker(_job, label="SteamAutoCrack")
 
+    def _run_steam_auto_with_acf(self, acf):
+        """Web UI entry point — ACF already resolved, runs on main thread via _start_worker."""
+        import json
+        from sff.steamauto import run_steamauto
+        game_path = acf.path
+        app_id = acf.app_id or "0"
+        def _job():
+            run_steamauto(game_path, app_id, print_func=print)
+        def _done():
+            if hasattr(self, '_web_bridge') and self._web_bridge:
+                self._web_bridge.task_finished.emit(json.dumps({
+                    "task": "steam_auto", "success": True,
+                    "message": "SteamAutoCrack completed"
+                }))
+        self._start_worker(_job, label="SteamAutoCrack", on_done=_done)
+
     def _run_tool(self, func):
         label = getattr(func, "__name__", "tool")
         self._start_worker(func, label)
@@ -621,6 +712,33 @@ class SFFMainWindow(QMainWindow):
         from sff.storage.settings import set_setting
         from sff.structs import Settings as _S
         set_setting(_S.THEME, key)
+
+    # ── Log forwarding to web UI ────────────────────────────────
+
+    def _forward_log_to_web(self, levelno: int, html: str):
+        """Forward log records to the web bridge so the web UI log panel shows them."""
+        if hasattr(self, '_web_bridge') and self._web_bridge:
+            import logging
+            lvl = 'INFO'
+            if levelno <= logging.DEBUG:
+                lvl = 'DEBU'
+            elif levelno <= logging.INFO:
+                lvl = 'INFO'
+            elif levelno <= logging.WARNING:
+                lvl = 'WARN'
+            else:
+                lvl = 'ERRO'
+            # Strip HTML tags for the web UI (it applies its own formatting)
+            import re
+            text = re.sub(r'<[^>]+>', '', html).strip()
+            self._web_bridge.log_message.emit(f'[{lvl}] {text}')
+
+    def _forward_stdout_to_web(self, text: str):
+        """Forward _stream_emitter stdout lines to the web UI log panel."""
+        if hasattr(self, '_web_bridge') and self._web_bridge:
+            text = _ANSI_RE.sub("", text).strip()
+            if text:
+                self._web_bridge.log_message.emit(f'[INFO] {text}')
 
     # ── Music mute ───────────────────────────────────────────────
 

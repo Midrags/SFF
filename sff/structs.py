@@ -28,9 +28,9 @@ from typing import Any, Literal, NamedTuple, NewType, Optional, Union
 
 
 class LuaChoice(Enum):
-    ADD_LUA = "Add a .lua file"
+    AUTO_DOWNLOAD = "Download .lua from server"
     SELECT_SAVED_LUA = "Choose from saved .lua files"
-    AUTO_DOWNLOAD = "Automatically download a .lua file"
+    ADD_LUA = "Import your own .lua / .zip file"
 
 
 class LuaChoiceReturnCode(Enum):
@@ -213,6 +213,7 @@ class Settings(Enum):
     MANIFESTHUB_API_KEY = SettingItem("manifesthub_api_key", "ManifestHub API Key (manifesthub1.filegear-sg.me, 24h)", True, str)
     MANIFESTHUB_KEY_EXPIRY = SettingItem("manifesthub_key_expiry", "ManifestHub Key Expiry (UTC epoch, managed automatically)", False, str)
     LANGUAGE = SettingItem("language", "Language (Requires Restart)", False, list(SupportedLanguages))
+    MANIFEST_UPDATE_EXCLUDES = SettingItem("manifest_update_excludes", "Manifest Update Excluded Games", False, str)
 
     @property
     def key_name(self):

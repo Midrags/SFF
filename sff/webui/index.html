@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SteaMidra</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/themes.css">
+    <link rel="stylesheet" href="css/cards.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/premium.css">
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <nav id="sidebar" class="sidebar">
+        <div class="sidebar-logo">
+            <img src="assets/SFF.png" alt="SteaMidra" class="sidebar-icon" onerror="this.style.display='none'">
+            <span class="sidebar-title">SteaMidra</span>
+        </div>
+        <div class="sidebar-nav">
+            <button class="nav-item active" data-page="home" data-tooltip="Overview dashboard with quick actions">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4"/></svg>
+                <span class="nav-label">Home</span>
+            </button>
+            <button class="nav-item" data-page="store" data-tooltip="Browse & download games with cover images">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 3h18v18H3zM9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+                <span class="nav-label">Store</span>
+            </button>
+            <button class="nav-item" data-page="library" data-tooltip="Your downloaded and installed games">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+                <span class="nav-label">Library</span>
+            </button>
+            <button class="nav-item" data-page="downloads" data-tooltip="Active downloads & history">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span class="nav-label">Downloads</span>
+            </button>
+            <button class="nav-item" data-page="fixgame" data-tooltip="Apply emulators, remove DRM, manage DLC">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+                <span class="nav-label">Fix Game</span>
+            </button>
+            <button class="nav-item" data-page="tools" data-tooltip="GBE Token Generator, VDF Key Extractor, Workshop">
+                <svg class="nav-icon" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 3l-4 4-4-4"/></svg>
+                <span class="nav-label">Tools</span>
+            </button>
+            <button class="nav-item" data-page="cloudsaves" data-tooltip="Backup & restore Steam cloud saves">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
+                <span class="nav-label">Cloud Saves</span>
+            </button>
+            <div class="nav-separator"></div>
+            <button class="nav-item" data-page="settings" data-tooltip="Themes, Steam path, API keys, AppList Profiles">
+                <svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                <span class="nav-label">Settings</span>
+            </button>
+            <button class="nav-item" id="btn-logs" data-tooltip="View debug and error logs">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                <span class="nav-label">Logs</span>
+            </button>
+        </div>
+        <div class="sidebar-bottom">
+            <button class="nav-item" id="btn-restart-steam" data-tooltip="Restart Steam process">
+                <svg class="nav-icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                <span class="nav-label">Restart Steam</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main id="content" class="content">
+        <!-- Page: Home -->
+        <section id="page-home" class="page active">
+            <div class="home-layout">
+            <div class="home-actions">
+            <div class="page-header">
+                <h1>Welcome to SteaMidra</h1>
+                <p class="page-subtitle">Steam game setup and manifest tool</p>
+            </div>
+
+            <div class="section-group">
+                <h2 class="section-title">Select Game</h2>
+                <div class="input-group" style="max-width:500px">
+                    <select id="home-game-select" data-tooltip="Select a game from your Steam libraries for quick actions">
+                        <option value="">-- Select a game --</option>
+                    </select>
+                    <button id="home-game-refresh" class="btn" data-tooltip="Rescan installed games">↻</button>
+                </div>
+            </div>
+
+            <div class="section-group">
+                <h2 class="section-title">Quick Start</h2>
+                <div class="action-grid">
+                    <button class="action-card" data-action="crack" data-tooltip="Replace steam_api DLLs with Goldberg Emulator so the game runs without Steam ownership">
+                        <svg class="action-icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="6" y2="12"/><line x1="10" y1="12" x2="10" y2="12"/></svg>
+                        <span class="action-title">Apply Goldberg Emu</span>
+                        <span class="action-desc">Apply Steam emulator to a game</span>
+                    </button>
+                    <button class="action-card" data-action="steamstub" data-tooltip="Strip Valve's SteamStub DRM wrapper from a game executable using Steamless">
+                        <svg class="action-icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>
+                        <span class="action-title">Remove DRM</span>
+                        <span class="action-desc">Remove SteamStub protection</span>
+                    </button>
+                    <button class="action-card" data-action="steam_auto" data-tooltip="Run SteamAutoCrack CLI — strips SteamStub and applies Goldberg Emu in one step">
+                        <svg class="action-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        <span class="action-title">SteamAutoCrack</span>
+                        <span class="action-desc">Removes SteamStub and applies Goldberg Emu</span>
+                    </button>
+                    <button class="action-card" data-action="dlc_check" data-tooltip="See which DLCs exist for this game and which ones are already in your AppList">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                        <span class="action-title">DLC Check</span>
+                        <span class="action-desc">Check available DLCs</span>
+                    </button>
+                    <button class="action-card" data-action="dlc_unlockers" data-tooltip="Install or manage CreamAPI / SmokeAPI / Koaloader DLC unlocker DLLs">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                        <span class="action-title">DLC Unlockers</span>
+                        <span class="action-desc">CreamAPI, SmokeAPI, Koaloader</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="section-group">
+                <h2 class="section-title">Lua / Manifest Processing</h2>
+                <div class="action-grid">
+                    <button class="action-card" data-action="download_games" data-tooltip="Download a game using Lua files — fetches manifests and keys so Steam installs the game">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span class="action-title">Download Games</span>
+                        <span class="action-desc">Process Lua for full download</span>
+                    </button>
+                    <button class="action-card" data-action="download_manifests" data-tooltip="Download only the manifest files without triggering a full game download">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                        <span class="action-title">Download Manifests Only</span>
+                        <span class="action-desc">Fetch manifests without download</span>
+                    </button>
+                    <button class="action-card" data-action="recent_lua" data-tooltip="Quick access to recently used .lua files for re-processing">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span class="action-title">Recent .lua Files</span>
+                        <span class="action-desc">Open recently used files</span>
+                    </button>
+                    <button class="action-card" data-action="update_manifests" data-tooltip="Re-download all manifests for games in your AppList to get the latest versions">
+                        <svg class="action-icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                        <span class="action-title">Update All Manifests</span>
+                        <span class="action-desc">Refresh all game manifests</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="section-group">
+                <h2 class="section-title">Quick Tools</h2>
+                <div class="action-grid small">
+                    <button class="action-card compact" data-action="workshop" data-tooltip="Download a Steam Workshop mod by entering its Workshop ID">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+                        <span class="action-title">Workshop Item</span>
+                    </button>
+                    <button class="action-card compact" data-action="multiplayer" data-tooltip="Apply online-fix.me multiplayer patches to play online">
+                        <svg class="action-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                        <span class="action-title">Multiplayer Fix</span>
+                    </button>
+                    <button class="action-card compact" data-action="community_fixes" data-tooltip="Apply community-made fixes and bypasses for specific games">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        <span class="action-title">Community Fixes</span>
+                    </button>
+                    <button class="action-card compact" data-action="achievements" data-tooltip="View and manage achievement data for a game">
+                        <svg class="action-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
+                        <span class="action-title">Achievement Data</span>
+                    </button>
+                    <button class="action-card compact" data-action="mute_toggle" data-tooltip="Toggle Steam game mute/unmute">
+                        <svg class="action-icon" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                        <span class="action-title">Mute/Unmute</span>
+                    </button>
+                    <button class="action-card compact" data-action="remove_game" data-tooltip="Remove a game from the Steam library">
+                        <svg class="action-icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                        <span class="action-title">Remove from Library</span>
+                    </button>
+                    <button class="action-card compact platform-win" data-action="context_menu" data-tooltip="Install or remove the SteaMidra context menu in Windows Explorer">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                        <span class="action-title">Context Menu</span>
+                    </button>
+                    <button class="action-card compact" data-action="achievements" data-tooltip="Download UserGameStatsSchema for achievements without gbe_fork">
+                        <svg class="action-icon" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                        <span class="action-title">UserGameStats</span>
+                    </button>
+                    <button class="action-card compact" data-action="offline_fix" data-tooltip="Patch config.vdf so Steam starts in offline mode reliably">
+                        <svg class="action-icon" viewBox="0 0 24 24"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55"/><path d="M5 12.55a10.94 10.94 0 015.17-2.39"/><path d="M10.71 5.05A16 16 0 0122.56 9"/><path d="M1.42 9a15.91 15.91 0 014.7-2.88"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+                        <span class="action-title">Offline Fix</span>
+                    </button>
+                    <button class="action-card compact" data-action="applist_menu" data-tooltip="Manage GreenLuma AppList IDs">
+                        <svg class="action-icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                        <span class="action-title">AppList IDs</span>
+                    </button>
+                </div>
+            </div>
+            </div><!-- /.home-actions -->
+
+            <!-- Mini live log panel (top-right) -->
+            <div class="home-log">
+                <div class="home-log-header">
+                    <span class="home-log-title">Live Log</span>
+                    <div class="home-log-btns">
+                        <button id="home-log-clear" class="btn btn-sm" data-tooltip="Clear log">Clear</button>
+                        <button id="home-log-copy" class="btn btn-sm" data-tooltip="Copy all log text">Copy</button>
+                    </div>
+                </div>
+                <div id="home-log-content" class="home-log-content"></div>
+            </div><!-- /.home-log -->
+
+            </div><!-- /.home-layout -->
+        </section>
+
+        <!-- Page: Store -->
+        <section id="page-store" class="page">
+            <div class="page-header">
+                <h1>Store</h1>
+                <p class="page-subtitle">Browse and download games</p>
+            </div>
+            <div class="store-controls">
+                <div class="search-bar">
+                    <input type="text" id="store-search" placeholder="Search games by name or App ID..." data-tooltip="Type a game name or App ID to search">
+                    <button id="store-search-btn" class="btn btn-primary" data-tooltip="Search the store">Search</button>
+                </div>
+                <div class="store-options">
+                    <select id="store-sort" data-tooltip="Sort results by criteria">
+                        <option value="updated">Recently Updated</option>
+                        <option value="newest">Newest</option>
+                        <option value="oldest">Oldest</option>
+                        <option value="name_asc">Name A-Z</option>
+                        <option value="name_desc">Name Z-A</option>
+                    </select>
+                    <div class="view-toggle">
+                        <button id="view-grid" class="btn btn-icon active" data-tooltip="Grid view with cover images"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+                        <button id="view-list" class="btn btn-icon" data-tooltip="Compact list view"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+                    </div>
+                </div>
+            </div>
+            <div id="store-connect-banner" class="connect-banner">
+                <p>Connect your Hubcap API key to browse the store.</p>
+                <div class="connect-form">
+                    <input type="password" id="api-key-input" placeholder="Enter Hubcap API key...">
+                    <button id="api-key-connect" class="btn btn-primary">Connect</button>
+                </div>
+            </div>
+            <div id="store-grid" class="game-grid"></div>
+            <div id="store-list" class="game-list hidden"></div>
+            <div id="store-pagination" class="pagination hidden">
+                <button id="page-prev" class="btn" data-tooltip="Previous page">← Prev</button>
+                <span id="page-info" class="page-info">Page 1 of 1</span>
+                <button id="page-next" class="btn" data-tooltip="Next page">Next →</button>
+            </div>
+            <div id="store-loading" class="loading-skeleton hidden">
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+                <div class="skeleton-card"></div>
+            </div>
+        </section>
+
+        <!-- Page: Library -->
+        <section id="page-library" class="page">
+            <div class="page-header">
+                <h1>Library</h1>
+                <p class="page-subtitle">Your downloaded and installed games</p>
+            </div>
+            <div class="library-controls">
+                <button id="library-refresh" class="btn" data-tooltip="Scan Steam libraries for installed games">Refresh</button>
+            </div>
+            <div id="library-grid" class="game-grid"></div>
+            <div id="library-empty" class="empty-state">
+                <span class="empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></span>
+                <p>No games found. Download games from the Store page.</p>
+            </div>
+        </section>
+
+        <!-- Page: Downloads -->
+        <section id="page-downloads" class="page">
+            <div class="page-header">
+                <h1>Downloads</h1>
+                <p class="page-subtitle">Active downloads and history</p>
+            </div>
+            <div id="downloads-active" class="downloads-section">
+                <h2 class="section-title">Active Downloads</h2>
+                <div id="downloads-active-list" class="downloads-list"></div>
+                <div id="downloads-active-empty" class="empty-state small">
+                    <p>No active downloads.</p>
+                </div>
+            </div>
+            <div id="downloads-history" class="downloads-section">
+                <h2 class="section-title">Download History</h2>
+                <div id="downloads-history-list" class="downloads-list"></div>
+            </div>
+        </section>
+
+        <!-- Page: Fix Game -->
+        <section id="page-fixgame" class="page">
+            <div class="page-header">
+                <h1>Fix Game</h1>
+                <p class="page-subtitle">Apply emulators, remove DRM, manage DLC</p>
+            </div>
+            <div class="fixgame-layout">
+                <div class="fixgame-step">
+                    <h2 class="section-title">1. Select Game</h2>
+                    <p class="step-desc">Choose an installed game from the dropdown, or Browse to its folder manually. The App ID is detected automatically from the ACF manifest.</p>
+                    <div class="input-group">
+                        <select id="fixgame-game-select" data-tooltip="Select an installed game to fix">
+                            <option value="">-- Select a game --</option>
+                        </select>
+                        <button id="fixgame-browse" class="btn" data-tooltip="Browse for a game folder manually">Browse</button>
+                        <button id="fixgame-refresh" class="btn" data-tooltip="Rescan for installed games">↻</button>
+                    </div>
+                    <div class="input-group">
+                        <label>App ID:</label>
+                        <input type="text" id="fixgame-appid" placeholder="Auto-detected" data-tooltip="Steam App ID of the game">
+                    </div>
+                </div>
+
+                <div class="fixgame-step">
+                    <h2 class="section-title">2. User Identity</h2>
+                    <p class="step-desc">The username and Steam ID shown in-game. Used for save data, achievements, and leaderboards. Defaults are safe to leave as-is.</p>
+                    <div class="input-group">
+                        <label>Username:</label>
+                        <input type="text" id="fixgame-username" placeholder="Player" data-tooltip="Username shown in-game">
+                    </div>
+                    <div class="input-group">
+                        <label>Steam ID:</label>
+                        <input type="text" id="fixgame-steamid" placeholder="76561198000000000" data-tooltip="Your Steam64 ID for achievements">
+                    </div>
+                </div>
+
+                <div class="fixgame-step">
+                    <h2 class="section-title">3. Emulator Mode</h2>
+                    <p class="step-desc">Choose how to bypass Steam authentication. <strong>Regular</strong> is recommended for most games.</p>
+                    <div class="radio-group">
+                        <label class="radio-option" data-tooltip="Simplest mode — replaces steam_api.dll with Goldberg Emulator. Works for most games.">
+                            <input type="radio" name="emu-mode" value="regular" checked>
+                            <span>Regular — replace steam_api.dll</span>
+                            <span class="option-hint">Replaces steam_api.dll with Goldberg Emulator. Works for most games out of the box.</span>
+                        </label>
+                        <label class="radio-option" data-tooltip="Uses a loader + Python config. Fetches DLC info from Steam API automatically. No login needed.">
+                            <input type="radio" name="emu-mode" value="coldclient_simple">
+                            <span>ColdClient Simple — auto DLC fetch</span>
+                            <span class="option-hint">Uses ColdClient loader. Auto-fetches DLC list from the Steam API — no login required.</span>
+                        </label>
+                        <label class="radio-option" data-tooltip="Uses the GSE Fork tool for the best DLC and achievement coverage. Can optionally log in with Steam credentials.">
+                            <input type="radio" name="emu-mode" value="coldclient_advanced">
+                            <span>ColdClient Advanced — GSE Fork (best coverage)</span>
+                            <span class="option-hint">Best DLC and achievement coverage using GSE Fork. Can log in with Steam credentials for richer data.</span>
+                        </label>
+                        <label class="radio-option" data-tooltip="Proxy DLL method for games that need it.">
+                            <input type="radio" name="emu-mode" value="coldloader_dll">
+                            <span>ColdLoader DLL — proxy DLL method</span>
+                            <span class="option-hint">Injects via proxy DLL. Use if the game actively checks for DLL replacement.</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="fixgame-step" id="gse-options" style="display:none;">
+                    <h2 class="section-title">GSE Fork Options</h2>
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="gse-auth" value="anonymous" checked>
+                            <span>Anonymous (no login)</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="gse-auth" value="login">
+                            <span>Steam Login (better DLC data)</span>
+                        </label>
+                    </div>
+                    <div id="gse-creds" class="input-group" style="display:none;">
+                        <div class="input-group">
+                            <label>Steam Username:</label>
+                            <input type="text" id="gse-username" placeholder="Steam account">
+                        </div>
+                        <div class="input-group">
+                            <label>Steam Password:</label>
+                            <input type="password" id="gse-password" placeholder="Steam password">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="fixgame-step">
+                    <h2 class="section-title">4. Options</h2>
+                    <p class="step-desc">Extra patching options applied when you click Apply Fix.</p>
+                    <div class="checkbox-group">
+                        <label class="checkbox-option" data-tooltip="Automatically strips Valve's DRM wrapper using Steamless before applying the emulator">
+                            <input type="checkbox" id="fix-steamstub" checked>
+                            <span>Auto-unpack SteamStub DRM</span>
+                            <span class="option-hint">Strips Valve's SteamStub DRM wrapper from the EXE using Steamless before patching. Recommended.</span>
+                        </label>
+                        <label class="checkbox-option" data-tooltip="Use experimental Steamless features for better compatibility">
+                            <input type="checkbox" id="fix-steamless-exp" checked>
+                            <span>Steamless experimental mode</span>
+                            <span class="option-hint">Enables experimental Steamless unpacker options for better compatibility with heavily protected games.</span>
+                        </label>
+                        <label class="checkbox-option" data-tooltip="Downloads the latest Goldberg Emulator from GitHub before applying">
+                            <input type="checkbox" id="fix-goldberg-update">
+                            <span>Check for Goldberg updates</span>
+                            <span class="option-hint">Downloads the latest Goldberg Emulator from GitHub before applying. Requires internet.</span>
+                        </label>
+                        <label class="checkbox-option" data-tooltip="Generates a batch file for launching via ColdClient loader">
+                            <input type="checkbox" id="fix-launchbat">
+                            <span>Create Launch.bat (ColdClient)</span>
+                            <span class="option-hint">Generates a batch file to launch the game via ColdClient loader. Only useful in ColdClient modes.</span>
+                        </label>
+                    </div>
+                    <div class="radio-group">
+                        <label>steam_settings mode:</label>
+                        <p class="step-desc">Controls how much game data is fetched when building steam_settings.</p>
+                        <label class="radio-option" data-tooltip="Fast mode — fetches DLC info only">
+                            <input type="radio" name="settings-mode" value="simple">
+                            <span>Simple (fast)</span>
+                            <span class="option-hint">Fetches DLC list only. Quick but minimal coverage.</span>
+                        </label>
+                        <label class="radio-option" data-tooltip="Fetches DLCs, languages, depot info — more complete">
+                            <input type="radio" name="settings-mode" value="advanced" checked>
+                            <span>Advanced (complete)</span>
+                            <span class="option-hint">Fetches DLCs, depot info, languages, and achievements. Slower but recommended for full compatibility.</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="fixgame-actions">
+                    <button id="fixgame-apply" class="btn btn-primary btn-lg" data-tooltip="Apply the selected emulator and settings to the game">Apply Fix</button>
+                    <button id="fixgame-revert" class="btn btn-danger" data-tooltip="Restore original DLLs and remove steam_settings">Revert Changes</button>
+                </div>
+
+                <div id="fixgame-log" class="log-output hidden">
+                    <h3>Log Output</h3>
+                    <pre id="fixgame-log-content"></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Page: Tools -->
+        <section id="page-tools" class="page">
+            <div class="page-header">
+                <h1>Tools</h1>
+                <p class="page-subtitle">Extra utilities and generators</p>
+            </div>
+
+            <div class="tool-card">
+                <h2 class="section-title">GBE Token Generator</h2>
+                <p class="tool-desc">Generate Goldberg Emulator configuration files for games you own on Steam.</p>
+                <div class="input-group">
+                    <label>Steam Web API Key:</label>
+                    <input type="password" id="tool-gbe-apikey" placeholder="Enter Steam Web API key" data-tooltip="Get your key at steamcommunity.com/dev/apikey">
+                </div>
+                <div class="input-group">
+                    <label>App ID:</label>
+                    <input type="text" id="tool-gbe-appid" placeholder="Enter App ID" data-tooltip="Steam App ID of the game">
+                </div>
+                <div class="input-group">
+                    <label>Output Directory:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="tool-gbe-outdir" placeholder="Select output folder">
+                        <button id="tool-gbe-browse" class="btn" data-tooltip="Browse for output folder">Browse</button>
+                    </div>
+                </div>
+                <button id="tool-gbe-generate" class="btn btn-primary" data-tooltip="Generate Goldberg Emulator token and config files">Generate Token</button>
+                <div id="tool-gbe-log" class="log-output hidden">
+                    <pre id="tool-gbe-log-content"></pre>
+                </div>
+            </div>
+
+            <div class="tool-card">
+                <h2 class="section-title">VDF Depot Key Extractor</h2>
+                <p class="tool-desc">Read decryption keys from your Steam config.vdf file.</p>
+                <div class="input-group">
+                    <label>config.vdf path:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="tool-vdf-path" placeholder="Auto-detected" data-tooltip="Path to Steam config.vdf file">
+                        <button id="tool-vdf-browse" class="btn" data-tooltip="Browse for config.vdf file">Browse</button>
+                    </div>
+                </div>
+                <button id="tool-vdf-extract" class="btn btn-primary" data-tooltip="Extract decryption keys from config.vdf">Extract Keys</button>
+                <div id="tool-vdf-table" class="data-table hidden">
+                    <table>
+                        <thead><tr><th>App ID</th><th>Depot ID</th><th>Decryption Key</th></tr></thead>
+                        <tbody id="tool-vdf-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tool-card">
+                <h2 class="section-title">Workshop Browser</h2>
+                <p class="tool-desc">Browse and download Steam Workshop items for any game.</p>
+                <div class="input-group">
+                    <label>App ID:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="tool-workshop-appid" placeholder="Enter App ID" data-tooltip="Steam App ID for Workshop browsing">
+                        <button id="tool-workshop-open" class="btn btn-primary" data-tooltip="Open the Workshop browser for this game">Open Workshop</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Page: Cloud Saves -->
+        <section id="page-cloudsaves" class="page">
+            <div class="page-header">
+                <h1>Cloud Saves</h1>
+                <p class="page-subtitle">Backup and restore Steam cloud save files</p>
+            </div>
+
+            <div class="cloudsaves-setup">
+                <h2 class="section-title">Setup</h2>
+                <div class="input-group">
+                    <label>Steam Path:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="cloud-steam-path" placeholder="Auto-detected" data-tooltip="Path to Steam installation">
+                        <button id="cloud-steam-browse" class="btn" data-tooltip="Browse for Steam folder">Browse</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Steam32 ID:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="cloud-steam32" placeholder="Enter Steam32 ID" data-tooltip="Find yours at steamid.xyz">
+                        <button id="cloud-save-id" class="btn" data-tooltip="Save Steam32 ID for future use">Save</button>
+                    </div>
+                </div>
+                <button id="cloud-scan" class="btn btn-primary" data-tooltip="Scan Steam userdata folder for games with save data">Scan Games</button>
+            </div>
+
+            <div id="cloud-games" class="data-table hidden">
+                <h2 class="section-title">Games with Save Data</h2>
+                <table>
+                    <thead><tr><th>App ID</th><th>Game Name</th><th>Save Size</th></tr></thead>
+                    <tbody id="cloud-games-tbody"></tbody>
+                </table>
+            </div>
+
+            <div class="cloudsaves-actions">
+                <div class="tool-card">
+                    <h3>Backup Saves</h3>
+                    <p>Select a game above, then choose where to save the backup.</p>
+                    <div class="input-group">
+                        <label>Backup Destination:</label>
+                        <div class="input-with-btn">
+                            <input type="text" id="cloud-backup-dest" placeholder="Choose a folder..." data-tooltip="Folder to save the backup to">
+                            <button id="cloud-backup-browse" class="btn">Browse</button>
+                        </div>
+                    </div>
+                    <button id="cloud-backup-btn" class="btn btn-primary" data-tooltip="Backup save data for the selected game">Backup Selected Game</button>
+                </div>
+                <div class="tool-card">
+                    <h3>Import (Restore) Saves</h3>
+                    <p>Browse to a previously created backup folder to restore saves.</p>
+                    <div class="input-group">
+                        <label>Backup Folder:</label>
+                        <div class="input-with-btn">
+                            <input type="text" id="cloud-import-path" placeholder="Browse to backup folder..." data-tooltip="The Game Name [AppID] folder from a previous backup">
+                            <button id="cloud-import-browse" class="btn">Browse</button>
+                        </div>
+                    </div>
+                    <button id="cloud-import-btn" class="btn btn-primary" data-tooltip="Restore saves from the selected backup">Import Saves</button>
+                </div>
+            </div>
+
+            <div id="cloud-log" class="log-output hidden">
+                <h3>Log</h3>
+                <pre id="cloud-log-content"></pre>
+            </div>
+        </section>
+
+        <!-- Page: Settings -->
+        <section id="page-settings" class="page">
+            <div class="page-header">
+                <h1>Settings</h1>
+                <p class="page-subtitle">Configure SteaMidra preferences</p>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="section-title">Theme</h2>
+                <div id="theme-picker" class="theme-grid"></div>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="section-title">Paths & Keys</h2>
+                <div class="input-group">
+                    <label>Steam Installation Path:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="setting-steam-path" placeholder="Auto-detected" data-tooltip="Path to Steam installation folder">
+                        <button id="setting-steam-browse" class="btn">Browse</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Hubcap API Key:</label>
+                    <div class="input-with-btn">
+                        <input type="password" id="setting-hubcap-key" placeholder="Enter API key" data-tooltip="Hubcap API key for store browsing">
+                        <button id="setting-hubcap-save" class="btn btn-primary">Save</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Steam Web API Key:</label>
+                    <div class="input-with-btn">
+                        <input type="password" id="setting-steam-web-api-key" placeholder="Enter Steam Web API Key" data-tooltip="Steam Web API Key for achievement data">
+                        <button id="setting-steam-web-api-save" class="btn btn-primary">Save</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>ManifestHub API Key:</label>
+                    <div class="input-with-btn">
+                        <input type="password" id="setting-manifesthub-key" placeholder="Enter ManifestHub API key" data-tooltip="ManifestHub API key (manifesthub1.filegear-sg.me, 24h)">
+                        <button id="setting-manifesthub-save" class="btn btn-primary">Save</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="section-title">Account & Credentials</h2>
+                <div class="input-group">
+                    <label>Steam Username:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="setting-steam-user" placeholder="Enter Steam username" data-tooltip="Your Steam account username">
+                        <button class="btn btn-primary setting-save-btn" data-key="steam_user" data-input="setting-steam-user">Save</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Steam Password:</label>
+                    <div class="input-with-btn">
+                        <input type="password" id="setting-steam-pass" placeholder="Enter Steam password" data-tooltip="Your Steam account password (stored encrypted)">
+                        <button class="btn btn-primary setting-save-btn" data-key="steam_pass" data-input="setting-steam-pass">Save</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Steam32 ID:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="setting-steam32-id" placeholder="Enter Steam32 ID" data-tooltip="Your Steam32 ID (find at steamid.xyz)">
+                        <button class="btn btn-primary setting-save-btn" data-key="steam32_id" data-input="setting-steam32-id">Save</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Online-fix.me Username:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="setting-onlinefix-user" placeholder="Enter online-fix username" data-tooltip="Username for online-fix.me multiplayer fixes">
+                        <button class="btn btn-primary setting-save-btn" data-key="online_fix_user" data-input="setting-onlinefix-user">Save</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Online-fix.me Password:</label>
+                    <div class="input-with-btn">
+                        <input type="password" id="setting-onlinefix-pass" placeholder="Enter online-fix password" data-tooltip="Password for online-fix.me (stored encrypted)">
+                        <button class="btn btn-primary setting-save-btn" data-key="online_fix_pass" data-input="setting-onlinefix-pass">Save</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section platform-win">
+                <h2 class="section-title">GreenLuma</h2>
+                <div class="input-group">
+                    <label>GreenLuma Version:</label>
+                    <select id="setting-gl-version" data-tooltip="Select GreenLuma version">
+                        <option value="GLR">GLR</option>
+                        <option value="GL2020">GL2020</option>
+                        <option value="GL2024">GL2024</option>
+                        <option value="GL2025">GL2025</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>GreenLuma AppList Folder:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="setting-applist-folder" placeholder="Auto-detected" data-tooltip="Path to GreenLuma AppList folder">
+                        <button id="setting-applist-browse" class="btn">Browse</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>AppList Tools:</label>
+                    <div class="btn-group">
+                        <button id="applist-clear" class="btn btn-danger" data-tooltip="Delete all numbered .txt ID files from the GreenLuma AppList folder (game files untouched)">Clear AppList</button>
+                        <button id="applist-rebuild" class="btn" data-tooltip="Clear AppList then repopulate with App IDs of currently installed Steam games">Rebuild from Installed</button>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <label class="checkbox-option" data-tooltip="Track achievements via GreenLuma registry entries">
+                        <input type="checkbox" id="setting-track-ach">
+                        <span>Track Achievements via GreenLuma</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="section-title">Download Settings</h2>
+                <div class="input-group">
+                    <label>Parallel Download Workers:</label>
+                    <input type="number" id="setting-parallel-workers" value="5" min="1" max="20" data-tooltip="Number of parallel download workers">
+                </div>
+                <div class="input-group">
+                    <label>Backup Retention Count:</label>
+                    <input type="number" id="setting-backup-retention" value="4" min="0" data-tooltip="Number of backup copies to keep">
+                </div>
+                <div class="checkbox-group">
+                    <label class="checkbox-option" data-tooltip="Use parallel workers for faster manifest downloads">
+                        <input type="checkbox" id="setting-parallel">
+                        <span>Use Parallel Downloads</span>
+                    </label>
+                </div>
+                <div class="input-group">
+                    <label>Exclude from Manifest Updates:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="setting-manifest-excludes" placeholder="App IDs, comma-separated (e.g. 480,1234)" data-tooltip="These App IDs will be skipped by Update All Manifests and Auto-Update Manifests">
+                        <button id="setting-manifest-excludes-save" class="btn">Save</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="section-title">DLC Unlockers</h2>
+                <div class="input-group">
+                    <label>DLC Unlocker Cache Directory:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="setting-dlc-cache-dir" placeholder="Default" data-tooltip="Directory to cache DLC unlocker files">
+                        <button id="setting-dlc-cache-browse" class="btn">Browse</button>
+                    </div>
+                </div>
+                <div class="checkbox-group">
+                    <label class="checkbox-option" data-tooltip="Prefer SmokeAPI over CreamAPI for Steam games">
+                        <input type="checkbox" id="setting-use-smokeapi">
+                        <span>Prefer SmokeAPI over CreamAPI (Steam)</span>
+                    </label>
+                    <label class="checkbox-option" data-tooltip="Use Koaloader proxy mode for DLC unlocking">
+                        <input type="checkbox" id="setting-use-koaloader">
+                        <span>Use Koaloader Proxy Mode</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="section-title">AppList Profiles</h2>
+                <p>Manage GreenLuma AppList profiles — create, switch, save, merge, delete, or rename.</p>
+                <div class="profile-controls">
+                    <select id="profile-select" data-tooltip="Select a saved AppList profile">
+                        <option value="">-- Select profile --</option>
+                    </select>
+                    <button id="profile-switch" class="btn" data-tooltip="Switch to the selected profile">Switch</button>
+                    <button id="profile-save" class="btn" data-tooltip="Save current AppList as a profile">Save Current</button>
+                    <button id="profile-create" class="btn" data-tooltip="Create a new empty profile">New</button>
+                    <button id="profile-rename" class="btn" data-tooltip="Rename the selected profile">Rename</button>
+                    <button id="profile-delete" class="btn btn-danger" data-tooltip="Delete the selected profile">Delete</button>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="section-title">Preferences</h2>
+                <div class="input-group">
+                    <label>Language:</label>
+                    <select id="setting-language" data-tooltip="Application language (requires restart)">
+                        <option value="en">English</option>
+                        <option value="de">Deutsch</option>
+                        <option value="es">Español</option>
+                        <option value="pt">Português</option>
+                        <option value="pl">Polski</option>
+                        <option value="ru">Русский</option>
+                        <option value="ar">العربية</option>
+                        <option value="Auto">Auto</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>AppList ID Limit (0 = unlimited):</label>
+                    <input type="number" id="setting-id-limit" value="0" min="0" data-tooltip="Maximum number of IDs in the AppList (0 for no limit)">
+                </div>
+                <div class="checkbox-group">
+                    <label class="checkbox-option" data-tooltip="Enable desktop notifications for completed tasks">
+                        <input type="checkbox" id="setting-notifications" checked>
+                        <span>Desktop Notifications</span>
+                    </label>
+                    <label class="checkbox-option" data-tooltip="Play background music while SteaMidra is open">
+                        <input type="checkbox" id="setting-music">
+                        <span>Play Music</span>
+                    </label>
+                    <label class="checkbox-option" data-tooltip="Enable advanced mode with extra options">
+                        <input type="checkbox" id="setting-advanced-mode">
+                        <span>Advanced Mode</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h2 class="section-title">About</h2>
+                <p id="about-info">SteaMidra — Steam game setup and manifest tool<br>
+                    <a href="#" id="about-github">GitHub</a> · <a href="#" id="about-update">Check for Updates</a>
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Download Modal -->
+    <div id="download-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="download-modal-title">Download Game</h2>
+                <button class="modal-close" data-tooltip="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="dl-source-picker">
+                    <span class="dl-source-label">Download source:</span>
+                    <label class="dl-source-option">
+                        <input type="radio" name="dl-source" value="hubcap" checked> Hubcap
+                    </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="dl-source" value="oureveryday"> OurEveryday
+                    </label>
+                </div>
+                <button id="dl-fastest" class="download-option" data-tooltip="">
+                    <svg class="dl-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    <div class="dl-info">
+                        <span class="dl-title" id="dl-fastest-title">Download through Steam (Fastest)</span>
+                        <span class="dl-desc" id="dl-fastest-desc">Downloads manifests + keys so Steam installs the game natively. Fastest method.</span>
+                    </div>
+                </button>
+                <button id="dl-older" class="download-option" data-tooltip="Uses DepotDownloaderMod to download a specific older version of the game">
+                    <svg class="dl-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                    <div class="dl-info">
+                        <span class="dl-title">Download older version</span>
+                        <span class="dl-desc">Uses DepotDownloaderMod to download a specific older version (requires .NET 9)</span>
+                    </div>
+                </button>
+            </div>
+            <div class="modal-footer">
+                <button class="btn modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Version Picker Modal -->
+    <div id="version-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h2>Select Version</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="version-loading" class="loading-spinner">Loading depot history...</div>
+                <div id="version-table" class="data-table hidden">
+                    <table>
+                        <thead><tr><th>Depot ID</th><th>Manifest ID</th><th>Date</th><th>Select</th></tr></thead>
+                        <tbody id="version-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="version-download" class="btn btn-primary" disabled>Download Selected</button>
+                <button class="btn modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Library Selection Modal -->
+    <div id="library-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Select Steam Library</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Choose which Steam library to install the game to:</p>
+                <div id="library-options" class="library-list"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Update Manifests Modal -->
+    <div id="update-manifests-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Update All Manifests</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:10px;opacity:0.85;">Select which games to update. Only games with saved Lua files are shown.</p>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <span style="font-size:12px;opacity:0.6;" id="um-count">Loading...</span>
+                    <button id="um-toggle-all" class="btn btn-sm" style="font-size:12px;padding:3px 10px;">Deselect All</button>
+                </div>
+                <div id="um-game-list" style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:6px 10px;background:var(--bg-secondary, var(--bg));">
+                    <span style="opacity:0.5;font-size:13px;">Loading games...</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="update-manifests-run" class="btn btn-primary">Update Selected</button>
+                <button class="btn modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Restart After Download Modal -->
+    <div id="restart-after-download-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content" style="max-width:420px;">
+            <div class="modal-header">
+                <h2>Download Complete</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:0;opacity:0.9;">Restart Steam to apply the new manifests and keys.</p>
+            </div>
+            <div class="modal-footer">
+                <button id="restart-after-dl-run" class="btn btn-primary">Restart Steam Now</button>
+                <button class="btn modal-cancel">Not Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Log panel removed — Logs button opens native GlobalLogWindow via bridge -->
+
+    <!-- Scripts -->
+    <script src="js/bridge.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/tooltips.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/store.js"></script>
+    <script src="js/library.js"></script>
+    <script src="js/downloads.js"></script>
+    <script src="js/fixgame.js"></script>
+    <script src="js/tools.js"></script>
+    <script src="js/cloudsaves.js"></script>
+    <script src="js/settings.js"></script>
+</body>
+</html>
