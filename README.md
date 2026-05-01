@@ -43,7 +43,7 @@ You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere —
 
 ### Step 2: GreenLuma
 
-Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: https://www.up-4ever.net/lyoi96gger8y
+Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: [GreenLuma Link](https://www.up-4ever.net/1xi5stm9ah0u)
 
 Extract the ZIP — you will see three folders. You only need `NormalModePatch.rar`.
 Extract `NormalModePatch.rar` and place all files from it into your `SteaMidra\Greenluma` folder or inside `steam directory`.
