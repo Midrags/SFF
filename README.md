@@ -39,9 +39,13 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 ### Step 1: SteaMidra
 
 Download the latest version from [here](https://github.com/Midrags/SFF/releases/latest).
+<<<<<<< HEAD
 You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere — you will see a folder containing `SteaMidra_GUI.exe` and an `_internal/` folder. Place this folder wherever you want (e.g. `C:\SteaMidra\`).
 
 **Do not run SteaMidra yet.** Complete Steps 2 and 3 first so all folders exist before first launch.
+=======
+You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere — you will see a folder containing `SteaMidra_GUI.exe` and an `_internal/` folder. Place this folder wherever you want (e.g. `C:\SteaMidra\`). Run `SteaMidra_GUI.exe` from inside it.
+>>>>>>> 399969dec4033a6a5df128edd294ee02e7b71925
 
 ### Step 2: GreenLuma
 
@@ -60,12 +64,17 @@ Extract the ZIP — you will see three folders. You only need `NormalModePatch.r
 
 ### Step 3: Setup GreenLuma
 
+<<<<<<< HEAD
 Go into whichever folder you chose in Step 2 and run `GreenLumaSettings_2025.exe`.
 
 - Type `2` and press Enter — set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`) and to `GreenLuma_2025_x64.dll` (example for Method A: `C:\SteaMidra\Greenluma\GreenLuma_2025_x64.dll`; for Method B: `C:\Program Files (x86)\Steam\GreenLuma_2025_x64.dll`).
 - Type `4` and press Enter — disables GreenLuma's questions/prompts on every Steam launch.
 
 Now run `SteaMidra_GUI.exe`. On first launch it will ask you to select your AppList folder — point it to the one you created in Step 2 (e.g. `C:\SteaMidra\Greenluma\AppList` or `C:\Program Files (x86)\Steam\AppList`). You are all set. See the [User Guide](docs/USER_GUIDE.md) for how to add games.
+=======
+Go into the GreenLuma folder and run `GreenLumaSettings2025.exe`.
+Type `2` in the terminal and press Enter, then set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`) and `GreenLuma_2025_x64.dll` (example: `SteaMidra\Greenluma\GreenLuma_2025_x64.dll`).
+>>>>>>> 399969dec4033a6a5df128edd294ee02e7b71925
 
 > Running from source (Python)? See the [Python Setup Guide](docs/PYTHON_SETUP.md).
 
