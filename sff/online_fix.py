@@ -78,21 +78,30 @@ def _detect_archiver():
 
 def _download_with_session(url, cookies_list, user_agent, save_path):
     """Stream download via HTTPX using browser-grade headers."""
-    try:
-        cookies = {c['name']: c['value'] for c in cookies_list}
-        headers = {"User-Agent": user_agent, "Referer": "https://uploads.online-fix.me/"}
-        with httpx.stream("GET", url, cookies=cookies, headers=headers, follow_redirects=True, timeout=None) as response:
-            if response.status_code != 200:
-                print(f"{Fore.RED}✗ Connection rejected by file server: {response.status_code}{Style.RESET_ALL}")
-                return False
-            try: total = int(response.headers.get("Content-Length", "0"))
-            except (ValueError, TypeError): total = 0
-            with save_path.open("wb") as f, tqdm(desc="Downloading Fix", total=total or None, unit="B", unit_scale=True, unit_divisor=1024, miniters=1, colour='green') as pbar:
-                for chunk in response.iter_bytes(chunk_size=1024*1024):
-                    f.write(chunk); pbar.update(len(chunk))
-        return True
-    except Exception as e:
-        print(f"{Fore.RED}✗ Download stream interrupted: {e}{Style.RESET_ALL}"); return False
+    cookies = {c['name']: c['value'] for c in cookies_list}
+    headers = {"User-Agent": user_agent, "Referer": "https://uploads.online-fix.me/"}
+    for _attempt in range(3):
+        try:
+            with httpx.stream("GET", url, cookies=cookies, headers=headers, follow_redirects=True, timeout=None) as response:
+                if response.status_code in (403, 404):
+                    if _attempt < 2:
+                        print(f"{Fore.YELLOW}⚠ Server returned {response.status_code}, retrying ({_attempt + 1}/3)...{Style.RESET_ALL}")
+                        time.sleep(3)
+                        continue
+                    print(f"{Fore.RED}✗ Connection rejected by file server: {response.status_code}{Style.RESET_ALL}")
+                    return False
+                if response.status_code != 200:
+                    print(f"{Fore.RED}✗ Connection rejected by file server: {response.status_code}{Style.RESET_ALL}")
+                    return False
+                try: total = int(response.headers.get("Content-Length", "0"))
+                except (ValueError, TypeError): total = 0
+                with save_path.open("wb") as f, tqdm(desc="Downloading Fix", total=total or None, unit="B", unit_scale=True, unit_divisor=1024, miniters=1, colour='green') as pbar:
+                    for chunk in response.iter_bytes(chunk_size=1024*1024):
+                        f.write(chunk); pbar.update(len(chunk))
+            return True
+        except Exception as e:
+            print(f"{Fore.RED}✗ Download stream interrupted: {e}{Style.RESET_ALL}"); return False
+    return False
 
 def _run_extraction_with_timeout(cmd, timeout=300):
     try:
@@ -229,28 +238,85 @@ def _run_multiplayer_fix_process(game_name, game_folder, username, password, aty
             time.sleep(5)
         print(Fore.CYAN + "establishing link to file server..." + Style.RESET_ALL)
         xpath = "//a[contains(text(),'Скачать фикс с сервера')] | //button[contains(text(),'Скачать фикс с сервера')]"
-        driver.execute_script("arguments[0].click();", wait.until(EC.element_to_be_clickable((By.XPATH, xpath))))
-        try: wait.until(lambda d: len(d.window_handles) > 1)
-        except Exception: pass
-        for h in driver.window_handles:
-            driver.switch_to.window(h)
-            if "uploads.online-fix.me" in driver.current_url.lower(): break
-        print(Fore.YELLOW + "⚠ Waiting for Cloudflare/server resolution (up to 20s)..." + Style.RESET_ALL)
-        start_wait = time.time(); archives = []
-        while (time.time() - start_wait) < 30:
-            # Check for 401 Unauthorized or login screen on server
-            src = driver.page_source or ""
-            if "401 Authorization Required" in src or "Log in to go to the folder" in src:
-                 print(Fore.RED + "✗ Access denied by file server (Session Sync Failed)." + Style.RESET_ALL)
-                 return False
-            archives = _find_archives_recursive(driver)
-            if archives: break
-            # Navigate to folder if found
+        btn = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+        btn_href = btn.get_attribute("href") or ""
+        archives = []; _dl_cookies = None
+        _ua = driver.execute_script("return navigator.userAgent")
+        # Optimisation: try pure-httpx path first — follow loot.raxwars.com redirect via httpx.Client
+        # (headless Chrome handles it too, but if httpx already has the listing we skip the window step)
+        if btn_href:
             try:
-                folders = driver.find_elements(By.PARTIAL_LINK_TEXT, "Fix Repair")
-                if folders: driver.execute_script("arguments[0].click();", folders[0]); time.sleep(3)
+                _chrome_cks = {c['name']: c['value'] for c in driver.get_cookies()}
+                with httpx.Client(follow_redirects=True, timeout=15) as _client:
+                    _r = _client.get(btn_href, cookies=_chrome_cks,
+                                     headers={"User-Agent": _ua, "Referer": "https://online-fix.me/"})
+                    _final = str(_r.url)
+                    logger.debug("Redirect chain final URL [%d]: %s", _r.status_code, _final)
+                    if "uploads.online-fix.me" in _final.lower() and _r.status_code == 200:
+                        _all_cks = {k: str(v) for k, v in _client.cookies.items()}
+                        _dl_cookies = [{'name': k, 'value': v} for k, v in _all_cks.items()]
+                        _found = []
+
+                        def _score_archive(url):
+                            s = 0
+                            u = unquote(url).lower()
+                            if "fix" in u: s += 10
+                            if "repair" in u: s += 10
+                            if "generic" in u: s += 5
+                            return s
+
+                        def _parse_listing(html, base):
+                            for _pm in re.finditer(r'href="([^"]+\.(?:rar|zip|7z))"', html, re.IGNORECASE):
+                                _ph = urljoin(base, _pm.group(1))
+                                _found.append((_score_archive(_ph), _ph))
+
+                        # Scan root listing
+                        _parse_listing(_r.text, _final)
+                        # Also scan any subdirectory whose name contains "fix" or "repair"
+                        _subdirs = [s for s in re.findall(r'href="([^"]+/)"', _r.text)
+                                    if not s.startswith('../') and s not in ('/', './')]
+                        for _sd in _subdirs:
+                            if "fix" in unquote(_sd).lower() or "repair" in unquote(_sd).lower():
+                                _sd_url = urljoin(_final, _sd)
+                                try:
+                                    _r2 = _client.get(_sd_url, headers={"User-Agent": _ua, "Referer": _final})
+                                    if _r2.status_code == 200:
+                                        _parse_listing(_r2.text, _sd_url)
+                                except Exception as _e2:
+                                    logger.debug("Subdir scan %s: %s", _sd, _e2)
+                        if _found:
+                            archives = _found
+                            print(Fore.GREEN + "✓ Archives found via httpx redirect follow (ad bypassed)" + Style.RESET_ALL)
+            except Exception as _e:
+                logger.debug("httpx bypass attempt: %s", _e)
+        if not archives:
+            # Browser path: headless Chrome follows loot.raxwars.com redirect natively
+            driver.execute_script("arguments[0].click();", btn)
+            try: wait.until(lambda d: len(d.window_handles) > 1)
             except Exception: pass
-            time.sleep(2)
+            for h in driver.window_handles:
+                driver.switch_to.window(h)
+                if "uploads.online-fix.me" in driver.current_url.lower(): break
+            logger.debug("File server URL: %s", driver.current_url)
+            print(Fore.YELLOW + "⚠ Waiting for Cloudflare/server resolution (up to 30s)..." + Style.RESET_ALL)
+            start_wait = time.time()
+            while (time.time() - start_wait) < 30:
+                # Check for 401 Unauthorized or login screen on server
+                src = driver.page_source or ""
+                if "401 Authorization Required" in src or "Log in to go to the folder" in src:
+                     print(Fore.RED + "✗ Access denied by file server (Session Sync Failed)." + Style.RESET_ALL)
+                     return False
+                # Refresh on transient 403/404 from the server
+                if "403 Forbidden" in src or "404 Not Found" in src:
+                    driver.refresh(); time.sleep(2); continue
+                archives = _find_archives_recursive(driver)
+                if archives: break
+                # Navigate to folder if found
+                try:
+                    folders = driver.find_elements(By.PARTIAL_LINK_TEXT, "Fix Repair")
+                    if folders: driver.execute_script("arguments[0].click();", folders[0]); time.sleep(3)
+                except Exception: pass
+                time.sleep(2)
         if not archives:
             print(Fore.RED + "✗ No download files located. Directory listing might be empty." + Style.RESET_ALL)
             return False
@@ -260,7 +326,8 @@ def _run_multiplayer_fix_process(game_name, game_folder, username, password, aty
         print(Fore.CYAN + f"  SECURE DOWNLOAD: {unquote(target_url.split('/')[-1])}" + Style.RESET_ALL)
         print(Fore.CYAN + "=" * 60 + Style.RESET_ALL)
         temp_file = Path(tempfile.gettempdir()) / f"final_{tempfile.mktemp()[-8:]}.rar"
-        if _download_with_session(target_url, driver.get_cookies(), driver.execute_script("return navigator.userAgent"), temp_file):
+        _download_cks = _dl_cookies if _dl_cookies else driver.get_cookies()
+        if _download_with_session(target_url, _download_cks, _ua, temp_file):
             success = _extract_archive_with_backup(str(temp_file), str(game_folder), atype, apath, game_name)
             if temp_file.exists(): temp_file.unlink()
             return success

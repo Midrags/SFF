@@ -139,6 +139,22 @@ class GlobalLogWindow(QDialog):
         self._text.insertHtml(html + "<br>")
         self._text.moveCursor(QTextCursor.MoveOperation.End)
 
+    def append_text(self, text: str):
+        """Append plain-text output (e.g. from print()) to the log window."""
+        text = text.strip()
+        if not text:
+            return
+        ts = datetime.now().strftime("%H:%M:%S")
+        color = _LEVEL_COLORS[logging.INFO]
+        safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        html = (
+            f'<span style="color:#666666;">{ts}</span> '
+            f'<span style="color:{color};">{safe}</span>'
+        )
+        self._text.moveCursor(QTextCursor.MoveOperation.End)
+        self._text.insertHtml(html + "<br>")
+        self._text.moveCursor(QTextCursor.MoveOperation.End)
+
     def _copy_all(self):
         QApplication.clipboard().setText(self._text.toPlainText())
 

@@ -148,6 +148,7 @@ class SFFMainWindow(QMainWindow):
         self._log_handler.record_emitted.connect(self._forward_log_to_web)
         __import__('logging').getLogger().addHandler(self._log_handler)
         self._stream_emitter.text_written.connect(self._forward_stdout_to_web)
+        self._stream_emitter.text_written.connect(self._log_window.append_text)
         self._worker = None
         self._worker_thread = None
         self.setWindowTitle("SteaMidra")
@@ -731,6 +732,9 @@ class SFFMainWindow(QMainWindow):
             # Strip HTML tags for the web UI (it applies its own formatting)
             import re
             text = re.sub(r'<[^>]+>', '', html).strip()
+            # Remove the leading HH:MM:SS timestamp already embedded by QtLogHandler
+            # to avoid double-timestamps when the JS log panel adds its own.
+            text = re.sub(r'^\d{2}:\d{2}:\d{2}\s*', '', text)
             self._web_bridge.log_message.emit(f'[{lvl}] {text}')
 
     def _forward_stdout_to_web(self, text: str):

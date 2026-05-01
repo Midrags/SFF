@@ -1039,11 +1039,19 @@ class WebBridge(QObject):
     def switch_profile(self, name):
         """Switch to a named AppList profile."""
         def _do():
-            from sff.app_injector.applist_profiles import profile_switch
+            from sff.app_injector.applist_profiles import switch_profile
+            from sff.storage.settings import get_setting
+            from sff.structs import Settings
+            from pathlib import Path
             if hasattr(self._ui, 'app_list_man') and self._ui.app_list_man:
-                success, count = profile_switch(name, self._ui.app_list_man.applist_folder)
-                return success
-            return False
+                folder = self._ui.app_list_man.applist_folder
+            else:
+                saved = get_setting(Settings.APPLIST_FOLDER)
+                if not saved:
+                    return False
+                folder = Path(saved)
+            success, count = switch_profile(name, folder)
+            return success
 
         def _on_done(result):
             self._emit_task_result("switch_profile", bool(result), f"Switched to '{name}'")
