@@ -16,7 +16,9 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 
 Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
-**Old video about SteaMidra (only for python setup, so most users won't need this just go to releases) will create a new one soon:** [YouTube Tutorial](https://youtu.be/cFfItiV8-pk)
+**Latest SteaMidra setup tutorial:** ["Normal" tutorial for new users](https://youtu.be/9aAaQ8dSnTY)
+
+**Python setup tutorial:** [Python Tutorial](https://youtu.be/cFfItiV8-pk)
 
 ---
 
