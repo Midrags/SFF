@@ -25,7 +25,6 @@ Includes validation, error handling, and comprehensive testing.
 from sff.dlc_unlockers.base import Platform, UnlockerBase, UnlockerType
 from sff.dlc_unlockers.creamapi import CreamAPIUnlocker
 from sff.dlc_unlockers.downloader import GitHubReleaseDownloader
-from sff.dlc_unlockers.koaloader import KoaloaderUnlocker
 from sff.dlc_unlockers.manager import UnlockerManager
 from sff.dlc_unlockers.smokeapi import SmokeAPIUnlocker
 from sff.dlc_unlockers.steam_dll_utils import (
@@ -54,7 +53,6 @@ __all__ = [
     # Unlocker implementations
     "SmokeAPIUnlocker",
     "CreamAPIUnlocker",
-    "KoaloaderUnlocker",
     "UplayR1Unlocker",
     "UplayR2Unlocker",
     # Utilities

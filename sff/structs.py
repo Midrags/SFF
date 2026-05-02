@@ -208,7 +208,7 @@ class Settings(Enum):
     DLC_UNLOCKER_CACHE_DIR = SettingItem("dlc_unlocker_cache", "DLC Unlocker Cache Directory", False, str)
     # DLC Unlocker mode (CreamInstaller-compatible)
     USE_SMOKEAPI = SettingItem("use_smokeapi", "Prefer SmokeAPI over CreamAPI (Steam)", False, bool)
-    USE_KOALOADER_PROXY = SettingItem("use_koaloader_proxy", "Use Koaloader Proxy Mode (optional)", False, bool)
+
     APPLIST_ID_LIMIT = SettingItem("applist_id_limit", "AppList ID Limit (0 = unlimited)", False, str)
     MANIFESTHUB_API_KEY = SettingItem("manifesthub_api_key", "ManifestHub API Key (manifesthub1.filegear-sg.me, 24h)", True, str)
     MANIFESTHUB_KEY_EXPIRY = SettingItem("manifesthub_key_expiry", "ManifestHub Key Expiry (UTC epoch, managed automatically)", False, str)

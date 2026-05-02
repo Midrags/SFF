@@ -24,7 +24,6 @@ from pathlib import Path
 from sff.dlc_unlockers.base import UnlockerBase, UnlockerType, Platform
 from sff.dlc_unlockers.smokeapi import SmokeAPIUnlocker
 from sff.dlc_unlockers.creamapi import CreamAPIUnlocker
-from sff.dlc_unlockers.koaloader import KoaloaderUnlocker
 from sff.dlc_unlockers.uplay_r1 import UplayR1Unlocker
 from sff.dlc_unlockers.uplay_r2 import UplayR2Unlocker
 from sff.storage.settings import load_all_settings, set_setting
@@ -40,7 +39,6 @@ class UnlockerManager:
         self.unlockers: list[UnlockerBase] = [
             SmokeAPIUnlocker(),
             CreamAPIUnlocker(),
-            KoaloaderUnlocker(),
             UplayR1Unlocker(),
             UplayR2Unlocker()
         ]

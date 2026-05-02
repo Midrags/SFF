@@ -37,7 +37,6 @@ class GitHubReleaseDownloader:
     RELEASE_URLS = {
         UnlockerType.SMOKEAPI: "https://api.github.com/repos/acidicoala/SmokeAPI/releases/latest",
         UnlockerType.CREAMAPI: "https://api.github.com/repos/acidicoala/CreamAPI/releases/latest",
-        UnlockerType.KOALOADER: "https://api.github.com/repos/acidicoala/Koaloader/releases/latest",
         UnlockerType.UPLAY_R1: "https://api.github.com/repos/acidicoala/UplayR1Unlocker/releases/latest",
         UnlockerType.UPLAY_R2: "https://api.github.com/repos/acidicoala/UplayR2Unlocker/releases/latest"
     }
@@ -143,7 +142,6 @@ class GitHubReleaseDownloader:
         expected_dlls = {
             UnlockerType.SMOKEAPI: ["smoke_api32.dll", "smoke_api64.dll"],
             UnlockerType.CREAMAPI: ["steam_api.dll", "steam_api64.dll"],
-            UnlockerType.KOALOADER: ["winmm-64", "winmm-32", "winhttp-64", "version-64"],  # Koaloader v3.0.4+ has subdirectories
             UnlockerType.UPLAY_R1: ["UplayR1Unlocker.dll", "UplayR1Unlocker32.dll", "UplayR1Unlocker64.dll"],
             UnlockerType.UPLAY_R2: ["UplayR2Unlocker.dll", "UplayR2Unlocker32.dll", "UplayR2Unlocker64.dll"]
         }
@@ -173,7 +171,6 @@ class GitHubReleaseDownloader:
         resource_map = {
             UnlockerType.SMOKEAPI: "SmokeAPI",
             UnlockerType.CREAMAPI: "CreamAPI",
-            UnlockerType.KOALOADER: "Koaloader",
             UnlockerType.UPLAY_R1: "UplayR1",
             UnlockerType.UPLAY_R2: "UplayR2"
         }

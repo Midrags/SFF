@@ -27,7 +27,6 @@ class UnlockerType(Enum):
     GREENLUMA = "greenluma"
     SMOKEAPI = "smokeapi"
     CREAMAPI = "creamapi"
-    KOALOADER = "koaloader"
     UPLAY_R1 = "uplay_r1"
     UPLAY_R2 = "uplay_r2"
 

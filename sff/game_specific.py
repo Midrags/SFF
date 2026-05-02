@@ -565,14 +565,9 @@ class GameHandler:
         if use_smokeapi is None or isinstance(use_smokeapi, str):
             use_smokeapi = True
             set_setting(Settings.USE_SMOKEAPI, True)
-        use_koaloader = get_setting(Settings.USE_KOALOADER_PROXY)
-        if use_koaloader is None or isinstance(use_koaloader, str):
-            use_koaloader = False
-            set_setting(Settings.USE_KOALOADER_PROXY, False)
         print(f"\n{Fore.CYAN}=== DLC Unlockers (CreamInstaller) ==={Style.RESET_ALL}")
         print(f"Game: {app_info.path.name}  |  App ID: {app_info.app_id}")
-        print(f"Mode: {Fore.YELLOW}{'SmokeAPI' if use_smokeapi else 'CreamAPI'}{Style.RESET_ALL}  |  "
-              f"Proxy: {Fore.YELLOW}{'Koaloader ON' if use_koaloader else 'Direct (off)'}{Style.RESET_ALL}\n")
+        print(f"Mode: {Fore.YELLOW}{'SmokeAPI' if use_smokeapi else 'CreamAPI'}{Style.RESET_ALL}\n")
         manager = UnlockerManager(self.steam_root)
         platform = manager.detect_platform(app_info.path)
         print(f"Platform: {Fore.GREEN}{platform.value.upper()}{Style.RESET_ALL}\n")
@@ -584,11 +579,11 @@ class GameHandler:
         if installed_unlockers:
             print(f"{Fore.YELLOW}Installed:{Style.RESET_ALL} " + ", ".join(u.display_name for u in installed_unlockers))
             print()
-        menu_options = ["Install DLC Unlockers", "Uninstall DLC Unlockers", "Configure (SmokeAPI/CreamAPI, Koaloader)", "Go back"]
+        menu_options = ["Install DLC Unlockers", "Uninstall DLC Unlockers", "Configure (SmokeAPI/CreamAPI)", "Go back"]
         choice = prompt_select("Select:", menu_options)
         if choice == "Go back":
             return
-        if choice == "Configure (SmokeAPI/CreamAPI, Koaloader)":
+        if choice == "Configure (SmokeAPI/CreamAPI)":
             use_smokeapi = prompt_confirm(
                 "Use SmokeAPI? (No = CreamAPI)",
                 true_msg="SmokeAPI",
@@ -596,13 +591,6 @@ class GameHandler:
                 default=use_smokeapi
             )
             set_setting(Settings.USE_SMOKEAPI, use_smokeapi)
-            use_koaloader = prompt_confirm(
-                "Use Koaloader proxy mode? (No = direct mode)",
-                true_msg="Yes (proxy)",
-                false_msg="No (direct)",
-                default=use_koaloader
-            )
-            set_setting(Settings.USE_KOALOADER_PROXY, use_koaloader)
             print(Fore.GREEN + "Settings saved. Run Install again to apply." + Style.RESET_ALL)
             return
         if choice == "Uninstall DLC Unlockers":
@@ -624,12 +612,8 @@ class GameHandler:
         print(f"\n{Fore.CYAN}Installing DLC unlockers...{Style.RESET_ALL}")
         steam_unlocker = UnlockerType.SMOKEAPI if use_smokeapi else UnlockerType.CREAMAPI
         if platform == Platform.STEAM:
-            if use_koaloader:
-                to_install = [UnlockerType.KOALOADER, UnlockerType.SMOKEAPI]
-                print("Mode: Koaloader + SmokeAPI (proxy)")
-            else:
-                to_install = [steam_unlocker]
-                print(f"Mode: {steam_unlocker.value} (direct)")
+            to_install = [steam_unlocker]
+            print(f"Mode: {steam_unlocker.value} (direct)")
         else:
             to_install = [u.unlocker_type for u in compatible_unlockers]
         cache_dir_val = get_setting(Settings.DLC_UNLOCKER_CACHE_DIR)
@@ -640,7 +624,7 @@ class GameHandler:
         for utype in to_install:
             if utype == UnlockerType.SMOKEAPI and not use_smokeapi:
                 continue
-            if utype == UnlockerType.CREAMAPI and use_smokeapi and not use_koaloader:
+            if utype == UnlockerType.CREAMAPI and use_smokeapi:
                 continue
             print(f"  {utype.value}...", end=" ")
             try:
@@ -653,11 +637,7 @@ class GameHandler:
             except Exception as e:
                 print(Fore.RED + f"✗ {e}" + Style.RESET_ALL)
         if platform == Platform.STEAM:
-            needed = UnlockerType.SMOKEAPI if use_smokeapi else UnlockerType.CREAMAPI
-            if use_koaloader:
-                needed = [UnlockerType.KOALOADER, UnlockerType.SMOKEAPI]
-            else:
-                needed = [needed]
+            needed = [UnlockerType.SMOKEAPI if use_smokeapi else UnlockerType.CREAMAPI]
             if not all(u in unlocker_dirs for u in needed):
                 print(Fore.RED + "\nDownload failed. Aborting." + Style.RESET_ALL)
                 return
@@ -676,38 +656,22 @@ class GameHandler:
             logger.debug(f"Could not fetch DLC list for unlocker config: {e}")
         success_count = 0
         if platform == Platform.STEAM:
-            if use_koaloader:
-                koaloader = manager.get_unlocker_by_type(UnlockerType.KOALOADER)
-                smokeapi = manager.get_unlocker_by_type(UnlockerType.SMOKEAPI)
-                if koaloader and smokeapi and UnlockerType.KOALOADER in unlocker_dirs and UnlockerType.SMOKEAPI in unlocker_dirs:
-                    print("  Koaloader + SmokeAPI...", end=" ")
-                    success = koaloader.install(
+            unlocker = manager.get_unlocker_by_type(steam_unlocker)
+            if unlocker and steam_unlocker in unlocker_dirs:
+                print(f"  {unlocker.display_name}...", end=" ")
+                if steam_unlocker == UnlockerType.SMOKEAPI:
+                    success = unlocker.install(
                         app_info.path, dlc_ids, int(app_info.app_id),
-                        koaloader_dir=unlocker_dirs[UnlockerType.KOALOADER],
                         smokeapi_dir=unlocker_dirs[UnlockerType.SMOKEAPI]
                     )
-                    if success:
-                        print(Fore.GREEN + "✓" + Style.RESET_ALL)
-                        success_count = 1
-                    else:
-                        print(Fore.RED + "✗" + Style.RESET_ALL)
-            else:
-                unlocker = manager.get_unlocker_by_type(steam_unlocker)
-                if unlocker and steam_unlocker in unlocker_dirs:
-                    print(f"  {unlocker.display_name}...", end=" ")
-                    if steam_unlocker == UnlockerType.SMOKEAPI:
-                        success = unlocker.install(
-                            app_info.path, dlc_ids, int(app_info.app_id),
-                            smokeapi_dir=unlocker_dirs[UnlockerType.SMOKEAPI]
-                        )
-                    else:
-                        unlocker.downloader = downloader
-                        success = unlocker.install(app_info.path, dlc_ids, int(app_info.app_id))
-                    if success:
-                        print(Fore.GREEN + "✓" + Style.RESET_ALL)
-                        success_count = 1
-                    else:
-                        print(Fore.RED + "✗" + Style.RESET_ALL)
+                else:
+                    unlocker.downloader = downloader
+                    success = unlocker.install(app_info.path, dlc_ids, int(app_info.app_id))
+                if success:
+                    print(Fore.GREEN + "✓" + Style.RESET_ALL)
+                    success_count = 1
+                else:
+                    print(Fore.RED + "✗" + Style.RESET_ALL)
         else:
             for unlocker in compatible_unlockers:
                 if unlocker.unlocker_type in [UnlockerType.UPLAY_R1, UnlockerType.UPLAY_R2]:

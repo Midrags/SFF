@@ -315,7 +315,6 @@ window.Settings = (function() {
             'setting-advanced-mode': 'advanced_mode',
             'setting-track-ach': 'gl_track_ach',
             'setting-use-smokeapi': 'use_smokeapi',
-            'setting-use-koaloader': 'use_koaloader_proxy',
         };
         Object.keys(checkboxes).forEach(function(id) {
             var el = document.getElementById(id);
@@ -360,7 +359,6 @@ window.Settings = (function() {
                 _setCheckbox('setting-advanced-mode', settings.advanced_mode);
                 _setCheckbox('setting-track-ach', settings.gl_track_ach);
                 _setCheckbox('setting-use-smokeapi', settings.use_smokeapi);
-                _setCheckbox('setting-use-koaloader', settings.use_koaloader_proxy);
                 // Theme
                 if (settings.theme) _applyTheme(settings.theme);
             } catch(e) {
