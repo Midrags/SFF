@@ -22,6 +22,7 @@ import asyncio
 import io
 import json
 import logging
+import re
 from pathlib import Path
 
 import httpx
@@ -42,26 +43,8 @@ def get_oureverday(dest, app_id):
     import httpx as _httpx
     from sff.steam_client import create_provider_for_current_thread
 
-    # Step 1: The Original GitHub source (Primary)
-    print(Fore.CYAN + f"\n[Step 1] Attempting to download Lua for {app_id} from SteamAutoCracks GitHub..." + Style.RESET_ALL)
-    try:
-        resp = _httpx.get(
-            f"https://raw.githubusercontent.com/SteamAutoCracks/ManifestHub/refs/heads/{app_id}/{app_id}.lua",
-            timeout=15,
-            follow_redirects=True,
-        )
-        if resp.status_code == 200 and resp.text.strip():
-            lua_path = dest / f"{app_id}.lua"
-            lua_path.write_text(resp.text, encoding="utf-8")
-            print(Fore.GREEN + f"✅ GitHub: Succesfully downloaded Lua for {app_id}" + Style.RESET_ALL)
-            return lua_path
-        else:
-            print(Fore.YELLOW + f"GitHub returned HTTP {resp.status_code}. Moving to GitLab / Steam Client Fallback..." + Style.RESET_ALL)
-    except Exception as e:
-        print(Fore.YELLOW + f"GitHub unreachable ({e}). Moving to GitLab / Steam Client Fallback..." + Style.RESET_ALL)
-
-    # Sub-Step 2A: Query Steam Connection Manager natively for the depot IDs!
-    print(Fore.CYAN + f"[Step 2] Native Fallback - Fetching valid depots for {app_id} natively from Steam Client..." + Style.RESET_ALL)
+    # Step 1: Steam native query for depot IDs
+    print(Fore.CYAN + f"[Step 1] Fetching depot list for {app_id} from Steam client..." + Style.RESET_ALL)
     try:
         provider = create_provider_for_current_thread()
         app_info = provider.get_single_app_info(int(app_id))
@@ -77,8 +60,8 @@ def get_oureverday(dest, app_id):
         print(Fore.RED + f"No valid depots exist on Steam for this App ID." + Style.RESET_ALL)
         return None
 
-    # Step 2: Bundled Local Key Database (primary — fast, offline, 290k+ entries)
-    print(Fore.CYAN + f"[Step 3] Loading bundled key database..." + Style.RESET_ALL)
+    # Step 2: Bundled local key database
+    print(Fore.CYAN + f"[Step 2] Loading bundled key database..." + Style.RESET_ALL)
     keys_dict = {}
     local_db = Path(__file__).parent / "fallback_depotkeys.json"
     if local_db.exists():
@@ -86,41 +69,9 @@ def get_oureverday(dest, app_id):
             keys_dict = json.loads(local_db.read_text(encoding="utf-8"))
             print(Fore.GREEN + f"✅ Loaded bundled key database ({len(keys_dict):,} entries)." + Style.RESET_ALL)
         except Exception as e:
-            print(Fore.YELLOW + f"Failed to load bundled key database ({e}). Falling back to GitLab..." + Style.RESET_ALL)
+            print(Fore.YELLOW + f"Failed to load bundled key database ({e})." + Style.RESET_ALL)
     else:
-        print(Fore.YELLOW + f"Bundled key database not found. Falling back to GitLab..." + Style.RESET_ALL)
-
-    # Check if any depot IDs are still missing from the local database
-    missing_depots = [d for d in depots if d not in keys_dict]
-
-    # Step 3: GitLab — only fetched if local file is missing or has gaps
-    if not keys_dict or missing_depots:
-        if not keys_dict:
-            print(Fore.CYAN + f"[Step 4] Fetching key database from GitLab (local unavailable)..." + Style.RESET_ALL)
-        else:
-            print(Fore.CYAN + f"[Step 4] {len(missing_depots)} depot(s) missing locally — supplementing from GitLab..." + Style.RESET_ALL)
-        try:
-            resp = _httpx.get(
-                "https://gitlab.com/SteamAutoCracks/ManifestHub/-/raw/main/depotkeys.json",
-                timeout=25,
-                follow_redirects=True,
-            )
-            if resp.status_code == 200:
-                gitlab_keys = resp.json()
-                added = 0
-                for d in (missing_depots if keys_dict else gitlab_keys):
-                    if d not in keys_dict and d in gitlab_keys:
-                        keys_dict[d] = gitlab_keys[d]
-                        added += 1
-                print(Fore.GREEN + f"✅ GitLab supplemented {added} additional key(s)." + Style.RESET_ALL)
-            else:
-                print(Fore.YELLOW + f"GitLab returned HTTP {resp.status_code}. Continuing with local keys only..." + Style.RESET_ALL)
-        except Exception as e:
-            print(Fore.YELLOW + f"GitLab unreachable ({e}). Continuing with local keys only..." + Style.RESET_ALL)
-
-    if not keys_dict:
-        print(Fore.RED + f"No key database available (local and GitLab both failed)." + Style.RESET_ALL)
-        return None
+        print(Fore.YELLOW + f"Bundled key database not found." + Style.RESET_ALL)
 
     # Generate the Lua File Dynamically
     lua_lines = [f"addappid({app_id})"]
@@ -132,7 +83,43 @@ def get_oureverday(dest, app_id):
             found += 1
 
     if found == 0:
-        print(Fore.RED + f"No known keys were found for the depots of App ID {app_id} in any database." + Style.RESET_ALL)
+        print(Fore.RED + f"No known keys found in any database for {app_id}." + Style.RESET_ALL)
+        # Step 3: revobd.club — parse keys and inject into keys_dict (last resort)
+        print(Fore.CYAN + f"[Step 3] Trying revobd.club pre-built Lua archive..." + Style.RESET_ALL)
+        _REVO_PATTERN = re.compile(
+            r'addappid\(\s*(\d+)\s*,\s*[01]\s*,\s*["\']([0-9a-fA-F]{64})["\']\s*\)'
+        )
+        try:
+            revo_resp = _httpx.get(
+                f"https://api.luagen.revobd.club/{app_id}.zip",
+                timeout=20,
+                follow_redirects=True,
+            )
+            if revo_resp.status_code == 200 and revo_resp.content:
+                lua_bytes = read_lua_from_zip(io.BytesIO(revo_resp.content), decode=False)
+                if lua_bytes:
+                    revo_keys = dict(_REVO_PATTERN.findall(lua_bytes.decode("utf-8", errors="ignore")))
+                    injected = 0
+                    for d in depots:
+                        if d not in keys_dict and d in revo_keys:
+                            keys_dict[d] = revo_keys[d]
+                            injected += 1
+                    if injected > 0:
+                        print(Fore.GREEN + f"\u2705 revobd.club: Injected {injected} key(s) for {app_id}" + Style.RESET_ALL)
+                        lua_lines = [f"addappid({app_id})"]
+                        found = 0
+                        for d in depots:
+                            if keys_dict.get(d):
+                                lua_lines.append(f"addappid({d}, 1, \"{keys_dict[d]}\")")
+                                found += 1
+                        if found > 0:
+                            lua_path = dest / f"{app_id}.lua"
+                            lua_path.write_text("\n".join(lua_lines), encoding="utf-8")
+                            print(Fore.GREEN + f"\u2705 Built Lua for {app_id} using revobd.club keys ({found} depot(s))" + Style.RESET_ALL)
+                            return lua_path
+            print(Fore.YELLOW + f"revobd.club: No usable keys for {app_id} (HTTP {revo_resp.status_code})." + Style.RESET_ALL)
+        except Exception as e:
+            print(Fore.YELLOW + f"revobd.club unreachable ({e})." + Style.RESET_ALL)
         return None
 
     lua_path = dest / f"{app_id}.lua"
@@ -141,18 +128,6 @@ def get_oureverday(dest, app_id):
 
     print(Fore.GREEN + f"✅ Built custom Lua for {app_id} (Resolved {found} keys natively)" + Style.RESET_ALL)
     return lua_path
-
-    print(
-        Fore.RED
-        + f"\nFailed to download Lua for App ID {app_id} from oureveryday."
-        + Style.RESET_ALL
-    )
-    print(
-        Fore.YELLOW
-        + "The game may not be available on this source, or there is a network error."
-        + Style.RESET_ALL
-    )
-    return None
 
 
 def get_hubcap(dest, app_id, depotcache = None):
