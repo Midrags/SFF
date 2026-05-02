@@ -121,6 +121,7 @@ class AppListProfileChoice(Enum):
 class LuaEndpoint(Enum):
     OUREVERYDAY = "oureveryday (quick but could be limited)"
     HUBCAP = "Hubcap Manifest (more stuff, needs API key, has a daily limit)"
+    RYUU = "Ryuu Generator (needs API key)"
 
 
 class MainReturnCode(Enum):
@@ -174,6 +175,7 @@ class SettingItem(NamedTuple):
 class Settings(Enum):
     ADVANCED_MODE = SettingItem("advanced_mode", "Advanced Mode", False, bool)
     HUBCAP_KEY = SettingItem("morrenus_key", "Hubcap API Key", True, str)
+    RYUU_KEY = SettingItem("ryuu_key", "Ryuu API Key", True, str)
     STEAM_PATH = SettingItem(
         "steam_path", "Steam Installation Path", False, SettingCustomTypes.DIR
     )

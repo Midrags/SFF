@@ -102,6 +102,7 @@ window.Settings = (function() {
             'setting-hubcap-save': { input: 'setting-hubcap-key', key: 'morrenus_key', label: 'Hubcap API key', useConnect: true },
             'setting-steam-web-api-save': { input: 'setting-steam-web-api-key', key: 'steam_web_api_key', label: 'Steam Web API Key' },
             'setting-manifesthub-save': { input: 'setting-manifesthub-key', key: 'manifesthub_api_key', label: 'ManifestHub API Key' },
+            'setting-ryuu-save': { input: 'setting-ryuu-key', key: 'ryuu_key', label: 'Ryuu API Key' },
         };
         Object.keys(apiSaveMap).forEach(function(btnId) {
             var btn = document.getElementById(btnId);
@@ -340,6 +341,7 @@ window.Settings = (function() {
                 _setInputVal('setting-dlc-cache-dir', settings.dlc_unlocker_cache);
                 // Password fields — only set placeholder text for encrypted values
                 _setPasswordField('setting-hubcap-key', settings.morrenus_key);
+                _setPasswordField('setting-ryuu-key', settings.ryuu_key);
                 _setPasswordField('setting-steam-pass', settings.steam_pass);
                 _setPasswordField('setting-onlinefix-pass', settings.online_fix_pass);
                 _setPasswordField('setting-steam-web-api-key', settings.steam_web_api_key);

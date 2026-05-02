@@ -37,6 +37,33 @@ from sff.zip import read_lua_from_zip
 
 logger = logging.getLogger(__name__)
 
+_REVO_PATTERN = re.compile(
+    r'addappid\(\s*(\d+)\s*,\s*[01]\s*,\s*["\']([0-9a-fA-F]{64})["\']\s*\)'
+)
+
+
+def _update_fallback_depotkeys(lua_bytes):
+    try:
+        text = lua_bytes.decode("utf-8", errors="ignore")
+        new_pairs = dict(_REVO_PATTERN.findall(text))
+        if not new_pairs:
+            return
+        local_db = Path(__file__).parent / "fallback_depotkeys.json"
+        if not local_db.exists():
+            return
+        existing = json.loads(local_db.read_text(encoding="utf-8"))
+        added = 0
+        for depot_id, key in new_pairs.items():
+            if depot_id not in existing:
+                existing[depot_id] = key
+                added += 1
+        if added == 0:
+            return
+        sorted_data = dict(sorted(existing.items(), key=lambda x: int(x[0])))
+        local_db.write_text(json.dumps(sorted_data, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
 
 def get_oureverday(dest, app_id):
     import json
@@ -86,9 +113,7 @@ def get_oureverday(dest, app_id):
         print(Fore.RED + f"No known keys found in any database for {app_id}." + Style.RESET_ALL)
         # Step 3: revobd.club — parse keys and inject into keys_dict (last resort)
         print(Fore.CYAN + f"[Step 3] Trying revobd.club pre-built Lua archive..." + Style.RESET_ALL)
-        _REVO_PATTERN = re.compile(
-            r'addappid\(\s*(\d+)\s*,\s*[01]\s*,\s*["\']([0-9a-fA-F]{64})["\']\s*\)'
-        )
+        # _REVO_PATTERN is defined at module level
         try:
             revo_resp = _httpx.get(
                 f"https://api.luagen.revobd.club/{app_id}.zip",
@@ -256,5 +281,85 @@ def get_hubcap(dest, app_id, depotcache = None):
         if lua_bytes:
             with lua_path.open("wb") as f:
                 f.write(lua_bytes)
+            _update_fallback_depotkeys(lua_bytes)
             return lua_path
         return None
+
+
+def get_ryuu(dest, app_id, depotcache=None, request_update=None):
+    if request_update is None:
+        request_update = prompt_confirm(
+            "[Optional] Request an update from Ryuu before downloading?\n"
+            "  (This can be slow and may fail — skip to get the current version.)"
+        )
+
+    while True:
+        if not (ryuu_key := get_setting(Settings.RYUU_KEY)):
+            ryuu_key = prompt_secret(
+                "Paste your Ryuu API key: ",
+                lambda x: bool(x.strip()),
+                "API key cannot be empty.",
+                long_instruction="Contact Ryuu staff to get an API key.",
+            ).strip()
+            set_setting(Settings.RYUU_KEY, ryuu_key)
+
+        if request_update:
+            try:
+                upd_resp = httpx.get(
+                    f"https://generator.ryuu.lol/resellerrequestupdate"
+                    f"?appid={app_id}&auth_code={ryuu_key}",
+                    timeout=30,
+                    follow_redirects=True,
+                )
+                if upd_resp.status_code == 200:
+                    msg = upd_resp.json().get("message", "OK")
+                    print(Fore.GREEN + f"Ryuu update: {msg}" + Style.RESET_ALL)
+                elif upd_resp.status_code == 400:
+                    print(Fore.YELLOW + "Ryuu: Game not found for update request." + Style.RESET_ALL)
+                else:
+                    print(Fore.YELLOW + f"Ryuu update request returned HTTP {upd_resp.status_code}." + Style.RESET_ALL)
+            except Exception as e:
+                print(Fore.YELLOW + f"Ryuu update request failed ({e}). Continuing with download..." + Style.RESET_ALL)
+            request_update = False
+
+        try:
+            resp = httpx.get(
+                f"https://generator.ryuu.lol/secure_download"
+                f"?appid={app_id}&auth_code={ryuu_key}",
+                timeout=60,
+                follow_redirects=True,
+            )
+        except httpx.ConnectError:
+            print(
+                Fore.RED
+                + "\nNetwork error: Cannot reach Ryuu API."
+                  " Check your internet connection."
+                + Style.RESET_ALL
+            )
+            return None
+        except httpx.RequestError as e:
+            print(Fore.RED + f"\nNetwork error connecting to Ryuu: {e}" + Style.RESET_ALL)
+            return None
+
+        if resp.status_code == 404:
+            print(Fore.RED + f"Ryuu: Game not found (App ID {app_id})." + Style.RESET_ALL)
+            return None
+
+        if resp.status_code != 200:
+            print(Fore.RED + f"Ryuu returned HTTP {resp.status_code}." + Style.RESET_ALL)
+            if prompt_confirm("Do you want to enter a new API key?"):
+                set_setting(Settings.RYUU_KEY, "")
+                continue
+            return None
+
+        lua_bytes = read_lua_from_zip(io.BytesIO(resp.content), decode=False, depotcache=depotcache)
+        if lua_bytes is None:
+            print(Fore.RED + "Ryuu: ZIP downloaded but no .lua file found inside." + Style.RESET_ALL)
+            return None
+
+        lua_path = dest / f"{app_id}.lua"
+        with lua_path.open("wb") as f:
+            f.write(lua_bytes)
+        _update_fallback_depotkeys(lua_bytes)
+        print(Fore.GREEN + f"\u2705 Ryuu: Downloaded Lua for {app_id}" + Style.RESET_ALL)
+        return lua_path

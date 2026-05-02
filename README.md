@@ -89,7 +89,7 @@ When your AppList reaches 130 IDs, SteaMidra shows a popup dialog reminding you 
 
 ## GUI features
 
-SteaMidra has a full graphical interface with a **Modern UI** (new in 5.5.0) and the classic Qt interface.
+SteaMidra has a full graphical interface with a **Modern UI** (introduced in 5.5.0) and the classic Qt interface.
 
 **Modern UI** — the new default interface, built with QWebEngine. Accessible from a clean sidebar with 8 tabs: Home (game picker with auto-refresh), Store (search/browse Hubcap, grid/list, pagination), Library (installed games), Downloads (live progress + history), Fix Game (full emulator pipeline), Tools (GBE Token Generator, VDF Extractor, Workshop), Cloud Saves (scan/backup/restore), and Settings. Supports 11+ themes, tooltips, and toast notifications.
 

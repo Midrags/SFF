@@ -624,6 +624,13 @@
                     </div>
                 </div>
                 <div class="input-group">
+                    <label>Ryuu API Key:</label>
+                    <div class="input-with-btn">
+                        <input type="password" id="setting-ryuu-key" placeholder="Enter API key" data-tooltip="Ryuu API key for Lua and manifest downloads">
+                        <button id="setting-ryuu-save" class="btn btn-primary">Save</button>
+                    </div>
+                </div>
+                <div class="input-group">
                     <label>Steam Web API Key:</label>
                     <div class="input-with-btn">
                         <input type="password" id="setting-steam-web-api-key" placeholder="Enter Steam Web API Key" data-tooltip="Steam Web API Key for achievement data">
@@ -828,6 +835,15 @@
                     </label>
                     <label class="dl-source-option">
                         <input type="radio" name="dl-source" value="oureveryday"> OurEveryday
+                    </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="dl-source" value="ryuu"> Ryuu
+                    </label>
+                </div>
+                <div id="ryuu-update-option" style="display:none; margin-top:8px; padding-left:4px;">
+                    <label class="dl-source-option">
+                        <input type="checkbox" id="ryuu-request-update"> Request Ryuu update before download
+                        <small style="color:#888; display:block; margin-top:2px;">(can be slow and may fail)</small>
                     </label>
                 </div>
                 <button id="dl-fastest" class="download-option" data-tooltip="">

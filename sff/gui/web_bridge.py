@@ -266,8 +266,8 @@ class WebBridge(QObject):
 
         self._run_async(_do, on_done=_on_done)
 
-    @pyqtSlot(str, str)
-    def download_game_with_source(self, app_id, source):
+    @pyqtSlot(str, str, str)
+    def download_game_with_source(self, app_id, source, request_update='0'):
         """Fastest download with explicit source choice ('hubcap' or 'oureveryday').
         Emits download_progress + task_finished signals."""
         def _do():
@@ -275,7 +275,7 @@ class WebBridge(QObject):
                 "app_id": app_id, "status": "Starting", "progress": 0
             }))
             if sys.platform == "win32":
-                return self._run_windows_fastest(app_id, source=source)
+                return self._run_windows_fastest(app_id, source=source, request_update=(request_update == '1'))
             else:
                 return self._run_linux_fastest(app_id)
 
@@ -290,7 +290,7 @@ class WebBridge(QObject):
 
         self._run_async(_do, on_done=_on_done)
 
-    def _run_windows_fastest(self, app_id, source=''):
+    def _run_windows_fastest(self, app_id, source='', request_update=False):
         """Prompt-free 11-step pipeline for Windows."""
         try:
             from sff.lua.choices import download_lua_direct
@@ -312,6 +312,8 @@ class WebBridge(QObject):
                 selected_source = LuaEndpoint.HUBCAP
             elif source == "oureveryday":
                 selected_source = LuaEndpoint.OUREVERYDAY
+            elif source == "ryuu":
+                selected_source = LuaEndpoint.RYUU
             else:
                 selected_source = LuaEndpoint.HUBCAP if self._api_key else LuaEndpoint.OUREVERYDAY
             lua_path = download_lua_direct(
@@ -319,6 +321,7 @@ class WebBridge(QObject):
                 app_id=app_id,
                 source=selected_source,
                 steam_path=steam_path,
+                request_update=request_update,
             )
             if not lua_path:
                 return False

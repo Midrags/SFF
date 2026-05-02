@@ -33,7 +33,7 @@ from sff.fzf import run_fzf
 
 from sff.http_utils import download_to_tempfile
 
-from sff.lua.endpoints import get_hubcap, get_oureverday
+from sff.lua.endpoints import get_hubcap, get_oureverday, get_ryuu
 
 from sff.prompts import prompt_confirm, prompt_file, prompt_select, prompt_text
 
@@ -232,6 +232,12 @@ def download_lua(dest, os_type):
         depotcache = (Path(steam_root) / "depotcache") if steam_root else None
         lua_path = get_hubcap(dest, app_id, depotcache=depotcache)
 
+    elif source == LuaEndpoint.RYUU:
+
+        steam_root = get_setting(Settings.STEAM_PATH)
+        depotcache = (Path(steam_root) / "depotcache") if steam_root else None
+        lua_path = get_ryuu(dest, app_id, depotcache=depotcache)
+
     if lua_path is None:
 
         return LuaResult(None, None, LuaChoiceReturnCode.GO_BACK)
@@ -239,7 +245,7 @@ def download_lua(dest, os_type):
     return LuaResult(lua_path, None, LuaChoiceReturnCode.LOOP, endpoint=source)
 
 
-def download_lua_direct(dest, app_id, source, steam_path=None):
+def download_lua_direct(dest, app_id, source, steam_path=None, request_update=None):
     """Download Lua for a known app_id from a known source endpoint, no CLI prompts.
 
     Used by the Store tab when the user has already selected the app and source
@@ -252,4 +258,7 @@ def download_lua_direct(dest, app_id, source, steam_path=None):
     elif source == LuaEndpoint.HUBCAP:
         depotcache = (Path(steam_path) / "depotcache") if steam_path else None
         return get_hubcap(dest, app_id, depotcache=depotcache)
+    elif source == LuaEndpoint.RYUU:
+        depotcache = (Path(steam_path) / "depotcache") if steam_path else None
+        return get_ryuu(dest, app_id, depotcache=depotcache, request_update=request_update)
     return None

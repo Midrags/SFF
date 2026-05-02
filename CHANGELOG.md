@@ -1,5 +1,19 @@
 # Changelog
 
+## 5.6.0
+
+### Ryuu Generator — New Lua Endpoint
+
+- **Ryuu endpoint added** — third option for Lua and manifest downloads alongside OurEveryday and Hubcap. Requires a Ryuu API key; downloads a ZIP containing the Lua file and all manifests in one request.
+- **Optional update request** — before downloading, you can request Ryuu to regenerate data for the game. Works in both CLI (prompt) and the web UI (checkbox in the download modal, only shown when Ryuu is selected).
+- **Ryuu API Key in Settings** — stored securely; enter it once in the Settings tab or the CLI key prompt.
+
+### Store Tab Improvements
+
+- **Ryuu source selector** — download modal now shows three sources: Hubcap, OurEveryday, Ryuu. Selecting Ryuu reveals the optional update-request checkbox.
+
+---
+
 ## 5.5.0
 
 ### Modern UI — New Browser-Based Interface

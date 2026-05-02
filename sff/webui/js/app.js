@@ -277,6 +277,14 @@ window.App = (function() {
             }
         });
 
+        // Radio change — show/hide Ryuu update option
+        document.querySelectorAll('input[name="dl-source"]').forEach(function(r) {
+            r.addEventListener('change', function() {
+                var opt = document.getElementById('ryuu-update-option');
+                if (opt) opt.style.display = this.value === 'ryuu' ? 'block' : 'none';
+            });
+        });
+
         // Download modal — fastest
         var dlFastest = document.getElementById('dl-fastest');
         if (dlFastest) {
@@ -284,8 +292,10 @@ window.App = (function() {
                 var appId = this.dataset.appid;
                 var sourceEl = document.querySelector('input[name="dl-source"]:checked');
                 var source = sourceEl ? sourceEl.value : 'hubcap';
+                var updateEl = document.getElementById('ryuu-request-update');
+                var requestUpdate = (source === 'ryuu' && updateEl && updateEl.checked) ? '1' : '0';
                 Components.hideModal('download-modal');
-                _startDownload(appId, 'fastest', source);
+                _startDownload(appId, 'fastest', source, requestUpdate);
             });
         }
 
@@ -349,7 +359,7 @@ window.App = (function() {
         }
     }
 
-    function _startDownload(appId, mode, source) {
+    function _startDownload(appId, mode, source, requestUpdate) {
         // First, ask for library selection
         Bridge.callSync('get_steam_libraries', function(json) {
             var libs;
@@ -362,21 +372,21 @@ window.App = (function() {
 
             if (libs.length === 1) {
                 Bridge.call('set_active_library', libs[0]);
-                _executeDownload(appId, mode, source);
+                _executeDownload(appId, mode, source, requestUpdate);
             } else {
                 Components.showLibraryModal(libs, function(selectedLib) {
                     Bridge.call('set_active_library', selectedLib);
-                    _executeDownload(appId, mode, source);
+                    _executeDownload(appId, mode, source, requestUpdate);
                 });
             }
         });
     }
 
-    function _executeDownload(appId, mode, source) {
+    function _executeDownload(appId, mode, source, requestUpdate) {
         Components.showToast('info', 'Starting download for App ' + appId + '...');
         if (mode === 'fastest') {
             var src = source || 'hubcap';
-            Bridge.call('download_game_with_source', appId, src);
+            Bridge.call('download_game_with_source', appId, src, requestUpdate || '0');
         }
     }
 
