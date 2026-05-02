@@ -4,6 +4,82 @@ Common problems and what to try.
 
 ---
 
+## Modern UI shows a blank black screen
+
+The app opens but the Modern UI is completely black with only a "Switch to Classic UI" button visible. This is a `QtWebEngineProcess.exe` initialization failure — the embedded Chromium renderer could not start. Work through the steps below in order.
+
+**Note:** The Modern UI uses **PyQt6-WebEngine** (bundled Chromium). It does **not** use Microsoft Edge WebView2 — installing WebView2 will not fix this.
+
+---
+
+### Step 1 — Set environment variables (fixes most cases)
+
+1. Press `Win + R`, type `sysdm.cpl`, hit Enter.
+2. Go to the **Advanced** tab → click **Environment Variables**.
+3. Under **User variables**, click **New** and add both of these:
+
+| Name | Value |
+|---|---|
+| `QTWEBENGINE_DISABLE_SANDBOX` | `1` |
+| `QTWEBENGINE_CHROMIUM_FLAGS` | `--no-sandbox --disable-gpu --disable-web-security` |
+
+4. Click OK, then **fully close SteaMidra from Task Manager** and reopen it.
+
+---
+
+### Step 2 — Install Visual C++ Redistributable (run as Administrator)
+
+Download the **all-in-one pack** from TechPowerUp — it installs every Visual C++ version (2005–2022) in one go:
+
+> https://www.techpowerup.com/download/visual-c-redistributable-runtime-package-all-in-one/
+
+**Right-click the installer → Run as administrator.** Running it without admin rights is a known failure cause where it appears to succeed but doesn't actually install correctly.
+
+Also install **Visual C++ 2013 x64** specifically if the above doesn't help — it ships as a separate package:
+
+> https://www.microsoft.com/en-us/download/details.aspx?id=40784
+
+---
+
+### Step 3 — Add SteaMidra to Windows Defender exclusions
+
+Windows Defender (and other AV) frequently quarantines or kills `QtWebEngineProcess.exe` inside `_internal/`, which prevents Chromium from ever starting.
+
+1. Open **Windows Security** → **Virus & threat protection** → **Manage settings**.
+2. Scroll to **Exclusions** → **Add or remove exclusions**.
+3. Add the entire SteaMidra folder (e.g. `C:\SteaMidra\`) as a **Folder** exclusion.
+
+Restart SteaMidra after adding the exclusion.
+
+---
+
+### Step 4 — Run SteaMidra as Administrator
+
+Right-click `SteaMidra_GUI.exe` → **Run as administrator**. Some sandbox/permission configurations prevent Chromium sub-processes from launching without elevated rights.
+
+---
+
+### Step 5 — Diagnose with Task Manager
+
+Open **Task Manager** while SteaMidra is running and look for a process called `QtWebEngineProcess.exe`:
+
+- **Not present at all** → Something is killing it before it can start (AV or sandbox). Go back to Steps 3–4.
+- **Present but screen is still black** → The renderer started but failed to load resources. Reinstall from the latest release ZIP, making sure the `_internal/` folder is fully extracted.
+
+---
+
+### Step 6 — Diagnose with Event Viewer
+
+Press `Win + R` → type `eventvwr` → **Windows Logs** → **Application**. Look for crash or error entries mentioning `QtWebEngineProcess` or `SteaMidra_GUI`. The error description will identify whether it is a missing DLL, access-denied, or GPU driver issue.
+
+---
+
+### Step 7 — Use Classic UI as a fallback
+
+Click the **"Switch to Classic UI"** button in the top-right corner of the blank window. The Classic UI has no WebEngine dependency and all features are fully available. Use it while you work through the steps above.
+
+---
+
 ## Steam says "No Internet Connection" when downloading
 
 SteaMidra handles this automatically, but if you still see the error:

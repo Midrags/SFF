@@ -17,6 +17,7 @@ window.Store = (function() {
     var _debounceTimer = null;
     var _initialized = false;
     var _fallbackToastShown = false;
+    var _imagesHidden = false;
 
     function init() {
         if (_initialized) return;
@@ -30,6 +31,7 @@ window.Store = (function() {
         var prevBtn = document.getElementById('page-prev');
         var nextBtn = document.getElementById('page-next');
         var apiKeyConnect = document.getElementById('api-key-connect');
+        var toggleImagesBtn = document.getElementById('store-toggle-images');
 
         if (searchInput) {
             searchInput.addEventListener('input', function() {
@@ -68,6 +70,16 @@ window.Store = (function() {
 
         if (viewGrid) viewGrid.addEventListener('click', function() { _setViewMode('grid'); });
         if (viewList) viewList.addEventListener('click', function() { _setViewMode('list'); });
+
+        if (toggleImagesBtn) {
+            toggleImagesBtn.addEventListener('click', function() {
+                _imagesHidden = !_imagesHidden;
+                Components.setHideImages(_imagesHidden);
+                Bridge.call('set_setting', 'hide_store_images', _imagesHidden ? 'True' : 'False');
+                toggleImagesBtn.classList.toggle('active', _imagesHidden);
+                _fetchGames();
+            });
+        }
 
         if (prevBtn) prevBtn.addEventListener('click', function() { if (_page > 1) { _page--; _fetchGames(); } });
         if (nextBtn) nextBtn.addEventListener('click', function() { if (_page < _totalPages) { _page++; _fetchGames(); } });
@@ -117,6 +129,12 @@ window.Store = (function() {
     function onPageEnter() {
         init();
         _page = 1;
+        Bridge.callSync('get_setting', 'hide_store_images', function(val) {
+            _imagesHidden = (val === 'True');
+            Components.setHideImages(_imagesHidden);
+            var btn = document.getElementById('store-toggle-images');
+            if (btn) btn.classList.toggle('active', _imagesHidden);
+        });
         _fetchGames();
     }
 

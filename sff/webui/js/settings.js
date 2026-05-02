@@ -316,6 +316,7 @@ window.Settings = (function() {
             'setting-advanced-mode': 'advanced_mode',
             'setting-track-ach': 'gl_track_ach',
             'setting-use-smokeapi': 'use_smokeapi',
+            'setting-hide-store-images': 'hide_store_images',
         };
         Object.keys(checkboxes).forEach(function(id) {
             var el = document.getElementById(id);
@@ -326,6 +327,14 @@ window.Settings = (function() {
                 });
             }
         });
+
+        // Sync hide-store-images flag to Components immediately on change
+        var hideImagesEl = document.getElementById('setting-hide-store-images');
+        if (hideImagesEl) {
+            hideImagesEl.addEventListener('change', function() {
+                Components.setHideImages(this.checked);
+            });
+        }
     }
 
     function _loadCurrentSettings() {
@@ -361,6 +370,8 @@ window.Settings = (function() {
                 _setCheckbox('setting-advanced-mode', settings.advanced_mode);
                 _setCheckbox('setting-track-ach', settings.gl_track_ach);
                 _setCheckbox('setting-use-smokeapi', settings.use_smokeapi);
+                _setCheckbox('setting-hide-store-images', settings.hide_store_images);
+                Components.setHideImages(settings.hide_store_images === 'True');
                 // Theme
                 if (settings.theme) _applyTheme(settings.theme);
             } catch(e) {

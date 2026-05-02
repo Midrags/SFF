@@ -6,6 +6,8 @@
 window.Components = (function() {
     'use strict';
 
+    var _hideImages = false;
+
     // Steam CDN image URL templates — ordered by 2026 reliability (akamai.shared first, matches Steam API responses)
     var _CDN = [
         'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{id}/library_600x900.jpg',
@@ -72,25 +74,29 @@ window.Components = (function() {
 
         // Load image with 8-tier fallback chain then SVG placeholder
         var wrap = card.querySelector('.game-card-img-wrap');
-        var img = document.createElement('img');
-        img.className = 'game-card-img';
-        img.alt = game.name;
-        img.loading = 'lazy';
-        var urls = getCoverUrls(game.app_id, game.image_url || null);
-        var urlIdx = 0;
-        function tryNextCard() {
-            urlIdx++;
-            if (urlIdx < urls.length) {
-                img.onerror = tryNextCard;
-                img.src = urls[urlIdx];
-            } else {
-                img.onerror = null;
-                wrap.innerHTML = '<div class="game-card-img-placeholder">' + NO_IMAGE_SVG + '</div>';
+        if (_hideImages) {
+            wrap.innerHTML = '<div class="game-card-img-placeholder">' + NO_IMAGE_SVG + '</div>';
+        } else {
+            var img = document.createElement('img');
+            img.className = 'game-card-img';
+            img.alt = game.name;
+            img.loading = 'lazy';
+            var urls = getCoverUrls(game.app_id, game.image_url || null);
+            var urlIdx = 0;
+            function tryNextCard() {
+                urlIdx++;
+                if (urlIdx < urls.length) {
+                    img.onerror = tryNextCard;
+                    img.src = urls[urlIdx];
+                } else {
+                    img.onerror = null;
+                    wrap.innerHTML = '<div class="game-card-img-placeholder">' + NO_IMAGE_SVG + '</div>';
+                }
             }
+            img.onerror = tryNextCard;
+            img.src = urls[0];
+            wrap.appendChild(img);
         }
-        img.onerror = tryNextCard;
-        img.src = urls[0];
-        wrap.appendChild(img);
 
         // Stagger animation delay
         if (typeof options.index === 'number') {
@@ -118,25 +124,29 @@ window.Components = (function() {
 
         // Load image with 8-tier fallback chain then SVG placeholder
         var wrap = item.querySelector('.game-list-thumb-wrap');
-        var img = document.createElement('img');
-        img.className = 'game-list-thumb';
-        img.alt = '';
-        img.loading = 'lazy';
-        var urls = getCoverUrls(game.app_id, game.image_url || null);
-        var urlIdx = 0;
-        function tryNextList() {
-            urlIdx++;
-            if (urlIdx < urls.length) {
-                img.onerror = tryNextList;
-                img.src = urls[urlIdx];
-            } else {
-                img.onerror = null;
-                wrap.innerHTML = '<div class="game-card-img-placeholder" style="height:45px;width:80px;opacity:0.2">' + NO_IMAGE_SVG + '</div>';
+        if (_hideImages) {
+            wrap.innerHTML = '<div class="game-card-img-placeholder" style="height:45px;width:80px;opacity:0.2">' + NO_IMAGE_SVG + '</div>';
+        } else {
+            var img = document.createElement('img');
+            img.className = 'game-list-thumb';
+            img.alt = '';
+            img.loading = 'lazy';
+            var urls = getCoverUrls(game.app_id, game.image_url || null);
+            var urlIdx = 0;
+            function tryNextList() {
+                urlIdx++;
+                if (urlIdx < urls.length) {
+                    img.onerror = tryNextList;
+                    img.src = urls[urlIdx];
+                } else {
+                    img.onerror = null;
+                    wrap.innerHTML = '<div class="game-card-img-placeholder" style="height:45px;width:80px;opacity:0.2">' + NO_IMAGE_SVG + '</div>';
+                }
             }
+            img.onerror = tryNextList;
+            img.src = urls[0];
+            wrap.appendChild(img);
         }
-        img.onerror = tryNextList;
-        img.src = urls[0];
-        wrap.appendChild(img);
 
         return item;
     }
@@ -363,6 +373,10 @@ window.Components = (function() {
         this._ui.classList.remove('open');
     };
 
+    function setHideImages(val) {
+        _hideImages = !!val;
+    }
+
     return {
         getCoverUrls: getCoverUrls,
         getLibraryCoverUrl: getLibraryCoverUrl,
@@ -376,6 +390,7 @@ window.Components = (function() {
         showLibraryModal: showLibraryModal,
         escapeHtml: escapeHtml,
         initModals: initModals,
-        CustomSelect: CustomSelect
+        CustomSelect: CustomSelect,
+        setHideImages: setHideImages
     };
 })();

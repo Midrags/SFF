@@ -95,7 +95,7 @@
                     <div class="custom-select" id="home-game-select-ui">
                         <div class="custom-select-display">
                             <span class="custom-select-text">-- Select a game --</span>
-                            <span class="custom-select-arrow">&#8964;</span>
+                            <span class="custom-select-arrow">▾</span>
                         </div>
                         <div class="custom-select-dropdown hidden"></div>
                     </div>
@@ -251,6 +251,7 @@
                     <div class="view-toggle">
                         <button id="view-grid" class="btn btn-icon active" data-tooltip="Grid view with cover images"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
                         <button id="view-list" class="btn btn-icon" data-tooltip="Compact list view"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+                        <button id="store-toggle-images" class="btn btn-icon" data-tooltip="Toggle game cover images (hide/show)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
                     </div>
                 </div>
             </div>
@@ -330,12 +331,16 @@
                         <div class="custom-select" id="fixgame-game-select-ui">
                             <div class="custom-select-display">
                                 <span class="custom-select-text">-- Select a game --</span>
-                                <span class="custom-select-arrow">&#8964;</span>
+                                <span class="custom-select-arrow">▾</span>
                             </div>
                             <div class="custom-select-dropdown hidden"></div>
                         </div>
                         <button id="fixgame-browse" class="btn" style="flex-shrink:0;" data-tooltip="Browse for a game folder manually">Browse</button>
                         <button id="fixgame-refresh" class="btn" style="flex-shrink:0;" data-tooltip="Rescan for installed games">↻</button>
+                    </div>
+                    <div class="input-group" id="fixgame-folder-row" style="display:none;">
+                        <label>Game Folder:</label>
+                        <input type="text" id="fixgame-game-folder" readonly>
                     </div>
                     <div class="input-group">
                         <label>App ID:</label>
@@ -806,6 +811,10 @@
                     <label class="checkbox-option" data-tooltip="Enable advanced mode with extra options">
                         <input type="checkbox" id="setting-advanced-mode">
                         <span>Advanced Mode</span>
+                    </label>
+                    <label class="checkbox-option" data-tooltip="Skip loading game cover art in the Store tab — only names, IDs, and buttons are shown">
+                        <input type="checkbox" id="setting-hide-store-images">
+                        <span>Hide Store Images</span>
                     </label>
                 </div>
             </div>

@@ -50,6 +50,20 @@ window.FixGame = (function() {
             refreshBtn.addEventListener('click', _loadGameList);
         }
 
+        var gameSelect = document.getElementById('fixgame-game-select');
+        if (gameSelect) {
+            gameSelect.addEventListener('change', function() {
+                var opt = this.options[this.selectedIndex];
+                var appId = (opt && opt.dataset.appid) ? opt.dataset.appid : '';
+                var appIdInput = document.getElementById('fixgame-appid');
+                if (appIdInput) appIdInput.value = appId;
+                var folderInput = document.getElementById('fixgame-game-folder');
+                var folderRow = document.getElementById('fixgame-folder-row');
+                if (folderInput) folderInput.value = this.value || '';
+                if (folderRow) folderRow.style.display = this.value ? '' : 'none';
+            });
+        }
+
         if (applyBtn) {
             applyBtn.addEventListener('click', _applyFix);
         }
@@ -98,6 +112,15 @@ window.FixGame = (function() {
     function onPageEnter() {
         init();
         _loadGameList();
+        Bridge.callSync('get_gse_identity', function(json) {
+            try {
+                var id = JSON.parse(json || '{}');
+                var u = document.getElementById('fixgame-username');
+                var sid = document.getElementById('fixgame-steamid');
+                if (u && !u.value && id.name) u.value = id.name;
+                if (sid && !sid.value && id.steam_id) sid.value = id.steam_id;
+            } catch(e) {}
+        });
     }
 
     function _loadGameList() {
@@ -115,7 +138,12 @@ window.FixGame = (function() {
                         if (game.app_id) opt.dataset.appid = game.app_id;
                         select.appendChild(opt);
                     });
-                    if (current) select.value = current;
+                    if (current) {
+                        select.value = current;
+                        if (select.value === current) {
+                            select.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }
                 }
             } catch(e) {}
         });

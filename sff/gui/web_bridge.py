@@ -644,26 +644,27 @@ class WebBridge(QObject):
         def _do():
             try:
                 config = json.loads(config_json)
-                from sff.gui.fix_game_tab import FixGameService
-                service = FixGameService(
-                    game_path=config.get("game_path", ""),
-                    app_id=config.get("app_id", ""),
+                from sff.fix_game.service import FixGameService
+                raw_id = config.get("app_id", "")
+                app_id = int(raw_id) if str(raw_id).strip().isdigit() else 0
+                svc = FixGameService()
+                success = svc.fix_game(
+                    app_id=app_id,
+                    game_dir=config.get("game_path", ""),
                     emu_mode=config.get("emu_mode", "regular"),
-                    unpack_steamstub=config.get("unpack_steamstub", True),
-                    generate_config=True,
+                    skip_steamstub=not config.get("unpack_steamstub", True),
+                    steamless_experimental=config.get("use_experimental_steamless", True),
+                    skip_goldberg_update=not config.get("goldberg_update", False),
                     create_launch_bat=config.get("create_launch_bat", False),
-                    goldberg_update=config.get("goldberg_update", False),
-                    player_name=config.get("username", "Player"),
-                    steam_id=config.get("steam_id", ""),
-                    avatar_path=config.get("avatar_path", ""),
+                    player_name=config.get("username") or "Player",
+                    steam_id=config.get("steam_id") or "76561198001737783",
+                    avatar_path=config.get("avatar_path") or None,
                     simple_settings=config.get("simple_settings", False),
                     gse_auth_mode=config.get("gse_auth_mode", "anonymous"),
                     gse_username=config.get("gse_username", ""),
                     gse_password=config.get("gse_password", ""),
-                    use_experimental_steamless=config.get("use_experimental_steamless", True),
                 )
-                service.run()
-                return True
+                return success
             except Exception as e:
                 logger.exception("fix_game failed: %s", e)
                 return str(e)
@@ -1293,6 +1294,25 @@ class WebBridge(QObject):
         parent = self.parent()
         if parent and hasattr(parent, '_toggle_mute'):
             parent._toggle_mute()
+
+    @pyqtSlot(result=str)
+    def get_gse_identity(self):
+        """Returns JSON {name, steam_id} from the GSE Saves global config, or empty object."""
+        import configparser
+        import os
+        try:
+            appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+            user_ini = Path(appdata) / "GSE Saves" / "settings" / "configs.user.ini"
+            if not user_ini.exists():
+                return json.dumps({})
+            cfg = configparser.ConfigParser()
+            cfg.read(str(user_ini), encoding="utf-8")
+            return json.dumps({
+                "name": cfg.get("user::general", "account_name", fallback="").strip(),
+                "steam_id": cfg.get("user::general", "account_steamid", fallback="").strip(),
+            })
+        except Exception:
+            return json.dumps({})
 
     @pyqtSlot(result=str)
     def get_all_settings(self):

@@ -33,6 +33,9 @@ if sys.stdout is None:
     sys.stdout = _NullWriter()
 
 
+os.environ.setdefault('QTWEBENGINE_DISABLE_SANDBOX', '1')
+os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--no-sandbox --disable-gpu')
+
 import PyQt6.QtWebEngineWidgets  # noqa: F401 - must import before QCoreApplication
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
