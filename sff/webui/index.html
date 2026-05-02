@@ -88,11 +88,18 @@
                         <span>Games outside of Steam</span>
                     </label>
                 </div>
-                <div id="steam-mode-row" class="input-group" style="max-width:500px;margin-top:8px">
-                    <select id="home-game-select" data-tooltip="Select a game from your Steam libraries for quick actions">
+                <div id="steam-mode-row" class="input-group" style="max-width:500px;margin-top:8px;display:flex;gap:8px;align-items:center;">
+                    <select id="home-game-select" style="display:none" data-tooltip="Select a game from your Steam libraries for quick actions">
                         <option value="">-- Select a game --</option>
                     </select>
-                    <button id="home-game-refresh" class="btn" data-tooltip="Rescan installed games">↻</button>
+                    <div class="custom-select" id="home-game-select-ui">
+                        <div class="custom-select-display">
+                            <span class="custom-select-text">-- Select a game --</span>
+                            <span class="custom-select-arrow">&#8964;</span>
+                        </div>
+                        <div class="custom-select-dropdown hidden"></div>
+                    </div>
+                    <button id="home-game-refresh" class="btn" style="flex-shrink:0;" data-tooltip="Rescan installed games">↻</button>
                 </div>
                 <div id="outside-mode-row" class="outside-game-row" style="display:none;margin-top:8px">
                     <input type="text" id="outside-path-display" class="outside-path-input" readonly placeholder="No folder selected" data-tooltip="Game folder path">
@@ -316,12 +323,19 @@
                 <div class="fixgame-step">
                     <h2 class="section-title">1. Select Game</h2>
                     <p class="step-desc">Choose an installed game from the dropdown, or Browse to its folder manually. The App ID is detected automatically from the ACF manifest.</p>
-                    <div class="input-group">
-                        <select id="fixgame-game-select" data-tooltip="Select an installed game to fix">
+                    <div class="input-group" style="display:flex;gap:8px;align-items:center;">
+                        <select id="fixgame-game-select" style="display:none" data-tooltip="Select an installed game to fix">
                             <option value="">-- Select a game --</option>
                         </select>
-                        <button id="fixgame-browse" class="btn" data-tooltip="Browse for a game folder manually">Browse</button>
-                        <button id="fixgame-refresh" class="btn" data-tooltip="Rescan for installed games">↻</button>
+                        <div class="custom-select" id="fixgame-game-select-ui">
+                            <div class="custom-select-display">
+                                <span class="custom-select-text">-- Select a game --</span>
+                                <span class="custom-select-arrow">&#8964;</span>
+                            </div>
+                            <div class="custom-select-dropdown hidden"></div>
+                        </div>
+                        <button id="fixgame-browse" class="btn" style="flex-shrink:0;" data-tooltip="Browse for a game folder manually">Browse</button>
+                        <button id="fixgame-refresh" class="btn" style="flex-shrink:0;" data-tooltip="Rescan for installed games">↻</button>
                     </div>
                     <div class="input-group">
                         <label>App ID:</label>
@@ -339,6 +353,11 @@
                     <div class="input-group">
                         <label>Steam ID:</label>
                         <input type="text" id="fixgame-steamid" placeholder="76561198000000000" data-tooltip="Your Steam64 ID for achievements">
+                    </div>
+                    <div class="input-group" style="display:flex;gap:8px;align-items:center;">
+                        <label style="flex-shrink:0;font-size:12px;font-weight:600;opacity:0.8;min-width:88px;">Avatar Image:</label>
+                        <input type="text" id="fixgame-avatar" placeholder="Optional — .png / .jpg / .jpeg" style="flex:1;font-size:12px;" readonly data-tooltip="Profile avatar used by Goldberg Emulator in-game">
+                        <button id="fixgame-avatar-browse" class="btn" style="flex-shrink:0;" data-tooltip="Pick a PNG or JPG avatar image">Browse</button>
                     </div>
                 </div>
 
@@ -913,6 +932,33 @@
             <div class="modal-footer">
                 <button id="restart-after-dl-run" class="btn btn-primary">Restart Steam Now</button>
                 <button class="btn modal-cancel">Not Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Library Delete Modal -->
+    <div id="library-delete-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content" style="max-width:440px;">
+            <div class="modal-header">
+                <h2>Remove Game</h2>
+                <button class="modal-close" id="library-delete-cancel">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:14px;opacity:0.9;">How do you want to remove <strong id="library-delete-game-name"></strong>?</p>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <button id="library-delete-applist" class="btn btn-primary" style="text-align:left;padding:12px 16px;">
+                        <strong>Remove from AppList only</strong>
+                        <span style="display:block;font-size:12px;opacity:0.7;margin-top:3px;">Deletes the game from GreenLuma AppList and all saved profiles. Game files stay on disk.</span>
+                    </button>
+                    <button id="library-delete-full" class="btn btn-danger" style="text-align:left;padding:12px 16px;">
+                        <strong>Remove completely</strong>
+                        <span style="display:block;font-size:12px;opacity:0.7;margin-top:3px;">Removes from AppList and permanently deletes all game files from disk. This cannot be undone.</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn modal-cancel" id="library-delete-cancel-footer">Cancel</button>
             </div>
         </div>
     </div>

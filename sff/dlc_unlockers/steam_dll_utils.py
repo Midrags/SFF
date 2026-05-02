@@ -27,9 +27,7 @@ DLL_32_NAME = "steam_api.dll"
 DLL_64_NAME = "steam_api64.dll"
 
 
-def find_steam_api_dll(
-    game_dir = True
-):
+def find_steam_api_dll(game_dir, dll_name, exclude_backup=True):
     dll_path = game_dir / dll_name
     if dll_path.exists() and (not exclude_backup or not dll_path.stem.endswith("_o")):
         return dll_path

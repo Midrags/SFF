@@ -116,6 +116,16 @@
     text-align: center;
 }
 
+/* ── Library Grid — prevent button overflow ─────────── */
+
+#library-grid .game-card-actions {
+    flex-wrap: wrap;
+}
+
+#library-grid .game-card-actions .btn {
+    flex: 0 0 auto;
+}
+
 /* ── List View ──────────────────────────────────────── */
 
 .game-list {

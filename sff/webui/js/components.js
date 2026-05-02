@@ -271,6 +271,98 @@ window.Components = (function() {
         });
     }
 
+    // Custom styled dropdown that wraps a hidden <select> via MutationObserver.
+    // Keeps the hidden <select> as the source of truth so all existing JS works unchanged.
+    function CustomSelect(hiddenSelectId, customUiId) {
+        this._select = document.getElementById(hiddenSelectId);
+        this._ui    = document.getElementById(customUiId);
+        if (!this._select || !this._ui) return;
+
+        this._display  = this._ui.querySelector('.custom-select-text');
+        this._dropdown = this._ui.querySelector('.custom-select-dropdown');
+        if (!this._display || !this._dropdown) return;
+
+        var self = this;
+        var syncTimer = null;
+
+        new MutationObserver(function() {
+            clearTimeout(syncTimer);
+            syncTimer = setTimeout(function() { self._syncOptions(); }, 10);
+        }).observe(this._select, { childList: true });
+
+        this._ui.querySelector('.custom-select-display').addEventListener('click', function(e) {
+            e.stopPropagation();
+            self._toggle();
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!self._ui.contains(e.target)) {
+                self._close();
+            }
+        });
+    }
+
+    CustomSelect.prototype._syncOptions = function() {
+        var self = this;
+        this._dropdown.innerHTML = '';
+        Array.prototype.forEach.call(this._select.options, function(opt) {
+            var item = document.createElement('div');
+            item.className = 'custom-select-option' + (opt.value && opt.value === self._select.value ? ' selected' : '');
+            item.textContent = opt.textContent;
+            item.dataset.value = opt.value;
+            item.addEventListener('click', function(e) {
+                e.stopPropagation();
+                self._select.value = opt.value;
+                self._syncSelected();
+                self._select.dispatchEvent(new Event('change', { bubbles: true }));
+                self._close();
+            });
+            self._dropdown.appendChild(item);
+        });
+        this._updateDisplay();
+    };
+
+    CustomSelect.prototype._syncSelected = function() {
+        var val = this._select.value;
+        this._dropdown.querySelectorAll('.custom-select-option').forEach(function(item) {
+            item.classList.toggle('selected', item.dataset.value === val);
+        });
+        this._updateDisplay();
+    };
+
+    CustomSelect.prototype._updateDisplay = function() {
+        var idx = this._select.selectedIndex;
+        if (idx >= 0 && this._select.options[idx] && this._select.options[idx].value) {
+            this._display.textContent = this._select.options[idx].textContent;
+        } else {
+            this._display.textContent = '-- Select a game --';
+        }
+    };
+
+    CustomSelect.prototype._toggle = function() {
+        if (this._dropdown.classList.contains('hidden')) {
+            this._open();
+        } else {
+            this._close();
+        }
+    };
+
+    CustomSelect.prototype._open = function() {
+        document.querySelectorAll('.custom-select-dropdown').forEach(function(d) {
+            d.classList.add('hidden');
+        });
+        document.querySelectorAll('.custom-select').forEach(function(el) {
+            el.classList.remove('open');
+        });
+        this._dropdown.classList.remove('hidden');
+        this._ui.classList.add('open');
+    };
+
+    CustomSelect.prototype._close = function() {
+        this._dropdown.classList.add('hidden');
+        this._ui.classList.remove('open');
+    };
+
     return {
         getCoverUrls: getCoverUrls,
         getLibraryCoverUrl: getLibraryCoverUrl,
@@ -283,6 +375,7 @@ window.Components = (function() {
         showDownloadModal: showDownloadModal,
         showLibraryModal: showLibraryModal,
         escapeHtml: escapeHtml,
-        initModals: initModals
+        initModals: initModals,
+        CustomSelect: CustomSelect
     };
 })();

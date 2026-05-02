@@ -34,6 +34,18 @@ window.FixGame = (function() {
             });
         }
 
+        var avatarBrowseBtn = document.getElementById('fixgame-avatar-browse');
+        if (avatarBrowseBtn) {
+            avatarBrowseBtn.addEventListener('click', function() {
+                Bridge.callSync('browse_image_file', function(path) {
+                    if (path) {
+                        var avatarInput = document.getElementById('fixgame-avatar');
+                        if (avatarInput) avatarInput.value = path;
+                    }
+                });
+            });
+        }
+
         if (refreshBtn) {
             refreshBtn.addEventListener('click', _loadGameList);
         }
@@ -132,12 +144,14 @@ window.FixGame = (function() {
         var settingsMode = document.querySelector('input[name="settings-mode"]:checked');
         var gseAuth = document.querySelector('input[name="gse-auth"]:checked');
 
+        var avatarInput = document.getElementById('fixgame-avatar');
         var config = {
             game_path: gamePath,
             app_id: appId,
             emu_mode: emuMode ? emuMode.value : 'regular',
             username: usernameInput ? usernameInput.value : 'Player',
             steam_id: steamIdInput ? steamIdInput.value : '',
+            avatar_path: avatarInput ? avatarInput.value : '',
             unpack_steamstub: document.getElementById('fix-steamstub') ? document.getElementById('fix-steamstub').checked : true,
             use_experimental_steamless: document.getElementById('fix-steamless-exp') ? document.getElementById('fix-steamless-exp').checked : true,
             goldberg_update: document.getElementById('fix-goldberg-update') ? document.getElementById('fix-goldberg-update').checked : false,

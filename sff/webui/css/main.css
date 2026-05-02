@@ -39,7 +39,7 @@ a:hover { text-decoration: underline; }
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 16px 14px;
+    padding: 10px 14px;
     border-bottom: 1px solid var(--border);
 }
 
@@ -372,6 +372,91 @@ input:focus, select:focus {
 
 .radio-option:hover, .checkbox-option:hover {
     background: var(--btn-bg);
+}
+
+/* ── Custom Select Dropdown ─────────────────────────── */
+
+.custom-select {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.custom-select-display {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--fg);
+    user-select: none;
+    transition: border-color 0.15s;
+}
+
+.custom-select-display:hover,
+.custom-select.open .custom-select-display {
+    border-color: var(--accent);
+}
+
+.custom-select-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.custom-select-arrow {
+    margin-left: 8px;
+    font-size: 11px;
+    opacity: 0.6;
+    flex-shrink: 0;
+    transition: transform 0.15s;
+}
+
+.custom-select.open .custom-select-arrow {
+    transform: rotate(180deg);
+}
+
+.custom-select-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    max-height: 260px;
+    overflow-y: auto;
+    z-index: 999;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+}
+
+.custom-select-dropdown.hidden {
+    display: none;
+}
+
+.custom-select-option {
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--fg);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.custom-select-option:hover {
+    background: var(--btn-hover, rgba(255,255,255,0.08));
+    color: var(--accent);
+}
+
+.custom-select-option.selected {
+    color: var(--accent);
+    font-weight: 500;
 }
 
 /* ── Modals ─────────────────────────────────────────── */

@@ -652,7 +652,7 @@ class WebBridge(QObject):
                     goldberg_update=config.get("goldberg_update", False),
                     player_name=config.get("username", "Player"),
                     steam_id=config.get("steam_id", ""),
-                    avatar_path="",
+                    avatar_path=config.get("avatar_path", ""),
                     simple_settings=config.get("simple_settings", False),
                     gse_auth_mode=config.get("gse_auth_mode", "anonymous"),
                     gse_username=config.get("gse_username", ""),
@@ -1195,6 +1195,18 @@ class WebBridge(QObject):
         return path or ""
 
     @pyqtSlot(result=str)
+    def browse_image_file(self):
+        """Opens a native file picker filtered to PNG/JPG/JPEG images. Returns selected path or ''."""
+        from PyQt6.QtWidgets import QFileDialog as _QFD
+        path, _ = _QFD.getOpenFileName(
+            self.parent(),
+            "Select Avatar Image",
+            "",
+            "Image Files (*.png *.jpg *.jpeg)",
+        )
+        return path or ""
+
+    @pyqtSlot(result=str)
     def get_installed_games(self):
         """Returns JSON array of installed games from ALL Steam library folders."""
         try:
@@ -1349,6 +1361,95 @@ class WebBridge(QObject):
                 "success": True,
                 "games": games or [],
             }))
+
+        self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot(str, str, str)
+    def delete_game(self, app_id, game_path, mode):
+        """Remove a game from the AppList and optionally delete its files.
+        mode='applist' removes from AppList folder + all profiles only.
+        mode='full' also deletes the ACF manifest and the game folder from disk.
+        """
+        def _do():
+            import shutil
+            app_id_int = int(app_id) if str(app_id).isdigit() else None
+            if app_id_int is None:
+                return (False, "Invalid App ID")
+
+            removed_from_applist = False
+
+            # --- Remove from AppList folder ---
+            if hasattr(self._ui, 'app_list_man') and self._ui.app_list_man:
+                folder = Path(self._ui.app_list_man.applist_folder)
+                for f in list(folder.glob("*.txt")):
+                    if not f.stem.isdigit():
+                        continue
+                    try:
+                        if f.read_text(encoding="utf-8").strip() == str(app_id_int):
+                            f.unlink()
+                            removed_from_applist = True
+                            break
+                    except OSError:
+                        pass
+                if removed_from_applist:
+                    remaining = sorted(
+                        [f for f in folder.glob("*.txt") if f.stem.isdigit()],
+                        key=lambda f: int(f.stem),
+                    )
+                    for i, f in enumerate(remaining):
+                        target = folder / f"{i}.txt"
+                        if f != target:
+                            f.rename(target)
+
+            # --- Remove from all saved profiles ---
+            try:
+                from sff.app_injector.applist_profiles import list_profiles, load_profile, save_profile
+                for profile_name in list_profiles():
+                    ids = load_profile(profile_name)
+                    if ids and app_id_int in ids:
+                        save_profile(profile_name, [i for i in ids if i != app_id_int])
+            except Exception as e:
+                logger.warning("delete_game: profile update failed: %s", e)
+
+            if mode != "full":
+                return (True, "Removed from AppList")
+
+            # --- Delete game files (mode='full') ---
+            files_deleted = False
+
+            # Delete the ACF manifest
+            if self._steam_path:
+                try:
+                    from sff.storage.vdf import get_steam_libs
+                    for lib in get_steam_libs(self._steam_path):
+                        acf = lib / "steamapps" / f"appmanifest_{app_id_int}.acf"
+                        if acf.exists():
+                            acf.unlink()
+                            files_deleted = True
+                            break
+                except Exception as e:
+                    logger.warning("delete_game: ACF removal failed: %s", e)
+
+            # Delete the game folder
+            if game_path:
+                p = Path(game_path)
+                if p.exists() and p.is_dir():
+                    try:
+                        shutil.rmtree(p, ignore_errors=False)
+                        files_deleted = True
+                    except Exception as e:
+                        logger.warning("delete_game: folder removal failed: %s", e)
+
+            if files_deleted:
+                return (True, "Game removed from AppList and deleted from disk")
+            return (True, "Removed from AppList (game folder not found or already gone)")
+
+        def _on_done(result):
+            if isinstance(result, tuple):
+                ok, msg = result
+                self._emit_task_result("delete_game", ok, msg, app_id=app_id)
+            else:
+                self._emit_task_result("delete_game", False, "Delete failed", app_id=app_id)
 
         self._run_async(_do, on_done=_on_done)
 

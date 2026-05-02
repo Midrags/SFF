@@ -7,6 +7,7 @@ window.Library = (function() {
     'use strict';
 
     var _initialized = false;
+    var _pendingDelete = null; // { appId, gamePath }
 
     function init() {
         if (_initialized) return;
@@ -23,6 +24,11 @@ window.Library = (function() {
                 if (data.task === 'library_loaded' && Array.isArray(data.games)) {
                     _renderLibrary(data.games);
                 }
+                if (data.task === 'delete_game') {
+                    if (data.success) {
+                        _refreshLibrary();
+                    }
+                }
             } catch(e) {}
         });
 
@@ -35,12 +41,52 @@ window.Library = (function() {
                     var appId = btn.dataset.appid;
                     if (action === 'fix') {
                         App.navigateTo('fixgame');
+                    } else if (action === 'delete') {
+                        _pendingDelete = {
+                            appId: appId,
+                            gamePath: btn.dataset.gamepath || ''
+                        };
+                        var nameEl = document.getElementById('library-delete-game-name');
+                        if (nameEl) nameEl.textContent = btn.dataset.gamename || ('App ' + appId);
+                        Components.showModal('library-delete-modal');
                     } else {
                         Bridge.call('run_game_action', appId, action);
                     }
                 }
             });
         }
+
+        // Delete modal buttons
+        var btnApplist = document.getElementById('library-delete-applist');
+        if (btnApplist) {
+            btnApplist.addEventListener('click', function() {
+                if (_pendingDelete) {
+                    Bridge.call('delete_game', _pendingDelete.appId, _pendingDelete.gamePath, 'applist');
+                    _pendingDelete = null;
+                    Components.hideModal('library-delete-modal');
+                }
+            });
+        }
+
+        var btnFull = document.getElementById('library-delete-full');
+        if (btnFull) {
+            btnFull.addEventListener('click', function() {
+                if (_pendingDelete) {
+                    Bridge.call('delete_game', _pendingDelete.appId, _pendingDelete.gamePath, 'full');
+                    _pendingDelete = null;
+                    Components.hideModal('library-delete-modal');
+                }
+            });
+        }
+
+        ['library-delete-cancel', 'library-delete-cancel-footer'].forEach(function(id) {
+            var btn = document.getElementById(id);
+            if (btn) {
+                btn.addEventListener('click', function() {
+                    _pendingDelete = null;
+                });
+            }
+        });
     }
 
     function onPageEnter() {
@@ -72,12 +118,15 @@ window.Library = (function() {
             var card = Components.createGameCard(game, { index: index });
 
             // Add library-specific actions
+            var safeName = (game.name || '').replace(/"/g, '&quot;');
+            var safePath = (game.path || '').replace(/"/g, '&quot;');
             var actions = card.querySelector('.game-card-actions');
             if (actions) {
                 actions.innerHTML =
                     '<button class="btn btn-sm" data-action="fix" data-appid="' + game.app_id + '" data-tooltip="Fix this game">Fix</button>' +
                     '<button class="btn btn-sm" data-action="dlc_check" data-appid="' + game.app_id + '" data-tooltip="Check DLCs">DLC</button>' +
-                    '<button class="btn btn-sm" data-action="workshop" data-appid="' + game.app_id + '" data-tooltip="Open Workshop">Workshop</button>';
+                    '<button class="btn btn-sm" data-action="workshop" data-appid="' + game.app_id + '" data-tooltip="Open Workshop">Workshop</button>' +
+                    '<button class="btn btn-sm btn-danger" data-action="delete" data-appid="' + game.app_id + '" data-gamepath="' + safePath + '" data-gamename="' + safeName + '" data-tooltip="Remove this game">\u2715</button>';
             }
 
             if (grid) grid.appendChild(card);

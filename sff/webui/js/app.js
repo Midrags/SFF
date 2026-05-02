@@ -12,6 +12,8 @@ window.App = (function() {
 
     function init() {
         Components.initModals();
+        new Components.CustomSelect('home-game-select', 'home-game-select-ui');
+        new Components.CustomSelect('fixgame-game-select', 'fixgame-game-select-ui');
         Tooltips.init();
         _initSidebar();
         _initLogPanel();
