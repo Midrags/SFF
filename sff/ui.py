@@ -781,14 +781,20 @@ class UI:
             else:
                 print(f"Files can be found in {dst}")
         else:
-            extra_msg = (
-                "Close Steam and run DLLInjector again "
-                "(or not depending on how you installed Greenluma). "
-            ) if not auto_launch else ""
-            print(
-                extra_msg + 'Your game should show up in the library ready to "update"',
-                end="",
-            )
+            if sys.platform != "win32":
+                print(
+                    "Restart Steam — open Steam and click 'Update' to download game files.",
+                    end="",
+                )
+            else:
+                extra_msg = (
+                    "Close Steam and run DLLInjector again "
+                    "(or not depending on how you installed Greenluma). "
+                ) if not auto_launch else ""
+                print(
+                    extra_msg + 'Your game should show up in the library ready to "update"',
+                    end="",
+                )
         print(Style.RESET_ALL)
         return MainReturnCode.LOOP
 
@@ -854,6 +860,40 @@ class UI:
             downloader.download_manifests_parallel(parsed_lua, auto_manifest=True)
         else:
             downloader.download_manifests(parsed_lua, auto_manifest=True)
+        if sys.platform != "win32":
+            import re as _re
+            from sff.dotnet_utils import ensure_dotnet_9
+            from sff.depot_downloader import run_download
+            from pathvalidate import sanitize_filename
+            print(Fore.YELLOW + "\nDownloading game files via DepotDownloaderMod:" + Style.RESET_ALL)
+            if ensure_dotnet_9():
+                _manifest_re = _re.compile(
+                    r"setManifestid\s*\(\s*(\d+)\s*,\s*[\"']([0-9a-fA-F]+)[\"']\s*\)"
+                )
+                _manifests = {
+                    m.group(1): m.group(2)
+                    for m in _manifest_re.finditer(parsed_lua.contents or "")
+                }
+                _game_name_str = get_game_name(parsed_lua.app_id)
+                _installdir = sanitize_filename(_game_name_str).replace("'", "").strip() or str(parsed_lua.app_id)
+                _game_data = {
+                    "appid": str(parsed_lua.app_id),
+                    "depots": {
+                        str(dp.depot_id): {"key": dp.decryption_key}
+                        for dp in parsed_lua.depots
+                        if dp.decryption_key
+                    },
+                    "manifests": _manifests,
+                    "installdir": _installdir,
+                }
+                _selected = [str(dp.depot_id) for dp in parsed_lua.depots if dp.decryption_key]
+                run_download(_game_data, _selected, lib_path, self.steam_path, print_fn=print)
+            else:
+                print(
+                    Fore.YELLOW
+                    + ".NET 9 not found. Game registered in SLSsteam — run Linux Tools Setup, then open Steam and click 'Update'."
+                    + Style.RESET_ALL
+                )
         # Mark download as completed in tracking tab
         if self.download_manager and _tracking_item:
             self.download_manager.complete_external(_tracking_item, success=True)
@@ -874,16 +914,23 @@ class UI:
             auto_launch = steam_proc.prompt_launch_or_restart()
         else:
             auto_launch = False
-        extra_msg = (
-            "Close Steam and run DLLInjector again "
-            "(or not depending on how you installed Greenluma). "
-        ) if not auto_launch else ""
-        print(
-            Fore.GREEN
-            + f"\nSuccess! {extra_msg}"
-            + 'Your game should show up in the library ready to "update"'
-            + Style.RESET_ALL
-        )
+        if sys.platform != "win32":
+            print(
+                Fore.GREEN
+                + "\nSuccess! Restart Steam — your game should appear in the library."
+                + Style.RESET_ALL
+            )
+        else:
+            extra_msg = (
+                "Close Steam and run DLLInjector again "
+                "(or not depending on how you installed Greenluma). "
+            ) if not auto_launch else ""
+            print(
+                Fore.GREEN
+                + f"\nSuccess! {extra_msg}"
+                + 'Your game should show up in the library ready to "update"'
+                + Style.RESET_ALL
+            )
         return MainReturnCode.LOOP
 
     def process_from_store(self, app_id: str, manifest_override: dict, use_hubcap: bool):
