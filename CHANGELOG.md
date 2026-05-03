@@ -1,5 +1,16 @@
 # Changelog
 
+## 5.7.0
+
+### Linux — SLSsteam Fixes
+
+- **Fixed "NoneType is not iterable" crash** — `AdditionalApps: null` in the SLSsteam config now handled correctly. `YAMLParser.read()` also catches all parse/IO errors and returns a safe empty value so callers never receive `None`.
+- **Offline mode confirmation prompt** — toggling a Steam account to offline mode now shows a warning before writing the change, preventing accidental Steam lockout.
+- **Bundled SLSsteam binaries removed** — SteaMidra no longer ships outdated `.so` files. The installer always downloads the latest SLSsteam release from GitHub (`AceSLS/SLSsteam`).
+- **Arch Linux package conflict fix** — installer now removes the `slssteam` or `slssteam-git` pacman package before installing, matching the reference install flow and preventing `.so` conflicts.
+
+---
+
 ## 5.6.0
 
 ### Ryuu Generator — New Lua Endpoint

@@ -78,15 +78,16 @@ class SLSManager(AppInjectionManager):
 
     def get_local_ids(self):
         parser = YAMLParser(self.sls_config_path)
-        data = parser.read()
-        return data.get("AdditionalApps", [])
+        data = parser.read() or {}
+        return data.get("AdditionalApps") or []
 
     def add_ids(
         self, data: Union[int, list[int], LuaParsedInfo], skip_check: bool = False
     ):
         parser = YAMLParser(self.sls_config_path)
-        yaml_data = parser.read()
-        app_ids = yaml_data.get("AdditionalApps", [])
+        yaml_data = parser.read() or {}
+        app_ids = yaml_data.get("AdditionalApps") or []
+        yaml_data["AdditionalApps"] = app_ids
         changes = 0
         if isinstance(data, int):
             data = [data]
@@ -172,8 +173,9 @@ class SLSManager(AppInjectionManager):
             )
             if to_delete:
                 parser = YAMLParser(self.sls_config_path)
-                data = parser.read()
-                app_ids = data.get("AdditionalApps", [])
+                data = parser.read() or {}
+                app_ids = data.get("AdditionalApps") or []
+                data["AdditionalApps"] = app_ids
                 for id_ in to_delete:
                     try:
                         app_ids.remove(id_)

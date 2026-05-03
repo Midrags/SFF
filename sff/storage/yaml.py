@@ -16,16 +16,23 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
+import logging
 from pathlib import Path
 import yaml
+
+logger = logging.getLogger(__name__)
 
 class YAMLParser:
     def __init__(self, path):
         self.path = path
 
     def read(self):
-        with self.path.open(encoding="utf-8") as f:
-            return yaml.safe_load(f)
+        try:
+            with self.path.open(encoding="utf-8") as f:
+                return yaml.safe_load(f)
+        except Exception as exc:
+            logger.warning("Failed to read YAML config %s: %s", self.path, exc)
+            return None
 
     def write(self, data):
         with self.path.open("w", encoding="utf-8") as f:

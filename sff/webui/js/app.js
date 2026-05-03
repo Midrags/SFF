@@ -401,42 +401,102 @@ window.App = (function() {
         if (table) table.classList.add('hidden');
         if (dlBtn) { dlBtn.disabled = true; dlBtn.dataset.appid = appId; }
 
-        // Listen for depot history results
         var handler = function(json) {
             Bridge.off('depot_history_results', handler);
             if (loading) loading.classList.add('hidden');
             if (table) table.classList.remove('hidden');
 
             try {
-                var depots = JSON.parse(json);
-                if (tbody) {
-                    tbody.innerHTML = '';
-                    depots.forEach(function(depot) {
-                        (depot.manifests || []).forEach(function(manifest) {
-                            var tr = document.createElement('tr');
-                            tr.innerHTML =
-                                '<td>' + depot.depot_id + '</td>' +
-                                '<td>' + manifest.manifest_id + '</td>' +
-                                '<td>' + (manifest.date || 'N/A') + '</td>' +
-                                '<td><input type="checkbox" class="version-check" data-depot="' + depot.depot_id + '" data-manifest="' + manifest.manifest_id + '"></td>';
-                            tbody.appendChild(tr);
-                        });
+                var groups = JSON.parse(json);
+                if (!tbody) return;
+                tbody.innerHTML = '';
+
+                // Source color map
+                var sourceColors = {
+                    'SteamDB': '#c084fc',
+                    'Steam CM': '#60a5fa'
+                };
+
+                groups.forEach(function(group, gi) {
+                    var groupId = 'vg-' + gi;
+                    var entries = group.entries || [];
+                    var srcColor = sourceColors[group.source] || '#ccc';
+
+                    // Version group header row (collapsible, starts collapsed)
+                    var hdr = document.createElement('tr');
+                    hdr.className = 'version-group-header';
+                    hdr.dataset.group = groupId;
+                    hdr.dataset.collapsed = 'true';
+                    hdr.style.cssText = 'background:rgba(255,255,255,0.07);cursor:pointer;user-select:none;';
+                    hdr.innerHTML =
+                        '<td colspan="5" style="font-weight:600;padding:6px 8px;">' +
+                        '<span class="vg-chevron" style="display:inline-block;width:16px;margin-right:4px;transition:transform 0.2s;">&#9654;</span>' +
+                        '<span style="color:' + srcColor + ';">' + Components.escapeHtml(group.label) + '</span>' +
+                        '</td>' +
+                        '<td style="text-align:center;" onclick="event.stopPropagation();">' +
+                        '<input type="checkbox" class="version-group-check" data-group="' + groupId + '" title="Select all depots in this version">' +
+                        '</td>';
+                    tbody.appendChild(hdr);
+
+                    // Individual depot rows (hidden by default)
+                    entries.forEach(function(entry) {
+                        var tr = document.createElement('tr');
+                        tr.className = 'version-depot-row';
+                        tr.dataset.group = groupId;
+                        tr.style.display = 'none';
+                        var srcCellColor = sourceColors[group.source] || '';
+                        tr.innerHTML =
+                            '<td>' + Components.escapeHtml(entry.depot_id) + '</td>' +
+                            '<td style="font-family:monospace;font-size:0.85em;">' + Components.escapeHtml(entry.manifest_id) + '</td>' +
+                            '<td>' + Components.escapeHtml(group.date === '0000-00-00' ? 'Unknown' : group.date) + '</td>' +
+                            '<td>' + Components.escapeHtml(group.branch || '') + '</td>' +
+                            '<td style="color:' + srcCellColor + ';">' + Components.escapeHtml(group.source || '') + '</td>' +
+                            '<td style="text-align:center;">' +
+                            '<input type="checkbox" class="version-check" data-group="' + groupId + '" data-depot="' + Components.escapeHtml(entry.depot_id) + '" data-manifest="' + Components.escapeHtml(entry.manifest_id) + '">' +
+                            '</td>';
+                        tbody.appendChild(tr);
                     });
-                }
+                });
+
+                // Click header to expand/collapse depot rows
+                tbody.addEventListener('click', function(e) {
+                    var hdr = e.target.closest('.version-group-header');
+                    if (!hdr) return;
+                    // Don't toggle when clicking the checkbox
+                    if (e.target.tagName === 'INPUT') return;
+                    var gid = hdr.dataset.group;
+                    var isCollapsed = hdr.dataset.collapsed === 'true';
+                    var rows = tbody.querySelectorAll('.version-depot-row[data-group="' + gid + '"]');
+                    var chevron = hdr.querySelector('.vg-chevron');
+                    if (isCollapsed) {
+                        rows.forEach(function(r) { r.style.display = ''; });
+                        hdr.dataset.collapsed = 'false';
+                        if (chevron) chevron.style.transform = 'rotate(90deg)';
+                    } else {
+                        rows.forEach(function(r) { r.style.display = 'none'; });
+                        hdr.dataset.collapsed = 'true';
+                        if (chevron) chevron.style.transform = '';
+                    }
+                });
+
+                // Group header checkbox: toggle all depots in that group
+                tbody.addEventListener('change', function(e) {
+                    if (e.target.classList.contains('version-group-check')) {
+                        var gid = e.target.dataset.group;
+                        tbody.querySelectorAll('.version-check[data-group="' + gid + '"]').forEach(function(cb) {
+                            cb.checked = e.target.checked;
+                        });
+                    }
+                    var checked = tbody.querySelectorAll('.version-check:checked');
+                    if (dlBtn) dlBtn.disabled = checked.length === 0;
+                });
+
             } catch(e) {
                 Components.showToast('error', 'Failed to load version history');
             }
         };
         Bridge.on('depot_history_results', handler);
         Bridge.call('fetch_depot_history', appId, false);
-
-        // Enable download button when checkboxes are selected
-        if (tbody) {
-            tbody.addEventListener('change', function() {
-                var checked = tbody.querySelectorAll('.version-check:checked');
-                if (dlBtn) dlBtn.disabled = checked.length === 0;
-            });
-        }
     }
 
     function _downloadSelectedVersion() {

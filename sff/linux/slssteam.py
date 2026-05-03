@@ -24,7 +24,6 @@ from pathlib import Path
 
 from colorama import Fore, Style
 
-from sff.utils import root_folder
 
 VERSION_FILE = Path.home() / ".local" / "share" / "SteaMidra" / "SLSsteam" / "VERSION"
 
@@ -79,6 +78,22 @@ def check_linux_deps(print_fn=print) -> bool:
             os_id_like = line.split("=", 1)[1].strip().strip('"').lower()
 
     combined = f" {os_id} {os_id_like} "
+
+    is_arch_like = " arch " in combined or " cachyos " in combined
+    if is_arch_like:
+        try:
+            r = subprocess.run(
+                ["pacman", "-Qq"],
+                capture_output=True, text=True, timeout=10,
+            )
+            installed = [p.strip() for p in r.stdout.splitlines()]
+            to_remove = [p for p in installed if p in ("slssteam", "slssteam-git")]
+            if to_remove:
+                print_fn(Fore.YELLOW + f"Removing pacman SLSsteam packages: {' '.join(to_remove)}" + Style.RESET_ALL)
+                subprocess.run(["sudo", "pacman", "-Rns", "--noconfirm"] + to_remove, timeout=60)
+        except Exception as e:
+            print_fn(Fore.YELLOW + f"Could not check/remove Arch SLSsteam packages: {e}" + Style.RESET_ALL)
+
     is_debian_like = " debian " in combined or " ubuntu " in combined
     if not is_debian_like:
         print_fn(
@@ -165,21 +180,6 @@ def is_installed() -> bool:
     return (get_slssteam_install_dir(steam_type) / "SLSsteam.so").exists()
 
 
-def get_bundle_dir() -> Path:
-    return root_folder() / "third_party" / "linux" / "slssteam"
-
-
-def ensure_default_config() -> bool:
-    config_path = SLSSTEAM_CONFIG_DIR / "config.yaml"
-    if not config_path.exists():
-        SLSSTEAM_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        template = get_bundle_dir() / "res" / "config.yaml"
-        if template.exists():
-            shutil.copy2(template, config_path)
-            return True
-    return False
-
-
 def patch_steam_sh(steam_path: Path, print_fn=print) -> bool:
     steam_sh = steam_path / "steam.sh"
     if not steam_sh.exists():
@@ -216,44 +216,9 @@ def create_steam_cfg(steam_path: Path, print_fn=print) -> bool:
         return False
 
 
-def install_bundled(steam_path: Path, print_fn=print) -> bool:
-    bundle = get_bundle_dir()
-    setup_sh = bundle / "setup.sh"
-    if not setup_sh.exists():
-        print_fn(Fore.RED + f"setup.sh not found at {setup_sh}" + Style.RESET_ALL)
-        return False
-
-    try:
-        setup_sh.chmod(0o755)
-        proc = subprocess.Popen(
-            [str(setup_sh), "install"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            cwd=str(bundle),
-        )
-        for line in proc.stdout:
-            line = line.rstrip()
-            if line:
-                print_fn(line)
-        proc.wait()
-        if proc.returncode != 0:
-            print_fn(Fore.RED + f"SLSsteam setup.sh exited with code {proc.returncode}" + Style.RESET_ALL)
-            return False
-    except Exception as e:
-        print_fn(Fore.RED + f"SLSsteam install error: {e}" + Style.RESET_ALL)
-        return False
-
-    ensure_default_config()
-    patch_steam_sh(steam_path, print_fn)
-    create_steam_cfg(steam_path, print_fn)
-    print_fn(Fore.GREEN + "SLSsteam installed successfully." + Style.RESET_ALL)
-    return True
-
-
 def _setup_config_from_extracted(extract_dir: Path, steam_type: str = "native") -> bool:
-    """Set up SLSsteam config from extracted archive's res/config.yaml.
-    Falls back to bundled template if not found. No-ops if user config exists."""
+    """Copy res/config.yaml from the extracted archive to the SLSsteam config dir.
+    No-ops if the config file already exists."""
     config_dir = get_slssteam_config_dir(steam_type)
     config_path = config_dir / "config.yaml"
     if config_path.exists():
@@ -262,10 +227,6 @@ def _setup_config_from_extracted(extract_dir: Path, steam_type: str = "native") 
     template = next(extract_dir.rglob("res/config.yaml"), None) if extract_dir.exists() else None
     if template and template.exists():
         shutil.copy2(template, config_path)
-        return True
-    fallback = get_bundle_dir() / "res" / "config.yaml"
-    if fallback.exists():
-        shutil.copy2(fallback, config_path)
         return True
     return False
 

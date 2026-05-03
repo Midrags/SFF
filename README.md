@@ -75,7 +75,7 @@ Now run `SteaMidra_GUI.exe`. On first launch it will ask you to select your AppL
 
 ### AppList profiles (GreenLuma limit workaround)
 
-GreenLuma has a hard limit of 130–134 App IDs. To use more games, use AppList profiles:
+GreenLuma has a hard limit of 184 App IDs (patched). To use more games, use AppList profiles:
 
 1. **Manage AppList IDs** → **AppList Profiles** (CLI) or the profiles option in the GUI
 2. **Create profile** – creates an empty profile. Switch to it before adding more games.

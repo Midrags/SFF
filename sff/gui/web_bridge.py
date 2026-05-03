@@ -218,19 +218,22 @@ class WebBridge(QObject):
             }))
 
         def _do():
-            from sff.manifest.depot_history import get_depots_for_app
+            from sff.manifest.depot_history import get_depots_for_app, group_by_version, get_build_ids
             depots = get_depots_for_app(app_id, force_refresh=force_refresh, progress_cb=_progress)
+            build_ids = get_build_ids(app_id)
+            groups = group_by_version(depots, build_ids=build_ids)
             result = []
-            for depot_id, entries in depots.items():
-                manifests = []
-                for entry in entries:
-                    manifests.append({
-                        "manifest_id": str(entry.manifest_id),
-                        "date": str(entry.date) if hasattr(entry, 'date') else "",
-                    })
+            for group in groups:
                 result.append({
-                    "depot_id": str(depot_id),
-                    "manifests": manifests,
+                    "label": group.label,
+                    "date": group.date,
+                    "branch": group.branch,
+                    "source": group.source,
+                    "build_id": group.build_id,
+                    "entries": [
+                        {"depot_id": str(d), "manifest_id": str(m)}
+                        for d, m in group.entries
+                    ],
                 })
             return result
 

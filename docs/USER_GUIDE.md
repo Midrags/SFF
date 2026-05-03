@@ -1,6 +1,6 @@
 # SteaMidra User Guide
 
-## Modern UI (new in 5.5.0, updated in 5.6.0)
+## Modern UI (new in 5.5.0, updated in 5.7.0)
 
 SteaMidra 5.5.0 introduced a new browser-based interface built with QWebEngine. It launches by default alongside the classic interface. Navigate using the sidebar on the left.
 
@@ -139,7 +139,7 @@ Searches [generator.ryuu.lol](https://generator.ryuu.lol/fixes) for a fix or byp
 GreenLuma has a bug where Steam gets stuck if launched in Offline Mode. This toggles the Offline Mode flag in Steam's loginusers.vdf for the selected user so you can get back to Online Mode.
 
 ### Manage AppList IDs
-View and delete IDs that have been added to your AppList folder. Also lets you manage AppList profiles if you need to work around GreenLuma's 130–134 ID limit (see README for how profiles work).
+View and delete IDs that have been added to your AppList folder. Also lets you manage AppList profiles if you need to work around GreenLuma's 184 ID limit (see README for how profiles work).
 
 ### Remove a game from library (stplug-in)
 Removes a game's Lua from the stplug-in folder and cleans up its AppList entry. Choose from a list of games or type an App ID. Restart Steam afterward for changes to take effect.

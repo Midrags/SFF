@@ -118,67 +118,9 @@ def get_base_domain(url):
     return base_url
 
 
-def _fetch_gmrc_via_tor(manifest_id):
-    # Tries local Tor SOCKS5 (9050/9150) first, then pure-Python torpy.
-    # torpy only speaks v2 hidden services; KurO's onion is v3 so that path
-    # will fail for now, but the SOCKS path handles v3 fine.
-    try:
-        import requests as _requests  # already in requirements
-    except ImportError:
-        logger.debug("requests not available, skipping Tor fetch")
-        return None
-
-    onion_url = (
-        f"http://xmctrpypzbmakjquef3ph3l3coqfmhbrp6gerqymhmlj2bg7473gmyd"
-        f".onion/{manifest_id}"
-    )
-
-    # --- Path 1: local Tor daemon / Tor Browser SOCKS5 (supports v3 onion) ---
-    for port in (9050, 9150):
-        try:
-            proxies = {
-                "http": f"socks5h://127.0.0.1:{port}",
-                "https": f"socks5h://127.0.0.1:{port}",
-            }
-            resp = _requests.get(onion_url, proxies=proxies, timeout=30)
-            if resp.status_code == 200 and resp.text.strip():
-                logger.debug(f"Tor GMRC fetch succeeded on port {port}")
-                return resp.text.strip()
-        except Exception as e:
-            logger.debug(f"Tor port {port} unavailable: {e}")
-
-    # --- Path 2: torpy pure-Python Tor circuit (no binary needed) ---
-    # Note: torpy only supports v2 hidden services; the KurO onion is v3, so
-    # this path will raise an exception for that address.  It is included so
-    # that the feature works if a v2 or clearnet fallback URL is ever added.
-    #
-    # torpy uses ssl.wrap_socket which was removed in Python 3.12.  When run
-    # on 3.12+ it catches the resulting AttributeError internally and retries
-    # with hundreds of different guard nodes before eventually giving up —
-    # causing a multi-minute hang per manifest worker.  Skip it entirely.
-    if sys.version_info >= (3, 12):
-        logger.debug("torpy: skipping — ssl.wrap_socket removed in Python 3.12+; use Tor Expert Bundle instead")
-    else:
-        try:
-            from torpy.http.requests import TorRequests  # type: ignore
-            print("  Trying pure-Python Tor (torpy) — building circuit...")
-            with TorRequests() as tor_req:
-                with tor_req.get_session() as sess:
-                    resp = sess.get(onion_url, timeout=60)
-                    if resp.status_code == 200 and resp.text.strip():
-                        logger.debug("torpy GMRC fetch succeeded")
-                        return resp.text.strip()
-        except ImportError:
-            logger.debug("torpy not installed; skipping pure-Python Tor path")
-        except Exception as e:
-            logger.debug(f"torpy failed (v3 onion not supported by torpy): {e}")
-
-    return None
-
-
 # Lowkey don't remember why i wrote it like this.
 # It uses a default timeout of 10s but i think it still got stuck?
-async def get_gmrc(manifest_id: Union[str, int], silent: bool = False, try_tor: bool = True):
+async def get_gmrc(manifest_id: Union[str, int], silent: bool = False):
     # Yes, I'm aware it's not actually "encrypted" since I included the password
     # Shut up.
     template_url = b64_decrypt(
@@ -220,30 +162,10 @@ async def get_gmrc(manifest_id: Union[str, int], silent: bool = False, try_tor: 
     if result is not None:
         return result
 
-    if not try_tor:
-        return None
-
-    # --- Fallback 1: Auto-Tor via local SOCKS5 proxy (no Tor Browser needed) ---
-    onion_url = f"http://xmctrpypzbmakjquef3ph3l3coqfmhbrp6gerqymhmlj2bg7473gmyd.onion/{manifest_id}"
-    print("\nMain endpoint unavailable. Trying Tor network automatically...")
-    print(f"  Onion: {onion_url}")
-    loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(None, _fetch_gmrc_via_tor, manifest_id)
-    if result is not None:
-        print("✅ Got request code via Tor!")
-        return result
-
     if silent:
         return None
 
-    print("Tor unavailable (no local Tor daemon on 9050/9150).")
-    print("Install Tor daemon: https://www.torproject.org/download/#tor-downloads")
-    print("  (Tor Expert Bundle — no browser needed; just run tor.exe)")
-    code = prompt_text("Or paste the code manually (leave blank for cached manifest sources): ").strip()
-    if code:
-        return code
-
-    # --- Fallback 2: cached manifests / manual ---
+    # --- Fallback: cached manifests / manual ---
     print("\nAlternative sources for pre-fetched manifests:")
     print("  • ManifestHub API key → set in SFF Settings → downloads manifests automatically")
     print("  • ManifestHub site:   https://manifesthub1.filegear-sg.me")

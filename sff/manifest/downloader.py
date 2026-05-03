@@ -395,8 +395,8 @@ class ManifestDownloader:
             logger.debug(f"Download manifest from {manifest_url}")
             return get_request_raw(manifest_url)
         # oureveryday path ─────────────────────────────────────────────────────
-        # Step 1: clearnet endpoint only (no Tor yet — ManifestHub runs next)
-        req_code = asyncio.run(get_gmrc(manifest_id, silent=True, try_tor=False))
+        # Step 1: clearnet GMRC endpoint
+        req_code = asyncio.run(get_gmrc(manifest_id, silent=True))
         if req_code is not None:
             cdn_server = cast(ContentServer, cdn_client.get_content_server())
             cdn_server_name = f"http{'s' if cdn_server.https else ''}://{cdn_server.host}"
@@ -414,19 +414,7 @@ class ManifestDownloader:
             mh_result = self._try_manifesthub(depot_id, manifest_id)
         if mh_result is not None:
             return mh_result
-        # Step 3: Tor SOCKS5 (only tried after ManifestHub fully fails)
-        req_code = asyncio.run(get_gmrc(manifest_id, silent=True))
-        if req_code is not None:
-            cdn_server = cast(ContentServer, cdn_client.get_content_server())
-            cdn_server_name = f"http{'s' if cdn_server.https else ''}://{cdn_server.host}"
-            manifest_url = urljoin(
-                cdn_server_name, f"depot/{depot_id}/manifest/{manifest_id}/5/{req_code}"
-            )
-            logger.debug(f"Download manifest from {manifest_url}")
-            result = get_request_raw(manifest_url)
-            if result is not None:
-                return result
-        # Step 4 (interactive CDN) handled by the caller
+        # Step 3 (interactive CDN) handled by the caller
         return None
 
     def resolve_gmrc(self, manifest_id):

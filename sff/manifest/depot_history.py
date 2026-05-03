@@ -50,6 +50,161 @@ _RESULT_CACHE = {}
 _CF_COOKIE_TTL = 3600  # 1 hour
 _CF_COOKIE_CACHE = {}  # {cf_clearance, user_agent, saved_at}
 
+_BUILD_IDS_CACHE: dict[str, dict[str, str]] = {}  # app_id -> {date -> build_id}
+
+
+def _load_build_ids_cache(app_id: str) -> dict[str, str]:
+    """Load build IDs from disk cache."""
+    try:
+        p = _sff_dir() / f"build_ids_{app_id}.json"
+        if p.exists():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            return data.get("build_ids", {})
+    except Exception:
+        pass
+    return {}
+
+
+def _save_build_ids_cache(app_id: str, build_ids: dict[str, str]) -> None:
+    """Persist build IDs to disk."""
+    try:
+        p = _sff_dir() / f"build_ids_{app_id}.json"
+        p.write_text(json.dumps({
+            "app_id": app_id,
+            "build_ids": build_ids,
+        }), encoding="utf-8")
+    except Exception as exc:
+        logger.debug("build_ids cache save error: %s", exc)
+
+
+def get_build_ids(app_id: str) -> dict[str, str]:
+    """Return cached {date -> build_id} mapping for an app, or empty dict."""
+    app_id = str(app_id)
+    if app_id in _BUILD_IDS_CACHE:
+        return _BUILD_IDS_CACHE[app_id]
+    # Try loading from disk
+    disk = _load_build_ids_cache(app_id)
+    if disk:
+        _BUILD_IDS_CACHE[app_id] = disk
+    return disk
+
+
+def _parse_patchnotes_rss(xml_text: str) -> dict[str, str]:
+    """Parse SteamDB PatchnotesRSS XML feed.
+
+    Returns {date_str: build_id} mapping (YYYY-MM-DD -> build ID string).
+
+    Each <item> has:
+      <title>Build 11026049 – No title</title>  (or "Build 11026049 – Bug fix")
+      <link>https://steamdb.info/patchnotes/11026049/</link>
+      <pubDate>Mon, 08 May 2023 01:01:00 +0000</pubDate>
+    """
+    build_ids: dict[str, str] = {}
+    try:
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(xml_text)
+        for item in root.iter("item"):
+            link_el = item.find("link")
+            pub_el = item.find("pubDate")
+            if link_el is None or pub_el is None:
+                continue
+            link = (link_el.text or "").strip()
+            pub = (pub_el.text or "").strip()
+            # Extract build ID from link: /patchnotes/11026049/
+            bm = re.search(r"/patchnotes/(\d+)", link)
+            if not bm:
+                # Fallback: extract from <title>: "Build 11026049 – ..."
+                title_el = item.find("title")
+                if title_el is not None:
+                    bm = re.search(r"Build\s+(\d+)", title_el.text or "")
+            if not bm:
+                continue
+            bid = bm.group(1)
+            # Parse pubDate: "Mon, 08 May 2023 01:01:00 +0000"
+            # Extract date using email.utils or manual parse
+            try:
+                from email.utils import parsedate_to_datetime
+                dt = parsedate_to_datetime(pub)
+                date_str = dt.strftime("%Y-%m-%d")
+            except Exception:
+                # Manual fallback: find "DD Mon YYYY" in pubDate
+                dm = re.search(r"(\d{1,2})\s+(\w{3})\s+(\d{4})", pub)
+                if not dm:
+                    continue
+                day, mon_abbr, year = dm.groups()
+                _ABBR = {"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04",
+                         "May": "05", "Jun": "06", "Jul": "07", "Aug": "08",
+                         "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"}
+                month = _ABBR.get(mon_abbr)
+                if not month:
+                    continue
+                date_str = f"{year}-{month}-{int(day):02d}"
+            build_ids.setdefault(date_str, bid)
+    except Exception as exc:
+        logger.debug("Patchnotes RSS parse error: %s", exc)
+    return build_ids
+
+
+def _ensure_build_ids(app_id: str) -> None:
+    """Fetch build IDs from SteamDB PatchnotesRSS API.
+
+    Uses the public RSS feed (no CF cookie needed, plain XML).
+    Falls back to curl_cffi if httpx fails.
+    """
+    app_id = str(app_id)
+    # Already in memory
+    if app_id in _BUILD_IDS_CACHE:
+        return
+    # Already on disk
+    disk = _load_build_ids_cache(app_id)
+    if disk:
+        _BUILD_IDS_CACHE[app_id] = disk
+        logger.debug("Patchnotes: loaded %d build IDs for app %s from disk", len(disk), app_id)
+        return
+
+    rss_url = f"https://steamdb.info/api/PatchnotesRSS/?appid={app_id}"
+    xml_text = ""
+
+    # Try 1: httpx (no CF cookie needed for API)
+    try:
+        r = httpx.get(rss_url, timeout=15, follow_redirects=True,
+                      headers={"User-Agent": "SteaMidra/5"})
+        if r.status_code == 200:
+            xml_text = r.text
+    except Exception:
+        pass
+
+    # Try 2: curl_cffi with CF cookie
+    if not xml_text:
+        try:
+            from curl_cffi import requests as curl_requests
+            cf_c, cf_ua = _get_valid_cf_cookie()
+            sess = curl_requests.Session(impersonate="chrome")
+            resp = sess.get(
+                rss_url,
+                headers=_steamdb_headers_base(cf_ua),
+                cookies={"cf_clearance": cf_c} if cf_c else {},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                xml_text = resp.text
+            sess.close()
+        except Exception:
+            pass
+
+    if not xml_text:
+        logger.debug("Patchnotes: failed to fetch RSS for app %s", app_id)
+        return
+
+    bid = _parse_patchnotes_rss(xml_text)
+    if bid:
+        _BUILD_IDS_CACHE[app_id] = bid
+        _save_build_ids_cache(app_id, bid)
+        logger.debug("Patchnotes: %d build IDs for app %s — dates: %s",
+                     len(bid), app_id, list(bid.keys()))
+    else:
+        logger.debug("Patchnotes: RSS returned 0 build IDs for app %s", app_id)
+
 
 @dataclass
 class ManifestEntry:
@@ -563,7 +718,13 @@ def _ensure_chrome_for_testing(progress_cb=None):
             return ""
         zip_path = _sff_dir() / "chrome-for-testing.zip"
         logger.info("Downloading Chrome for Testing (%s) — this may take a minute...", plat)
-        urllib.request.urlretrieve(entry["url"], str(zip_path))
+        import socket as _sock_cft
+        _old_timeout_cft = _sock_cft.getdefaulttimeout()
+        _sock_cft.setdefaulttimeout(120)
+        try:
+            urllib.request.urlretrieve(entry["url"], str(zip_path))
+        finally:
+            _sock_cft.setdefaulttimeout(_old_timeout_cft)
         extract_dir = _sff_dir() / "chrome-for-testing"
         with zipfile.ZipFile(str(zip_path)) as z:
             z.extractall(str(extract_dir))
@@ -680,14 +841,19 @@ def _fetch_steamdb_batch(
     depot_ids: list[str],
     progress_cb=None,
     app_id=None,
+    _stop_event=None,
 ):
     """
-    Open ONE SeleniumBase UC browser and scrape the SteamDB depot/manifests page
-    for each depot_id sequentially.  Much faster than one browser per depot.
-    If *app_id* is given, the first page visit goes to /app/{id}/depots/ to solve
-    CF and discover additional depot IDs in the same session.
+    Scrape SteamDB depot/manifests pages using curl_cffi (Chrome TLS fingerprint)
+    as the fast path and SeleniumBase browser as fallback.
+
+    After the browser solves Cloudflare on the first page, the cf_clearance cookie
+    is reused by curl_cffi for subsequent depots (~1.5s each instead of ~10s).
+
+    If Cloudflare rate-limits the session (2 consecutive blocks), the browser is
+    restarted to get a fresh CF solve (max 3 sessions = ~42 depots capacity).
+
     Returns {depot_id: [ManifestEntry, ...]}.
-    progress_cb(msg: str) is called before each depot if provided.
     """
     if not depot_ids and not app_id:
         return {}
@@ -697,126 +863,211 @@ def _fetch_steamdb_batch(
         logger.debug("seleniumbase not installed, skipping SteamDB batch scrape")
         return {}
 
+    # curl_cffi impersonates Chrome TLS fingerprint so cf_clearance cookie works
+    _cf_session = None
+    try:
+        from curl_cffi import requests as _cf_mod
+        _cf_session = _cf_mod.Session(impersonate="chrome124")
+    except Exception:
+        logger.debug("curl_cffi not available, will use browser for all depots")
+
     results = {}
-    browser, binary = _detect_sb_browser(progress_cb=progress_cb)
-    sb_kwargs = dict(uc=True, headless=True, block_images=True, browser=browser)
+    browser_name, binary = _detect_sb_browser(progress_cb=progress_cb)
+    sb_kwargs = dict(uc=True, headless=True, block_images=True, browser=browser_name)
     if binary:
         sb_kwargs["binary_location"] = binary
     cookie_saved = False
 
-    def _try_httpx_with_cookie(did, cf_clearance, user_agent):
-        url_h = f"https://www.steamdb.info/depot/{did}/manifests/"
+    def _try_curl_cffi(did):
+        """Fast path: curl_cffi with Chrome TLS impersonation + cached cf_clearance."""
+        if not _cf_session:
+            return None
+        cf_c, cf_ua = _get_valid_cf_cookie()
+        if not cf_c:
+            return None
+        url_c = f"https://www.steamdb.info/depot/{did}/manifests/"
         try:
-            r = httpx.get(
-                url_h,
-                headers=_steamdb_headers_base(user_agent),
-                cookies={"cf_clearance": cf_clearance},
-                timeout=8, follow_redirects=True,
+            r = _cf_session.get(
+                url_c,
+                headers=_steamdb_headers_base(cf_ua),
+                cookies={"cf_clearance": cf_c},
+                timeout=10,
             )
             if r.status_code == 200:
                 return _parse_steamdb_html(r.text)
+            if r.status_code == 403:
+                logger.debug("curl_cffi: 403 for depot %s", did)
         except Exception as exc:
-            logger.debug("SteamDB batch httpx depot %s failed: %s", did, exc)
+            logger.debug("curl_cffi depot %s failed: %s", did, exc)
         return None
 
-    try:
-        with SB(**sb_kwargs) as sb:
-            sb.driver.set_page_load_timeout(30)
-            sb.driver.set_script_timeout(30)
+    def _extract_cf_cookie(sb, label=""):
+        """Extract cf_clearance from browser and save to disk cache."""
+        nonlocal cookie_saved
+        try:
+            for ck in sb.driver.get_cookies():
+                if ck.get("name") == "cf_clearance":
+                    ua = sb.driver.execute_script("return navigator.userAgent;")
+                    _save_cf_cookie_cache(ck["value"], ua or "")
+                    cookie_saved = True
+                    if label:
+                        logger.debug("SteamDB batch: cf_clearance saved (%s)", label)
+                    return True
+        except Exception:
+            pass
+        return False
 
-            # Step 0: visit app/depots page to solve CF + discover extra depots
-            extra_depot_ids = []
-            if app_id:
-                try:
-                    app_url = f"https://www.steamdb.info/app/{app_id}/depots/"
-                    if progress_cb:
-                        try:
-                            progress_cb(f"SteamDB: discovering depots for app {app_id}\u2026")
-                        except Exception:
-                            pass
-                    sb.uc_open_with_reconnect(app_url, 5)
+    # Build depot queue
+    all_depot_ids = list(depot_ids)
+    remaining = list(depot_ids)
+
+    _MAX_SESSIONS = 3
+    for session_num in range(_MAX_SESSIONS):
+        if not remaining:
+            break
+        if _stop_event is not None and _stop_event.is_set():
+            break
+
+        if session_num > 0:
+            _cleanup_chrome_for_testing()
+            time.sleep(3)
+            logger.debug(
+                "SteamDB batch: starting session %d for %d remaining depots",
+                session_num + 1, len(remaining),
+            )
+
+        consecutive_cf = 0
+        try:
+            with SB(**sb_kwargs) as sb:
+                sb.driver.set_page_load_timeout(30)
+                sb.driver.set_script_timeout(30)
+
+                # Session 0 + app_id: visit app page to solve CF + discover depots
+                if session_num == 0 and app_id:
                     try:
-                        sb.wait_for_element('a[href*="/depot/"]', timeout=7)
-                    except Exception:
-                        sb.sleep(3)
-                    app_html = sb.get_page_source()
-                    discovered = _parse_steamdb_app_depots(app_html)
-                    depot_id_set = set(depot_ids)
-                    extra_depot_ids = [d for d in discovered if d not in depot_id_set]
-                    if extra_depot_ids:
-                        logger.debug("SteamDB: discovered %d extra depot(s) from app page", len(extra_depot_ids))
-                    if not cookie_saved:
+                        app_url = f"https://www.steamdb.info/app/{app_id}/depots/"
+                        if progress_cb:
+                            try:
+                                progress_cb(f"SteamDB: discovering depots for app {app_id}\u2026")
+                            except Exception:
+                                pass
+                        sb.uc_open_with_reconnect(app_url, 5)
                         try:
-                            for ck in sb.driver.get_cookies():
-                                if ck.get("name") == "cf_clearance":
-                                    ua = sb.driver.execute_script("return navigator.userAgent;")
-                                    _save_cf_cookie_cache(ck["value"], ua or "")
-                                    cookie_saved = True
-                                    logger.debug("SteamDB batch: cf_clearance cookie saved from app page")
-                                    break
+                            sb.wait_for_element('a[href*="/depot/"]', timeout=7)
                         except Exception:
-                            pass
-                except Exception as exc:
-                    logger.debug("SteamDB app depots page failed for app %s: %s", app_id, exc)
+                            sb.sleep(3)
+                        app_html = sb.get_page_source()
+                        discovered = _parse_steamdb_app_depots(app_html)
+                        depot_id_set = set(depot_ids)
+                        extra = [d for d in discovered if d not in depot_id_set]
+                        if extra:
+                            logger.debug("SteamDB: discovered %d extra depot(s) from app page", len(extra))
+                            all_depot_ids = list(depot_ids) + extra
+                            for d in extra:
+                                if d not in remaining:
+                                    remaining.append(d)
+                        _extract_cf_cookie(sb, "app page")
+                        # Fetch patchnotes for build IDs via curl_cffi
+                        if _cf_session and cookie_saved:
+                            try:
+                                pn_url = f"https://www.steamdb.info/app/{app_id}/patchnotes/"
+                                cf_c, cf_ua = _get_valid_cf_cookie()
+                                if cf_c:
+                                    time.sleep(random.uniform(0.5, 1.0))
+                                    pn_resp = _cf_session.get(
+                                        pn_url,
+                                        headers=_steamdb_headers_base(cf_ua),
+                                        cookies={"cf_clearance": cf_c},
+                                        timeout=15,
+                                    )
+                                    if pn_resp.status_code == 200:
+                                        bid = _parse_steamdb_patchnotes(pn_resp.text)
+                                        if bid:
+                                            _BUILD_IDS_CACHE[str(app_id)] = bid
+                                            logger.debug("SteamDB patchnotes: %d build IDs for app %s", len(bid), app_id)
+                            except Exception as pn_exc:
+                                logger.debug("SteamDB patchnotes fetch failed: %s", pn_exc)
+                    except Exception as exc:
+                        logger.debug("SteamDB app depots page failed for app %s: %s", app_id, exc)
 
-            all_depot_ids = list(depot_ids) + extra_depot_ids
-            n = len(all_depot_ids)
-
-            for i, depot_id in enumerate(all_depot_ids):
-                if progress_cb:
+                # Restart sessions: visit steamdb.info to solve CF fresh
+                if session_num > 0:
                     try:
-                        progress_cb(f"SteamDB: depot {i + 1}/{n} ({depot_id})\u2026")
+                        sb.uc_open_with_reconnect("https://www.steamdb.info/", 5)
+                        sb.sleep(2)
+                        _extract_cf_cookie(sb, f"session {session_num + 1}")
                     except Exception:
                         pass
-                url = f"https://www.steamdb.info/depot/{depot_id}/manifests/"
-                # If we have a valid cookie from this session, try httpx first
-                if cookie_saved:
-                    cf_c, cf_ua = _get_valid_cf_cookie()
-                    if cf_c:
+
+                n = len(all_depot_ids)
+                batch = list(remaining)
+
+                for depot_id in batch:
+                    if _stop_event is not None and _stop_event.is_set():
+                        logger.debug("SteamDB batch: stop signal received")
+                        break
+
+                    idx = (all_depot_ids.index(depot_id) + 1) if depot_id in all_depot_ids else (len(results) + 1)
+                    if progress_cb:
+                        try:
+                            progress_cb(f"SteamDB: depot {idx}/{n} ({depot_id})\u2026")
+                        except Exception:
+                            pass
+
+                    # Fast path: curl_cffi with Chrome TLS fingerprint
+                    if cookie_saved:
                         time.sleep(random.uniform(0.8, 1.5))
-                        entries = _try_httpx_with_cookie(depot_id, cf_c, cf_ua)
+                        entries = _try_curl_cffi(depot_id)
                         if entries is not None:
                             results[depot_id] = entries
+                            remaining.remove(depot_id)
+                            consecutive_cf = 0
+                            logger.debug("SteamDB curl_cffi: depot %s -> %d entries", depot_id, len(entries))
                             continue
-                        # 403 or empty — fall through to browser for this depot
-                if i > 0:
-                    sb.sleep(1)
-                try:
-                    sb.uc_open_with_reconnect(url, 5)
-                    try:
-                        sb.wait_for_element('td.tabular-nums', timeout=7)
-                    except Exception:
-                        sb.sleep(3)
-                    html = sb.get_page_source()
-                    entries = _parse_steamdb_html(html)
-                    if not entries and 'td.tabular-nums' not in html:
-                        logger.debug("SteamDB batch: CF suspected for depot %s, retrying", depot_id)
-                        sb.uc_open_with_reconnect(url, 6)
-                        sb.sleep(5)
-                        entries = _parse_steamdb_html(sb.get_page_source())
-                    # After first successful browser load, extract cf_clearance and save
-                    if not cookie_saved:
-                        try:
-                            raw_cookies = sb.driver.get_cookies()
-                            for ck in raw_cookies:
-                                if ck.get("name") == "cf_clearance":
-                                    ua = sb.driver.execute_script("return navigator.userAgent;")
-                                    _save_cf_cookie_cache(ck["value"], ua or "")
-                                    cookie_saved = True
-                                    logger.debug("SteamDB batch: cf_clearance cookie saved to disk")
-                                    break
-                        except Exception as exc:
-                            logger.debug("SteamDB batch: could not extract cf_clearance: %s", exc)
-                    logger.debug("SteamDB batch: depot %s -> %d entries", depot_id, len(entries))
-                    results[depot_id] = entries
-                except Exception as exc:
-                    logger.debug("SteamDB batch depot %s failed: %s", depot_id, exc)
-                    results[depot_id] = []
-    except Exception as exc:
-        logger.debug("SteamDB batch browser failed: %s", exc)
-    finally:
-        _cleanup_chrome_for_testing()
 
+                    # Browser fallback
+                    time.sleep(random.uniform(0.2, 0.5))
+                    url = f"https://www.steamdb.info/depot/{depot_id}/manifests/"
+                    try:
+                        sb.uc_open_with_reconnect(url, 5)
+                        try:
+                            sb.wait_for_element('td.tabular-nums', timeout=7)
+                        except Exception:
+                            sb.sleep(2)
+                        html = sb.get_page_source()
+                        entries = _parse_steamdb_html(html)
+
+                        if not entries and 'td.tabular-nums' not in html:
+                            # CF block: count it, skip retry, maybe restart browser
+                            consecutive_cf += 1
+                            logger.debug(
+                                "SteamDB batch: CF blocked depot %s (%d consecutive)",
+                                depot_id, consecutive_cf,
+                            )
+                            if consecutive_cf >= 2:
+                                logger.debug("SteamDB batch: restarting browser after %d CF blocks", consecutive_cf)
+                                break
+                            continue
+
+                        # Browser success
+                        consecutive_cf = 0
+                        _extract_cf_cookie(sb)
+                        logger.debug("SteamDB batch: depot %s -> %d entries", depot_id, len(entries))
+                        results[depot_id] = entries
+                        remaining.remove(depot_id)
+                    except Exception as exc:
+                        logger.debug("SteamDB batch depot %s failed: %s", depot_id, exc)
+                        results[depot_id] = []
+                        remaining.remove(depot_id)
+        except Exception as exc:
+            logger.debug("SteamDB batch session %d failed: %s", session_num + 1, exc)
+
+    _cleanup_chrome_for_testing()
+    if _cf_session:
+        try:
+            _cf_session.close()
+        except Exception:
+            pass
     return results
 
 
@@ -864,8 +1115,27 @@ def _fetch_steamdb_all(depot_ids: list, progress_cb=None, app_id=None) -> dict:
         logger.debug("Layer2 done: %d total hits, %d remaining", len(results), len(remaining))
 
     # Layer 3 — SeleniumBase batch (guaranteed CF bypass + app depot discovery)
-    if remaining or app_id:
-        layer3 = _fetch_steamdb_batch(remaining, progress_cb=progress_cb, app_id=app_id)
+    # Only runs when there are depots still needing data; app_id is passed through
+    # for depot discovery within the same browser session.
+    # Hard 240-second timeout prevents SB startup / CF bypass from hanging forever.
+    if remaining:
+        import concurrent.futures as _cf_futures
+        import threading as _threading
+        _stop_evt = _threading.Event()
+        _layer3_result = {}
+        with _cf_futures.ThreadPoolExecutor(max_workers=1) as _l3_ex:
+            _l3_fut = _l3_ex.submit(
+                _fetch_steamdb_batch, remaining, progress_cb, app_id, _stop_evt
+            )
+            try:
+                _layer3_result = _l3_fut.result(timeout=360)
+            except _cf_futures.TimeoutError:
+                logger.debug("Layer3 timed out after 360s — signalling stop and killing Chrome")
+                _stop_evt.set()
+                _cleanup_chrome_for_testing()
+            except Exception as _l3_exc:
+                logger.debug("Layer3 failed: %s", _l3_exc)
+        layer3 = _layer3_result
         for did, entries in layer3.items():
             results.setdefault(did, entries)
 
@@ -982,6 +1252,86 @@ def _parse_steamdb_app_depots(html: str) -> list:
                 seen.add(did)
                 depot_ids.append(did)
     return depot_ids
+
+
+_MONTH_MAP = {
+    "january": "01", "february": "02", "march": "03", "april": "04",
+    "may": "05", "june": "06", "july": "07", "august": "08",
+    "september": "09", "october": "10", "november": "11", "december": "12",
+}
+_TEXT_DATE_RE = re.compile(r"^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$")
+
+
+def _parse_text_date(text: str) -> str:
+    """Parse '8 May 2023' or '25 January 2017' → 'YYYY-MM-DD' or ''."""
+    m = _TEXT_DATE_RE.match(text.strip())
+    if m:
+        day, month_name, year = m.groups()
+        month = _MONTH_MAP.get(month_name.lower())
+        if month:
+            return f"{year}-{month}-{int(day):02d}"
+    return ""
+
+
+def _parse_steamdb_patchnotes(html: str) -> dict[str, str]:
+    """Parse SteamDB /app/{id}/patchnotes/ page.
+
+    Returns {date_str: build_id} mapping (YYYY-MM-DD -> build ID string).
+
+    The patchnotes page has a table with columns:
+      Date ("8 May 2023") | Day | Time | Patch Title | icons | BuildID ("11026049")
+    We identify the correct table by looking for a header containing "BuildID".
+    Real Steam build IDs are always 7+ digits (1 000 000+).
+    """
+    from bs4 import BeautifulSoup
+
+    build_ids: dict[str, str] = {}
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Find the builds table — it has a header cell containing "BuildID"
+    target_table = None
+    for th in soup.find_all(["th", "td"]):
+        if "buildid" in th.get_text(strip=True).lower().replace(" ", ""):
+            target_table = th.find_parent("table")
+            break
+
+    if not target_table:
+        logger.debug("Patchnotes parser: no table with 'BuildID' header found")
+        return {}
+
+    for row in target_table.find_all("tr"):
+        cells = row.find_all("td")
+        if len(cells) < 2:
+            continue
+
+        date = ""
+        bid = ""
+
+        for cell in cells:
+            text = cell.get_text(strip=True)
+
+            # Date: try data-time/datetime attribute first
+            if not date:
+                for el in [cell] + cell.find_all(True):
+                    dt = el.get("data-time") or el.get("datetime") or ""
+                    if re.match(r"\d{4}-\d{2}-\d{2}", dt):
+                        date = dt[:10]
+                        break
+
+            # Date: try plain text like "8 May 2023"
+            if not date:
+                parsed = _parse_text_date(text)
+                if parsed:
+                    date = parsed
+
+            # BuildID: 7+ digit number (Steam build IDs are always 1M+)
+            if not bid and re.match(r"^\d{7,}$", text):
+                bid = text
+
+        if date and bid:
+            build_ids.setdefault(date, bid)
+
+    return build_ids
 
 
 # ---------------------------------------------------------------------------
@@ -1171,6 +1521,10 @@ def get_depots_for_app(app_id, progress_cb=None, force_refresh=False):
     if result:
         _save_app_depot_cache(app_id, result)
 
+    # ── Fetch build IDs from SteamDB patchnotes (if not already cached) ────
+    if app_id:
+        _ensure_build_ids(app_id)
+
     return result
 
 
@@ -1187,15 +1541,44 @@ class VersionGroup:
     source: str
     entries: list[tuple[str, str]]       # [(depot_id, manifest_id)]
     entry_map: dict[str, ManifestEntry]  # depot_id -> ManifestEntry (for metadata)
+    build_id: str = ""                   # SteamDB build/changelist ID (optional)
 
 
-def group_by_version(depot_history: dict[str, list[ManifestEntry]]):
+def group_by_version(depot_history: dict[str, list[ManifestEntry]], build_ids: dict[str, str] | None = None):
     """
     Convert {depot_id: [ManifestEntry]} into a list of VersionGroup, newest-first.
     Groups by (date, branch, source). Mirror entries with non-date values
     (N/A, loading..., local fallback, etc.) are merged into one archive group
     per source.
+
+    *build_ids*: optional {date -> build_id} from SteamDB patchnotes.
     """
+    # Helper: find build_id for a date, trying exact match first then ±3 days
+    def _find_bid(date_str: str) -> str:
+        if not build_ids or date_str == "__archive__":
+            return ""
+        # Exact match
+        if date_str in build_ids:
+            return build_ids[date_str]
+        # Nearest-date within ±3 days
+        try:
+            from datetime import timedelta
+            target = datetime.strptime(date_str, "%Y-%m-%d")
+            best_bid = ""
+            best_delta = 4  # max 3 days
+            for bd_str, bid_val in build_ids.items():
+                try:
+                    bd = datetime.strptime(bd_str, "%Y-%m-%d")
+                    delta = abs((target - bd).days)
+                    if delta < best_delta:
+                        best_delta = delta
+                        best_bid = bid_val
+                except ValueError:
+                    continue
+            return best_bid
+        except (ValueError, ImportError):
+            return ""
+
     # bucket key -> list of (depot_id, entry)
     buckets = {}
 
@@ -1226,6 +1609,9 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]]):
                 seen_pairs.add(pair)
                 entries_list.append(pair)
                 entry_map[depot_id] = entry
+        bid = _find_bid(bucket_date)
+        if bid:
+            label += f"  —  Build {bid}"
         groups.append(VersionGroup(
             label=label,
             date=sort_date,
@@ -1233,6 +1619,7 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]]):
             source=source,
             entries=entries_list,
             entry_map=entry_map,
+            build_id=bid,
         ))
 
     groups.sort(key=lambda g: g.date, reverse=True)
@@ -1274,9 +1661,10 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]]):
         if added:
             unique_depots = len({d for d, _ in group.entries})
             depot_word = "depot" if unique_depots == 1 else "depots"
+            bid_suffix = f"  \u2014  Build {group.build_id}" if group.build_id else ""
             group.label = (
                 f"{group.date}  \u2014  {group.branch}  \u2014  {group.source}"
-                f"  ({unique_depots} {depot_word})"
+                f"  ({unique_depots} {depot_word}){bid_suffix}"
             )
 
     return groups
