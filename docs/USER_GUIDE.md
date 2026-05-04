@@ -1,6 +1,6 @@
 # SteaMidra User Guide
 
-## Modern UI (new in 5.5.0, updated in 5.7.0)
+## Modern UI (new in 5.5.0, updated in 5.8.0)
 
 SteaMidra 5.5.0 introduced a new browser-based interface built with QWebEngine. It launches by default alongside the classic interface. Navigate using the sidebar on the left.
 

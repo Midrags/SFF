@@ -204,6 +204,8 @@ def main(ui, args: argparse.Namespace):
 
             MainMenu.STEAM_AUTO,
 
+            MainMenu.HV_FIX,
+
         ]
 
     else:

@@ -58,6 +58,7 @@ class MainMenu(Enum):
     DL_USER_GAME_STATS = "Download UserGameStatsSchema (achievements w/o gbe_fork)"
     MULTIPLAYER_FIX = "Apply multiplayer fix (online-fix.me)"
     RYUU_FIX = "Fixes/bypasses (generator.ryuu.lol)"
+    HV_FIX = "HyperVisor bypasses (HVAuto)"
     OFFLINE_FIX = "Offline Mode Fix"
     if sys.platform == "win32":
         MANAGE_APPLIST = "Manage AppList IDs"
@@ -87,6 +88,7 @@ GameSpecificChoices = Literal[
     MainMenu.CHECK_MOD_UPDATES,
     MainMenu.MULTIPLAYER_FIX,
     MainMenu.RYUU_FIX,
+    MainMenu.HV_FIX,
     MainMenu.MANAGE_DLC_UNLOCKERS
 ]
 
@@ -99,6 +101,7 @@ GAME_SPECIFIC_CHOICES = (
     MainMenu.CHECK_MOD_UPDATES,
     MainMenu.MULTIPLAYER_FIX,
     MainMenu.RYUU_FIX,
+    MainMenu.HV_FIX,
     MainMenu.MANAGE_DLC_UNLOCKERS
 )
 
@@ -217,6 +220,7 @@ class Settings(Enum):
     MANIFESTHUB_KEY_EXPIRY = SettingItem("manifesthub_key_expiry", "ManifestHub Key Expiry (UTC epoch, managed automatically)", False, str)
     LANGUAGE = SettingItem("language", "Language (Requires Restart)", False, list(SupportedLanguages))
     MANIFEST_UPDATE_EXCLUDES = SettingItem("manifest_update_excludes", "Manifest Update Excluded Games", False, str)
+    HV_FIRST_USE_WARNED = SettingItem("hv_first_use_warned", "HyperVisor First Use Warning Shown", False, bool)
 
     @property
     def key_name(self):

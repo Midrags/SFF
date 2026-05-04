@@ -273,7 +273,7 @@ window.Components = (function() {
             });
         });
 
-        document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+        document.querySelectorAll('.modal-overlay:not([data-no-close])').forEach(function(overlay) {
             overlay.addEventListener('click', function() {
                 var modal = this.closest('.modal');
                 if (modal) modal.classList.add('hidden');

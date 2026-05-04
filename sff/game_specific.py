@@ -554,6 +554,65 @@ class GameHandler:
             print("\n" + Fore.RED + "Failed to apply Ryuu fix." + Style.RESET_ALL)
             print("Check the error messages above for details.")
 
+    def apply_hv_fix(self, app_info):
+        import time
+        if not get_setting(Settings.HV_FIRST_USE_WARNED):
+            warning = (
+                "=" * 60 + "\n"
+                " HYPERVISOR CRACKS — READ BEFORE CONTINUING\n"
+                "=" * 60 + "\n\n"
+                "HyperVisor (HV) cracks bypass Denuvo by running a custom driver\n"
+                "that sits below Windows and intercepts CPU-level checks.\n\n"
+                "TO USE THEM YOU MUST:\n"
+                "  1. Disable Memory Integrity (HVCI)\n"
+                "  2. Disable Virtualization-based Security (VBS)\n"
+                "  3. Disable Credential Guard\n"
+                "  4. Disable Driver Signature Enforcement for one boot cycle\n"
+                "  5. Run VBS.cmd (bundled in the game folder after install)\n"
+                "  6. Reboot when prompted, press F7 / 7 at Startup Settings\n\n"
+                "SECURITY IMPLICATIONS:\n"
+                "  - These changes lower Windows kernel protections.\n"
+                "  - Only do this on a personal PC you control.\n"
+                "  - Revert changes after each play session using VBS.cmd > Revert Changes.\n"
+                "  - Disable your network connection while playing (unplug cable or disable WiFi).\n"
+                "  - Scan your system with an AV before running the crack.\n"
+                "  - Most kernel anti-cheats (FACEIT, Vanguard) will not work while DSE is off.\n\n"
+                "The included VBS.cmd (v1.6.2) handles all security setting changes\n"
+                "and includes a Revert Changes option. Run it as Administrator.\n\n"
+                "For full details, read the cs.rin.ru guide:\n"
+                "  https://cs.rin.ru/forum/viewtopic.php?f=10&t=156407\n"
+            )
+            print(Fore.RED + warning + Style.RESET_ALL)
+            print(Fore.YELLOW + "This dialog closes in 15 seconds..." + Style.RESET_ALL)
+            for i in range(15, 0, -1):
+                print(f"\r  {i}s remaining ", end="", flush=True)
+                time.sleep(1)
+            print()
+            set_setting(Settings.HV_FIRST_USE_WARNED, True)
+
+        game_name = self._resolve_game_name(app_info)
+        print("\n" + Fore.CYAN + "HyperVisor Bypasses (HVAuto)" + Style.RESET_ALL)
+        print(f"Game:   {Fore.YELLOW}{game_name}{Style.RESET_ALL}")
+        print(f"Folder: {Fore.YELLOW}{app_info.path}{Style.RESET_ALL}\n")
+
+        build_id = None
+        if app_info.app_id and str(app_info.app_id).strip() != "0":
+            steamapps_dir = app_info.path.parent.parent
+            acf_path = steamapps_dir / f"appmanifest_{app_info.app_id}.acf"
+            if acf_path.exists():
+                try:
+                    acf_data = vdf_load(acf_path)
+                    build_id = acf_data.get("AppState", {}).get("buildid")
+                except Exception:
+                    pass
+
+        from sff.hv_fix import apply_hv_fix as _apply_hv
+        success = _apply_hv(game_name, app_info.path, build_id=build_id)
+        if success:
+            print("\n" + Fore.GREEN + "HV fix applied. Run VBS.cmd as Administrator before launching the game." + Style.RESET_ALL)
+        else:
+            print("\n" + Fore.RED + "HV fix not applied. Check the output above." + Style.RESET_ALL)
+
     def manage_dlc_unlockers(self, app_info):
         from sff.dlc_unlockers.manager import UnlockerManager
         from sff.dlc_unlockers.downloader import GitHubReleaseDownloader
@@ -722,6 +781,8 @@ class GameHandler:
             self.apply_multiplayer_fix(app_info)
         elif choice == MainMenu.RYUU_FIX:
             self.apply_ryuu_fix(app_info)
+        elif choice == MainMenu.HV_FIX:
+            self.apply_hv_fix(app_info)
         elif choice == MainMenu.MANAGE_DLC_UNLOCKERS:
             self.manage_dlc_unlockers(app_info)
         return MainReturnCode.LOOP

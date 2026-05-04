@@ -556,6 +556,88 @@ window.App = (function() {
         return select ? select.value : '';
     }
 
+    var _hvWarningInitialised = false;
+    function _initHvWarningModal() {
+        if (_hvWarningInitialised) return;
+        _hvWarningInitialised = true;
+
+        var cancelBtn = document.getElementById('hv-warning-cancel');
+        var okBtn     = document.getElementById('hv-warning-ok');
+        var discordA  = document.getElementById('hv-discord-btn');
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function() {
+                _hvClearCountdown();
+                Components.hideModal('hv-warning-modal');
+            });
+        }
+        if (okBtn) {
+            okBtn.addEventListener('click', function() {
+                if (this.disabled) return;
+                _hvClearCountdown();
+                Components.hideModal('hv-warning-modal');
+                var appId   = this.dataset.pendingAppId   || '';
+                var outside = this.dataset.pendingOutside === '1';
+                var path    = this.dataset.pendingPath    || '';
+                var oAppId  = this.dataset.pendingOAppId  || '0';
+                Bridge.call('set_setting', 'hv_first_use_warned', 'true');
+                Bridge.call('open_url', 'https://discord.gg/denuvowo');
+                if (outside) {
+                    Bridge.call('run_game_action_outside', path, oAppId, 'hv_fix');
+                } else {
+                    Bridge.call('run_game_action', appId, 'hv_fix');
+                }
+            });
+        }
+        if (discordA) {
+            discordA.addEventListener('click', function(e) {
+                e.preventDefault();
+                Bridge.call('open_url', 'https://discord.gg/denuvowo');
+            });
+        }
+    }
+
+    var _hvCountdownTimer = null;
+    function _hvClearCountdown() {
+        if (_hvCountdownTimer !== null) {
+            clearInterval(_hvCountdownTimer);
+            _hvCountdownTimer = null;
+        }
+    }
+
+    function _showHvWarning(onConfirmArgs) {
+        _initHvWarningModal();
+        var okBtn  = document.getElementById('hv-warning-ok');
+        var cdSpan = document.getElementById('hv-countdown');
+        if (!okBtn || !cdSpan) return false;
+
+        // Store context for the OK handler
+        okBtn.disabled = true;
+        okBtn.dataset.pendingAppId   = onConfirmArgs.appId   || '';
+        okBtn.dataset.pendingOutside = onConfirmArgs.outside ? '1' : '0';
+        okBtn.dataset.pendingPath    = onConfirmArgs.path    || '';
+        okBtn.dataset.pendingOAppId  = onConfirmArgs.oAppId  || '0';
+
+        var secs = 15;
+        cdSpan.textContent = secs;
+        okBtn.innerHTML = 'I Understand \u2014 Continue (<span id="hv-countdown">' + secs + '</span>s)';
+
+        _hvClearCountdown();
+        _hvCountdownTimer = setInterval(function() {
+            secs--;
+            var span = document.getElementById('hv-countdown');
+            if (span) span.textContent = secs;
+            if (secs <= 0) {
+                _hvClearCountdown();
+                okBtn.disabled = false;
+                okBtn.innerHTML = 'I Understand \u2014 Continue';
+            }
+        }, 1000);
+
+        Components.showModal('hv-warning-modal');
+        return true;
+    }
+
     function _handleHomeAction(action) {
         // Show game-picker dialog before running update_manifests
         if (action === 'update_manifests') {
@@ -585,6 +667,44 @@ window.App = (function() {
                 });
                 listEl.innerHTML = html;
                 if (countEl) countEl.textContent = games.length + ' game' + (games.length !== 1 ? 's' : '');
+            });
+            return;
+        }
+
+        // HyperVisor action — check first-use warning
+        if (action === 'hv_fix') {
+            // Resolve the game/path context first, then decide whether to show warning
+            var hvAppId    = '';
+            var hvOutside  = false;
+            var hvPath     = '';
+            var hvOAppId   = '0';
+            if (_outsideMode) {
+                hvPath    = (document.getElementById('outside-path-display') || {}).value || '';
+                hvOAppId  = (document.getElementById('outside-appid') || {}).value || '0';
+                if (!hvPath) {
+                    Components.showToast('warning', 'Please select a game folder first.');
+                    return;
+                }
+                hvOutside = true;
+            } else {
+                hvAppId = _getSelectedGameId();
+                if (!hvAppId) {
+                    Components.showToast('warning', 'Please select a game from the dropdown first.');
+                    return;
+                }
+            }
+            var confirmArgs = { appId: hvAppId, outside: hvOutside, path: hvPath, oAppId: hvOAppId };
+            Bridge.callWithCallback('get_setting', 'hv_first_use_warned', function(val) {
+                var warned = val === 'True' || val === 'true' || val === '1';
+                if (!warned) {
+                    _showHvWarning(confirmArgs);
+                } else {
+                    if (hvOutside) {
+                        Bridge.call('run_game_action_outside', hvPath, hvOAppId, 'hv_fix');
+                    } else {
+                        Bridge.call('run_game_action', hvAppId, 'hv_fix');
+                    }
+                }
             });
             return;
         }

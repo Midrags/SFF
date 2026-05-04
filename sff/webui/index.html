@@ -182,6 +182,10 @@
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                         <span class="action-title">Community Fixes</span>
                     </button>
+                    <button class="action-card compact platform-win" data-action="hv_fix" data-tooltip="Download and apply HyperVisor crack bypasses from HVAuto (Windows only — requires VBS/DSE changes)">
+                        <svg class="action-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="2" x2="9" y2="4"/><line x1="15" y1="2" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="22"/><line x1="15" y1="20" x2="15" y2="22"/><line x1="2" y1="9" x2="4" y2="9"/><line x1="2" y1="15" x2="4" y2="15"/><line x1="20" y1="9" x2="22" y2="9"/><line x1="20" y1="15" x2="22" y2="15"/></svg>
+                        <span class="action-title">HyperVisor (HVAuto)</span>
+                    </button>
                     <button class="action-card compact" data-action="achievements" data-tooltip="View and manage achievement data for a game">
                         <svg class="action-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
                         <span class="action-title">Achievement Data</span>
@@ -984,6 +988,55 @@
             </div>
             <div class="modal-footer">
                 <button class="btn modal-cancel" id="library-delete-cancel-footer">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HyperVisor First-Use Warning Modal -->
+    <div id="hv-warning-modal" class="modal hidden">
+        <div class="modal-overlay" data-no-close></div>
+        <div class="modal-content" style="max-width:580px;">
+            <div class="modal-header" style="background:rgba(220,38,38,0.15);border-bottom:1px solid rgba(220,38,38,0.4);">
+                <h2 style="color:#f87171;">&#9888; HyperVisor Cracks &mdash; Read Before Continuing</h2>
+            </div>
+            <div class="modal-body" style="max-height:420px;overflow-y:auto;font-size:13px;line-height:1.6;">
+                <p style="margin-bottom:10px;opacity:0.9;">HyperVisor (HV) cracks bypass Denuvo by running a custom kernel driver that intercepts CPU-level checks from below Windows. <strong style="color:#f87171;">This requires lowering Windows security protections.</strong></p>
+
+                <p style="font-weight:700;color:#fbbf24;margin-bottom:4px;">TO USE HV CRACKS YOU MUST:</p>
+                <ol style="margin:0 0 12px 18px;padding:0;">
+                    <li>Disable Memory Integrity (HVCI) in Windows Security</li>
+                    <li>Disable Virtualization-Based Security (VBS)</li>
+                    <li>Disable Credential Guard</li>
+                    <li>Disable Driver Signature Enforcement for one boot cycle</li>
+                    <li>Run <strong>VBS.cmd</strong> (copied to your game folder) as Administrator</li>
+                    <li>Reboot when prompted &mdash; press <strong>F7</strong> or <strong>7</strong> at Startup Settings</li>
+                </ol>
+
+                <p style="font-weight:700;color:#f87171;margin-bottom:4px;">SECURITY IMPLICATIONS:</p>
+                <ul style="margin:0 0 12px 18px;padding:0;">
+                    <li>These changes lower Windows kernel protections significantly</li>
+                    <li>Only do this on a personal PC you fully control</li>
+                    <li>Revert all changes after each play session using <strong>VBS.cmd &rarr; Revert Changes</strong></li>
+                    <li>Disconnect from the internet while playing (unplug cable or disable Wi-Fi)</li>
+                    <li>Scan the crack files with an antivirus before running</li>
+                    <li>Kernel anti-cheats (FACEIT, Vanguard, Easy Anti-Cheat) will <strong>not work</strong> while DSE is off</li>
+                    <li>Do not use on a work or school machine</li>
+                </ul>
+
+                <p style="opacity:0.85;margin-bottom:8px;">The bundled <strong>VBS.cmd (v1.6.2)</strong> handles all security setting changes and includes a <em>Revert Changes</em> option. Always run it as Administrator.</p>
+
+                <p style="opacity:0.7;font-size:12px;">Full setup guide: <span style="color:#60a5fa;">cs.rin.ru/forum/viewtopic.php?f=10&amp;t=156407</span></p>
+            </div>
+            <div class="modal-footer" style="flex-direction:column;gap:8px;align-items:stretch;">
+                <a id="hv-discord-btn" href="#" style="display:block;text-align:center;padding:9px 16px;background:rgba(88,101,242,0.25);border:1px solid rgba(88,101,242,0.5);border-radius:6px;color:#818cf8;font-weight:600;text-decoration:none;font-size:13px;">
+                    &#128172; Join the Discord Community (denuvowo)
+                </a>
+                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                    <button id="hv-warning-cancel" class="btn">Cancel</button>
+                    <button id="hv-warning-ok" class="btn btn-primary" disabled style="min-width:240px;">
+                        I Understand &mdash; Continue (<span id="hv-countdown">15</span>s)
+                    </button>
+                </div>
             </div>
         </div>
     </div>

@@ -62,8 +62,41 @@ def get_slssteam_config_dir(steam_type: str) -> Path:
     return SLSSTEAM_CONFIG_DIR
 
 
+def _remove_pacman_slssteam(print_fn=print) -> None:
+    """Remove system-managed slssteam/slssteam-git pacman packages on Arch-like distros.
+    Call this only AFTER a fresh archive is already downloaded and ready to install,
+    so that a failed GitHub download never leaves the user without SLSsteam."""
+    os_release = Path("/etc/os-release")
+    if not os_release.exists():
+        return
+    content = os_release.read_text(encoding="utf-8", errors="ignore")
+    os_id = ""
+    os_id_like = ""
+    for line in content.splitlines():
+        if line.startswith("ID="):
+            os_id = line.split("=", 1)[1].strip().strip('"').lower()
+        elif line.startswith("ID_LIKE="):
+            os_id_like = line.split("=", 1)[1].strip().strip('"').lower()
+    combined = f" {os_id} {os_id_like} "
+    is_arch_like = " arch " in combined or " cachyos " in combined
+    if not is_arch_like:
+        return
+    try:
+        r = subprocess.run(
+            ["pacman", "-Qq"],
+            capture_output=True, text=True, timeout=10,
+        )
+        installed = [p.strip() for p in r.stdout.splitlines()]
+        to_remove = [p for p in installed if p in ("slssteam", "slssteam-git")]
+        if to_remove:
+            print_fn(Fore.YELLOW + f"Removing pacman SLSsteam packages: {' '.join(to_remove)}" + Style.RESET_ALL)
+            subprocess.run(["sudo", "pacman", "-Rs", "--noconfirm"] + to_remove, timeout=60)
+    except Exception as e:
+        print_fn(Fore.YELLOW + f"Could not check/remove Arch SLSsteam packages: {e}" + Style.RESET_ALL)
+
+
 def check_linux_deps(print_fn=print) -> bool:
-    """Install libcurl4:i386 on Debian/Ubuntu if missing (mirrors h3adcr-b InstallDebianDeps).
+    """Install libcurl4:i386 on Debian/Ubuntu if missing.
     Returns True if deps are OK. Non-fatal on failure."""
     os_release = Path("/etc/os-release")
     if not os_release.exists():
@@ -78,21 +111,6 @@ def check_linux_deps(print_fn=print) -> bool:
             os_id_like = line.split("=", 1)[1].strip().strip('"').lower()
 
     combined = f" {os_id} {os_id_like} "
-
-    is_arch_like = " arch " in combined or " cachyos " in combined
-    if is_arch_like:
-        try:
-            r = subprocess.run(
-                ["pacman", "-Qq"],
-                capture_output=True, text=True, timeout=10,
-            )
-            installed = [p.strip() for p in r.stdout.splitlines()]
-            to_remove = [p for p in installed if p in ("slssteam", "slssteam-git")]
-            if to_remove:
-                print_fn(Fore.YELLOW + f"Removing pacman SLSsteam packages: {' '.join(to_remove)}" + Style.RESET_ALL)
-                subprocess.run(["sudo", "pacman", "-Rns", "--noconfirm"] + to_remove, timeout=60)
-        except Exception as e:
-            print_fn(Fore.YELLOW + f"Could not check/remove Arch SLSsteam packages: {e}" + Style.RESET_ALL)
 
     is_debian_like = " debian " in combined or " ubuntu " in combined
     if not is_debian_like:
@@ -270,6 +288,8 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
 
     print_fn("\n[1/4] Checking system dependencies...")
     check_linux_deps(print_fn)
+    # Note: Arch pacman SLSsteam removal happens at step [3.5/4], after the archive
+    # is verified. This prevents a failed download from leaving the user without SLSsteam.
 
     steam_type = detect_steam_type()
     install_dir = get_slssteam_install_dir(steam_type)
@@ -342,6 +362,9 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
         return False
 
     _disable_path_injection(steam_type, print_fn)
+
+    print_fn("\n[3.5/4] Removing any system-packaged SLSsteam (Arch only)...")
+    _remove_pacman_slssteam(print_fn)
 
     print_fn("\n[4/4] Installing SLSsteam .so files...")
     try:

@@ -1211,9 +1211,10 @@ class UI:
                     '(goto) 2>nul & del "%~f0"\n',
                     encoding="utf-8",
                 )
+                _BREAKAWAY = 0x01000000
                 subprocess.Popen(
                     ["cmd", "/c", str(updater_bat)],
-                    creationflags=subprocess.DETACHED_PROCESS,
+                    creationflags=subprocess.DETACHED_PROCESS | _BREAKAWAY,
                     cwd=str(app_dir),
                 )
             else:
@@ -1235,8 +1236,8 @@ class UI:
                     cwd=str(app_dir),
                     start_new_session=True,
                 )
-            print(Fore.GREEN + "Update will apply and the app will restart. Exiting..." + Style.RESET_ALL)
-            sys.exit(0)
+            print(Fore.GREEN + "Update will apply and the app will restart. Exiting..." + Style.RESET_ALL, flush=True)
+            os._exit(0)
         def _do_windows_frozen_update():
             if not download_url or not asset_name:
                 return False
@@ -1278,13 +1279,14 @@ class UI:
                 "(goto) 2>nul & del \"%~f0\"\n",
                 encoding="utf-8",
             )
+            _BREAKAWAY = 0x01000000
             subprocess.Popen(
                 ["cmd", "/c", str(updater_bat)],
-                creationflags=subprocess.DETACHED_PROCESS,
+                creationflags=subprocess.DETACHED_PROCESS | _BREAKAWAY,
                 cwd=str(app_dir),
             )
-            print(Fore.GREEN + "Update started. SteaMidra will restart automatically." + Style.RESET_ALL)
-            sys.exit(0)
+            print(Fore.GREEN + "Update started. SteaMidra will restart automatically." + Style.RESET_ALL, flush=True)
+            os._exit(0)
 
         def _do_linux_frozen_update():
             if not download_url or not asset_name:

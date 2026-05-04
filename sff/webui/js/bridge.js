@@ -163,6 +163,7 @@ window.Bridge = (function() {
             get_applist_games: function(cb) { if (cb) cb('[]'); },
             browse_game_folder: function(cb) { if (cb) cb(''); },
             run_game_action_outside: function() {},
+            open_url: function() {},
         };
         _ready = true;
         _readyCallbacks.forEach(function(cb) { cb(_py); });

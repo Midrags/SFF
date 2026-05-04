@@ -1,5 +1,21 @@
 # Changelog
 
+## 5.8.0
+
+### Self-Updater — Windows Fix
+
+- **Cmd window no longer closes instantly** — PyInstaller EXEs run inside a Windows Job Object. The updater batch was launched with `DETACHED_PROCESS` only, so Windows killed it the moment SteaMidra exited. Added `CREATE_BREAKAWAY_FROM_JOB` flag so the batch runs independently of the parent job.
+- **Files no longer locked during update** — `sys.exit(0)` from a Qt worker thread raised `SystemExit` in that thread only, leaving the Qt main loop and all file handles alive. Replaced with `os._exit(0)` to kill the full process cleanly before robocopy runs.
+- Both the script-mode path (`_do_auto_update`) and the frozen EXE path (`_do_windows_frozen_update`) are fixed.
+
+### HyperVisor (HV Auto) — Buzzheavier Download Fix
+
+- **Automatic download now works** — buzzheavier.com uses a two-step download flow: a request to `/{id}/download` with HTMX headers returns an `Hx-Redirect` header containing a signed CDN URL; SteaMidra then streams the file from that URL. Previously a plain GET returned an HTML page, causing a fallback to manual download every time.
+- **Correct filename from CDN** — filename is parsed from the `Content-Disposition` header of the CDN response, falling back to `{file_id}.7z` if absent.
+- **Archive password auto-filled** — password-protected HV archives (`.zip`, `.7z`, `.rar`) now automatically use `cs.rin.ru` during extraction.
+
+---
+
 ## 5.7.0
 
 ### Linux — SLSsteam Fixes

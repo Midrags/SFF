@@ -360,6 +360,7 @@ class SFFMainWindow(QMainWindow):
             (T("Check mod updates"), MainMenu.CHECK_MOD_UPDATES),
             (T("Multiplayer fix"), MainMenu.MULTIPLAYER_FIX),
             (T("Fixes/Bypasses (Ryuu)"), MainMenu.RYUU_FIX),
+            (T("HyperVisor (HVAuto)"), MainMenu.HV_FIX),
             (T("DLC Unlockers"), MainMenu.MANAGE_DLC_UNLOCKERS),
             (T("SteamAutoCrack"), None),
         ]:
