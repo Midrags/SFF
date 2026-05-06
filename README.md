@@ -50,7 +50,7 @@ You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere —
 
 ### Step 2: GreenLuma
 
-Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: [GreenLuma Link](https://www.up-4ever.net/1xi5stm9ah0u)
+Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: [GreenLuma Link](https://buzzheavier.com/mxducdprswv9)
 
 Download `GLPatch.rar` from the link above. Extract it and follow Plan A or Plan B:
 
