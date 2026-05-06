@@ -37,6 +37,9 @@ How to use the online fix feature for multiplayer games.
 [Fixes/Bypasses (Ryuu)](RYUU_FIX.md)  
 Using the Ryuu fix source as an alternative or supplement to online-fix.me. No account required.
 
+[HyperVisor Guide](HV_GUIDE.md)  
+How HV cracks work, what Windows security features they require you to disable, security implications, and step-by-step setup. Read before using HV Auto.
+
 [DLC Unlockers](dlc_unlockers/README.md)  
 Using SteaMidra to install DLC unlockers (CreamInstaller-style). Credits for CreamInstaller are on that page.
 

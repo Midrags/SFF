@@ -74,7 +74,7 @@ window.Components = (function() {
 
         // Load image with 8-tier fallback chain then SVG placeholder
         var wrap = card.querySelector('.game-card-img-wrap');
-        if (_hideImages) {
+        if (_hideImages && !options.forceShowImage) {
             wrap.innerHTML = '<div class="game-card-img-placeholder">' + NO_IMAGE_SVG + '</div>';
         } else {
             var img = document.createElement('img');
@@ -310,6 +310,10 @@ window.Components = (function() {
                 self._close();
             }
         });
+
+        this._select.addEventListener('input', function() { self._syncSelected(); });
+
+        setTimeout(function() { self._syncOptions(); }, 0);
     }
 
     CustomSelect.prototype._syncOptions = function() {

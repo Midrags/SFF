@@ -1,5 +1,39 @@
 # Changelog
 
+## 6.0.0
+
+### Cloud Saves — Google Drive Support
+
+- **Google Drive cloud saves** — back up and restore saves directly to Google Drive. Select Google Drive in the Cloud Saves tab provider grid, click Connect, and sign in once. All backups go to a `SteaMidra Backups/` folder in your Drive.
+
+### Cloud Saves — All Save Locations
+
+- **All Save Locations** — new section at the bottom of the Cloud Saves tab. Scans all known emu save paths in one click: CODEX, EMPRESS, RUNE, OnlineFix, Goldberg, GSE, and Steam userdata. Results show in a table with per-row checkboxes so you can pick exactly which folders to back up.
+- **Backup all** — back up every checked folder to a local destination, rclone remote, or Google Drive in one operation.
+- **Restore from backup** — scan an existing backup root, pick a location and game from the dropdowns, and restore. A safety backup of the current save is created automatically before any overwrite.
+
+### Cloud Saves — rclone Overhaul
+
+- **Dropbox API provider removed** — Dropbox now works through rclone. No app key or OAuth flow needed. Add a Dropbox remote once with `rclone config` and pick it in SteaMidra.
+- **Ludusavi removed** — bundled executable and its 86 MB manifest removed from the package.
+- **Provider shortcut strip** — 17 clickable provider chips in the rclone config panel: Dropbox, OneDrive, MEGA, pCloud, Box, Proton Drive, Backblaze B2, Amazon S3, Wasabi, Yandex Disk, Jottacloud, Koofr, Storj, iCloud Drive, SFTP, FTP, WebDAV. Each chip pre-fills the Remote Destination field with the correct format for that backend.
+- **"Setup in Terminal" button** — opens `rclone config` in a new terminal window directly from the Cloud Saves tab. On Linux it tries `gnome-terminal`, `xterm`, `konsole`, and `xfce4-terminal` in order.
+- **"Load Remotes" button** — reads all configured rclone remotes and populates autocomplete on the destination input.
+- **"Test" button** — verifies a remote is reachable before starting a backup (15 s timeout).
+- **Backup All is now parallel** — all selected games upload simultaneously instead of one at a time. Significantly faster on every provider.
+- **Duplicate auto-fix** — any duplicates created by rclone are resolved automatically after every Backup All on providers that support deduplication.
+
+### Performance
+
+- **Image themes no longer lag** — Dawn, Dusk, Flow, Lake, Midnight City, and Snow themes now run smoothly at full speed.
+- **GPU hardware acceleration enabled** — the entire interface now renders with hardware acceleration.
+
+### Settings — Language Live Switch
+
+- Language changes now apply instantly without restarting the app.
+
+---
+
 ## 5.8.0
 
 ### Self-Updater — Windows Fix

@@ -18,7 +18,32 @@ window.Settings = (function() {
         { id: 'pink', name: 'Pink', bg: '#1a0a18', accent: '#e84393' },
         { id: 'nord', name: 'Nord', bg: '#2e3440', accent: '#88c0d0' },
         { id: 'dracula', name: 'Dracula', bg: '#282a36', accent: '#bd93f9' },
-        { id: 'pastel', name: 'Pastel', bg: '#faf0e6', accent: '#e6a07c' }
+        { id: 'pastel', name: 'Pastel', bg: '#faf0e6', accent: '#e6a07c' },
+        { id: 'amoled', name: 'AMOLED', bg: '#000000', accent: '#8142fa' },
+        { id: 'bee', name: 'Bee', bg: '#fcdd6a', accent: '#fff200' },
+        { id: 'blue-gld', name: 'Blue', bg: '#24273a', accent: '#8aadf4' },
+        { id: 'crystalmeth', name: 'Crystal', bg: '#69a1cf', accent: '#68d8ff' },
+        { id: 'gld-default', name: 'GLD Default', bg: '#141414', accent: '#8142fa' },
+        { id: 'discord-dark', name: 'Discord Dark', bg: '#121214', accent: '#5865f2' },
+        { id: 'discord-light', name: 'Discord Light', bg: '#f3f3f4', accent: '#5865f2' },
+        { id: 'discord', name: 'Discord', bg: '#2c2d32', accent: '#5865f2' },
+        { id: 'gaussian', name: 'Gaussian', bg: '#1a1919', accent: '#8142fa' },
+        { id: 'less-depressing', name: 'Less Depressing', bg: '#202021', accent: '#7b89f8' },
+        { id: 'gld-light', name: 'GLD Light', bg: '#a3adad', accent: '#00adff' },
+        { id: 'lsd', name: 'LSD', bg: '#08101f', accent: '#6cff00' },
+        { id: 'gld-midnight', name: 'GLD Midnight', bg: '#9aa6ee', accent: '#8789fa' },
+        { id: 'neon-rider', name: 'Neon Rider', bg: '#66d1c2', accent: '#f000ff' },
+        { id: 'rdr2', name: 'RDR2', bg: '#1c1c1c', accent: '#cc6152' },
+        { id: 'real-madrid', name: 'Real Madrid', bg: '#ababab', accent: '#fabc01' },
+        { id: 'seaweed', name: 'Seaweed', bg: '#151a1e', accent: '#00ff86' },
+        { id: 'steam-gld', name: 'Steam', bg: '#161d25', accent: '#66c0f4' },
+        { id: 'void', name: 'Void', bg: '#0c0c0c', accent: '#7b56cc' },
+        { id: 'dawn', name: 'Dawn', bg: '#27293b', accent: '#979ffb', image: true },
+        { id: 'dusk', name: 'Dusk', bg: '#282121', accent: '#fe7764', image: true },
+        { id: 'flow', name: 'Flow', bg: '#005498', accent: '#68d8ff', image: true },
+        { id: 'lake', name: 'Lake', bg: '#24273a', accent: '#8aadf4', image: true },
+        { id: 'midnight-city', name: 'Midnight City', bg: '#20034a', accent: '#8aadf4', image: true },
+        { id: 'snow', name: 'Snow', bg: '#a3cde7', accent: '#00eeff', image: true }
     ];
 
     function init() {
@@ -48,8 +73,14 @@ window.Settings = (function() {
 
         THEMES.forEach(function(theme) {
             var swatch = document.createElement('div');
-            swatch.className = 'theme-swatch' + (theme.id === currentTheme ? ' active' : '');
-            swatch.style.background = theme.bg;
+            swatch.className = 'theme-swatch' + (theme.id === currentTheme ? ' active' : '') + (theme.image ? ' theme-swatch-photo' : '');
+            if (theme.image) {
+                swatch.style.backgroundImage = 'url(img/themes/' + theme.id.replace('midnight-city', 'midnightcity') + '.jpg)';
+                swatch.style.backgroundSize = 'cover';
+                swatch.style.backgroundPosition = 'center';
+            } else {
+                swatch.style.background = theme.bg;
+            }
             swatch.style.color = theme.accent;
             swatch.style.borderColor = theme.id === currentTheme ? theme.accent : 'transparent';
             swatch.textContent = theme.name;
@@ -71,6 +102,18 @@ window.Settings = (function() {
         document.documentElement.setAttribute('data-theme', themeId);
         localStorage.setItem('theme', themeId);
         Bridge.call('set_setting', 'theme', themeId);
+        var _photoMap = {
+            'dawn': 'img/themes/dawn.jpg',
+            'dusk': 'img/themes/dusk.jpg',
+            'flow': 'img/themes/flow.jpg',
+            'lake': 'img/themes/lake.jpg',
+            'midnight-city': 'img/themes/midnightcity.jpg',
+            'snow': 'img/themes/snow.jpg'
+        };
+        var _bgImg = _photoMap[themeId] ? 'url(' + _photoMap[themeId] + ')' : '';
+        document.body.style.backgroundImage = _bgImg;
+        document.body.style.backgroundSize = _bgImg ? 'cover' : '';
+        document.body.style.backgroundPosition = _bgImg ? 'center' : '';
     }
 
     function _initPathControls() {
@@ -285,7 +328,8 @@ window.Settings = (function() {
                 el.addEventListener('change', function() {
                     Bridge.call('set_setting', dropdowns[id], this.value);
                     if (id === 'setting-language') {
-                        Components.showToast('info', 'Language updated (restart required)');
+                        if (window.I18n) I18n.applyLanguage(this.value);
+                        Components.showToast('success', 'Language updated');
                     } else {
                         Components.showToast('success', 'Setting updated');
                     }
@@ -401,7 +445,10 @@ window.Settings = (function() {
 
     function _setSelectVal(id, val) {
         var el = document.getElementById(id);
-        if (el && val) el.value = val;
+        if (el && val) {
+            el.value = val;
+            el.dispatchEvent(new Event('input'));
+        }
     }
 
     function _setCheckbox(id, val) {

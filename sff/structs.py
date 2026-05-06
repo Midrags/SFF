@@ -221,6 +221,7 @@ class Settings(Enum):
     LANGUAGE = SettingItem("language", "Language (Requires Restart)", False, list(SupportedLanguages))
     MANIFEST_UPDATE_EXCLUDES = SettingItem("manifest_update_excludes", "Manifest Update Excluded Games", False, str)
     HV_FIRST_USE_WARNED = SettingItem("hv_first_use_warned", "HyperVisor First Use Warning Shown", False, bool)
+    SAVE_WATCHER_INTERVAL = SettingItem("save_watcher_interval", "Background Save Watcher Interval (minutes, 0=off)", False, str)
 
     @property
     def key_name(self):

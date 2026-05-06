@@ -42,6 +42,7 @@ pip install steam==1.4.4 --no-deps
 - **PyQt6 / PyQt6-WebEngine** — GUI
 - **torpy / pysocks** — Pure-Python Tor fallback for GMRC request codes
 - **steam / gevent / protobuf** — Steam CDN and depot access
+- **google-auth / google-auth-oauthlib / google-api-python-client** — Google Drive cloud save support
 - All other transitive dependencies
 
 ## Multiplayer fix (online-fix.me)

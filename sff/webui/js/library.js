@@ -40,6 +40,7 @@ window.Library = (function() {
                     var action = btn.dataset.action;
                     var appId = btn.dataset.appid;
                     if (action === 'fix') {
+                        FixGame.preSelect(appId);
                         App.navigateTo('fixgame');
                     } else if (action === 'delete') {
                         _pendingDelete = {
@@ -115,7 +116,7 @@ window.Library = (function() {
 
         games.forEach(function(game, index) {
             game.installed = true;
-            var card = Components.createGameCard(game, { index: index });
+            var card = Components.createGameCard(game, { index: index, forceShowImage: true });
 
             // Add library-specific actions
             var safeName = (game.name || '').replace(/"/g, '&quot;');

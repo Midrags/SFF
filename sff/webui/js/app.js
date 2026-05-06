@@ -14,6 +14,10 @@ window.App = (function() {
         Components.initModals();
         new Components.CustomSelect('home-game-select', 'home-game-select-ui');
         new Components.CustomSelect('fixgame-game-select', 'fixgame-game-select-ui');
+        new Components.CustomSelect('store-sort', 'store-sort-ui');
+        new Components.CustomSelect('setting-gl-version', 'setting-gl-version-ui');
+        new Components.CustomSelect('profile-select', 'profile-select-ui');
+        new Components.CustomSelect('setting-language', 'setting-language-ui');
         Tooltips.init();
         _initSidebar();
         _initLogPanel();
@@ -37,7 +41,24 @@ window.App = (function() {
                 if (themeId) {
                     document.documentElement.setAttribute('data-theme', themeId);
                     localStorage.setItem('theme', themeId);
+                    var _photoMap = {
+                        'dawn': 'img/themes/dawn.jpg',
+                        'dusk': 'img/themes/dusk.jpg',
+                        'flow': 'img/themes/flow.jpg',
+                        'lake': 'img/themes/lake.jpg',
+                        'midnight-city': 'img/themes/midnightcity.jpg',
+                        'snow': 'img/themes/snow.jpg'
+                    };
+                    var _bgImg = _photoMap[themeId] ? 'url(' + _photoMap[themeId] + ')' : '';
+                    document.body.style.backgroundImage = _bgImg;
+                    document.body.style.backgroundSize = _bgImg ? 'cover' : '';
+                    document.body.style.backgroundPosition = _bgImg ? 'center' : '';
                 }
+            });
+
+            // Apply saved language for live i18n
+            py.get_setting('language', function(lang) {
+                if (window.I18n) I18n.applyLanguage(lang || 'en');
             });
 
             // Check for stored API key
@@ -618,7 +639,7 @@ window.App = (function() {
         okBtn.dataset.pendingPath    = onConfirmArgs.path    || '';
         okBtn.dataset.pendingOAppId  = onConfirmArgs.oAppId  || '0';
 
-        var secs = 15;
+        var secs = 20;
         cdSpan.textContent = secs;
         okBtn.innerHTML = 'I Understand \u2014 Continue (<span id="hv-countdown">' + secs + '</span>s)';
 

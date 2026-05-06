@@ -10,7 +10,9 @@ Steam has updated and if you accidentally update your Steam client to a version 
 
 ## Educational use only. Use at your own risk.
 
-> ⚠️ **Remember:** Exclude the SteaMidra folder from Windows Security — especially `sff\dlc_unlockers\resources` — or CreamInstaller resources may not work correctly.
+> ⚠️ **Antivirus Warning:** Before doing anything, add the entire **SteaMidra folder** (especially `sff\dlc_unlockers\resources`) to Windows Defender exclusions — the DLC unlocker tools inside trigger false positives.
+>
+> To add exclusions: **Windows Security → Virus & threat protection → Manage settings → Exclusions → Add or remove exclusions → Add a folder**.
 
 SteaMidra helps you set up games to work with Steam using Lua scripts, manifests, and GreenLuma. It writes the right files into your Steam folder so games and DLC can run. It does not replace or crack Steam itself.
 
@@ -27,6 +29,7 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 - Download and use Lua files for games, download manifests, and set up GreenLuma.
 - Write Lua and manifest data into Steam's config.
 - Multiplayer fixes: **online-fix.me** integration and **game fixes/bypasses (Ryuu)**.
+- **HyperVisor Cracks (HV Auto)** — download and apply HyperVisor bypasses for Denuvo-protected games. Includes VBS.cmd (v1.6.2) to prepare your system. See the [HyperVisor Guide](docs/HV_GUIDE.md) before use.
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
@@ -49,15 +52,15 @@ You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere —
 
 Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: [GreenLuma Link](https://www.up-4ever.net/1xi5stm9ah0u)
 
-Extract the ZIP — you will see three folders. You only need `NormalModePatch.rar`. Extract it and choose one of the two setup methods below:
+Download `GLPatch.rar` from the link above. Extract it and follow Plan A or Plan B:
 
 **Method A — Separate folder (next to SteaMidra)**
 1. Create a `Greenluma` folder next to `SteaMidra_GUI.exe` (e.g. `C:\SteaMidra\Greenluma\`).
-2. Copy all files from `NormalModePatch.rar` into `C:\SteaMidra\Greenluma\`.
+2. Copy all files from `GLPatch.rar` into `C:\SteaMidra\Greenluma\`.
 3. Create an `AppList` folder inside it: `C:\SteaMidra\Greenluma\AppList\`.
 
 **Method B — Inside Steam folder (simpler)**
-1. Copy all files from `NormalModePatch.rar` directly into `C:\Program Files (x86)\Steam\`.
+1. Copy all files from `GLPatch.rar` directly into `C:\Program Files (x86)\Steam\`.
 2. Create an `AppList` folder inside Steam: `C:\Program Files (x86)\Steam\AppList\`.
 
 ### Step 3: Setup GreenLuma
@@ -89,9 +92,9 @@ When your AppList reaches 130 IDs, SteaMidra shows a popup dialog reminding you 
 
 ## GUI features
 
-SteaMidra has a full graphical interface with a **Modern UI** (introduced in 5.5.0) and the classic Qt interface.
+SteaMidra has a full graphical interface with a **Modern UI (new in 5.5.0, updated in 6.0.0)** and the classic Qt interface.
 
-**Modern UI** — the new default interface, built with QWebEngine. Accessible from a clean sidebar with 8 tabs: Home (game picker with auto-refresh), Store (search/browse Hubcap, grid/list, pagination), Library (installed games), Downloads (live progress + history), Fix Game (full emulator pipeline), Tools (GBE Token Generator, VDF Extractor, Workshop), Cloud Saves (scan/backup/restore), and Settings. Supports 11+ themes, tooltips, and toast notifications.
+**Modern UI** — the new default interface, built with QWebEngine. Accessible from a clean sidebar with 8 tabs: Home (game picker with auto-refresh), Store (search/browse Hubcap, grid/list, pagination), Library (installed games), Downloads (live progress + history), Fix Game (full emulator pipeline), Tools (GBE Token Generator, VDF Extractor, Workshop), Cloud Saves (scan/backup/restore, Google Drive, rclone with 17 provider shortcuts, All Save Locations), and Settings. Supports 11+ themes, tooltips, and toast notifications.
 
 **What the GUI gives you:**
 - **Tabbed interface** — Main, Store, Downloads, Fix Game, Tools, and Cloud Saves tabs.
@@ -100,7 +103,7 @@ SteaMidra has a full graphical interface with a **Modern UI** (introduced in 5.5
 - **Store browser** — search and browse the Hubcap Manifest library with pagination. Download button opens a version picker with full depot/manifest history (SteamDB + GitHub mirror sources). **Force Refresh** button bypasses cache to re-scrape all historical manifests.
 - **Fix Game pipeline** — automate emulator application (Goldberg, ColdClient, ColdLoader) with SteamStub unpacking.
 - **GBE Token Generator** — generate full Goldberg emulator configs with achievements, DLCs, stats, and icons.
-- **Cloud Saves** — Steam userdata save backup/restore. Scans `Steam/userdata/<steam32id>/` for all games with saves, lets you back up the `remote/` folder to any destination, and restore it back with one click (automatic safety backup before overwrite).
+- **Cloud Saves** — Steam userdata save backup/restore. Scans `Steam/userdata/<steam32id>/` for all games with saves, back up and restore with one click (safety backup created automatically). Supports local folder, **Google Drive** (sign in once), and **rclone** (Dropbox, OneDrive, MEGA, S3, Backblaze B2, SFTP, and 70+ other backends — click a provider shortcut to pre-fill the remote format, then hit Setup in Terminal to configure it without leaving the app). **All Save Locations** scans every known emu save path (CODEX, EMPRESS, RUNE, OnlineFix, Goldberg, GSE, Steam userdata) and backs them all up in one operation.
 - **VDF Key Extractor** — extract depot decryption keys from Steam's config.vdf.
 - Lua/manifest processing, AppList management, and library tools all accessible from buttons.
 - Full settings dialog where you can edit, delete, export, and import all settings.
@@ -133,6 +136,8 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in the latest update.
 [Multiplayer Fix](docs/MULTIPLAYER_FIX.md) – Using the online-fix.me multiplayer fix.
 
 [Fixes/Bypasses (Ryuu)](docs/RYUU_FIX.md) – Using Ryuu as a free, no-account alternative fix source.
+
+[HyperVisor Guide](docs/HV_GUIDE.md) – How HV cracks work, security implications, and step-by-step setup for Denuvo HyperVisor bypasses.
 
 [DLC Unlockers](docs/dlc_unlockers/README.md) – Using DLC unlockers (CreamInstaller-style).
 

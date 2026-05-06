@@ -7,6 +7,7 @@ window.FixGame = (function() {
     'use strict';
 
     var _initialized = false;
+    var _pendingPreSelect = null;
 
     function init() {
         if (_initialized) return;
@@ -138,7 +139,17 @@ window.FixGame = (function() {
                         if (game.app_id) opt.dataset.appid = game.app_id;
                         select.appendChild(opt);
                     });
-                    if (current) {
+                    if (_pendingPreSelect) {
+                        var pending = _pendingPreSelect;
+                        _pendingPreSelect = null;
+                        for (var i = 0; i < select.options.length; i++) {
+                            if (select.options[i].dataset.appid === String(pending)) {
+                                select.value = select.options[i].value;
+                                select.dispatchEvent(new Event('change', { bubbles: true }));
+                                break;
+                            }
+                        }
+                    } else if (current) {
                         select.value = current;
                         if (select.value === current) {
                             select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -207,8 +218,13 @@ window.FixGame = (function() {
         }
     }
 
+    function preSelect(appId) {
+        _pendingPreSelect = appId ? String(appId) : null;
+    }
+
     return {
         init: init,
-        onPageEnter: onPageEnter
+        onPageEnter: onPageEnter,
+        preSelect: preSelect
     };
 })();

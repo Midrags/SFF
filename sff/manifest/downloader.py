@@ -208,7 +208,7 @@ class ManifestDownloader:
             if resp.status_code == 200 and resp.content:
                 print(
                     Fore.GREEN
-                    + f"✅ Hubcap on-demand: got manifest for depot {depot_id}"
+                    + f"[OK] Hubcap on-demand: got manifest for depot {depot_id}"
                     + Style.RESET_ALL
                 )
                 return resp.content
@@ -348,7 +348,7 @@ class ManifestDownloader:
             if resp.status_code == 200 and resp.content:
                 print(
                     Fore.GREEN
-                    + f"✅ ManifestHub: got manifest for depot {depot_id}"
+                    + f"[OK] ManifestHub: got manifest for depot {depot_id}"
                     + Style.RESET_ALL
                 )
                 return resp.content

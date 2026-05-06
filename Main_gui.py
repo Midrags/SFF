@@ -34,7 +34,7 @@ if sys.stdout is None:
 
 
 os.environ.setdefault('QTWEBENGINE_DISABLE_SANDBOX', '1')
-os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--no-sandbox --disable-gpu')
+os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--no-sandbox --ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy')
 
 import PyQt6.QtWebEngineWidgets  # noqa: F401 - must import before QCoreApplication
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
@@ -144,15 +144,19 @@ def main():
     ui = UI(provider, steam_path, os_type)
     app.aboutToQuit.connect(ui.kill_midi_player)
 
+    app.setQuitOnLastWindowClosed(False)
+
     window = SFFMainWindow(ui, steam_path)
     window.show()
 
     from sff.tray_icon import TrayIcon
     tray = TrayIcon()
+    tray.setup(app.windowIcon())
+    window.set_tray(tray)
     tray.show_requested.connect(window.showNormal)
     tray.show_requested.connect(window.activateWindow)
     tray.exit_requested.connect(app.quit)
-    tray.show()
+    tray.exit_requested.connect(window.force_quit)
 
     from sff.uri_handler import UriHandler
     if not UriHandler.is_registered():

@@ -1,6 +1,6 @@
 # SteaMidra User Guide
 
-## Modern UI (new in 5.5.0, updated in 5.8.0)
+## Modern UI (new in 5.5.0, updated in 6.0.0)
 
 SteaMidra 5.5.0 introduced a new browser-based interface built with QWebEngine. It launches by default alongside the classic interface. Navigate using the sidebar on the left.
 
@@ -23,7 +23,21 @@ SteaMidra 5.5.0 introduced a new browser-based interface built with QWebEngine. 
 
 **Cloud Saves** — enter your Steam path and Steam32 ID, then scan. Select a game from the results to back up its `remote/` folder to a destination of your choice, or restore from a previous backup (a safety backup is created automatically before any overwrite).
 
-**Settings** — change theme (11+ options), Steam path, API keys, AppList profiles, and all other preferences. Settings apply immediately.
+Providers:
+
+- **Local folder** — pick any folder on your machine or network drive.
+- **Google Drive** — select Google Drive in the provider grid and click Connect. Sign in once in the browser that opens. Backups go to a `SteaMidra Backups/` folder in your Drive.
+- **rclone** — supports 70+ cloud backends including Dropbox, OneDrive, MEGA, pCloud, Backblaze B2, Amazon S3, SFTP, and more. Setup flow:
+  1. Select rclone in the provider grid. SteaMidra auto-fills the bundled `rclone.exe` path.
+  2. Click a provider chip (Dropbox, OneDrive, MEGA, etc.) to pre-fill the remote destination format.
+  3. Click **Setup in Terminal** — a terminal window opens running `rclone config`. Follow the prompts to name and authenticate your remote (takes about 2 minutes).
+  4. Click **Load Remotes** to pull your configured remotes into autocomplete.
+  5. Select your remote from the dropdown or type it in, then click **Test** to confirm it works.
+  6. Click **Save Provider Config**, then back up normally.
+
+**All Save Locations** (at the bottom of the tab): click Scan All to find saves across all known emu save paths — CODEX, EMPRESS, RUNE, OnlineFix, Goldberg, GSE, and Steam userdata. Check the rows you want, pick a destination, and click Backup. To restore, scan an existing backup root and pick a location and game from the dropdowns.
+
+**Settings** — change theme (11+ options), Steam path, API keys, AppList profiles, and all other preferences. Settings apply immediately. Language changes take effect without restarting the app.
 
 ---
 

@@ -165,7 +165,7 @@ class VersionPickerDialog(QDialog):
         self._checkboxes: list[tuple[str, str, QCheckBox]] = []  # (depot_id, manifest_id, chk)
         if not self.depot_history:
             layout.addWidget(QLabel(
-                "⚠️  No manifest history found for this game.\n"
+                "[!] No manifest history found for this game.\n"
                 "This game has no entries in the GitHub mirror or local fallback, and "
                 "Steam CM returned no depot data."
             ))
@@ -247,7 +247,7 @@ class VersionPickerDialog(QDialog):
                     return _handler
                 master_chk.stateChanged.connect(_make_handler(group_start, group_count))
                 # ---- "+ Add depot manually" row ----
-                add_btn = QPushButton("\uff0b  Add depot manually\u2026")
+                add_btn = QPushButton("+  Add depot manually…")
                 add_btn.setStyleSheet(
                     "QPushButton { color: #8888aa; border: none; text-align: left;"
                     " padding: 2px 10px; background: transparent; }"
@@ -297,12 +297,12 @@ class VersionPickerDialog(QDialog):
             self._table.setCellWidget(add_row, 0, cw)
             self._table.setItem(add_row, 1, QTableWidgetItem(depot_id))
             self._table.setItem(add_row, 2, QTableWidgetItem(manifest_id))
-            self._table.setItem(add_row, 3, QTableWidgetItem("\u2014"))
+            self._table.setItem(add_row, 3, QTableWidgetItem("—"))
             self._table.setItem(add_row, 4, QTableWidgetItem(group.branch))
             src_item = QTableWidgetItem("Manual")
             src_item.setForeground(QBrush(QColor("#ffaa44")))
             self._table.setItem(add_row, 5, src_item)
-            self._table.setItem(add_row, 6, QTableWidgetItem("\u2013"))
+            self._table.setItem(add_row, 6, QTableWidgetItem("—"))
             self._checkboxes.append((depot_id, manifest_id, chk))
         return _handler
 
@@ -381,7 +381,7 @@ class VersionPickerDialog(QDialog):
         self._status_label.setText(f"Done — {ok}/{total} manifests downloaded.")
         if ok == total:
             QMessageBox.information(self, "Done",
-                f"✅ All {total} selected manifests downloaded to depotcache.\n"
+                f"[OK] All {total} selected manifests downloaded to depotcache.\n"
                 "Restart Steam to load them.")
         else:
             QMessageBox.warning(self, "Partial",
@@ -418,13 +418,13 @@ class _ManifestDownloadWorker(QObject):
                         written = dl._write_manifest_to_depotcache(raw, depot_id, manifest_id)
                         if written:
                             ok += 1
-                            self.progress.emit(f"  ✅ {depot_id}_{manifest_id}.manifest saved")
+                            self.progress.emit(f"  [OK] {depot_id}_{manifest_id}.manifest saved")
                         else:
-                            self.progress.emit(f"  ⚠️ Depot {depot_id}: write failed")
+                            self.progress.emit(f"  [!] Depot {depot_id}: write failed")
                     else:
-                        self.progress.emit(f"  ❌ Depot {depot_id}: all sources failed")
+                        self.progress.emit(f"  [FAIL] Depot {depot_id}: all sources failed")
                 except Exception as e:
-                    self.progress.emit(f"  ❌ Depot {depot_id}: {e}")
+                    self.progress.emit(f"  [FAIL] Depot {depot_id}: {e}")
         except Exception as e:
             self.progress.emit(f"Fatal error: {e}")
         self.finished.emit(ok, total)
@@ -538,7 +538,7 @@ class StoreTab(QWidget):
         layout.addLayout(page_layout)
         # download action row
         dl_row = QHBoxLayout()
-        self._dl_btn = QPushButton("⬇  Download (choose version)…")
+        self._dl_btn = QPushButton("Download (choose version)...")
         self._dl_btn.setToolTip(
             "Select a game in the table or enter an App ID below, then choose a version "
             "to download (sources: Steam CM, GitHub mirror, local fallback, SteamDB)"
@@ -546,7 +546,7 @@ class StoreTab(QWidget):
         self._dl_btn.setEnabled(True)
         self._dl_btn.clicked.connect(self._open_version_picker)
         dl_row.addWidget(self._dl_btn)
-        self._refresh_btn = QPushButton("🔄 Force Refresh")
+        self._refresh_btn = QPushButton("Force Refresh")
         self._refresh_btn.setToolTip(
             "Ignore disk cache and re-fetch all depot manifest history from scratch "
             "(use this if version history seems incomplete or outdated)"

@@ -94,7 +94,7 @@ def get_oureverday(dest, app_id):
     if local_db.exists():
         try:
             keys_dict = json.loads(local_db.read_text(encoding="utf-8"))
-            print(Fore.GREEN + f"✅ Loaded bundled key database ({len(keys_dict):,} entries)." + Style.RESET_ALL)
+            print(Fore.GREEN + f"[OK] Loaded bundled key database ({len(keys_dict):,} entries)." + Style.RESET_ALL)
         except Exception as e:
             print(Fore.YELLOW + f"Failed to load bundled key database ({e})." + Style.RESET_ALL)
     else:
@@ -151,7 +151,7 @@ def get_oureverday(dest, app_id):
     with lua_path.open("w", encoding="utf-8") as f:
         f.write("\n".join(lua_lines))
 
-    print(Fore.GREEN + f"✅ Built custom Lua for {app_id} (Resolved {found} keys natively)" + Style.RESET_ALL)
+    print(Fore.GREEN + f"[OK] Built custom Lua for {app_id} (Resolved {found} keys natively)" + Style.RESET_ALL)
     return lua_path
 
 

@@ -18,6 +18,7 @@ window.Store = (function() {
     var _initialized = false;
     var _fallbackToastShown = false;
     var _imagesHidden = false;
+    var _activeGenre = '';
 
     function init() {
         if (_initialized) return;
@@ -81,6 +82,17 @@ window.Store = (function() {
             });
         }
 
+        var genreChips = document.querySelectorAll('.genre-chip');
+        genreChips.forEach(function(chip) {
+            chip.addEventListener('click', function() {
+                _activeGenre = chip.dataset.genre || '';
+                genreChips.forEach(function(c) { c.classList.remove('active'); });
+                chip.classList.add('active');
+                _page = 1;
+                _fetchGames();
+            });
+        });
+
         if (prevBtn) prevBtn.addEventListener('click', function() { if (_page > 1) { _page--; _fetchGames(); } });
         if (nextBtn) nextBtn.addEventListener('click', function() { if (_page < _totalPages) { _page++; _fetchGames(); } });
 
@@ -141,7 +153,10 @@ window.Store = (function() {
     function _fetchGames() {
         _showLoading();
         var offset = (_page - 1) * _perPage;
-        Bridge.call('search_games', _searchQuery, offset, _perPage, _sortBy);
+        var effectiveQuery = _activeGenre
+            ? (_searchQuery ? _searchQuery + ' ' + _activeGenre : _activeGenre)
+            : _searchQuery;
+        Bridge.call('search_games', effectiveQuery, offset, _perPage, _sortBy);
     }
 
     function _renderGames(games) {

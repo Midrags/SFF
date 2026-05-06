@@ -253,3 +253,9 @@ zope-interface==8.0.1
 py7zr==0.22.0
 curl_cffi>=0.7
     # via steam-manifest-decrypt (pyproject.toml) — curl_cffi Chrome impersonation for SteamDB CF bypass
+google-auth>=2.29.0
+    # Google Drive API — OAuth 2.0 token handling
+google-auth-oauthlib>=1.2.0
+    # Google Drive API — InstalledAppFlow for desktop OAuth
+google-api-python-client>=2.126.0
+    # Google Drive API — googleapiclient.discovery

@@ -563,3 +563,478 @@ class CloudSaves:
                 return f"{size_bytes:.1f} {unit}"
             size_bytes /= 1024
         return f"{size_bytes:.1f} TB"
+
+
+# ---------------------------------------------------------------------------
+# All-save-locations backup & restore
+# ---------------------------------------------------------------------------
+
+EMU_SAVE_LOCATIONS = {
+    "Public RUNE":            Path("C:/Users/Public/Documents/RUNE"),
+    "Public OnlineFix":       Path("C:/Users/Public/Documents/OnlineFix"),
+    "Public Steam EMPRESS":   Path("C:/Users/Public/Documents/Steam/EMPRESS"),
+    "Public Steam CODEX":     Path("C:/Users/Public/Documents/Steam/CODEX"),
+    "Public CODEX":           Path("C:/Users/Public/Documents/CODEX"),
+    "Public EMPRESS":         Path("C:/Users/Public/Documents/EMPRESS"),
+    "Public Steam RUNE":      Path("C:/Users/Public/Documents/Steam/RUNE"),
+    "Public Steam OnlineFix": Path("C:/Users/Public/Documents/Steam/OnlineFix"),
+    "GSE Saves":              Path(os.environ.get("APPDATA", "")) / "GSE Saves",
+    "Goldberg SteamEmu Saves": Path(os.environ.get("APPDATA", "")) / "Goldberg SteamEmu Saves",
+    "Goldberg SocialClub Emu Saves": Path(os.environ.get("APPDATA", "")) / "Goldberg SocialClub Emu Saves",
+}
+
+_BACKUP_ROOT = Path(os.environ.get("APPDATA", "")) / "SteaMidra" / "save_backups"
+
+
+def _resolve_game_name(folder_name, name_map_cache=None):
+    """
+    Given a subfolder name, return (app_id_or_none, game_name, label).
+    Numeric → resolve from cache layers. String → use as-is.
+    name_map_cache is an optional {int: str} dict from ACF / FixGameCache / all_games.
+    """
+    if folder_name.isdigit():
+        app_id = int(folder_name)
+        name = None
+        if name_map_cache:
+            name = name_map_cache.get(app_id)
+        if not name:
+            games_db = _load_all_games_cache()
+            name = games_db.get(app_id)
+        if not name:
+            try:
+                from sff.fix_game.cache import FixGameCache
+                info = FixGameCache().load_app_info(app_id)
+                if info and info.name:
+                    name = info.name
+            except Exception:
+                pass
+        game_name = name or f"App {app_id}"
+        label = f"{app_id} - {game_name}"
+        return app_id, game_name, label
+    else:
+        return None, folder_name, folder_name
+
+
+def scan_all_save_locations(steam_path=None, steam32_id=None):
+    """
+    Scan all EMU_SAVE_LOCATIONS plus Steam userdata.
+    Returns list of dicts:
+      {location, folder_name, app_id, game_name, label, source_path, file_count}
+    """
+    results = []
+
+    # Steam userdata
+    if steam_path and steam32_id:
+        userdata_dir = Path(steam_path) / "userdata" / str(steam32_id)
+        if userdata_dir.exists():
+            try:
+                name_map = {}
+                try:
+                    from sff.storage.vdf import get_steam_libs, vdf_load
+                    steam_root = Path(steam_path)
+                    libs = get_steam_libs(steam_root)
+                    if steam_root not in libs:
+                        libs = [steam_root] + list(libs)
+                    for lib in libs:
+                        for acf in (lib / "steamapps").glob("appmanifest_*.acf"):
+                            try:
+                                appid_str = acf.stem.split("_", 1)[1]
+                                if not appid_str.isdigit():
+                                    continue
+                                appid = int(appid_str)
+                                if appid not in name_map:
+                                    data = vdf_load(acf)
+                                    n = data.get("AppState", {}).get("name", "")
+                                    if n:
+                                        name_map[appid] = n
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+                for item in userdata_dir.iterdir():
+                    if not item.is_dir() or not item.name.isdigit():
+                        continue
+                    appid = int(item.name)
+                    if appid == 0:
+                        continue
+                    remote = item / "remote"
+                    files = [f for f in item.rglob("*") if f.is_file()] if not remote.exists() else [f for f in remote.rglob("*") if f.is_file()]
+                    if not files:
+                        continue
+                    app_id, game_name, label = _resolve_game_name(item.name, name_map)
+                    results.append({
+                        "location": "Steam Userdata",
+                        "folder_name": item.name,
+                        "app_id": app_id,
+                        "game_name": game_name,
+                        "label": label,
+                        "source_path": str(item),
+                        "file_count": len(files),
+                    })
+            except Exception as e:
+                logger.warning("scan Steam userdata: %s", e)
+
+    # EMU locations
+    for loc_name, base_path in EMU_SAVE_LOCATIONS.items():
+        if not base_path.exists():
+            continue
+        try:
+            for item in base_path.iterdir():
+                if not item.is_dir():
+                    continue
+                files = [f for f in item.rglob("*") if f.is_file()]
+                if not files:
+                    continue
+                app_id, game_name, label = _resolve_game_name(item.name)
+                results.append({
+                    "location": loc_name,
+                    "folder_name": item.name,
+                    "app_id": app_id,
+                    "game_name": game_name,
+                    "label": label,
+                    "source_path": str(item),
+                    "file_count": len(files),
+                })
+        except Exception as e:
+            logger.warning("scan %s: %s", loc_name, e)
+
+    return results
+
+
+def _make_meta(app_id, game_name, source_path, location):
+    import datetime
+    return {
+        "app_id": app_id,
+        "game_name": game_name,
+        "source_path": str(source_path),
+        "location": location,
+        "backed_up_at": datetime.datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+def backup_save_location_local(entry, dest_root, log_func=None):
+    """
+    Copy one save entry to dest_root/SteaMidraAllSaves/{location}/{label}/.
+    Skips files that are already up-to-date (same size and backup is not older).
+    Returns dest folder path on success, None on failure.
+    """
+    log = log_func or (lambda m: None)
+    src = Path(entry["source_path"])
+    if not src.exists():
+        log(f"[!] Source not found: {src}")
+        return None
+    label = entry["label"]
+    location = entry["location"]
+    dest = Path(dest_root) / "SteaMidraAllSaves" / location / label
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        copied = 0
+        skipped = 0
+        for f in src.rglob("*"):
+            if f.is_file():
+                rel = f.relative_to(src)
+                target = dest / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if target.exists():
+                    src_stat = f.stat()
+                    dst_stat = target.stat()
+                    if src_stat.st_size == dst_stat.st_size and src_stat.st_mtime <= dst_stat.st_mtime:
+                        skipped += 1
+                        continue
+                shutil.copy2(f, target)
+                copied += 1
+        meta_path = dest / "steamidra_meta.json"
+        meta_path.write_text(
+            json.dumps(_make_meta(entry.get("app_id"), entry["game_name"], src, location), indent=2),
+            encoding="utf-8"
+        )
+        if skipped:
+            log(f"  Backed up {copied} file(s), skipped {skipped} unchanged: {label}")
+        else:
+            log(f"  Backed up {copied} file(s): {label}")
+        return str(dest)
+    except Exception as e:
+        log(f"  [FAIL] {label}: {e}")
+        return None
+
+
+def backup_save_location_rclone(entry, rclone_exe, remote_dest, log_func=None):
+    """Upload one save entry via rclone to remote_dest:SteaMidraAllSaves/{location}/{label}/."""
+    import subprocess
+    import tempfile
+    log = log_func or (lambda m: None)
+    src = Path(entry["source_path"])
+    if not src.exists():
+        log(f"[!] Source not found: {src}")
+        return False
+    label = entry["label"]
+    location = entry["location"]
+    remote_path = remote_dest.rstrip("/") + f"/SteaMidraAllSaves/{location}/{label}"
+    try:
+        proc = subprocess.run(
+            [
+                rclone_exe, "copy", str(src), remote_path,
+                "--update",
+                "--transfers", "9", "--checkers", "18",
+                "--create-empty-src-dirs",
+                "--fast-list",
+            ],
+            capture_output=True, text=True, timeout=300,
+        )
+        if proc.returncode != 0:
+            log(f"  [FAIL] rclone exit {proc.returncode}: {proc.stderr[:200]}")
+            return False
+        meta_tmp = Path(tempfile.mkdtemp(prefix="steamidra_meta_"))
+        try:
+            meta_file = meta_tmp / "steamidra_meta.json"
+            meta_file.write_text(
+                json.dumps(_make_meta(entry.get("app_id"), entry["game_name"], src, location), indent=2),
+                encoding="utf-8",
+            )
+            subprocess.run(
+                [rclone_exe, "copyto", str(meta_file), remote_path + "/steamidra_meta.json",
+                 "--no-update-modtime"],
+                capture_output=True, text=True, timeout=30,
+            )
+        finally:
+            shutil.rmtree(meta_tmp, ignore_errors=True)
+        log(f"  Uploaded: {label} → {remote_path}")
+        return True
+    except Exception as e:
+        log(f"  [FAIL] {label}: {e}")
+        return False
+
+
+def backup_save_location_gdrive(entry, service, backup_root_id, log_func=None, folder_cache=None):
+    """Upload one save entry via Google Drive API with smart sync (skip unchanged, update changed)."""
+    import tempfile
+    from sff.google_drive import get_or_create_folder, upload_folder, upload_file
+    log = log_func or (lambda m: None)
+    src = Path(entry["source_path"])
+    if not src.exists():
+        log(f"[!] Source not found: {src}")
+        return False
+    label = entry["label"]
+    location = entry["location"]
+    local_fc = dict(folder_cache) if folder_cache is not None else {}
+    try:
+        loc_cache_key = (location, backup_root_id)
+        if loc_cache_key in local_fc:
+            loc_folder_id = local_fc[loc_cache_key]
+        else:
+            loc_folder_id = get_or_create_folder(service, location, backup_root_id)
+            if loc_folder_id:
+                local_fc[loc_cache_key] = loc_folder_id
+        if not loc_folder_id:
+            log(f"  [FAIL] Could not create Drive folder for {location}")
+            return False
+        ok = upload_folder(service, src, loc_folder_id, log_func=log, folder_cache=local_fc, drive_folder_name=label)
+        if ok:
+            game_folder_id = local_fc.get((label, loc_folder_id))
+            if game_folder_id:
+                meta_tmp = Path(tempfile.mkdtemp(prefix="steamidra_meta_"))
+                try:
+                    meta_path = meta_tmp / "steamidra_meta.json"
+                    meta_path.write_text(
+                        json.dumps(_make_meta(entry.get("app_id"), entry["game_name"], src, location), indent=2),
+                        encoding="utf-8",
+                    )
+                    upload_file(service, meta_path, game_folder_id, log_func=log)
+                finally:
+                    shutil.rmtree(meta_tmp, ignore_errors=True)
+            log(f"  Synced to Drive: {label}")
+        if folder_cache is not None:
+            folder_cache.update(local_fc)
+        return ok
+    except Exception as e:
+        log(f"  [FAIL] {label}: {e}")
+        return False
+
+
+def scan_backup_root_rclone(rclone_exe, remote_dest):
+    """Scan an rclone remote for SteaMidraAllSaves structure.
+    Downloads all steamidra_meta.json files at once, then parses them locally.
+    Returns same structure as scan_backup_root_local.
+    """
+    import subprocess
+    import tempfile
+    remote_root = remote_dest.rstrip("/") + "/SteaMidraAllSaves"
+    tmp = Path(tempfile.mkdtemp(prefix="steamidra_scan_"))
+    try:
+        subprocess.run(
+            [
+                rclone_exe, "copy", remote_root, str(tmp),
+                "--include", "steamidra_meta.json",
+                "--fast-list",
+                "--transfers", "10",
+            ],
+            capture_output=True, text=True, timeout=120,
+        )
+        result = {}
+        if not tmp.exists():
+            return result
+        for loc_dir in sorted(tmp.iterdir()):
+            if not loc_dir.is_dir():
+                continue
+            games = []
+            for game_dir in sorted(loc_dir.iterdir()):
+                if not game_dir.is_dir():
+                    continue
+                meta = {}
+                meta_file = game_dir / "steamidra_meta.json"
+                if meta_file.exists():
+                    try:
+                        meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                    except Exception:
+                        pass
+                game_remote = remote_root + "/" + loc_dir.name + "/" + game_dir.name
+                games.append({
+                    "folder_path": game_remote,
+                    "folder_name": game_dir.name,
+                    "app_id": meta.get("app_id"),
+                    "game_name": meta.get("game_name", game_dir.name),
+                    "source_path": meta.get("source_path", ""),
+                    "backed_up_at": meta.get("backed_up_at", ""),
+                    "rclone_path": game_remote,
+                })
+            if games:
+                result[loc_dir.name] = {
+                    "folder_path": remote_root + "/" + loc_dir.name,
+                    "games": games,
+                }
+        return result
+    except Exception:
+        return {}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def scan_backup_root_local(backup_root):
+    """
+    Scan a local SteaMidraAllSaves root folder.
+    Returns same structure as google_drive.list_backup_locations.
+    """
+    root = Path(backup_root) / "SteaMidraAllSaves"
+    if not root.exists():
+        return {}
+    result = {}
+    for loc_dir in sorted(root.iterdir()):
+        if not loc_dir.is_dir():
+            continue
+        games = []
+        for game_dir in sorted(loc_dir.iterdir()):
+            if not game_dir.is_dir():
+                continue
+            meta = {}
+            meta_file = game_dir / "steamidra_meta.json"
+            if meta_file.exists():
+                try:
+                    meta = json.loads(meta_file.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+            games.append({
+                "folder_path": str(game_dir),
+                "folder_name": game_dir.name,
+                "app_id": meta.get("app_id"),
+                "game_name": meta.get("game_name", game_dir.name),
+                "source_path": meta.get("source_path", ""),
+                "backed_up_at": meta.get("backed_up_at", ""),
+            })
+        result[loc_dir.name] = {"folder_path": str(loc_dir), "games": games}
+    return result
+
+
+def restore_save_entry(game_entry, log_func=None):
+    """
+    Restore files from a backup game entry to their original source_path.
+    game_entry must have 'source_path' and either 'folder_path' (local) or 'folder_id' (GDrive).
+    Creates a safety backup of the current saves first.
+    """
+    log = log_func or (lambda m: None)
+    dest = Path(game_entry.get("source_path", ""))
+    if not dest:
+        log("[FAIL] No source_path in entry — cannot restore.")
+        return False
+
+    rclone_path = game_entry.get("rclone_path")
+    rclone_exe = game_entry.get("rclone_exe", "").strip()
+    folder_id = game_entry.get("folder_id")
+    folder_path = game_entry.get("folder_path")
+
+    if rclone_path and rclone_exe:
+        import subprocess
+        import tempfile
+        tmp = Path(tempfile.mkdtemp(prefix="steamidra_restore_"))
+        try:
+            log("Downloading from rclone remote...")
+            proc = subprocess.run(
+                [
+                    rclone_exe, "copy", rclone_path, str(tmp),
+                    "--exclude", "steamidra_meta.json",
+                    "--transfers", "10", "--fast-list",
+                ],
+                capture_output=True, text=True, timeout=300,
+            )
+            if proc.returncode != 0:
+                log(f"[FAIL] rclone download failed: {proc.stderr[:200]}")
+                return False
+            return _do_restore_copy(tmp, dest, log)
+        except Exception as e:
+            log(f"[FAIL] rclone restore: {e}")
+            return False
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    elif folder_id:
+        # Google Drive restore — download to temp then copy
+        import tempfile
+        from sff.google_drive import get_service, download_folder
+        service = get_service()
+        if not service:
+            log("[FAIL] Google Drive not connected.")
+            return False
+        tmp = Path(tempfile.mkdtemp(prefix="steamidra_restore_"))
+        try:
+            log("Downloading from Google Drive...")
+            if not download_folder(service, folder_id, tmp, log_func=log):
+                log("[FAIL] Download failed.")
+                return False
+            src = tmp
+            return _do_restore_copy(src, dest, log)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    elif folder_path:
+        src = Path(folder_path)
+        if not src.exists():
+            log(f"[FAIL] Backup folder not found: {src}")
+            return False
+        return _do_restore_copy(src, dest, log)
+    else:
+        log("[FAIL] No folder_path or folder_id in entry.")
+        return False
+
+
+def _do_restore_copy(src, dest, log):
+    if dest.exists():
+        import time
+        safety_ts = time.strftime("%Y%m%d_%H%M%S")
+        safety = _BACKUP_ROOT / "pre_restore_all" / f"{dest.name}_{safety_ts}"
+        try:
+            shutil.copytree(dest, safety, dirs_exist_ok=True)
+            log(f"Safety backup → {safety}")
+        except Exception as e:
+            log(f"Warning: safety backup failed ({e}), proceeding anyway")
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        restored = 0
+        for f in src.rglob("*"):
+            if f.is_file() and f.name != "steamidra_meta.json":
+                rel = f.relative_to(src)
+                target = dest / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, target)
+                restored += 1
+        log(f"Restored {restored} file(s) to {dest}")
+        return True
+    except Exception as e:
+        log(f"[FAIL] Restore copy failed: {e}")
+        return False

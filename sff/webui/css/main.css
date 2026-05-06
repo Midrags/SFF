@@ -8,7 +8,11 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-    background: var(--bg);
+    background-color: var(--bg, #141414);
+    background-size: cover;
+    background-position: center;
+
+    background-repeat: no-repeat;
     color: var(--fg);
     display: flex;
     min-height: 100vh;
@@ -686,6 +690,23 @@ input:focus, select:focus {
     min-width: 160px;
 }
 
+.store-options .custom-select {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 150px;
+}
+
+.profile-controls .custom-select {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 180px;
+}
+
+.settings-section .input-group .custom-select {
+    width: auto;
+    max-width: 260px;
+}
+
 .view-toggle {
     display: flex;
     gap: 4px;
@@ -694,6 +715,36 @@ input:focus, select:focus {
 
 .view-toggle .btn {
     height: 100%;
+}
+
+.genre-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.genre-chip {
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--fg);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.genre-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.genre-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
 }
 
 .connect-banner {
@@ -988,6 +1039,109 @@ input:focus, select:focus {
 
 /* ── Cloud Saves ────────────────────────────────────── */
 
+.provider-section {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.provider-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.provider-card {
+    background: var(--btn-bg);
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    user-select: none;
+}
+
+.provider-card:hover {
+    border-color: var(--accent);
+}
+
+.provider-card.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
+.provider-icon {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    margin-bottom: 4px;
+}
+
+.provider-name {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.provider-desc {
+    font-size: 11px;
+    opacity: 0.75;
+}
+
+.provider-card.active .provider-desc {
+    opacity: 0.9;
+}
+
+.provider-config {
+    margin-top: 4px;
+    animation: fadeIn 0.15s ease;
+}
+
+.rclone-provider-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.rclone-chip {
+    font-size: 0.78rem;
+    padding: 4px 10px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+}
+
+.rclone-chip:hover {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
+.rclone-chip.active {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
 .cloudsaves-setup {
     background: var(--card-bg);
     border: 1px solid var(--border);
@@ -1039,6 +1193,10 @@ input:focus, select:focus {
 
 .theme-swatch.active {
     border-color: var(--accent);
+}
+
+.theme-swatch-photo {
+    text-shadow: 0 1px 4px rgba(0,0,0,0.9);
 }
 
 .profile-controls {

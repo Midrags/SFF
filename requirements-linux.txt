@@ -85,3 +85,6 @@ zope-event==6.0
 zope-interface==8.0.1
 py7zr==0.22.0
 curl_cffi>=0.7
+google-auth>=2.29.0
+google-auth-oauthlib>=1.2.0
+google-api-python-client>=2.126.0

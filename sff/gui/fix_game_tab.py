@@ -332,7 +332,7 @@ class FixGameTab(QWidget):
         mode_layout.addStretch()
         opt_layout.addLayout(mode_layout)
         mode_tip = QLabel(
-            "💡 Tip: <b>ColdClient Simple</b> works for most games — fetches DLC from Steam API, "
+            "Tip: <b>ColdClient Simple</b> works for most games — fetches DLC from Steam API, "
             "no login needed. Use <b>ColdClient Advanced</b> for the best DLC/achievement "
             "coverage (requires the bundled GSE Fork tool). <b>Regular</b> is the simplest "
             "but fails on games that require steamclient.dll."

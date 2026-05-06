@@ -574,7 +574,6 @@ class GameHandler:
                 "  - These changes lower Windows kernel protections.\n"
                 "  - Only do this on a personal PC you control.\n"
                 "  - Revert changes after each play session using VBS.cmd > Revert Changes.\n"
-                "  - Disable your network connection while playing (unplug cable or disable WiFi).\n"
                 "  - Scan your system with an AV before running the crack.\n"
                 "  - Most kernel anti-cheats (FACEIT, Vanguard) will not work while DSE is off.\n\n"
                 "The included VBS.cmd (v1.6.2) handles all security setting changes\n"
@@ -583,8 +582,8 @@ class GameHandler:
                 "  https://cs.rin.ru/forum/viewtopic.php?f=10&t=156407\n"
             )
             print(Fore.RED + warning + Style.RESET_ALL)
-            print(Fore.YELLOW + "This dialog closes in 15 seconds..." + Style.RESET_ALL)
-            for i in range(15, 0, -1):
+            print(Fore.YELLOW + "This dialog closes in 20 seconds..." + Style.RESET_ALL)
+            for i in range(20, 0, -1):
                 print(f"\r  {i}s remaining ", end="", flush=True)
                 time.sleep(1)
             print()

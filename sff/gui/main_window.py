@@ -15,11 +15,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
+import logging
 import re
 import sys
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QThread, QUrl, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QTextCursor
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineCore import QWebEngineSettings
@@ -55,6 +56,7 @@ from sff.i18n import T
 from sff.structs import MainMenu, MainReturnCode
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+logger = logging.getLogger(__name__)
 
 
 class StreamEmitter(QObject):
@@ -293,7 +295,7 @@ class SFFMainWindow(QMainWindow):
         refresh_btn = QPushButton(T("Refresh list"))
         refresh_btn.clicked.connect(self._refresh_game_list)
         game_row.addWidget(refresh_btn)
-        quick_cc_btn = QPushButton("⚡ Quick ColdClient")
+        quick_cc_btn = QPushButton("Quick ColdClient")
         quick_cc_btn.setToolTip("Open Fix Game tab with ColdClient mode pre-filled for the selected game")
         quick_cc_btn.clicked.connect(self._quick_coldclient)
         game_row.addWidget(quick_cc_btn)
@@ -403,7 +405,7 @@ class SFFMainWindow(QMainWindow):
             btn = QPushButton(label)
             btn.clicked.connect(lambda checked=False, f=func: self._run_tool(f))
             tools_row1.addWidget(btn)
-        self._mute_btn = QPushButton("🔇 Mute")
+        self._mute_btn = QPushButton("Mute")
         self._mute_btn.clicked.connect(self._toggle_mute)
         tools_row1.addWidget(self._mute_btn)
         tools_row1.addStretch()
@@ -453,13 +455,21 @@ class SFFMainWindow(QMainWindow):
         logs_action = menubar.addAction("Logs")
         logs_action.triggered.connect(self._show_log_window)
         self._stream_emitter.text_written.connect(self._append_log)
-        self._set_theme(self._current_theme)
+        # Only persist the Qt fallback theme if there was no saved theme or the saved
+        # theme is a known Qt theme. Web-only themes (photo themes, extra color themes)
+        # are not in THEMES but must not be overwritten here.
+        _should_save = _saved_theme is None or _saved_theme in THEMES
+        self._set_theme(self._current_theme, save=_should_save)
         self._on_source_changed()
         self._refresh_game_list()
         # Start with new web UI by default — hide menu bar
         menubar.setVisible(False)
         self._load_web_ui()
         self._web_ui_loaded = True
+        self._tray = None
+        self._save_watcher_timer = QTimer(self)
+        self._save_watcher_timer.timeout.connect(self._run_background_save_watcher)
+        self._start_save_watcher()
 
     # ── Path / game source helpers ───────────────────────────────
 
@@ -706,14 +716,15 @@ class SFFMainWindow(QMainWindow):
 
     # ── Theme ────────────────────────────────────────────────────
 
-    def _set_theme(self, key):
+    def _set_theme(self, key, save=True):
         self._current_theme = key
         _, style = THEMES[key]
         self.setStyleSheet(style)
         self.game_combo._update_arrow()
-        from sff.storage.settings import set_setting
-        from sff.structs import Settings as _S
-        set_setting(_S.THEME, key)
+        if save:
+            from sff.storage.settings import set_setting
+            from sff.structs import Settings as _S
+            set_setting(_S.THEME, key)
 
     # ── Log forwarding to web UI ────────────────────────────────
 
@@ -752,7 +763,7 @@ class SFFMainWindow(QMainWindow):
             return
         self._music_muted = not self._music_muted
         self.ui.midi_player.set_muted(self._music_muted)
-        self._mute_btn.setText("🔊 Unmute" if self._music_muted else "🔇 Mute")
+        self._mute_btn.setText("Unmute" if self._music_muted else "Mute")
 
     # ── Settings dialog ──────────────────────────────────────────
 
@@ -938,12 +949,75 @@ class SFFMainWindow(QMainWindow):
                     "Steam path changed. Please restart SteaMidra for all changes to take full effect.",
                 )
         elif s == Settings.LANGUAGE:
-            if parent_widget:
-                QMessageBox.information(
-                    parent_widget,
-                    "Restart Required",
-                    "Language changed. Please restart SteaMidra to apply the new language.",
-                )
+            from sff.i18n import set_language
+            from sff.storage.settings import get_setting
+            set_language(get_setting(Settings.LANGUAGE))
+
+    # ── Tray / close-to-tray ────────────────────────────────────
+
+    def set_tray(self, tray):
+        self._tray = tray
+
+    def force_quit(self):
+        self._save_watcher_timer.stop()
+        self.close()
+
+    def closeEvent(self, event):
+        if self._tray is not None and self._tray.minimize_to_tray:
+            event.ignore()
+            self.hide()
+        else:
+            self._save_watcher_timer.stop()
+            event.accept()
+
+    # ── Background save watcher ──────────────────────────────────
+
+    def _start_save_watcher(self):
+        from sff.storage.settings import get_setting
+        from sff.structs import Settings as _S
+        try:
+            interval_min = int(get_setting(_S.SAVE_WATCHER_INTERVAL) or 10)
+        except (ValueError, TypeError):
+            interval_min = 10
+        self._save_watcher_timer.stop()
+        if interval_min > 0:
+            self._save_watcher_timer.start(interval_min * 60 * 1000)
+
+    def _run_background_save_watcher(self):
+        from sff.storage.settings import get_setting
+        from sff.structs import Settings as _S
+        steam32_id = get_setting(_S.STEAM32_ID)
+        steam_path = getattr(self, 'steam_path', None)
+        if not steam32_id or not steam_path:
+            return
+        userdata_dir = Path(steam_path) / 'userdata' / str(steam32_id)
+        if not userdata_dir.exists():
+            return
+        try:
+            from sff.cloud_saves import CloudSaves
+            cs = CloudSaves()
+            backed_up = 0
+            for app_dir in userdata_dir.iterdir():
+                if not app_dir.is_dir():
+                    continue
+                remote_dir = app_dir / 'remote'
+                if not remote_dir.exists():
+                    continue
+                all_files = [f for f in remote_dir.rglob('*') if f.is_file()]
+                if not all_files:
+                    continue
+                last_mtime = max(f.stat().st_mtime for f in all_files)
+                existing = cs.get_backups(app_dir.name)
+                if existing:
+                    newest_ts = max(b.timestamp for b in existing)
+                    if last_mtime <= newest_ts:
+                        continue
+                cs.backup(app_dir.name, str(remote_dir))
+                backed_up += 1
+            if backed_up:
+                logger.debug('Save watcher: backed up %d game(s)', backed_up)
+        except Exception:
+            logger.debug('Save watcher error', exc_info=True)
 
     # ── About ────────────────────────────────────────────────────
 
