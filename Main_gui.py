@@ -21,6 +21,8 @@ import os
 import sys
 from pathlib import Path
 
+from PyQt6.QtGui import QIcon
+
 
 class _NullWriter:
     def write(self, *a): pass
@@ -103,6 +105,20 @@ def main():
     app.setApplicationName("SteaMidra")
     app.setApplicationDisplayName("SteaMidra")
 
+    from sff.single_instance import SingleInstanceGuard
+    _guard = SingleInstanceGuard()
+    if _guard.try_activate_existing():
+        sys.exit(0)
+
+    _app_icon = QIcon()
+    for _ic in ("SFF.ico", "SFF.png"):
+        _candidate = QIcon(str(Path(_ic)))
+        if not _candidate.isNull():
+            _app_icon = _candidate
+            break
+    if not _app_icon.isNull():
+        app.setWindowIcon(_app_icon)
+
     os_type = (
         OSType.WINDOWS
         if sys.platform == "win32"
@@ -151,12 +167,20 @@ def main():
 
     from sff.tray_icon import TrayIcon
     tray = TrayIcon()
-    tray.setup(app.windowIcon())
+    tray.setup(_app_icon if not _app_icon.isNull() else app.windowIcon())
     window.set_tray(tray)
     tray.show_requested.connect(window.showNormal)
     tray.show_requested.connect(window.activateWindow)
     tray.exit_requested.connect(app.quit)
     tray.exit_requested.connect(window.force_quit)
+
+    def _on_show_from_second_instance():
+        window.showNormal()
+        window.activateWindow()
+        window.raise_()
+
+    _guard.start_server(_on_show_from_second_instance)
+    app.aboutToQuit.connect(_guard.cleanup)
 
     from sff.uri_handler import UriHandler
     if not UriHandler.is_registered():

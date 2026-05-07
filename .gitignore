@@ -97,3 +97,5 @@ GLDLL/
 GLDLL_Analysis/
 diff_gl.py
 diff_output.txt
+_gc.py
+sff/_gc.py"

@@ -1,5 +1,20 @@
 # Changelog
 
+## 6.0.1
+
+### System Tray
+
+- **Minimize to tray** — closing the window now hides it to the system tray instead of leaving a background process with no visible icon. The SteaMidra icon appears in the notification area (bottom right).
+- **Single instance** — launching the exe while SteaMidra is already running brings the existing window to the front. No duplicate processes.
+- **Exit from tray** — clicking Exit in the tray context menu now terminates the process correctly.
+
+### Cloud Saves — Auto Backup
+
+- **Background auto-backup** — SteaMidra checks your saves every 10 minutes (configurable in Settings). If saves changed since the last backup, it backs them up automatically using the cloud provider you last used in the Cloud Saves tab (local folder, rclone, or Google Drive). If you have not run a manual backup yet, the watcher skips silently until you do.
+- Cloud backup runs in a background thread so the app stays responsive.
+
+---
+
 ## 6.0.0
 
 ### Cloud Saves — Google Drive Support

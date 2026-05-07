@@ -91,6 +91,8 @@ a = Analysis(
         'PyQt6.QtWebEngineCore',
         'PyQt6.QtWebEngineWidgets',
         'PyQt6.QtWebChannel',
+        'PyQt6.QtNetwork',
+        'sff.single_instance',
         'prompt_toolkit',
         'selenium',
         'selenium.webdriver',

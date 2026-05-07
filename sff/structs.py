@@ -222,6 +222,7 @@ class Settings(Enum):
     MANIFEST_UPDATE_EXCLUDES = SettingItem("manifest_update_excludes", "Manifest Update Excluded Games", False, str)
     HV_FIRST_USE_WARNED = SettingItem("hv_first_use_warned", "HyperVisor First Use Warning Shown", False, bool)
     SAVE_WATCHER_INTERVAL = SettingItem("save_watcher_interval", "Background Save Watcher Interval (minutes, 0=off)", False, str)
+    LAST_BACKUP_PROVIDER_CONFIG = SettingItem("last_backup_provider_config", "Last Cloud Save Provider Config (managed automatically)", False, str)
 
     @property
     def key_name(self):

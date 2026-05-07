@@ -960,6 +960,8 @@ class SFFMainWindow(QMainWindow):
 
     def force_quit(self):
         self._save_watcher_timer.stop()
+        if self._tray is not None:
+            self._tray.minimize_to_tray = False
         self.close()
 
     def closeEvent(self, event):
@@ -984,40 +986,123 @@ class SFFMainWindow(QMainWindow):
             self._save_watcher_timer.start(interval_min * 60 * 1000)
 
     def _run_background_save_watcher(self):
+        import threading
+        t = threading.Thread(target=self._do_background_save_backup, daemon=True)
+        t.start()
+
+    def _do_background_save_backup(self):
+        import json
         from sff.storage.settings import get_setting
         from sff.structs import Settings as _S
         steam32_id = get_setting(_S.STEAM32_ID)
         steam_path = getattr(self, 'steam_path', None)
+        provider_config_raw = get_setting(_S.LAST_BACKUP_PROVIDER_CONFIG)
         if not steam32_id or not steam_path:
             return
+        try:
+            if provider_config_raw:
+                cfg = json.loads(provider_config_raw)
+                self._cloud_save_backup(cfg, steam_path, steam32_id)
+            else:
+                self._local_save_backup(steam_path, steam32_id)
+        except Exception:
+            logger.debug('Save watcher error', exc_info=True)
+
+    def _local_save_backup(self, steam_path, steam32_id):
+        from sff.cloud_saves import CloudSaves
         userdata_dir = Path(steam_path) / 'userdata' / str(steam32_id)
         if not userdata_dir.exists():
             return
-        try:
-            from sff.cloud_saves import CloudSaves
-            cs = CloudSaves()
-            backed_up = 0
-            for app_dir in userdata_dir.iterdir():
-                if not app_dir.is_dir():
+        cs = CloudSaves()
+        backed_up = 0
+        for app_dir in userdata_dir.iterdir():
+            if not app_dir.is_dir():
+                continue
+            remote_dir = app_dir / 'remote'
+            if not remote_dir.exists():
+                continue
+            all_files = [f for f in remote_dir.rglob('*') if f.is_file()]
+            if not all_files:
+                continue
+            last_mtime = max(f.stat().st_mtime for f in all_files)
+            existing = cs.get_backups(app_dir.name)
+            if existing:
+                newest_ts = max(b.timestamp for b in existing)
+                if last_mtime <= newest_ts:
                     continue
-                remote_dir = app_dir / 'remote'
-                if not remote_dir.exists():
-                    continue
-                all_files = [f for f in remote_dir.rglob('*') if f.is_file()]
-                if not all_files:
-                    continue
-                last_mtime = max(f.stat().st_mtime for f in all_files)
-                existing = cs.get_backups(app_dir.name)
-                if existing:
-                    newest_ts = max(b.timestamp for b in existing)
-                    if last_mtime <= newest_ts:
-                        continue
-                cs.backup(app_dir.name, str(remote_dir))
-                backed_up += 1
-            if backed_up:
-                logger.debug('Save watcher: backed up %d game(s)', backed_up)
-        except Exception:
-            logger.debug('Save watcher error', exc_info=True)
+            cs.backup(app_dir.name, str(remote_dir))
+            backed_up += 1
+        if backed_up:
+            logger.debug('Save watcher (local): backed up %d game(s)', backed_up)
+
+    def _cloud_save_backup(self, cfg, steam_path, steam32_id):
+        from sff.cloud_saves import (
+            scan_all_save_locations,
+            backup_save_location_local,
+            backup_save_location_rclone,
+            backup_save_location_gdrive,
+        )
+        entries = scan_all_save_locations(steam_path=steam_path, steam32_id=steam32_id)
+        if not entries:
+            return
+        provider = cfg.get('provider', 'local').lower()
+        backed_up = 0
+        if provider == 'local':
+            dest_path = cfg.get('dest_path', '')
+            if not dest_path:
+                return
+            for entry in entries:
+                if backup_save_location_local(entry, dest_path):
+                    backed_up += 1
+        elif provider == 'rclone':
+            import subprocess
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            rclone_exe = cfg.get('rclone_exe', '')
+            remote_dest = cfg.get('remote_dest', '')
+            if not rclone_exe or not remote_dest:
+                return
+            unique_locs = list({e['location'] for e in entries})
+            for loc in unique_locs:
+                subprocess.run(
+                    [rclone_exe, 'mkdir',
+                     remote_dest.rstrip('/') + f'/SteaMidraAllSaves/{loc}'],
+                    capture_output=True, timeout=30,
+                )
+            with ThreadPoolExecutor(max_workers=10) as ex:
+                futures = {ex.submit(backup_save_location_rclone, e, rclone_exe, remote_dest): e for e in entries}
+                for fut in as_completed(futures):
+                    try:
+                        if fut.result():
+                            backed_up += 1
+                    except Exception:
+                        pass
+        elif provider == 'gdrive_api':
+            from sff.google_drive import get_service, get_backup_root, is_authenticated, get_or_create_folder
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            if not is_authenticated():
+                return
+            svc = get_service()
+            if not svc:
+                return
+            root_id = get_backup_root(svc)
+            if not root_id:
+                return
+            folder_cache = {}
+            for loc in {e['location'] for e in entries}:
+                loc_id = get_or_create_folder(svc, loc, root_id)
+                if loc_id:
+                    folder_cache[(loc, root_id)] = loc_id
+            with ThreadPoolExecutor(max_workers=10) as ex:
+                futures = {ex.submit(backup_save_location_gdrive, e, get_service(), root_id,
+                                     None, dict(folder_cache)): e for e in entries}
+                for fut in as_completed(futures):
+                    try:
+                        if fut.result():
+                            backed_up += 1
+                    except Exception:
+                        pass
+        if backed_up:
+            logger.debug('Save watcher (%s): backed up %d entries', provider, backed_up)
 
     # ── About ────────────────────────────────────────────────────
 

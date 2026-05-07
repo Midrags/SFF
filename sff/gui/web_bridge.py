@@ -1948,12 +1948,27 @@ class WebBridge(QObject):
 
             ok = failed == 0
             msg = f"Backup complete: {succeeded} succeeded, {failed} failed"
-            return (ok, msg, log_lines)
+            return (ok, msg, log_lines, provider, dest_path, rclone_exe, remote_dest)
 
         def _on_done(result):
-            if isinstance(result, tuple):
-                ok, msg, log_lines = result
+            if isinstance(result, tuple) and len(result) >= 3:
+                ok, msg, log_lines = result[0], result[1], result[2]
                 self._emit_task_result("backup_all_save_locations", ok, msg, log="\n".join(log_lines))
+                if ok and len(result) == 7:
+                    _prov, _dest, _rclone_exe, _remote_dest = result[3], result[4], result[5], result[6]
+                    import json as _json
+                    from sff.storage.settings import set_setting as _set
+                    from sff.structs import Settings as _S
+                    if _prov in ('local', 'gdrive_sync'):
+                        _cfg = {'provider': 'local', 'dest_path': _dest}
+                    elif _prov == 'rclone':
+                        _cfg = {'provider': 'rclone', 'rclone_exe': _rclone_exe, 'remote_dest': _remote_dest}
+                    elif _prov == 'gdrive_api':
+                        _cfg = {'provider': 'gdrive_api'}
+                    else:
+                        _cfg = None
+                    if _cfg:
+                        _set(_S.LAST_BACKUP_PROVIDER_CONFIG, _json.dumps(_cfg))
             else:
                 self._emit_task_result("backup_all_save_locations", False, "Backup failed")
 
