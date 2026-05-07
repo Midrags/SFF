@@ -29,7 +29,7 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 - Download and use Lua files for games, download manifests, and set up GreenLuma.
 - Write Lua and manifest data into Steam's config.
 - Multiplayer fixes: **online-fix.me** integration and **game fixes/bypasses (Ryuu)**.
-- **HyperVisor Cracks (HV Auto)** — download and apply HyperVisor bypasses for Denuvo-protected games. Includes VBS.cmd (v1.6.2) to prepare your system. See the [HyperVisor Guide](docs/HV_GUIDE.md) before use.
+- **HyperVisor Cracks (HV Auto)** — download HyperVisor bypasses for Denuvo-protected games. Includes VBS.cmd (v1.6.2) to prepare your system. See the [HyperVisor Guide](docs/HV_GUIDE.md) before use.
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
