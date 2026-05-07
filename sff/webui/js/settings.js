@@ -54,6 +54,7 @@ window.Settings = (function() {
         _initPathControls();
         _initProfileControls();
         _initPreferenceControls();
+        _initAutoBackupControls();
         _initAboutLinks();
         _initAppListActions();
     }
@@ -276,6 +277,103 @@ window.Settings = (function() {
         }
     }
 
+    function _initAutoBackupControls() {
+        // Provider chip selection
+        var chips = document.querySelectorAll('.autobackup-chip');
+        chips.forEach(function(chip) {
+            chip.addEventListener('click', function() {
+                chips.forEach(function(c) { c.classList.remove('active'); });
+                chip.classList.add('active');
+                _showAutoBackupPanel(chip.dataset.provider);
+            });
+        });
+
+        // Browse button for local folder
+        var browseBtn = document.getElementById('setting-autobackup-local-browse');
+        if (browseBtn) {
+            browseBtn.addEventListener('click', function() {
+                Bridge.callSync('open_file_dialog', function(path) {
+                    if (path) {
+                        var inp = document.getElementById('setting-autobackup-local-dest');
+                        if (inp) inp.value = path;
+                    }
+                });
+            });
+        }
+
+        // Load Remotes button for rclone
+        var loadBtn = document.getElementById('setting-autobackup-rclone-loadremotes');
+        if (loadBtn) {
+            loadBtn.addEventListener('click', function() {
+                loadBtn.disabled = true;
+                loadBtn.textContent = 'Loading...';
+                Bridge.call('rclone_list_remotes', JSON.stringify({ rclone_exe: '' }));
+            });
+        }
+
+        // Interval input — save on change, timer restarts live via _apply_setting_live
+        var intervalInp = document.getElementById('setting-autobackup-interval');
+        if (intervalInp) {
+            intervalInp.addEventListener('change', function() {
+                var val = this.value.trim();
+                Bridge.call('set_setting', 'save_watcher_interval', val || '0');
+            });
+        }
+
+        // Save button
+        var saveBtn = document.getElementById('setting-autobackup-save');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function() {
+                var activeChip = document.querySelector('.autobackup-chip.active');
+                var provider = activeChip ? activeChip.dataset.provider : 'local';
+                var cfg = { provider: provider };
+                if (provider === 'local') {
+                    var dest = (document.getElementById('setting-autobackup-local-dest') || {}).value || '';
+                    if (!dest) { Components.showToast('warning', 'Select a destination folder first'); return; }
+                    cfg.dest_path = dest;
+                } else if (provider === 'rclone') {
+                    var remote = (document.getElementById('setting-autobackup-rclone-dest') || {}).value || '';
+                    if (!remote) { Components.showToast('warning', 'Enter a remote destination first'); return; }
+                    cfg.rclone_exe = '';
+                    cfg.remote_dest = remote;
+                }
+                Bridge.call('set_setting', 'last_backup_provider_config', JSON.stringify(cfg));
+                Components.showToast('success', 'Auto backup settings saved');
+            });
+        }
+
+        // Handle rclone_list_remotes result for the Auto Backup datalist
+        Bridge.on('task_finished', function(json) {
+            try {
+                var data = JSON.parse(json);
+                if (data.task === 'rclone_list_remotes') {
+                    var btn = document.getElementById('setting-autobackup-rclone-loadremotes');
+                    if (btn) { btn.disabled = false; btn.textContent = 'Load Remotes'; }
+                    if (data.success && data.remotes) {
+                        var dl = document.getElementById('autobackup-rclone-datalist');
+                        if (dl) {
+                            dl.innerHTML = '';
+                            data.remotes.forEach(function(r) {
+                                var opt = document.createElement('option');
+                                opt.value = r.name + ':';
+                                dl.appendChild(opt);
+                            });
+                        }
+                    }
+                }
+            } catch(e) {}
+        });
+    }
+
+    function _showAutoBackupPanel(provider) {
+        var local  = document.getElementById('autobackup-local-panel');
+        var rclone = document.getElementById('autobackup-rclone-panel');
+        var gdrive = document.getElementById('autobackup-gdrive-panel');
+        if (local)  local.classList.toggle('hidden',  provider !== 'local');
+        if (rclone) rclone.classList.toggle('hidden', provider !== 'rclone');
+        if (gdrive) gdrive.classList.toggle('hidden', provider !== 'gdrive_api');
+    }
+
     function _initAboutLinks() {
         var githubLink = document.getElementById('about-github');
         var updateLink = document.getElementById('about-update');
@@ -407,6 +505,23 @@ window.Settings = (function() {
                 _setInputVal('setting-parallel-workers', settings.parallel_downloads || '5');
                 _setInputVal('setting-backup-retention', settings.backup_retention || '4');
                 _setInputVal('setting-manifest-excludes', settings.manifest_update_excludes || '');
+                // Auto Backup
+                _setInputVal('setting-autobackup-interval', settings.save_watcher_interval || '10');
+                try {
+                    if (settings.last_backup_provider_config) {
+                        var abCfg = JSON.parse(settings.last_backup_provider_config);
+                        var prov = abCfg.provider || 'local';
+                        document.querySelectorAll('.autobackup-chip').forEach(function(c) {
+                            c.classList.toggle('active', c.dataset.provider === prov);
+                        });
+                        _showAutoBackupPanel(prov);
+                        if (prov === 'local' && abCfg.dest_path) {
+                            _setInputVal('setting-autobackup-local-dest', abCfg.dest_path);
+                        } else if (prov === 'rclone' && abCfg.remote_dest) {
+                            _setInputVal('setting-autobackup-rclone-dest', abCfg.remote_dest);
+                        }
+                    }
+                } catch(e) {}
                 // Checkboxes
                 _setCheckbox('setting-notifications', settings.enable_notifications);
                 _setCheckbox('setting-parallel', settings.use_parallel_downloads);

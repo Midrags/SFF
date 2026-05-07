@@ -10,8 +10,10 @@
 
 ### Cloud Saves — Auto Backup
 
-- **Background auto-backup** — SteaMidra checks your saves every 10 minutes (configurable in Settings). If saves changed since the last backup, it backs them up automatically using the cloud provider you last used in the Cloud Saves tab (local folder, rclone, or Google Drive). If you have not run a manual backup yet, the watcher skips silently until you do.
-- Cloud backup runs in a background thread so the app stays responsive.
+- **Background auto-backup** — SteaMidra checks your save files on a timer and backs up anything that changed. Configure it in Settings under the new Auto Backup section.
+- **Interval** — set the check interval in minutes (0 disables it). Changes take effect immediately without restarting.
+- **Permanent provider** — pick Local Folder, rclone, or Google Drive. For rclone, enter your remote destination and click Load Remotes to autocomplete from your configured remotes. For Google Drive, it reuses the account you already connected in Cloud Saves. The chosen provider persists across restarts.
+- Backup runs in a background thread so the app stays responsive.
 
 ---
 

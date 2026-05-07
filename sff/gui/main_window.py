@@ -952,6 +952,8 @@ class SFFMainWindow(QMainWindow):
             from sff.i18n import set_language
             from sff.storage.settings import get_setting
             set_language(get_setting(Settings.LANGUAGE))
+        elif s == Settings.SAVE_WATCHER_INTERVAL:
+            self._start_save_watcher()
 
     # ── Tray / close-to-tray ────────────────────────────────────
 

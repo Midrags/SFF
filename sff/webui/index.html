@@ -1005,6 +1005,44 @@
             </div>
 
             <div class="settings-section">
+                <h2 class="section-title">Auto Backup</h2>
+                <p class="setting-hint" style="margin-bottom:12px;">SteaMidra checks your save files in the background and backs them up automatically. Choose the provider and interval below.</p>
+                <div class="input-group">
+                    <label>Check interval (minutes, 0 = off):</label>
+                    <input type="number" id="setting-autobackup-interval" value="10" min="0" max="1440" data-tooltip="How often to check for changed saves. Set to 0 to disable.">
+                </div>
+                <div class="input-group">
+                    <label>Backup provider:</label>
+                    <div class="rclone-provider-chips" id="autobackup-provider-chips">
+                        <button class="rclone-chip autobackup-chip active" data-provider="local">Local Folder</button>
+                        <button class="rclone-chip autobackup-chip" data-provider="rclone">rclone</button>
+                        <button class="rclone-chip autobackup-chip" data-provider="gdrive_api">Google Drive</button>
+                    </div>
+                </div>
+                <div id="autobackup-local-panel" class="input-group">
+                    <label>Destination folder:</label>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <input type="text" id="setting-autobackup-local-dest" placeholder="C:\Backups\SteaMidra" style="flex:1;" data-tooltip="Local folder to store save backups">
+                        <button id="setting-autobackup-local-browse" class="btn btn-secondary" style="white-space:nowrap;">Browse</button>
+                    </div>
+                </div>
+                <div id="autobackup-rclone-panel" class="input-group hidden">
+                    <label>Remote destination (e.g. mydrive:SteaMidraBackups):</label>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <input type="text" id="setting-autobackup-rclone-dest" placeholder="mydrive:SteaMidraBackups" style="flex:1;" list="autobackup-rclone-datalist" data-tooltip="rclone remote and path, e.g. gdrive:SteaMidraBackups">
+                        <datalist id="autobackup-rclone-datalist"></datalist>
+                        <button id="setting-autobackup-rclone-loadremotes" class="btn btn-secondary" style="white-space:nowrap;">Load Remotes</button>
+                    </div>
+                </div>
+                <div id="autobackup-gdrive-panel" class="input-group hidden">
+                    <p class="setting-hint">Uses your connected Google Drive account. Connect it in the Cloud Saves tab first.</p>
+                </div>
+                <div class="input-group" style="margin-top:8px;">
+                    <button id="setting-autobackup-save" class="btn btn-primary">Save Auto Backup Settings</button>
+                </div>
+            </div>
+
+            <div class="settings-section">
                 <h2 class="section-title">About</h2>
                 <p id="about-info">SteaMidra — Steam game setup and manifest tool<br>
                     <a href="#" id="about-github">GitHub</a> · <a href="#" id="about-update">Check for Updates</a>
