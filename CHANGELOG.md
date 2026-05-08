@@ -1,5 +1,40 @@
 # Changelog
 
+## 6.0.2
+
+### Library — Lure Fix
+
+- **Lure Fix button** — each Library game card now has a Lure Fix button. It contacts Steam CM, reads the latest manifest IDs and buildid for the public branch, and patches the game's ACF file in-place. No game files are downloaded or changed. Steam stops showing the update prompt because the ACF now claims the current manifests are installed.
+- **Info callout** — the Library page shows a short description of what Lure Fix does, visible above the game grid.
+- **Bridge slot** `lure_fix_acf(app_id)` — callable from any JS context. Emits `task_finished {task:"lure_fix"}`.
+
+### Settings — Avatar
+
+- **Global GBE avatar** — browse for a PNG/JPG image and apply it to all games at once via GSE Saves/settings/account_avatar. The avatar preview loads on page enter and updates as you browse.
+
+### Library — Game Update Check
+
+- **Update button** — each Library card now has an Update button. Clicking it compares the installed ACF buildid against the current public buildid on Steam CM. If a newer build exists, it downloads updated manifests and patches the ACF InstalledDepots/MountedDepots automatically, then shows a toast with the new build number. If already current, it shows "Already up to date".
+
+### Workshop Downloader
+
+- **Download Item button** — the embedded Workshop browser now has a Download Item button. It reads the current item URL, extracts the workshop item ID, and tries four methods in order: SteamWebAPI direct file_url, GGNetwork API, SteamCMD anonymous, SteamCMD authenticated. Progress shows in a status label below the toolbar.
+- **Bridge slot** `download_workshop_item` — the Library page can also trigger workshop item downloads programmatically via the web bridge.
+
+### Workshop Browser
+
+- Persistent Steam session across launches (cookies + storage stored in webengine_profile/).
+- Chrome User-Agent for full page rendering.
+- Game-specific workshop URL when opening from a Library card.
+
+### Bug Fixes
+
+- Fixed `check_game_update` (Update button) — incorrect internal import paths corrected so the button works at runtime.
+- Update Manifests exclusion list modal now pre-populates checkboxes from saved settings on open.
+- ACF patched after manifest update to prevent the "0 B installed" regression.
+
+---
+
 ## 6.0.1
 
 ### System Tray

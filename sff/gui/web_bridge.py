@@ -1068,6 +1068,268 @@ class WebBridge(QObject):
         except Exception as e:
             logger.exception("open_workshop failed: %s", e)
 
+    @pyqtSlot(str)
+    def download_workshop_item(self, params_json):
+        """Download a workshop item using 4-method cascade (SteamWebAPI, GGNetwork, SteamCMD).
+        params_json: {"app_id": "...", "item_url": "..."} or {"app_id": "...", "item_id": "..."}
+        Emits task_finished with task='workshop_download'."""
+        def _do():
+            try:
+                params = json.loads(params_json)
+                app_id = str(params.get("app_id", "0"))
+                item_url = params.get("item_url") or params.get("item_id") or ""
+                from sff.manifest.workshop_dl import (
+                    download_workshop_item as _dl,
+                    parse_workshop_item_id,
+                )
+                from sff.storage.settings import get_setting
+                from sff.structs import Settings
+                item_id = parse_workshop_item_id(item_url)
+                if not item_id:
+                    return {"success": False, "error": f"Could not parse item ID from: {item_url}"}
+                out_dir = Path.cwd() / "downloaded_files" / "workshop" / item_id
+                user = get_setting(Settings.STEAM_USER) or "anonymous"
+                pwd = get_setting(Settings.STEAM_PASS) or ""
+                result = _dl(item_id, app_id, out_dir, steam_username=user, steam_password=pwd)
+                return result
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+
+        def _on_done(result):
+            result = result or {}
+            self._emit_task_result(
+                "workshop_download",
+                bool(result.get("success")),
+                result.get("method") or result.get("error") or "",
+                path=result.get("path") or "",
+            )
+
+        self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot(str)
+    def check_game_update(self, app_id):
+        """Compare installed ACF buildid against Steam CM public buildid.
+        If Steam CM is newer: download updated manifests and patch the ACF.
+        Emits task_finished with task='update_check'."""
+        def _do():
+            try:
+                from pathlib import Path as _Path
+                from sff.storage.vdf import get_steam_libs, vdf_load
+                from sff.lua.writer import ACFWriter
+                from sff.manifest.downloader import ManifestDownloader
+                from sff.lua.manager import LuaManager, LuaChoice
+                from sff.steam_client import create_provider_for_current_thread
+                from sff.storage.settings import get_setting
+                from sff.structs import OSType, Settings
+                from sff.steam_tools_compat import install_lua_to_steam
+
+                steam_libs = get_steam_libs(self._steam_path) if self._steam_path else []
+                acf_path = None
+                lib_path = None
+                for lib in steam_libs:
+                    candidate = lib / "steamapps" / f"appmanifest_{app_id}.acf"
+                    if candidate.exists():
+                        acf_path = candidate
+                        lib_path = lib
+                        break
+
+                if acf_path is None:
+                    return {"found": False, "error": f"ACF not found for App ID {app_id}"}
+
+                acf_data = vdf_load(acf_path)
+                state = acf_data.get("AppState", {})
+                installed_buildid = str(state.get("buildid", "0")).strip()
+
+                provider = create_provider_for_current_thread()
+                app_data = provider.get_single_app_info(int(app_id))
+                cm_buildid = str(
+                    app_data.get("depots", {})
+                    .get("branches", {})
+                    .get("public", {})
+                    .get("buildid", "0")
+                ).strip()
+
+                if not cm_buildid or cm_buildid == "0":
+                    return {"found": True, "error": "Could not retrieve buildid from Steam CM"}
+
+                if installed_buildid == cm_buildid:
+                    return {
+                        "found": True,
+                        "up_to_date": True,
+                        "installed_buildid": installed_buildid,
+                        "cm_buildid": cm_buildid,
+                    }
+
+                os_type = OSType.WINDOWS if sys.platform == "win32" else OSType.LINUX
+                lua_manager = LuaManager(os_type)
+                saved_lua_path = _Path.cwd() / "saved_lua" / f"{app_id}.lua"
+                if not saved_lua_path.exists():
+                    return {
+                        "found": True,
+                        "up_to_date": False,
+                        "installed_buildid": installed_buildid,
+                        "cm_buildid": cm_buildid,
+                        "error": f"No saved .lua for App ID {app_id} — run Download Games first",
+                    }
+
+                parsed_lua = lua_manager.fetch_lua(LuaChoice.ADD_LUA, saved_lua_path)
+                if parsed_lua is None:
+                    return {
+                        "found": True,
+                        "up_to_date": False,
+                        "error": "Failed to parse saved .lua file",
+                    }
+
+                install_lua_to_steam(self._steam_path, str(parsed_lua.app_id), saved_lua_path)
+
+                downloader = ManifestDownloader(provider, self._steam_path)
+                use_parallel = get_setting(Settings.USE_PARALLEL_DOWNLOADS)
+                if use_parallel:
+                    manifest_paths = downloader.download_manifests_parallel(parsed_lua, auto_manifest=True)
+                else:
+                    manifest_paths = downloader.download_manifests(parsed_lua, auto_manifest=True)
+
+                new_manifest_map = {}
+                for mp in (manifest_paths or []):
+                    stem = _Path(mp).stem
+                    parts = stem.split("_")
+                    if len(parts) == 2 and all(p.isdigit() for p in parts):
+                        new_manifest_map[parts[0]] = parts[1]
+
+                if new_manifest_map:
+                    acf_writer = ACFWriter(lib_path)
+                    acf_writer.patch_acf_depot_manifests(acf_path, new_manifest_map)
+                    acf_writer._patch_acf_error_state(acf_path)
+
+                return {
+                    "found": True,
+                    "up_to_date": False,
+                    "updated": True,
+                    "installed_buildid": installed_buildid,
+                    "cm_buildid": cm_buildid,
+                    "manifests_updated": len(new_manifest_map),
+                }
+
+            except Exception as e:
+                logger.exception("check_game_update failed: %s", e)
+                return {"found": True, "error": str(e)}
+
+        def _on_done(result):
+            result = result or {}
+            success = bool(result.get("up_to_date") or result.get("updated"))
+            msg = ""
+            if result.get("up_to_date"):
+                msg = f"Already up to date (build {result.get('installed_buildid', '')})"
+            elif result.get("updated"):
+                msg = f"Updated to build {result.get('cm_buildid', '')}"
+            elif result.get("error"):
+                msg = result["error"]
+            self._emit_task_result("update_check", success, msg, **{
+                k: v for k, v in result.items() if k not in ("error",)
+            })
+
+        self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot(str)
+    def lure_fix_acf(self, app_id):
+        """Patch the game's ACF with the latest Steam CM manifest IDs and buildid.
+        No files are downloaded — pure ACF update to suppress Steam's update prompt.
+        Emits task_finished with task='lure_fix'."""
+        def _do():
+            try:
+                from pathlib import Path as _Path
+                from sff.storage.vdf import get_steam_libs, vdf_load, vdf_dump
+                from sff.lua.writer import ACFWriter
+                from sff.steam_client import create_provider_for_current_thread
+
+                steam_libs = get_steam_libs(self._steam_path) if self._steam_path else []
+                acf_path = None
+                lib_path = None
+                for lib in steam_libs:
+                    candidate = lib / "steamapps" / f"appmanifest_{app_id}.acf"
+                    if candidate.exists():
+                        acf_path = candidate
+                        lib_path = lib
+                        break
+
+                if acf_path is None:
+                    return {"success": False, "error": f"ACF not found for App ID {app_id}"}
+
+                provider = create_provider_for_current_thread()
+                app_data = provider.get_single_app_info(int(app_id))
+                depots_data = app_data.get("depots", {})
+
+                cm_buildid = str(
+                    depots_data.get("branches", {})
+                    .get("public", {})
+                    .get("buildid", "0")
+                ).strip()
+
+                if not cm_buildid or cm_buildid == "0":
+                    return {"success": False, "error": "Could not retrieve buildid from Steam CM"}
+
+                acf_data = vdf_load(acf_path)
+                state = acf_data.get("AppState", {})
+                installed = state.get("InstalledDepots", {})
+
+                new_manifest_map = {}
+                for depot_id in list(installed.keys()):
+                    mani_pub = (
+                        depots_data.get(str(depot_id), {})
+                        .get("manifests", {})
+                        .get("public", {})
+                    )
+                    if isinstance(mani_pub, dict):
+                        gid = mani_pub.get("gid")
+                    else:
+                        gid = mani_pub
+                    if gid:
+                        new_manifest_map[depot_id] = str(gid)
+
+                if new_manifest_map:
+                    acf_writer = ACFWriter(lib_path)
+                    acf_writer.patch_acf_depot_manifests(acf_path, new_manifest_map)
+
+                acf_data = vdf_load(acf_path)
+                state = acf_data.get("AppState", {})
+                state["buildid"] = cm_buildid
+                state["StateFlags"] = "4"
+                state["TargetBuildID"] = "0"
+                state["DownloadType"] = "0"
+                state["UpdateResult"] = "0"
+                state["ScheduledAutoUpdate"] = "0"
+                state["BytesToDownload"] = "0"
+                state["BytesDownloaded"] = "0"
+                state["BytesToStage"] = "0"
+                state["BytesStaged"] = "0"
+                acf_data["AppState"] = state
+                vdf_dump(acf_path, acf_data)
+
+                return {
+                    "success": True,
+                    "cm_buildid": cm_buildid,
+                    "depots_patched": len(new_manifest_map),
+                }
+
+            except Exception as e:
+                logger.exception("lure_fix_acf failed: %s", e)
+                return {"success": False, "error": str(e)}
+
+        def _on_done(result):
+            result = result or {}
+            if result.get("success"):
+                msg = (
+                    f"ACF patched to build {result.get('cm_buildid', '')} "
+                    f"({result.get('depots_patched', 0)} depot(s)). Restart Steam."
+                )
+            else:
+                msg = result.get("error", "Lure fix failed")
+            self._emit_task_result("lure_fix", bool(result.get("success")), msg, **{
+                k: v for k, v in result.items() if k != "error"
+            })
+
+        self._run_async(_do, on_done=_on_done)
+
     @pyqtSlot()
     def restart_steam(self):
         """Restart or launch Steam."""
@@ -1461,6 +1723,54 @@ class WebBridge(QObject):
             "Image Files (*.png *.jpg *.jpeg)",
         )
         return path or ""
+
+    @pyqtSlot(result=str)
+    def get_avatar_base64(self):
+        """Read the global GBE avatar from GSE Saves/settings/ and return a base64 data URL.
+        Returns empty string if no avatar is set."""
+        import base64
+        from sff.fix_game.config_generator import _get_gbe_saves_root
+        settings_dir = _get_gbe_saves_root() / "settings"
+        for ext in (".png", ".jpg", ".jpeg"):
+            avatar_file = settings_dir / f"account_avatar{ext}"
+            if avatar_file.exists():
+                try:
+                    data = avatar_file.read_bytes()
+                    b64 = base64.b64encode(data).decode("ascii")
+                    mime = "image/png" if ext == ".png" else "image/jpeg"
+                    return f"data:{mime};base64,{b64}"
+                except Exception:
+                    pass
+        return ""
+
+    @pyqtSlot(str, result=str)
+    def set_global_avatar(self, source_path):
+        """Copy source_path to GSE Saves/settings/account_avatar.{ext}.
+        Removes any existing avatar files with other extensions first.
+        Returns 'ok' on success or an error message."""
+        import shutil
+        from sff.fix_game.config_generator import _get_gbe_saves_root
+        src = Path(source_path)
+        if not src.exists():
+            return f"File not found: {source_path}"
+        ext = src.suffix.lower()
+        if ext not in (".png", ".jpg", ".jpeg"):
+            return f"Unsupported format '{ext}' — use .png, .jpg, or .jpeg"
+        settings_dir = _get_gbe_saves_root() / "settings"
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        for old_ext in (".png", ".jpg", ".jpeg"):
+            old = settings_dir / f"account_avatar{old_ext}"
+            if old.exists() and old_ext != ext:
+                try:
+                    old.unlink()
+                except Exception:
+                    pass
+        dst = settings_dir / f"account_avatar{ext}"
+        try:
+            shutil.copy2(src, dst)
+            return "ok"
+        except Exception as e:
+            return str(e)
 
     @pyqtSlot(result=str)
     def get_installed_games(self):

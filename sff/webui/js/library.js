@@ -29,6 +29,12 @@ window.Library = (function() {
                         _refreshLibrary();
                     }
                 }
+                if (data.task === 'update_check') {
+                    _onUpdateCheckResult(data);
+                }
+                if (data.task === 'lure_fix') {
+                    _onLureFixResult(data);
+                }
             } catch(e) {}
         });
 
@@ -50,6 +56,16 @@ window.Library = (function() {
                         var nameEl = document.getElementById('library-delete-game-name');
                         if (nameEl) nameEl.textContent = btn.dataset.gamename || ('App ' + appId);
                         Components.showModal('library-delete-modal');
+                    } else if (action === 'check_update') {
+                        btn.disabled = true;
+                        btn.textContent = 'Checking...';
+                        btn.dataset.checking = appId;
+                        Bridge.call('check_game_update', appId);
+                    } else if (action === 'lure_fix') {
+                        btn.disabled = true;
+                        btn.textContent = 'Patching...';
+                        btn.dataset.lurefixing = appId;
+                        Bridge.call('lure_fix_acf', appId);
                     } else {
                         Bridge.call('run_game_action', appId, action);
                     }
@@ -127,6 +143,8 @@ window.Library = (function() {
                     '<button class="btn btn-sm" data-action="fix" data-appid="' + game.app_id + '" data-tooltip="Fix this game">Fix</button>' +
                     '<button class="btn btn-sm" data-action="dlc_check" data-appid="' + game.app_id + '" data-tooltip="Check DLCs">DLC</button>' +
                     '<button class="btn btn-sm" data-action="workshop" data-appid="' + game.app_id + '" data-tooltip="Open Workshop">Workshop</button>' +
+                    '<button class="btn btn-sm" data-action="lure_fix" data-appid="' + game.app_id + '" data-tooltip="Patch ACF to match Steam CM latest — no download, stops update prompt">Lure Fix</button>' +
+                    '<button class="btn btn-sm" data-action="check_update" data-appid="' + game.app_id + '" data-tooltip="Download latest manifests and patch ACF">Update</button>' +
                     '<button class="btn btn-sm btn-danger" data-action="delete" data-appid="' + game.app_id + '" data-gamepath="' + safePath + '" data-gamename="' + safeName + '" data-tooltip="Remove this game">\u2715</button>';
             }
 
@@ -134,6 +152,46 @@ window.Library = (function() {
         });
 
 
+    }
+
+    function _onUpdateCheckResult(data) {
+        var grid = document.getElementById('library-grid');
+        if (grid) {
+            var btns = grid.querySelectorAll('[data-action="check_update"]');
+            btns.forEach(function(b) {
+                if (b.dataset.checking) {
+                    b.disabled = false;
+                    b.textContent = 'Update';
+                    delete b.dataset.checking;
+                }
+            });
+        }
+        if (data.up_to_date) {
+            Components.showToast('success', 'Already up to date (build ' + (data.installed_buildid || '') + ')');
+        } else if (data.updated) {
+            Components.showToast('success', 'Updated to build ' + (data.cm_buildid || ''));
+        } else if (data.error) {
+            Components.showToast('error', data.error);
+        }
+    }
+
+    function _onLureFixResult(data) {
+        var grid = document.getElementById('library-grid');
+        if (grid) {
+            var btns = grid.querySelectorAll('[data-action="lure_fix"]');
+            btns.forEach(function(b) {
+                if (b.dataset.lurefixing) {
+                    b.disabled = false;
+                    b.textContent = 'Lure Fix';
+                    delete b.dataset.lurefixing;
+                }
+            });
+        }
+        if (data.success) {
+            Components.showToast('success', data.message || 'ACF patched. Restart Steam.');
+        } else {
+            Components.showToast('error', data.message || 'Lure fix failed');
+        }
     }
 
     return {

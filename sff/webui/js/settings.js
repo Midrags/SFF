@@ -57,12 +57,14 @@ window.Settings = (function() {
         _initAutoBackupControls();
         _initAboutLinks();
         _initAppListActions();
+        _initAvatarControls();
     }
 
     function onPageEnter() {
         init();
         _loadCurrentSettings();
         _loadProfiles();
+        _loadCurrentAvatar();
     }
 
     function _renderThemePicker() {
@@ -475,6 +477,58 @@ window.Settings = (function() {
         if (hideImagesEl) {
             hideImagesEl.addEventListener('change', function() {
                 Components.setHideImages(this.checked);
+            });
+        }
+    }
+
+    function _loadCurrentAvatar() {
+        Bridge.callSync('get_avatar_base64', function(dataUrl) {
+            var img = document.getElementById('avatar-preview');
+            var ph = document.getElementById('avatar-placeholder');
+            if (!img) return;
+            if (dataUrl && dataUrl.indexOf('data:') === 0) {
+                img.src = dataUrl;
+                img.style.display = '';
+                if (ph) ph.style.display = 'none';
+            } else {
+                img.style.display = 'none';
+                if (ph) ph.style.display = '';
+            }
+        });
+    }
+
+    function _initAvatarControls() {
+        var browseBtn = document.getElementById('setting-avatar-browse');
+        var applyBtn = document.getElementById('setting-avatar-apply');
+        var pathInput = document.getElementById('setting-avatar-path');
+        if (browseBtn) {
+            browseBtn.addEventListener('click', function() {
+                Bridge.callSync('browse_image_file', function(path) {
+                    if (path) {
+                        if (pathInput) pathInput.value = path;
+                        var img = document.getElementById('avatar-preview');
+                        var ph = document.getElementById('avatar-placeholder');
+                        if (img) {
+                            img.src = 'file:///' + path.replace(/\\/g, '/');
+                            img.style.display = '';
+                            if (ph) ph.style.display = 'none';
+                        }
+                    }
+                });
+            });
+        }
+        if (applyBtn) {
+            applyBtn.addEventListener('click', function() {
+                var path = pathInput ? pathInput.value.trim() : '';
+                if (!path) { Components.showToast('warning', 'Browse for an avatar first'); return; }
+                Bridge.callWithCallback('set_global_avatar', path, function(result) {
+                    if (result === 'ok') {
+                        Components.showToast('success', 'Avatar applied globally');
+                        _loadCurrentAvatar();
+                    } else {
+                        Components.showToast('error', result || 'Failed to apply avatar');
+                    }
+                });
             });
         }
     }

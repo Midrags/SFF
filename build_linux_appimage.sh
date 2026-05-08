@@ -16,7 +16,7 @@ for arg in "$@"; do
 done
 
 APP_NAME="SteaMidra"
-APP_VERSION="6.0.0"
+APP_VERSION=$(grep '^VERSION = ' sff/strings.py | cut -d'"' -f2)
 ARCH="x86_64"
 APPIMAGE_OUT="${APP_NAME}-${APP_VERSION}-${ARCH}.AppImage"
 APPDIR="${APP_NAME}.AppDir"

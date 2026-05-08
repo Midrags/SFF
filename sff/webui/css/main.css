@@ -1288,6 +1288,21 @@ input:focus, select:focus {
     margin-bottom: 16px;
 }
 
+.info-callout {
+    background: var(--surface2, rgba(255,255,255,0.05));
+    border-left: 3px solid var(--accent, #4fa3e0);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    font-size: 0.85rem;
+    color: var(--text-muted, rgba(255,255,255,0.7));
+    line-height: 1.5;
+}
+
+.info-callout strong {
+    color: var(--text, #fff);
+}
+
 /* ── Hidden ─────────────────────────────────────────── */
 
 .hidden {

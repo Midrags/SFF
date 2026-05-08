@@ -248,6 +248,47 @@ class ACFWriter:
         except Exception as e:
             logger.warning("Could not patch workshop ACF: %s", e)
 
+    def patch_acf_depot_manifests(self, acf_file: Path, manifest_map: dict):
+        """Update InstalledDepots and MountedDepots in-place with new manifest GIDs.
+
+        Preserves SizeOnDisk, installdir, StateFlags, and all other existing fields.
+        Also clears stale update-error flags. Used by update_all_manifests so that
+        Steam does not report '0 B installed' after new manifest GIDs are downloaded.
+        """
+        if not manifest_map:
+            return
+        try:
+            data = vdf_load(acf_file)
+            app_state = data.get("AppState", {})
+            installed = app_state.get("InstalledDepots", {})
+            for depot_id, manifest_id in manifest_map.items():
+                depot_str = str(depot_id)
+                manifest_str = str(manifest_id)
+                entry = installed.get(depot_str)
+                if isinstance(entry, dict):
+                    entry["manifest"] = manifest_str
+                else:
+                    installed[depot_str] = {"manifest": manifest_str, "size": "0"}
+            app_state["InstalledDepots"] = installed
+            if sys.platform == "win32":
+                app_state["MountedDepots"] = {
+                    str(d): str(m) for d, m in manifest_map.items()
+                }
+            for key, clean_val in [
+                ("UpdateResult", "0"),
+                ("FullValidateAfterNextUpdate", "0"),
+                ("ScheduledAutoUpdate", "0"),
+            ]:
+                if app_state.get(key, clean_val) != clean_val:
+                    app_state[key] = clean_val
+            data["AppState"] = app_state
+            vdf_dump(acf_file, data)
+            print(
+                f"Patched InstalledDepots for {len(manifest_map)} depot(s) in {acf_file.name}"
+            )
+        except Exception as e:
+            logger.warning("Could not patch ACF depot manifests for %s: %s", acf_file, e)
+
 
 @dataclass
 

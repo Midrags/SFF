@@ -29,13 +29,13 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 - Download and use Lua files for games, download manifests, and set up GreenLuma.
 - Write Lua and manifest data into Steam's config.
 - Multiplayer fixes: **online-fix.me** integration and **game fixes/bypasses (Ryuu)**.
-- **HyperVisor Cracks (HV Auto)** — download and apply HyperVisor bypasses for Denuvo-protected games. Includes VBS.cmd (v1.6.2) to prepare your system. See the [HyperVisor Guide](docs/HV_GUIDE.md) before use.
+- **HyperVisor Cracks (HV Auto)** — download HyperVisor bypasses for Denuvo-protected games. Includes VBS.cmd (v1.6.2) to prepare your system. See the [HyperVisor Guide](docs/HV_GUIDE.md) before use.
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
 - **Linux support** — SLSSteam ID management, platform-aware MIDI, and Linux-compatible auto-update.
-- **Main tab "Download Game"** — ⭐ **THIS IS THE MAIN WAY TO DOWNLOAD GAMES.** Downloads the **latest version** of a game directly from Steam (fast, no .NET required). Processes the Lua file, writes decryption keys, registers AppList/SLSsteam IDs, and triggers Steam to download the game files natively. Use this for 99% of games.
-- **Store tab** — browse Hubcap's manifest library to find and download **older or specific versions** of a game via DepotDownloaderMod (.NET 9 required, slower). Use this **only** when you need a specific older version of a game, not the latest.
+- **Main tab "Download Game"** — ⭐ **THIS IS THE MAIN WAY TO DOWNLOAD GAMES.** Downloads the **latest version** of a game directly from Steam (fast, no .NET required for Windows OS). Processes the Lua file, writes decryption keys, registers AppList/SLSsteam IDs, and triggers Steam to download the game files natively. Use this for 99% of games.
+- **Store tab** — browse Hubcap's manifest library to find games and download either using the Steam download function for downloading latest versions very quick or **older or specific versions** of a game via DepotDownloaderMod (.NET 9 required, slower). Use this **only** when you need a specific older version of a game, not the latest.
 
 ---
 

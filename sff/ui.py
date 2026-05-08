@@ -1422,9 +1422,21 @@ class UI:
                 )
                 use_parallel = get_setting(Settings.USE_PARALLEL_DOWNLOADS)
                 if use_parallel:
-                    downloader.download_manifests_parallel(parsed_lua, auto_manifest=True)
+                    manifest_paths = downloader.download_manifests_parallel(parsed_lua, auto_manifest=True)
                 else:
-                    downloader.download_manifests(parsed_lua, auto_manifest=True)
+                    manifest_paths = downloader.download_manifests(parsed_lua, auto_manifest=True)
+                # Build {depot_id: manifest_id} map from returned filenames
+                # Filename format: {depot_id}_{manifest_id}.manifest
+                new_manifest_map = {}
+                for mp in (manifest_paths or []):
+                    stem = Path(mp).stem
+                    parts = stem.split("_")
+                    if len(parts) == 2 and all(p.isdigit() for p in parts):
+                        new_manifest_map[parts[0]] = parts[1]
+                if new_manifest_map:
+                    acf_writer = ACFWriter(lib)
+                    acf_writer.patch_acf_depot_manifests(acf_file, new_manifest_map)
+                    acf_writer._patch_acf_error_state(acf_file)
         if steam_proc:
             # pre-seed depotcache before Steam starts so it finds manifests locally
             downloader._preseed_depotcache()

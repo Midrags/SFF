@@ -27,14 +27,25 @@ window.Components = (function() {
     ];
     var STEAM_CDN_LIBRARY = 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{appid}/library_600x900.jpg';
 
+    var _COVER_CACHE_PREFIX = 'sff_cover_';
+
+    function _getCachedCoverUrl(appId) {
+        try { return localStorage.getItem(_COVER_CACHE_PREFIX + appId) || null; } catch(e) { return null; }
+    }
+
+    function _saveCoverCache(appId, url) {
+        try { localStorage.setItem(_COVER_CACHE_PREFIX + appId, url); } catch(e) {}
+    }
+
     // SVG placeholder for missing game images (image-off icon)
     var NO_IMAGE_SVG = '<svg viewBox="0 0 24 24"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 21H3a2 2 0 01-2-2V5a2 2 0 012-2h18a2 2 0 012 2v14c0 .553-.224 1.053-.586 1.414"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
 
     function getCoverUrls(appId, canonicalUrl) {
-        var ts = '?t=' + Date.now();
-        var urls = _CDN.map(function(t) { return t.replace('{id}', appId) + ts; });
+        var cached = _getCachedCoverUrl(appId);
+        if (cached) return [cached];
+        var urls = _CDN.map(function(t) { return t.replace('{id}', appId); });
         if (canonicalUrl) {
-            urls.unshift(canonicalUrl.split('?')[0] + ts);
+            urls.unshift(canonicalUrl.split('?')[0]);
         }
         return urls;
     }
@@ -93,6 +104,7 @@ window.Components = (function() {
                     wrap.innerHTML = '<div class="game-card-img-placeholder">' + NO_IMAGE_SVG + '</div>';
                 }
             }
+            img.onload = function() { _saveCoverCache(game.app_id, img.src); };
             img.onerror = tryNextCard;
             img.src = urls[0];
             wrap.appendChild(img);
@@ -143,6 +155,7 @@ window.Components = (function() {
                     wrap.innerHTML = '<div class="game-card-img-placeholder" style="height:45px;width:80px;opacity:0.2">' + NO_IMAGE_SVG + '</div>';
                 }
             }
+            img.onload = function() { _saveCoverCache(game.app_id, img.src); };
             img.onerror = tryNextList;
             img.src = urls[0];
             wrap.appendChild(img);

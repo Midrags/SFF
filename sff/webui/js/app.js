@@ -678,16 +678,24 @@ window.App = (function() {
                     if (countEl) countEl.textContent = '0 games';
                     return;
                 }
-                var html = '';
-                games.forEach(function(g) {
-                    var safe = (g.name || g.app_id).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                    html += '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px;">'
-                        + '<input type="checkbox" data-appid="' + g.app_id + '" checked style="accent-color:var(--accent,#e94560);">'
-                        + '<span>' + safe + ' <span style="opacity:0.45;font-size:11px;">' + g.app_id + '</span></span>'
-                        + '</label>';
+                Bridge.callWithCallback('get_setting', 'manifest_update_excludes', function(excludeVal) {
+                    var excludedSet = new Set(
+                        (excludeVal || '').split(',').map(function(x) { return x.trim(); }).filter(Boolean)
+                    );
+                    var html = '';
+                    games.forEach(function(g) {
+                        var safe = (g.name || g.app_id).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        var isExcluded = excludedSet.has(String(g.app_id));
+                        html += '<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px;">'
+                            + '<input type="checkbox" data-appid="' + g.app_id + '"'
+                            + (isExcluded ? '' : ' checked')
+                            + ' style="accent-color:var(--accent,#e94560);">'
+                            + '<span>' + safe + ' <span style="opacity:0.45;font-size:11px;">' + g.app_id + '</span></span>'
+                            + '</label>';
+                    });
+                    listEl.innerHTML = html;
+                    if (countEl) countEl.textContent = games.length + ' game' + (games.length !== 1 ? 's' : '');
                 });
-                listEl.innerHTML = html;
-                if (countEl) countEl.textContent = games.length + ' game' + (games.length !== 1 ? 's' : '');
             });
             return;
         }
