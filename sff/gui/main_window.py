@@ -1064,11 +1064,13 @@ class SFFMainWindow(QMainWindow):
             if not rclone_exe or not remote_dest:
                 return
             unique_locs = list({e['location'] for e in entries})
+            import sys as _sys
+            _no_window = {'creationflags': 0x08000000} if _sys.platform == 'win32' else {}
             for loc in unique_locs:
                 subprocess.run(
                     [rclone_exe, 'mkdir',
                      remote_dest.rstrip('/') + f'/SteaMidraAllSaves/{loc}'],
-                    capture_output=True, timeout=30,
+                    capture_output=True, timeout=30, **_no_window,
                 )
             with ThreadPoolExecutor(max_workers=10) as ex:
                 futures = {ex.submit(backup_save_location_rclone, e, rclone_exe, remote_dest): e for e in entries}

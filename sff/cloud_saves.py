@@ -24,12 +24,15 @@ and provides timestamped restore points.
 """
 
 import os
+import sys
 import shutil
 import logging
 import json
 import time
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
+
+_CREATE_NO_WINDOW = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
 
 from sff.utils import root_folder
 
@@ -779,7 +782,7 @@ def backup_save_location_rclone(entry, rclone_exe, remote_dest, log_func=None):
                 "--create-empty-src-dirs",
                 "--fast-list",
             ],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True, text=True, timeout=300, **_CREATE_NO_WINDOW,
         )
         if proc.returncode != 0:
             log(f"  [FAIL] rclone exit {proc.returncode}: {proc.stderr[:200]}")
@@ -794,7 +797,7 @@ def backup_save_location_rclone(entry, rclone_exe, remote_dest, log_func=None):
             subprocess.run(
                 [rclone_exe, "copyto", str(meta_file), remote_path + "/steamidra_meta.json",
                  "--no-update-modtime"],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True, text=True, timeout=30, **_CREATE_NO_WINDOW,
             )
         finally:
             shutil.rmtree(meta_tmp, ignore_errors=True)
@@ -868,7 +871,7 @@ def scan_backup_root_rclone(rclone_exe, remote_dest):
                 "--fast-list",
                 "--transfers", "10",
             ],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, timeout=120, **_CREATE_NO_WINDOW,
         )
         result = {}
         if not tmp.exists():
@@ -973,7 +976,7 @@ def restore_save_entry(game_entry, log_func=None):
                     "--exclude", "steamidra_meta.json",
                     "--transfers", "10", "--fast-list",
                 ],
-                capture_output=True, text=True, timeout=300,
+                capture_output=True, text=True, timeout=300, **_CREATE_NO_WINDOW,
             )
             if proc.returncode != 0:
                 log(f"[FAIL] rclone download failed: {proc.stderr[:200]}")

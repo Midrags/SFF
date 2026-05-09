@@ -158,6 +158,8 @@ a = Analysis(
         'sff.tools.vdf_key_extractor',
         'sff.tools.capcom_save_fix',
         'py7zr',
+        'rarfile',
+        'sff.greenluma_setup',
         'seleniumbase',
         'undetected_chromedriver',
         'bs4',

@@ -52,7 +52,9 @@ You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere —
 
 Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: [GreenLuma Link](https://www.up-4ever.net/1xi5stm9ah0u)
 
-Download `GLPatch.rar` from the link above. Extract it and follow Plan A or Plan B:
+> **Tip (6.0.3+):** SteaMidra can set up GreenLuma automatically. After downloading `GLPatch.rar`, open SteaMidra, go to the **Home** tab, click **Auto GL Setup** in the Quick Tools section, browse for the archive, choose Method A or B, and click **Setup GreenLuma**. It will extract the files, patch `DLLInjector.ini`, and create the `AppList` folder for you. Skip to Step 3 if you use this.
+
+Download `GLPatch.rar` from the link above. Or extract it manually and follow Plan A or Plan B:
 
 **Method A — Separate folder (next to SteaMidra)**
 1. Create a `Greenluma` folder next to `SteaMidra_GUI.exe` (e.g. `C:\SteaMidra\Greenluma\`).
@@ -65,7 +67,9 @@ Download `GLPatch.rar` from the link above. Extract it and follow Plan A or Plan
 
 ### Step 3: Setup GreenLuma
 
-Go into whichever folder you chose in Step 2 and run `GreenLumaSettings_2025.exe`.
+**If you used Auto GL Setup (recommended):** `DLLInjector.ini` is already patched. Skip to launching SteaMidra below.
+
+**Manual setup:** Go into whichever folder you chose in Step 2 and run `GreenLumaSettings_2025.exe`.
 
 - Type `2` and press Enter — set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`) and to `GreenLuma_2025_x64.dll` (example for Method A: `C:\SteaMidra\Greenluma\GreenLuma_2025_x64.dll`; for Method B: `C:\Program Files (x86)\Steam\GreenLuma_2025_x64.dll`).
 - Type `4` and press Enter — disables GreenLuma's questions/prompts on every Steam launch.

@@ -78,6 +78,7 @@
 
             <div class="section-group">
                 <h2 class="section-title">Select Game</h2>
+                <input type="text" id="home-game-search" class="home-game-search" placeholder="Filter games..." autocomplete="off">
                 <div class="game-source-row">
                     <label class="game-source-label">
                         <input type="radio" id="game-source-steam" name="game-source" checked>
@@ -214,6 +215,10 @@
                         <svg class="action-icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                         <span class="action-title">AppList IDs</span>
                     </button>
+                    <button class="action-card compact platform-win" data-action="auto_gl_setup" data-tooltip="Automatically extract and configure GreenLuma (Windows only)">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                        <span class="action-title">Auto GL Setup</span>
+                    </button>
                 </div>
             </div>
             </div><!-- /.home-actions -->
@@ -280,6 +285,7 @@
                 <button class="genre-chip" data-genre="horror">Horror</button>
                 <button class="genre-chip" data-genre="fighting">Fighting</button>
                 <button class="genre-chip" data-genre="platformer">Platformer</button>
+                <button class="genre-chip" data-genre="vr">VR</button>
             </div>
             <div id="store-connect-banner" class="connect-banner">
                 <p>Connect your Hubcap API key to browse the store.</p>
@@ -313,6 +319,23 @@
             </div>
             <div class="library-controls">
                 <button id="library-refresh" class="btn" data-tooltip="Scan Steam libraries for installed games">Refresh</button>
+                <input type="text" id="library-search" class="library-search" placeholder="Search library..." autocomplete="off">
+                <span class="disk-info-wrap">
+                    <svg class="disk-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                        <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"></path>
+                        <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"></path>
+                    </svg>
+                    <select id="library-drive-select" style="display:none"></select>
+                    <div id="library-drive-select-ui" class="custom-select disk-drive-custom hidden">
+                        <div class="custom-select-display" tabindex="0">
+                            <span class="custom-select-text"></span>
+                            <span class="custom-select-arrow">&#9662;</span>
+                        </div>
+                        <div class="custom-select-dropdown hidden"></div>
+                    </div>
+                    <span id="library-disk-info" class="disk-info-text"></span>
+                </span>
             </div>
             <div class="info-callout" id="library-lure-info">
                 <strong>Lure Fix</strong> — updates the ACF file of a game to match the latest manifest IDs on Steam CM. No game files are downloaded or changed. Steam stops showing the update prompt because the ACF now reports the current manifests as installed. Use this after Steam shows an update for a game you downloaded with an older version.
@@ -722,6 +745,19 @@
                     <div class="input-with-btn">
                         <input type="text" id="all-saves-dest" placeholder="Choose a folder...">
                         <button id="all-saves-dest-browse" class="btn">Browse</button>
+                    </div>
+                </div>
+                <div id="all-saves-progress" class="backup-progress hidden">
+                    <div class="backup-progress-header">
+                        <span id="all-saves-progress-label">Backing up...</span>
+                        <span id="all-saves-progress-count">0 / 0</span>
+                    </div>
+                    <div class="backup-progress-track">
+                        <div id="all-saves-progress-fill"></div>
+                    </div>
+                    <div class="backup-progress-stats">
+                        <span id="all-saves-progress-ok">&#10003; 0 done</span>
+                        <span id="all-saves-progress-fail">&#10007; 0 failed</span>
                     </div>
                 </div>
                 <div id="all-saves-results" class="hidden">
@@ -1230,6 +1266,56 @@
             </div>
             <div class="modal-footer">
                 <button class="btn modal-cancel" id="library-delete-cancel-footer">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto GL Setup Modal -->
+    <div id="gl-setup-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header">
+                <h2>Auto GreenLuma Setup</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:14px;opacity:0.85;font-size:13px;">Automatically extract and configure GreenLuma. Choose where to install it, then browse for the archive.</p>
+                <div style="margin-bottom:14px;">
+                    <p style="font-size:12px;font-weight:600;margin-bottom:8px;opacity:0.7;">INSTALLATION METHOD</p>
+                    <label class="gl-method-option" style="display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;margin-bottom:8px;">
+                        <input type="radio" name="gl-method" value="A" checked style="margin-top:3px;accent-color:var(--accent,#e94560);">
+                        <div>
+                            <div style="font-weight:600;font-size:13px;">Next to SteaMidra.exe</div>
+                            <div style="font-size:11px;opacity:0.6;margin-top:2px;">Creates a GreenLuma folder beside SteaMidra. DLLInjector.exe stays separate from Steam.</div>
+                        </div>
+                    </label>
+                    <label class="gl-method-option" style="display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;">
+                        <input type="radio" name="gl-method" value="B" style="margin-top:3px;accent-color:var(--accent,#e94560);">
+                        <div>
+                            <div style="font-weight:600;font-size:13px;">Inside Steam folder</div>
+                            <div style="font-size:11px;opacity:0.6;margin-top:2px;">Extracts GreenLuma directly into the Steam installation directory.</div>
+                        </div>
+                    </label>
+                </div>
+                <div class="input-group" style="margin-bottom:12px;">
+                    <label style="font-size:12px;font-weight:600;opacity:0.7;">GREENLUMA ARCHIVE (.zip or .rar)</label>
+                    <div class="input-with-btn" style="margin-top:6px;">
+                        <input type="text" id="gl-archive-path" placeholder="Browse for GLPatch.zip / GLPatch.rar..." readonly>
+                        <button id="gl-archive-browse" class="btn">Browse</button>
+                    </div>
+                </div>
+                <div class="input-group" style="margin-bottom:4px;">
+                    <label style="font-size:12px;font-weight:600;opacity:0.7;">STEAM EXE PATH</label>
+                    <div class="input-with-btn" style="margin-top:6px;">
+                        <input type="text" id="gl-steam-exe" placeholder="C:\Program Files (x86)\Steam\steam.exe">
+                        <button id="gl-steam-browse" class="btn">Browse</button>
+                    </div>
+                </div>
+                <div id="gl-setup-status" style="margin-top:12px;font-size:12px;opacity:0.7;min-height:18px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="gl-setup-run" class="btn btn-primary">Setup GreenLuma</button>
+                <button class="btn modal-cancel">Cancel</button>
             </div>
         </div>
     </div>

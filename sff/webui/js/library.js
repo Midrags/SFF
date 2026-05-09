@@ -18,6 +18,21 @@ window.Library = (function() {
             refreshBtn.addEventListener('click', _refreshLibrary);
         }
 
+        var searchInp = document.getElementById('library-search');
+        if (searchInp) {
+            searchInp.addEventListener('input', function() {
+                _applyLibraryFilter(this.value.trim().toLowerCase());
+            });
+        }
+
+        var driveSelect = document.getElementById('library-drive-select');
+        if (driveSelect) {
+            driveSelect.addEventListener('change', function() {
+                _updateDiskInfo(this.value);
+            });
+        }
+        new Components.CustomSelect('library-drive-select', 'library-drive-select-ui');
+
         Bridge.on('task_finished', function(json) {
             try {
                 var data = JSON.parse(json);
@@ -109,15 +124,101 @@ window.Library = (function() {
     function onPageEnter() {
         init();
         _refreshLibrary();
+        _refreshDiskInfo();
+    }
+
+    function _refreshDiskInfo() {
+        Bridge.callSync('get_steam_libraries', function(json) {
+            var paths = [];
+            try { paths = JSON.parse(json || '[]'); } catch(e) {}
+            var seen = {};
+            var drives = [];
+            paths.forEach(function(p) {
+                if (!p) return;
+                var root = (p.length >= 3 && p[1] === ':') ? p.slice(0, 3) : '/';
+                var label = (p.length >= 3 && p[1] === ':') ? p[0].toUpperCase() + ':' : 'System';
+                if (!seen[root]) {
+                    seen[root] = true;
+                    drives.push({ root: root, label: label });
+                }
+            });
+            if (!drives.length) {
+                Bridge.callWithCallback('get_setting', 'steam_path', function(steamPath) {
+                    if (!steamPath) return;
+                    var root = (steamPath.length >= 3 && steamPath[1] === ':') ? steamPath.slice(0, 3) : '/';
+                    var label = (steamPath.length >= 3 && steamPath[1] === ':') ? steamPath[0].toUpperCase() + ':' : 'System';
+                    _populateDriveSelect([{ root: root, label: label }]);
+                    _updateDiskInfo(root);
+                });
+                return;
+            }
+            _populateDriveSelect(drives);
+            _updateDiskInfo(drives[0].root);
+        });
+    }
+
+    function _populateDriveSelect(drives) {
+        var sel = document.getElementById('library-drive-select');
+        if (!sel) return;
+        sel.innerHTML = '';
+        drives.forEach(function(d) {
+            var opt = document.createElement('option');
+            opt.value = d.root;
+            opt.textContent = d.label;
+            sel.appendChild(opt);
+        });
+        var ui = document.getElementById('library-drive-select-ui');
+        if (ui) {
+            if (drives.length > 1) {
+                ui.classList.remove('hidden');
+            } else {
+                ui.classList.add('hidden');
+            }
+        }
+    }
+
+    function _updateDiskInfo(drivePath) {
+        Bridge.callWithCallback('get_disk_usage', drivePath, function(json) {
+            var el = document.getElementById('library-disk-info');
+            if (!el) return;
+            try {
+                var d = JSON.parse(json || '{}');
+                if (d.error || !d.total) { el.textContent = ''; return; }
+                el.textContent = _fmtBytes(d.free) + ' free of ' + _fmtBytes(d.total);
+            } catch(e) {}
+        });
+    }
+
+    function _fmtBytes(b) {
+        if (b >= 1e12) return (b / 1e12).toFixed(1) + ' TB';
+        if (b >= 1e9) return (b / 1e9).toFixed(1) + ' GB';
+        if (b >= 1e6) return (b / 1e6).toFixed(1) + ' MB';
+        return (b / 1e3).toFixed(0) + ' KB';
     }
 
     function _refreshLibrary() {
         Bridge.call('load_library');
     }
 
+    var _libraryGames = [];
+
     function _renderLibrary(games) {
+        _libraryGames = games || [];
+        var searchInp = document.getElementById('library-search');
+        var filter = searchInp ? searchInp.value.trim().toLowerCase() : '';
+        _applyLibraryFilter(filter);
+    }
+
+    function _applyLibraryFilter(filter) {
+        var games = _libraryGames;
         var grid = document.getElementById('library-grid');
         var empty = document.getElementById('library-empty');
+        if (!grid) return;
+        if (filter) {
+            games = games.filter(function(g) {
+                return (g.name || '').toLowerCase().indexOf(filter) !== -1;
+            });
+        }
 
         if (grid) grid.innerHTML = '';
 

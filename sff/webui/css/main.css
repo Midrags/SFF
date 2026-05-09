@@ -1282,10 +1282,150 @@ input:focus, select:focus {
     margin-bottom: 12px;
 }
 
+/* ── Home Game Search ────────────────────────────────── */
+
+.home-game-search {
+    width: 100%;
+    max-width: 500px;
+    padding: 7px 12px;
+    border: 1px solid var(--border, rgba(255,255,255,0.15));
+    border-radius: 6px;
+    background: var(--surface2, rgba(255,255,255,0.06));
+    color: var(--text, #fff);
+    font-size: 13px;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+}
+
+.home-game-search:focus {
+    outline: none;
+    border-color: var(--accent, #e94560);
+}
+
 /* ── Library Controls ───────────────────────────────── */
 
 .library-controls {
     margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.library-search {
+    flex: 1;
+    min-width: 160px;
+    max-width: 320px;
+    padding: 6px 12px;
+    border: 1px solid var(--border, rgba(255,255,255,0.15));
+    border-radius: 6px;
+    background: var(--surface2, rgba(255,255,255,0.06));
+    color: var(--text, #fff);
+    font-size: 13px;
+}
+
+.library-search:focus {
+    outline: none;
+    border-color: var(--accent, #e94560);
+}
+
+.disk-info-wrap {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.disk-info-icon {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    opacity: 0.65;
+}
+
+.disk-drive-custom {
+    flex: 0 0 auto;
+    min-width: 0;
+}
+
+.disk-drive-custom .custom-select-display {
+    padding: 2px 7px;
+    font-size: 12px;
+}
+
+.disk-drive-custom .custom-select-dropdown {
+    min-width: 55px;
+}
+
+.disk-info-text {
+    font-size: 12px;
+    opacity: 0.65;
+    white-space: nowrap;
+}
+
+/* ── Backup Progress Bar ─────────────────────────────── */
+
+.backup-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    background: var(--surface2, rgba(255,255,255,0.05));
+    border: 1px solid var(--border, rgba(255,255,255,0.12));
+    border-radius: 8px;
+    margin-bottom: 14px;
+}
+
+.backup-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+}
+
+.backup-progress-header span:first-child {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 70%;
+}
+
+.backup-progress-header span:last-child {
+    font-size: 12px;
+    opacity: 0.65;
+    flex-shrink: 0;
+}
+
+.backup-progress-track {
+    width: 100%;
+    height: 8px;
+    background: var(--border, rgba(255,255,255,0.12));
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+#all-saves-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent, #e94560);
+    border-radius: 4px;
+    transition: width 0.35s ease;
+}
+
+.backup-progress-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    opacity: 0.75;
+}
+
+#all-saves-progress-ok {
+    color: #4ade80;
+}
+
+#all-saves-progress-fail {
+    color: #f87171;
 }
 
 .info-callout {

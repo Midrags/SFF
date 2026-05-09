@@ -1,5 +1,37 @@
 # Changelog
 
+## 6.0.3
+
+### Bug Fix — Silent Cloud Save Backups
+
+- **CMD window flash fixed** — all `subprocess.run` calls for rclone in `cloud_saves.py`, `main_window.py`, and `web_bridge.py` now pass `creationflags=CREATE_NO_WINDOW` on Windows. The backup process no longer opens visible CMD windows that flash and close repeatedly.
+
+### Store — VR Games Category
+
+- **VR genre chip** — added a VR chip to the Store genre row. Clicking it searches for VR games via the existing genre-chip mechanism.
+
+### Home & Library — Search Bars
+
+- **Home game filter** — a text input above the game selector filters the dropdown list in real-time as you type.
+- **Library search** — a search input in the Library controls bar filters visible game cards by name without reloading.
+
+### Library — Disk Space Display
+
+- **Drive info** — the Library page now shows free and total disk space for the Steam installation drive (e.g. `💾 450.2 GB free of 931.5 GB`).
+- New `get_disk_usage(path)` bridge slot returns `{total, used, free}` bytes.
+
+### Cloud Saves — Backup Progress Bar
+
+- **Live progress bar** — the All Save Locations backup now shows a progress bar with per-game granularity. It displays percentage fill, current game label, done/total count, and live ✓ succeeded / ✗ failed counters. The bar auto-hides 3 seconds after completion.
+
+### Home — Auto GreenLuma Setup (Windows only)
+
+- **Auto GL Setup button** — new compact card in Quick Tools (Windows only). Opens a modal to choose installation method (next to SteaMidra.exe or inside Steam folder), browse for the GL archive (ZIP/RAR/7z), and set the Steam exe path.
+- **`sff/greenluma_setup.py`** — new module: extracts GL archive, finds the DLL, patches `DLLInjector.ini` with correct `Exe` and `Dll` paths, creates `AppList/` folder. Supports ZIP (built-in), RAR (`rarfile` + WinRAR fallback), 7z (`py7zr` + system 7z fallback).
+- **`rarfile>=4.2`** added to `requirements.txt`.
+
+---
+
 ## 6.0.2
 
 ### Library — Lure Fix

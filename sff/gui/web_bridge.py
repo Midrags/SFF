@@ -1508,6 +1508,53 @@ class WebBridge(QObject):
         """Returns 'win32' or 'linux'."""
         return sys.platform
 
+    @pyqtSlot(str, result=str)
+    def get_disk_usage(self, path):
+        """Return disk usage JSON {total, used, free} for the given path."""
+        import shutil
+        import json as _json
+        try:
+            usage = shutil.disk_usage(path)
+            return _json.dumps({"total": usage.total, "used": usage.used, "free": usage.free})
+        except Exception:
+            return _json.dumps({"error": True})
+
+    @pyqtSlot(str)
+    def auto_gl_setup_action(self, config_json):
+        """Extract and configure GreenLuma from a ZIP or RAR archive.
+        config_json: {method: 'A'|'B', archive_path: str, steam_exe: str}
+        Emits task_finished with task='auto_gl_setup'."""
+        def _do():
+            import json as _json
+            cfg = _json.loads(config_json)
+            method = cfg.get("method", "A")
+            archive_path = cfg.get("archive_path", "").strip()
+            steam_exe = cfg.get("steam_exe", "").strip()
+            if not archive_path:
+                return (False, "No archive selected.", "")
+            if not steam_exe:
+                steam_exe = r"C:\Program Files (x86)\Steam\steam.exe"
+            from sff.greenluma_setup import auto_gl_setup
+            result = auto_gl_setup(method=method, archive_path=archive_path, steam_exe_path=steam_exe)
+            return (result["ok"], result["message"], result.get("applist_path", ""))
+
+        def _on_done(result):
+            if isinstance(result, tuple) and len(result) >= 2:
+                ok, msg = result[0], result[1]
+                applist_path = result[2] if len(result) > 2 else ""
+                import json as _json
+                self.task_finished.emit(_json.dumps({
+                    "task": "auto_gl_setup",
+                    "success": bool(ok),
+                    "message": msg,
+                    "applist_path": applist_path,
+                }))
+            else:
+                import json as _json
+                self.task_finished.emit(_json.dumps({"task": "auto_gl_setup", "success": False, "message": "Setup failed"}))
+
+        self._run_async(_do, on_done=_on_done)
+
     @pyqtSlot(str)
     def connect_store(self, api_key):
         """Validates and stores Hubcap API key."""
@@ -2124,6 +2171,19 @@ class WebBridge(QObject):
             log_lines = []
             succeeded = 0
             failed = 0
+            total = len(entries)
+            done = 0
+
+            def _emit_backup_progress(label, s, f):
+                self.download_progress.emit(json.dumps({
+                    "task": "backup_progress",
+                    "done": done, "total": total,
+                    "percent": int(done / total * 100) if total > 0 else 0,
+                    "current_label": label,
+                    "succeeded": s, "failed": f,
+                }))
+
+            _emit_backup_progress("Starting...", 0, 0)
 
             if provider in ("local", "gdrive_sync"):
                 if not dest_path:
@@ -2134,6 +2194,8 @@ class WebBridge(QObject):
                         succeeded += 1
                     else:
                         failed += 1
+                    done += 1
+                    _emit_backup_progress(entry.get("label", ""), succeeded, failed)
 
             elif provider == "rclone":
                 import threading
@@ -2148,12 +2210,14 @@ class WebBridge(QObject):
                 _rclone_exe = rclone_exe
                 _remote_dest = remote_dest
 
+                import sys as _sys
+                _no_window = {"creationflags": 0x08000000} if _sys.platform == "win32" else {}
                 unique_locations = list({e["location"] for e in entries})
                 for _loc in unique_locations:
                     subprocess.run(
                         [_rclone_exe, "mkdir",
                          _remote_dest.rstrip("/") + f"/SteaMidraAllSaves/{_loc}"],
-                        capture_output=True, timeout=30,
+                        capture_output=True, timeout=30, **_no_window,
                     )
 
                 def _backup_one_rclone(entry):
@@ -2180,11 +2244,13 @@ class WebBridge(QObject):
                                 succeeded += 1
                             else:
                                 failed += 1
+                        done += 1
+                        _emit_backup_progress(e.get("label", ""), succeeded, failed)
 
                 subprocess.run(
                     [_rclone_exe, "dedupe", "--dedupe-mode", "newest",
                      _remote_dest.rstrip("/") + "/SteaMidraAllSaves"],
-                    capture_output=True, timeout=180,
+                    capture_output=True, timeout=180, **_no_window,
                 )
 
             elif provider == "gdrive_api":
@@ -2253,6 +2319,8 @@ class WebBridge(QObject):
                                 succeeded += 1
                             else:
                                 failed += 1
+                        done += 1
+                        _emit_backup_progress(e.get("label", ""), succeeded, failed)
             else:
                 return (False, f"Provider '{provider}' not supported for all-saves backup.", [])
 

@@ -90,6 +90,10 @@ window.App = (function() {
                         Components.showModal('restart-after-download-modal');
                         _populateGameDropdown();
                     }
+                    if (result.task === 'auto_gl_setup') {
+                        var runBtn = document.getElementById('gl-setup-run');
+                        if (runBtn) runBtn.disabled = false;
+                    }
                 } catch(e) {}
             });
 
@@ -267,6 +271,14 @@ window.App = (function() {
             document.getElementById('steam-mode-row').style.display   = 'none';
             document.getElementById('outside-mode-row').style.display  = '';
         });
+
+        // Home game search filter
+        var homeSearch = document.getElementById('home-game-search');
+        if (homeSearch) {
+            homeSearch.addEventListener('input', function() {
+                _filterGameDropdown(this.value.trim().toLowerCase());
+            });
+        }
 
         // Browse button — opens native folder picker via bridge
         var browseBtn = document.getElementById('outside-path-browse');
@@ -555,6 +567,16 @@ window.App = (function() {
         });
     }
 
+    function _filterGameDropdown(filter) {
+        var dropdown = document.querySelector('#home-game-select-ui .custom-select-dropdown');
+        if (!dropdown) return;
+        var items = dropdown.querySelectorAll('.custom-select-option');
+        items.forEach(function(item) {
+            var text = (item.textContent || '').toLowerCase();
+            item.style.display = (filter && text.indexOf(filter) === -1) ? 'none' : '';
+        });
+    }
+
     function _populateGameDropdown() {
         Bridge.callSync('get_game_list', function(json) {
             var games;
@@ -569,6 +591,12 @@ window.App = (function() {
                 opt.textContent = game.name + ' (' + game.app_id + ')';
                 select.appendChild(opt);
             });
+            // Re-apply active search filter after dropdown rebuilds
+            var searchInp = document.getElementById('home-game-search');
+            if (searchInp && searchInp.value.trim()) {
+                var filterVal = searchInp.value.trim().toLowerCase();
+                setTimeout(function() { _filterGameDropdown(filterVal); }, 60);
+            }
         });
     }
 
@@ -738,11 +766,23 @@ window.App = (function() {
             return;
         }
 
+        if (action === 'auto_gl_setup') {
+            _initGlSetupModal();
+            Bridge.callWithCallback('get_setting', 'steam_path', function(steamPath) {
+                var steamExeInp = document.getElementById('gl-steam-exe');
+                if (steamExeInp && steamPath && !steamExeInp.value) {
+                    steamExeInp.value = steamPath.replace(/[\\/]$/, '') + '\\steam.exe';
+                }
+            });
+            Components.showModal('gl-setup-modal');
+            return;
+        }
+
         // Non-game actions don't need a game selected
         var nonGameActions = [
             'download_games', 'download_manifests', 'recent_lua', 'update_manifests',
             'mute_toggle', 'remove_game', 'context_menu', 'applist_menu', 'offline_fix',
-            'check_updates', 'scan_library', 'analytics'
+            'check_updates', 'scan_library', 'analytics', 'auto_gl_setup'
         ];
         // Outside-Steam game action
         if (_outsideMode && nonGameActions.indexOf(action) === -1) {
@@ -763,6 +803,57 @@ window.App = (function() {
             return;
         }
         Bridge.call('run_game_action', appId || '', action);
+    }
+
+    var _glSetupInitialized = false;
+    function _initGlSetupModal() {
+        if (_glSetupInitialized) return;
+        _glSetupInitialized = true;
+
+        var archiveBrowse = document.getElementById('gl-archive-browse');
+        if (archiveBrowse) {
+            archiveBrowse.addEventListener('click', function() {
+                Bridge.callSync('open_file_dialog', function(path) {
+                    if (path) {
+                        var inp = document.getElementById('gl-archive-path');
+                        if (inp) inp.value = path;
+                    }
+                });
+            });
+        }
+
+        var steamBrowse = document.getElementById('gl-steam-browse');
+        if (steamBrowse) {
+            steamBrowse.addEventListener('click', function() {
+                Bridge.callSync('open_file_dialog', function(path) {
+                    if (path) {
+                        var inp = document.getElementById('gl-steam-exe');
+                        if (inp) inp.value = path;
+                    }
+                });
+            });
+        }
+
+        var runBtn = document.getElementById('gl-setup-run');
+        if (runBtn) {
+            runBtn.addEventListener('click', function() {
+                var archivePath = (document.getElementById('gl-archive-path') || {}).value || '';
+                var steamExe = (document.getElementById('gl-steam-exe') || {}).value || '';
+                var methodEl = document.querySelector('input[name="gl-method"]:checked');
+                var method = methodEl ? methodEl.value : 'A';
+                if (!archivePath) {
+                    Components.showToast('warning', 'Please select the GreenLuma archive first');
+                    return;
+                }
+                runBtn.disabled = true;
+                Components.hideModal('gl-setup-modal');
+                Bridge.call('auto_gl_setup_action', JSON.stringify({
+                    method: method,
+                    archive_path: archivePath,
+                    steam_exe: steamExe
+                }));
+            });
+        }
     }
 
     function getPlatform() {

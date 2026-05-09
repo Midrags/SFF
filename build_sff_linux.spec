@@ -235,6 +235,7 @@ a = Analysis(
         'bs4.builder._lxml',
         'bs4.builder._htmlparser',
         'py7zr',
+        'rarfile',
         'rich',
         'rich.console',
         'rich.table',

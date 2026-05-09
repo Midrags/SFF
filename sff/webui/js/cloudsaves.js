@@ -429,6 +429,27 @@ window.CloudSaves = (function() {
             restoreSelectedBtn.addEventListener('click', _doRestoreSelected);
         }
 
+        // Backup progress updates
+        Bridge.on('download_progress', function(json) {
+            try {
+                var d = JSON.parse(json);
+                if (d.task !== 'backup_progress') return;
+                var progressEl = document.getElementById('all-saves-progress');
+                var progressFill = document.getElementById('all-saves-progress-fill');
+                var progressLabel = document.getElementById('all-saves-progress-label');
+                var progressCount = document.getElementById('all-saves-progress-count');
+                var progressOk = document.getElementById('all-saves-progress-ok');
+                var progressFail = document.getElementById('all-saves-progress-fail');
+                if (!progressEl) return;
+                progressEl.classList.remove('hidden');
+                if (progressFill) progressFill.style.width = (d.percent || 0) + '%';
+                if (progressLabel) progressLabel.textContent = d.current_label || 'Backing up...';
+                if (progressCount) progressCount.textContent = (d.done || 0) + ' / ' + (d.total || 0);
+                if (progressOk) progressOk.textContent = '\u2713 ' + (d.succeeded || 0) + ' done';
+                if (progressFail) progressFail.textContent = '\u2717 ' + (d.failed || 0) + ' failed';
+            } catch(e) {}
+        });
+
         // Task results
         Bridge.on('task_finished', function(json) {
             try {
@@ -459,6 +480,16 @@ window.CloudSaves = (function() {
                     var logDiv = document.getElementById('all-saves-log');
                     if (logEl && data.log) { logEl.textContent = data.log; }
                     if (logDiv) logDiv.classList.remove('hidden');
+                    var progressEl = document.getElementById('all-saves-progress');
+                    if (progressEl) {
+                        if (data.success) {
+                            var fill = document.getElementById('all-saves-progress-fill');
+                            if (fill) fill.style.width = '100%';
+                            var lbl = document.getElementById('all-saves-progress-label');
+                            if (lbl) lbl.textContent = 'Backup complete';
+                        }
+                        setTimeout(function() { progressEl.classList.add('hidden'); }, 3000);
+                    }
                     if (data.success) {
                         Components.showToast('success', data.message || 'Backup complete');
                     } else {
@@ -719,6 +750,20 @@ window.CloudSaves = (function() {
                 Components.showToast('warning', 'Set the rclone remote destination in the provider config first');
                 return;
             }
+        }
+        var progressEl = document.getElementById('all-saves-progress');
+        var progressFill = document.getElementById('all-saves-progress-fill');
+        var progressLabel = document.getElementById('all-saves-progress-label');
+        var progressCount = document.getElementById('all-saves-progress-count');
+        var progressOk = document.getElementById('all-saves-progress-ok');
+        var progressFail = document.getElementById('all-saves-progress-fail');
+        if (progressEl) {
+            progressEl.classList.remove('hidden');
+            if (progressFill) progressFill.style.width = '0%';
+            if (progressLabel) progressLabel.textContent = 'Starting backup...';
+            if (progressCount) progressCount.textContent = '0 / ' + selectedEntries.length;
+            if (progressOk) progressOk.textContent = '\u2713 0 done';
+            if (progressFail) progressFail.textContent = '\u2717 0 failed';
         }
         Bridge.call('backup_all_save_locations', JSON.stringify({
             entries: selectedEntries,
