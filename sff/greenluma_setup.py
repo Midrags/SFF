@@ -39,6 +39,13 @@ _UNRAR_CANDIDATES = [
     "unrar.exe",
 ]
 
+_7ZIP_CANDIDATES = [
+    r"C:\Program Files\7-Zip\7z.exe",
+    r"C:\Program Files (x86)\7-Zip\7z.exe",
+    "7z",
+    "7z.exe",
+]
+
 _GL_DLL_PATTERNS = [
     "GreenLuma_2024_x64.dll",
     "GreenLuma_2025_x64.dll",
@@ -61,36 +68,70 @@ def _find_unrar() -> str:
     return ""
 
 
+def _find_7zip() -> str:
+    """Return path to 7-Zip executable, or empty string."""
+    for candidate in _7ZIP_CANDIDATES:
+        p = Path(candidate)
+        if p.exists():
+            return str(p)
+        found = shutil.which(candidate)
+        if found:
+            return found
+    return ""
+
+
 def _extract_zip(archive_path: str, dest_dir: str) -> None:
     with zipfile.ZipFile(archive_path, "r") as z:
         z.extractall(dest_dir)
 
 
 def _extract_rar(archive_path: str, dest_dir: str) -> None:
+    import subprocess
+    import sys
+    flags = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
+
+    # 1. Try Python rarfile module (uses WinRAR/UnRAR as backend)
+    unrar = _find_unrar()
     try:
         import rarfile
-        unrar = _find_unrar()
         if unrar:
             rarfile.UNRAR_TOOL = unrar
         with rarfile.RarFile(archive_path) as r:
             r.extractall(dest_dir)
         return
-    except ImportError:
+    except Exception:
         pass
-    # Fallback: use WinRAR/7-Zip subprocess
-    unrar = _find_unrar()
+
+    # 2. Try WinRAR/UnRAR subprocess directly
     if unrar:
-        import subprocess
-        import sys
-        flags = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
         subprocess.run(
             [unrar, "x", "-y", archive_path, dest_dir + "\\"],
             capture_output=True, timeout=120, **flags,
         )
         return
+
+    # 3. Try 7-Zip subprocess
+    seven_z = _find_7zip()
+    if seven_z:
+        subprocess.run(
+            [seven_z, "x", archive_path, f"-o{dest_dir}", "-y"],
+            capture_output=True, timeout=120, **flags,
+        )
+        return
+
+    # 4. Try Windows built-in tar.exe (Win10/11 with libarchive)
+    if sys.platform == "win32":
+        tar = shutil.which("tar")
+        if tar:
+            result = subprocess.run(
+                [tar, "-xf", archive_path, "-C", dest_dir],
+                capture_output=True, timeout=120,
+            )
+            if result.returncode == 0:
+                return
+
     raise RuntimeError(
-        "Cannot extract RAR: rarfile module not installed and WinRAR/UnRAR not found. "
-        "Install WinRAR or run: pip install rarfile"
+        "Cannot extract RAR: install WinRAR or 7-Zip to extract .rar archives."
     )
 
 
