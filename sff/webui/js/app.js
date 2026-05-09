@@ -813,7 +813,7 @@ window.App = (function() {
         var archiveBrowse = document.getElementById('gl-archive-browse');
         if (archiveBrowse) {
             archiveBrowse.addEventListener('click', function() {
-                Bridge.callSync('open_file_dialog', function(path) {
+                Bridge.callSync('open_archive_dialog', function(path) {
                     if (path) {
                         var inp = document.getElementById('gl-archive-path');
                         if (inp) inp.value = path;
@@ -825,7 +825,7 @@ window.App = (function() {
         var steamBrowse = document.getElementById('gl-steam-browse');
         if (steamBrowse) {
             steamBrowse.addEventListener('click', function() {
-                Bridge.callSync('open_file_dialog', function(path) {
+                Bridge.callSync('open_exe_file_dialog', function(path) {
                     if (path) {
                         var inp = document.getElementById('gl-steam-exe');
                         if (inp) inp.value = path;

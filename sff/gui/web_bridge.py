@@ -1760,6 +1760,28 @@ class WebBridge(QObject):
         return path or ""
 
     @pyqtSlot(result=str)
+    def open_archive_dialog(self):
+        """Opens a file picker for ZIP/RAR/7z archives. Returns selected file path."""
+        path, _ = QFileDialog.getOpenFileName(
+            self.parent(),
+            "Select GreenLuma Archive",
+            "",
+            "Archives (*.zip *.rar *.7z);;All Files (*)",
+        )
+        return path or ""
+
+    @pyqtSlot(result=str)
+    def open_exe_file_dialog(self):
+        """Opens a file picker for executables. Returns selected file path."""
+        path, _ = QFileDialog.getOpenFileName(
+            self.parent(),
+            "Select Executable",
+            "",
+            "Executables (*.exe);;All Files (*)",
+        )
+        return path or ""
+
+    @pyqtSlot(result=str)
     def browse_image_file(self):
         """Opens a native file picker filtered to PNG/JPG/JPEG images. Returns selected path or ''."""
         from PyQt6.QtWidgets import QFileDialog as _QFD
