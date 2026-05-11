@@ -1453,6 +1453,7 @@ input:focus, select:focus {
 
 .platform-win { display: none; }
 body.platform-win32 .platform-win { display: flex; }
+body.platform-win32 .settings-section.platform-win { display: block; }
 body.platform-linux .platform-win { display: none; }
 
 /* ── Scrollbar ──────────────────────────────────────── */

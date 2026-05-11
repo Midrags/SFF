@@ -93,6 +93,12 @@ window.App = (function() {
                     if (result.task === 'auto_gl_setup') {
                         var runBtn = document.getElementById('gl-setup-run');
                         if (runBtn) runBtn.disabled = false;
+                        if (result.success && result.applist_path) {
+                            var folderInp = document.getElementById('setting-applist-folder');
+                            if (folderInp) {
+                                folderInp.value = result.applist_path;
+                            }
+                        }
                     }
                 } catch(e) {}
             });

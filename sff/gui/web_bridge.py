@@ -599,7 +599,7 @@ class WebBridge(QObject):
                 "dlc_check": MainMenu.DLC_CHECK,
                 "workshop": MainMenu.DL_WORKSHOP_ITEM,
                 "multiplayer": MainMenu.MULTIPLAYER_FIX,
-                "community_fixes": MainMenu.RYUU_FIX,
+                "community_fixes": MainMenu.CRACK_FIX,
                 "hv_fix": MainMenu.HV_FIX,
                 "achievements": MainMenu.DL_USER_GAME_STATS,
                 "dlc_unlockers": MainMenu.MANAGE_DLC_UNLOCKERS,
@@ -903,6 +903,7 @@ class WebBridge(QObject):
                     return (False, "\n".join(log_lines), "Local backup step failed")
                 local_dir = Path(result)
                 remote_path = remote_dest.rstrip("/") + "/" + local_dir.name
+                _no_win = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
                 proc = subprocess.run(
                     [
                         rclone_exe, "copy", str(local_dir), remote_path,
@@ -911,7 +912,7 @@ class WebBridge(QObject):
                         "--create-empty-src-dirs",
                         "--fast-list",
                     ],
-                    capture_output=True, text=True, timeout=300,
+                    capture_output=True, text=True, timeout=300, **_no_win,
                 )
                 log_lines.append(proc.stdout)
                 if proc.returncode == 0:
@@ -944,10 +945,11 @@ class WebBridge(QObject):
                 rclone_exe = str(bundled) if bundled else ""
             if not rclone_exe or not Path(rclone_exe).exists():
                 return json.dumps({"ok": False, "error": "rclone executable not found"})
+            _no_win = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
             try:
                 proc = subprocess.run(
                     [rclone_exe, "listremotes", "--long"],
-                    capture_output=True, text=True, timeout=15,
+                    capture_output=True, text=True, timeout=15, **_no_win,
                 )
                 if proc.returncode != 0:
                     return json.dumps({"ok": False, "error": proc.stderr.strip()[:300]})
@@ -990,10 +992,11 @@ class WebBridge(QObject):
                 return json.dumps({"ok": False, "error": "No remote specified"})
             # Test only the remote root — the backup subfolder may not exist yet
             remote_root = remote.split(":")[0] + ":" if ":" in remote else remote + ":"
+            _no_win = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
             try:
                 proc = subprocess.run(
                     [rclone_exe, "lsd", remote_root, "--max-depth", "1", "--timeout", "15s"],
-                    capture_output=True, text=True, timeout=20,
+                    capture_output=True, text=True, timeout=20, **_no_win,
                 )
                 if proc.returncode == 0:
                     return json.dumps({"ok": True})
@@ -1459,7 +1462,7 @@ class WebBridge(QObject):
                 "dlc_check": MainMenu.DLC_CHECK,
                 "workshop": MainMenu.DL_WORKSHOP_ITEM,
                 "multiplayer": MainMenu.MULTIPLAYER_FIX,
-                "community_fixes": MainMenu.RYUU_FIX,
+                "community_fixes": MainMenu.CRACK_FIX,
                 "hv_fix": MainMenu.HV_FIX,
                 "achievements": MainMenu.DL_USER_GAME_STATS,
                 "dlc_unlockers": MainMenu.MANAGE_DLC_UNLOCKERS,
@@ -1542,6 +1545,13 @@ class WebBridge(QObject):
             if isinstance(result, tuple) and len(result) >= 2:
                 ok, msg = result[0], result[1]
                 applist_path = result[2] if len(result) > 2 else ""
+                if ok and applist_path:
+                    try:
+                        from sff.storage.settings import set_setting
+                        from sff.structs import Settings
+                        set_setting(Settings.APPLIST_FOLDER, applist_path)
+                    except Exception:
+                        pass
                 import json as _json
                 self.task_finished.emit(_json.dumps({
                     "task": "auto_gl_setup",

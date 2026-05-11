@@ -50,7 +50,7 @@ What you need:
 
 SteaMidra will log in, find the fix for your game, download it, and extract it into the game folder automatically. Your credentials are stored securely after the first use.
 
-You can also use **Fixes/Bypasses (Ryuu)** as an additional source — no account needed, and it covers many games not found on online-fix.me.
+You can also use **Fixes & Bypasses** as an additional source — no account needed, and it covers many games not found on online-fix.me.
 
 ---
 

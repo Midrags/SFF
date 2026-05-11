@@ -17,7 +17,7 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 
-VERSION = "6.0.3"
+VERSION = "6.0.4"
 # NOTE: Public key shared by oureveryday (https://github.com/SteamAutoCracks/Steam-auto-crack/issues/33)
 STEAM_WEB_API_KEY = "1DD0450A99F573693CD031EBB160907D"
 GITHUB_USERNAME = "Midrags"

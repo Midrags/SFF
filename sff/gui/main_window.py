@@ -219,7 +219,7 @@ class SFFMainWindow(QMainWindow):
             "  - Check mod updates: See if downloaded Workshop mods have\n"
             "    newer versions available.\n"
             "  - Multiplayer fix: Apply online-fix.me multiplayer patches.\n"
-            "  - Fixes/Bypasses (Ryuu): Apply community-maintained fixes.\n"
+            "  - Fixes & Bypasses: Apply community-maintained fixes.\n"
             "  - DLC Unlockers: Manage CreamAPI / SmokeAPI / other DLC\n"
             "    unlocker DLLs for the selected game.\n"
             "  - SteamAutoCrack: Run the SteamAutoCrack CLI tool on the game.\n\n"
@@ -336,7 +336,7 @@ class SFFMainWindow(QMainWindow):
             T("Open Workshop"): "Browse the Steam Workshop for this game",
             T("Check mod updates"): "Check if downloaded Workshop mods have newer versions",
             T("Multiplayer fix"): "Apply online-fix.me multiplayer patches",
-            T("Fixes/Bypasses (Ryuu)"): "Apply community-maintained fixes from Ryuu's collection",
+            T("Fixes & Bypasses"): "Apply community-maintained fixes and bypasses",
             T("DLC Unlockers"): "Manage CreamAPI / SmokeAPI / other DLC unlocker DLLs",
             T("SteamAutoCrack"): "Run the SteamAutoCrack CLI tool on this game",
         }
@@ -361,7 +361,7 @@ class SFFMainWindow(QMainWindow):
             (T("Open Workshop"), None),
             (T("Check mod updates"), MainMenu.CHECK_MOD_UPDATES),
             (T("Multiplayer fix"), MainMenu.MULTIPLAYER_FIX),
-            (T("Fixes/Bypasses (Ryuu)"), MainMenu.RYUU_FIX),
+            (T("Fixes & Bypasses"), MainMenu.CRACK_FIX),
             (T("HyperVisor (HVAuto)"), MainMenu.HV_FIX),
             (T("DLC Unlockers"), MainMenu.MANAGE_DLC_UNLOCKERS),
             (T("SteamAutoCrack"), None),

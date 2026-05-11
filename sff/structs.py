@@ -57,7 +57,7 @@ class MainMenu(Enum):
     REMOVE_DRM = "Remove SteamStub DRM (Steamless)"
     DL_USER_GAME_STATS = "Download UserGameStatsSchema (achievements w/o gbe_fork)"
     MULTIPLAYER_FIX = "Apply multiplayer fix (online-fix.me)"
-    RYUU_FIX = "Fixes/bypasses (generator.ryuu.lol)"
+    CRACK_FIX = "Fixes & Bypasses"
     HV_FIX = "HyperVisor bypasses (HVAuto)"
     OFFLINE_FIX = "Offline Mode Fix"
     if sys.platform == "win32":
@@ -87,7 +87,7 @@ GameSpecificChoices = Literal[
     MainMenu.DL_WORKSHOP_ITEM,
     MainMenu.CHECK_MOD_UPDATES,
     MainMenu.MULTIPLAYER_FIX,
-    MainMenu.RYUU_FIX,
+    MainMenu.CRACK_FIX,
     MainMenu.HV_FIX,
     MainMenu.MANAGE_DLC_UNLOCKERS
 ]
@@ -100,7 +100,7 @@ GAME_SPECIFIC_CHOICES = (
     MainMenu.DL_WORKSHOP_ITEM,
     MainMenu.CHECK_MOD_UPDATES,
     MainMenu.MULTIPLAYER_FIX,
-    MainMenu.RYUU_FIX,
+    MainMenu.CRACK_FIX,
     MainMenu.HV_FIX,
     MainMenu.MANAGE_DLC_UNLOCKERS
 )

@@ -1,5 +1,22 @@
 # Changelog
 
+## 6.0.4
+
+### Bug Fix — rclone CMD Window
+
+- **CMD flash fixed** — `rclone_backup_save`, `rclone_list_remotes`, and `rclone_test_remote` in `web_bridge.py` now pass `creationflags=CREATE_NO_WINDOW` on Windows. Auto cloud save no longer opens visible CMD windows repeatedly in the background.
+
+### Fixes & Bypasses
+
+- **New feature** — `sff/crack_fix.py` downloads community-maintained fixes and bypasses from the `KoriaPolis/CrakFiles` GitHub JSON. Searches by game name, presents matched fixes with badge labels, downloads from buzzheavier, and extracts directly into the game folder. Available as "Fixes & Bypasses" in the CLI menu and Web UI.
+- Replaces the Ryuu API requirement — no API key needed.
+
+### HyperVisor Bypasses (HVAuto)
+
+- **New feature** — `sff/hv_fix.py` downloads HyperVisor bypass files from the `KoriaPolis/HVAuto` GitHub JSON. Searches by game name, downloads from buzzheavier, and extracts into the game folder. Available as "HyperVisor (HVAuto)" in the CLI menu and Web UI.
+
+---
+
 ## 6.0.3
 
 ### Bug Fix — Silent Cloud Save Backups

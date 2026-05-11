@@ -538,20 +538,20 @@ class GameHandler:
             print("\n" + Fore.RED + "Failed to apply multiplayer fix." + Style.RESET_ALL)
             print("Check the error messages above for details.")
 
-    def apply_ryuu_fix(self, app_info):
-        print("\n" + Fore.CYAN + "Fixes/Bypasses (generator.ryuu.lol)" + Style.RESET_ALL)
-        print("This will search and apply a game fix or bypass from Ryuu's repository.")
+    def apply_crack_fix(self, app_info):
+        print("\n" + Fore.CYAN + "Fixes & Bypasses" + Style.RESET_ALL)
+        print("This will search and apply a game fix or bypass.")
         print("The fix will be extracted directly to the game folder.\n")
         game_name = self._resolve_game_name(app_info)
         print(f"Game: {Fore.YELLOW}{game_name}{Style.RESET_ALL}")
         print(f"Folder: {Fore.YELLOW}{app_info.path}{Style.RESET_ALL}\n")
-        from sff.ryuu_fix import apply_ryuu_fix as _apply_ryuu
-        success = _apply_ryuu(game_name, app_info.path)
+        from sff.crack_fix import apply_crack_fix as _apply_crack
+        success = _apply_crack(game_name, app_info.path)
         if success:
-            print("\n" + Fore.GREEN + "Ryuu fix applied successfully!" + Style.RESET_ALL)
+            print("\n" + Fore.GREEN + "Fix applied successfully!" + Style.RESET_ALL)
             print("You can now launch the game.")
         else:
-            print("\n" + Fore.RED + "Failed to apply Ryuu fix." + Style.RESET_ALL)
+            print("\n" + Fore.RED + "Failed to apply fix." + Style.RESET_ALL)
             print("Check the error messages above for details.")
 
     def apply_hv_fix(self, app_info):
@@ -778,8 +778,8 @@ class GameHandler:
             self.check_mod_updates(app_info.app_id)
         elif choice == MainMenu.MULTIPLAYER_FIX:
             self.apply_multiplayer_fix(app_info)
-        elif choice == MainMenu.RYUU_FIX:
-            self.apply_ryuu_fix(app_info)
+        elif choice == MainMenu.CRACK_FIX:
+            self.apply_crack_fix(app_info)
         elif choice == MainMenu.HV_FIX:
             self.apply_hv_fix(app_info)
         elif choice == MainMenu.MANAGE_DLC_UNLOCKERS:
