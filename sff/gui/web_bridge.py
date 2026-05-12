@@ -1922,9 +1922,9 @@ class WebBridge(QObject):
                 }))
 
                 def _print_fn(msg):
-                    self.download_progress.emit(json.dumps({
-                        "app_id": app_id, "status": msg, "progress": -1
-                    }))
+                    import re as _re
+                    clean = _re.sub(r'\x1b\[[0-9;]*m', '', msg)
+                    self.log_message.emit(clean)
 
                 ok, _size = run_download(game_data, selected_depots, dest, steam_path, print_fn=_print_fn)
 
