@@ -747,7 +747,7 @@ class SFFMainWindow(QMainWindow):
             # Remove the leading HH:MM:SS timestamp already embedded by QtLogHandler
             # to avoid double-timestamps when the JS log panel adds its own.
             text = re.sub(r'^\d{2}:\d{2}:\d{2}\s*', '', text)
-            self._web_bridge.log_message.emit(f'[{lvl}] {text}')
+            self._web_bridge.log_message.emit(text)
 
     def _forward_stdout_to_web(self, text: str):
         """Forward _stream_emitter stdout lines to the web UI log panel."""

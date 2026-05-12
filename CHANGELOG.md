@@ -2,6 +2,36 @@
 
 ## 6.0.5
 
+### DDMod Download — Correct Game Folder Name
+
+- DDMod downloads now resolve the install folder name from Steam App Info (`config.installdir`) instead of defaulting to `App_{appid}`.
+- If Steam App Info is unavailable (offline / no connection), the first short game-name comment from the Lua file is used as the folder name.
+- Final fallback remains `App_{appid}` so downloads never silently fail.
+
+### DDMod Download — ACF File Created After Download
+
+- An ACF (`appmanifest_{appid}.acf`) is written to the Steam library's `steamapps/` folder after every successful DDMod download.
+- ACF contains correct `appid`, `name`, `installdir`, `buildid`, `SizeOnDisk`, and all installed depot + manifest IDs.
+- Steam recognises the install without any manual file editing.
+
+### DDMod Download — Manifest Folder Selector
+
+- Both DDMod modals now show a Manifest Folder row when a local Lua file is selected.
+- Point to any folder of pre-extracted `.manifest` files (e.g., from a ZIP) and those manifests are used directly — no re-fetching required.
+
+### DDMod Download — ManifestHub + GitHub Auto-Fetch
+
+- For any depot whose manifest ID is known but the manifest file is missing, SteaMidra now tries ManifestHub and GitHub automatically before passing control to DepotDownloaderMod.
+- Fetched files are written to both the staging folder and `depotcache` immediately.
+
+### DDMod Download — ZIP Lua Support
+
+- Lua files packaged as `.zip` are now fully supported. The `.lua` is extracted from the archive and any `.manifest` files embedded in the ZIP are seeded into `depotcache` automatically.
+
+### Bug Fix — DDMod Log Double Prefix
+
+- Log messages forwarded from the Qt logging system to the web UI log panel no longer show a doubled log-level prefix (e.g., `INFO INFO message`).
+
 ### Bug Fix — Cloud Save Provider Not Persisting
 
 - **Root cause fixed** — `cloud_provider`, `cloud_rclone_exe`, and `cloud_rclone_remote` were missing from the `Settings` enum. Every call to save these from the Cloud Saves tab silently did nothing. On restart the provider always reverted to local and rclone fields were empty.

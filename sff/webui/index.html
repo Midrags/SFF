@@ -1144,8 +1144,15 @@
                 </div>
                 <div id="dl-local-row" style="display:none; margin-top:8px; padding-left:4px; display:none;">
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="text" id="dl-local-lua-path" readonly placeholder="Select a .lua file..." style="flex:1; font-size:12px;">
+                        <input type="text" id="dl-local-lua-path" readonly placeholder="Select a .lua or .zip file..." style="flex:1; font-size:12px;">
                         <button id="dl-local-lua-browse" class="btn btn-sm">Browse</button>
+                    </div>
+                </div>
+                <div id="dl-manifest-folder-row" style="display:none; margin-top:6px; padding-left:4px;">
+                    <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">Manifest folder (optional — for local .manifest files):</div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="text" id="dl-manifest-folder-path" readonly placeholder="Select folder with .manifest files..." style="flex:1; font-size:12px;">
+                        <button id="dl-manifest-folder-browse" class="btn btn-sm">Browse</button>
                     </div>
                 </div>
                 <button id="dl-fastest" class="download-option" data-tooltip="">
@@ -1240,8 +1247,15 @@
                 </div>
                 <div id="ddmod-home-local-row" style="display:none; margin-bottom:10px;">
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="text" id="ddmod-home-local-path" readonly placeholder="Select a .lua file..." style="flex:1; font-size:12px;">
+                        <input type="text" id="ddmod-home-local-path" readonly placeholder="Select a .lua or .zip file..." style="flex:1; font-size:12px;">
                         <button id="ddmod-home-local-browse" class="btn btn-sm">Browse</button>
+                    </div>
+                </div>
+                <div id="ddmod-home-manifest-row" style="display:none; margin-bottom:10px;">
+                    <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">Manifest folder (optional):</div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="text" id="ddmod-home-manifest-path" readonly placeholder="Select folder with .manifest files..." style="flex:1; font-size:12px;">
+                        <button id="ddmod-home-manifest-browse" class="btn btn-sm">Browse</button>
                     </div>
                 </div>
                 <div id="ddmod-home-recent-row" style="display:none; margin-bottom:10px;">

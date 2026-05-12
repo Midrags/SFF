@@ -1820,6 +1820,16 @@ class WebBridge(QObject):
         return path or ""
 
     @pyqtSlot(result=str)
+    def open_manifest_folder_dialog(self):
+        """Opens a folder picker for selecting a directory containing .manifest files."""
+        path = QFileDialog.getExistingDirectory(
+            self.parent(),
+            "Select Manifest Folder",
+            "",
+        )
+        return path or ""
+
+    @pyqtSlot(result=str)
     def get_recent_lua_files(self):
         """Returns JSON array of recent Lua files [{name, path}, ...] from RecentFilesManager."""
         try:
@@ -1831,8 +1841,8 @@ class WebBridge(QObject):
             logger.warning("get_recent_lua_files failed: %s", e)
             return "[]"
 
-    @pyqtSlot(str, str, str)
-    def download_game_ddmod(self, app_id, source, lua_path):
+    @pyqtSlot(str, str, str, str)
+    def download_game_ddmod(self, app_id, source, lua_path, manifest_folder=''):
         """Download a game using DepotDownloaderMod.
         source: 'hubcap' | 'oureveryday' | 'ryuu' | 'local'
         lua_path: used when source == 'local'
@@ -1878,7 +1888,15 @@ class WebBridge(QObject):
                     "app_id": app_id, "status": "Parsing Lua...", "progress": 15
                 }))
 
-                lua_text = lua_file.read_text(encoding="utf-8", errors="replace")
+                # ZIP: extract lua text and seed depotcache with any embedded manifests
+                if lua_file.suffix.lower() == '.zip':
+                    from sff.zip import read_lua_from_zip
+                    _dc = (steam_path / "depotcache") if steam_path else None
+                    lua_text = read_lua_from_zip(lua_file, decode=True, depotcache=_dc)
+                    if not lua_text:
+                        return (False, "Could not find .lua file inside ZIP archive")
+                else:
+                    lua_text = lua_file.read_text(encoding="utf-8", errors="replace")
                 parsed = parse_lua_contents(lua_text, lua_file)
                 if not parsed or not parsed.depots:
                     return (False, "Failed to parse Lua — no depot info found")
@@ -1894,23 +1912,104 @@ class WebBridge(QObject):
                     if d.decryption_key:
                         depots_dict[str(d.depot_id)] = {"key": d.decryption_key}
 
-                # Try to auto-resolve manifest IDs via Steam App Info
+                _depot_ids_set = set(depots_dict.keys())
+
+                # Step 1: scan ./manifests/ staging for pre-extracted manifest files
+                _staging = _Path.cwd() / "manifests"
+                if _staging.exists():
+                    for _mf in _staging.glob("*.manifest"):
+                        _parts = _mf.stem.split("_", 1)
+                        if len(_parts) == 2 and _parts[0] in _depot_ids_set:
+                            if _parts[0] not in manifests_dict:
+                                manifests_dict[_parts[0]] = _parts[1]
+
+                # Step 2: scan user-provided manifest folder
+                if manifest_folder:
+                    import shutil as _shutil
+                    _mf_path = _Path(manifest_folder)
+                    if _mf_path.exists():
+                        _staging.mkdir(exist_ok=True)
+                        for _mf in _mf_path.glob("*.manifest"):
+                            _parts = _mf.stem.split("_", 1)
+                            if len(_parts) == 2 and _parts[0] in _depot_ids_set:
+                                manifests_dict[_parts[0]] = _parts[1]
+                                _shutil.copy2(_mf, _staging / _mf.name)
+
+                # Step 3: try Steam App Info for manifest IDs + game_name/installdir/buildid (non-fatal)
+                game_name = ""
+                installdir = ""
+                buildid = "0"
                 if steam_path and depots_dict:
                     try:
+                        from sff.steam_client import create_provider_for_current_thread
                         from sff.manifest.downloader import ManifestDownloader
-                        md = ManifestDownloader(provider=None, steam_path=steam_path)
-                        manifest_map = md.get_manifest_ids(parsed, auto=True)
-                        for depot_id, manifest_id in manifest_map.items():
-                            if manifest_id:
-                                manifests_dict[str(depot_id)] = str(manifest_id)
-                    except Exception as me:
-                        logger.debug("Manifest auto-resolve failed (non-fatal): %s", me)
+                        _provider = create_provider_for_current_thread()
+                        _md = ManifestDownloader(provider=_provider, steam_path=steam_path)
+                        _manifest_map = _md.get_manifest_ids(parsed, auto=True)
+                        for _depot_id, _manifest_id in _manifest_map.items():
+                            if _manifest_id and str(_depot_id) not in manifests_dict:
+                                manifests_dict[str(_depot_id)] = str(_manifest_id)
+                        # Also pull game_name, installdir, buildid from App Info
+                        _eff_id = int(parsed.app_id or app_id)
+                        _app_info = _provider.get_single_app_info(_eff_id)
+                        if _app_info:
+                            game_name = _app_info.get("common", {}).get("name", "")
+                            installdir = _app_info.get("config", {}).get("installdir", "")
+                            try:
+                                buildid = str(
+                                    _app_info.get("depots", {})
+                                    .get("branches", {})
+                                    .get("public", {})
+                                    .get("buildid", "0")
+                                )
+                            except Exception:
+                                buildid = "0"
+                    except Exception as _me:
+                        logger.debug("Manifest auto-resolve (Steam provider) failed: %s", _me)
+
+                # Fallback: parse game name from first short Lua comment line
+                if not game_name:
+                    import re as _re2
+                    for _cl in lua_text.splitlines():
+                        _cl = _cl.strip()
+                        if _cl.startswith("--"):
+                            _cand = _re2.sub(r'^--\s*', '', _cl).strip()
+                            if _cand and ':' not in _cand and "'" not in _cand and 'http' not in _cand and 2 < len(_cand) < 60 and not _cand[0].isdigit():
+                                game_name = _cand
+                                break
+                if not installdir:
+                    installdir = game_name or f"App_{parsed.app_id or app_id}"
+
+                # Step 4: download manifest files from ManifestHub + GitHub for known IDs
+                if manifests_dict and steam_path:
+                    try:
+                        from sff.manifest.downloader import ManifestDownloader
+                        _md2 = ManifestDownloader(provider=None, steam_path=steam_path, use_hubcap=False)
+                        _staging.mkdir(exist_ok=True)
+                        _dc2 = steam_path / "depotcache"
+                        _dc2.mkdir(parents=True, exist_ok=True)
+                        _eff_app_id = str(parsed.app_id or app_id)
+                        for _depot_id, _manifest_id in list(manifests_dict.items()):
+                            _dest_mf = _staging / f"{_depot_id}_{_manifest_id}.manifest"
+                            if _dest_mf.exists():
+                                continue
+                            print(f"Fetching manifest for depot {_depot_id} ({_manifest_id})...")
+                            _data = _md2._try_manifesthub_combined(_depot_id, _manifest_id, _eff_app_id)
+                            if _data:
+                                _dest_mf.write_bytes(_data)
+                                (_dc2 / _dest_mf.name).write_bytes(_data)
+                            else:
+                                logger.debug("ManifestHub/GitHub: no manifest for depot %s", _depot_id)
+                    except Exception as _fe:
+                        logger.debug("ManifestHub/GitHub manifest fetch failed (non-fatal): %s", _fe)
 
                 game_data = {
                     "appid": parsed.app_id or app_id,
+                    "game_name": game_name,
                     "depots": depots_dict,
                     "manifests": manifests_dict,
-                    "installdir": f"App_{parsed.app_id or app_id}",
+                    "installdir": installdir,
+                    "buildid": buildid,
                 }
 
                 selected_depots = list(depots_dict.keys())
@@ -1924,9 +2023,22 @@ class WebBridge(QObject):
                 def _print_fn(msg):
                     import re as _re
                     clean = _re.sub(r'\x1b\[[0-9;]*m', '', msg)
-                    self.log_message.emit(clean)
+                    print(clean)
 
                 ok, _size = run_download(game_data, selected_depots, dest, steam_path, print_fn=_print_fn)
+
+                # Write ACF so Steam recognises the install
+                try:
+                    from sff.linux.acf_writer import create_acf
+                    create_acf(
+                        game_data=game_data,
+                        dest_path=dest,
+                        selected_depots=selected_depots,
+                        size_on_disk=_size,
+                        print_fn=_print_fn,
+                    )
+                except Exception as _ae:
+                    logger.warning("ACF write failed (non-fatal): %s", _ae)
 
                 # Add to recent files
                 try:
