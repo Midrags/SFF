@@ -239,8 +239,10 @@ window.Components = (function() {
         // Store the app ID for the download buttons
         var dlFastest = document.getElementById('dl-fastest');
         var dlOlder = document.getElementById('dl-older');
+        var dlDdmod = document.getElementById('dl-ddmod');
         if (dlFastest) dlFastest.dataset.appid = appId;
         if (dlOlder) dlOlder.dataset.appid = appId;
+        if (dlDdmod) dlDdmod.dataset.appid = appId;
 
         showModal('download-modal');
     }

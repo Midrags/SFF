@@ -16,7 +16,6 @@ window.Store = (function() {
     var _apiKeyConnected = false;
     var _debounceTimer = null;
     var _initialized = false;
-    var _fallbackToastShown = false;
     var _imagesHidden = false;
     var _activeGenre = '';
 
@@ -123,9 +122,19 @@ window.Store = (function() {
                 _updatePagination();
                 if (!data.fallback) {
                     _hideConnectBanner();
-                } else if (!_fallbackToastShown && (data.games || []).length > 0) {
-                    _fallbackToastShown = true;
-                    Components.showToast('info', 'Steam catalog loaded — enter Hubcap key for manifest availability');
+                } else {
+                    _showConnectBanner();
+                    var msgEl = document.getElementById('store-banner-msg');
+                    if (msgEl) {
+                        var gamesLen = (data.games || []).length;
+                        if (data.hubcap_error) {
+                            msgEl.textContent = 'Your Hubcap API key is invalid or expired. Enter a new one to restore full store access.';
+                        } else if (gamesLen > 0) {
+                            msgEl.textContent = 'Browsing Steam catalog (' + _total + ' games). Enter a Hubcap key to see manifest availability.';
+                        } else {
+                            msgEl.textContent = 'Could not load store — check your internet or enter a Hubcap API key.';
+                        }
+                    }
                 }
             } catch(e) {
                 Components.showToast('error', 'Failed to parse search results');
@@ -135,7 +144,6 @@ window.Store = (function() {
 
     function onApiKeyAvailable(key) {
         _apiKeyConnected = true;
-        _hideConnectBanner();
     }
 
     function onPageEnter() {
@@ -235,6 +243,11 @@ window.Store = (function() {
     function _hideConnectBanner() {
         var banner = document.getElementById('store-connect-banner');
         if (banner) banner.classList.add('hidden');
+    }
+
+    function _showConnectBanner() {
+        var banner = document.getElementById('store-connect-banner');
+        if (banner) banner.classList.remove('hidden');
     }
 
     return {

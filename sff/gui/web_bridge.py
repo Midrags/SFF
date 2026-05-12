@@ -145,6 +145,7 @@ class WebBridge(QObject):
     def search_games(self, query, offset, per_page, sort_by='updated'):
         """Search the Hubcap store. Falls back to Steam catalog on failure. Emits search_results signal."""
         def _do():
+            _hubcap_error = False
             client = self._get_store_client()
             if client:
                 try:
@@ -200,7 +201,11 @@ class WebBridge(QObject):
                         return {"games": games, "total": result.total, "fallback": False}
                 except Exception as e:
                     logger.warning("Hubcap search failed, falling back to Steam catalog: %s", e)
-            return _search_steam_catalog(query, offset, per_page)
+                    _hubcap_error = True
+            result = _search_steam_catalog(query, offset, per_page)
+            if _hubcap_error:
+                result['hubcap_error'] = True
+            return result
 
         def _on_done(data):
             if data:
@@ -912,7 +917,7 @@ class WebBridge(QObject):
                         "--create-empty-src-dirs",
                         "--fast-list",
                     ],
-                    capture_output=True, text=True, timeout=300, **_no_win,
+                    capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=300, **_no_win,
                 )
                 log_lines.append(proc.stdout)
                 if proc.returncode == 0:
@@ -949,7 +954,7 @@ class WebBridge(QObject):
             try:
                 proc = subprocess.run(
                     [rclone_exe, "listremotes", "--long"],
-                    capture_output=True, text=True, timeout=15, **_no_win,
+                    capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=15, **_no_win,
                 )
                 if proc.returncode != 0:
                     return json.dumps({"ok": False, "error": proc.stderr.strip()[:300]})
@@ -996,7 +1001,7 @@ class WebBridge(QObject):
             try:
                 proc = subprocess.run(
                     [rclone_exe, "lsd", remote_root, "--max-depth", "1", "--timeout", "15s"],
-                    capture_output=True, text=True, timeout=20, **_no_win,
+                    capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=20, **_no_win,
                 )
                 if proc.returncode == 0:
                     return json.dumps({"ok": True})
@@ -1804,6 +1809,148 @@ class WebBridge(QObject):
         return path or ""
 
     @pyqtSlot(result=str)
+    def open_lua_file_dialog(self):
+        """Opens a file picker for Lua files. Returns selected file path."""
+        path, _ = QFileDialog.getOpenFileName(
+            self.parent(),
+            "Select Lua File",
+            "",
+            "Lua Files (*.lua *.zip);;All Files (*)",
+        )
+        return path or ""
+
+    @pyqtSlot(result=str)
+    def get_recent_lua_files(self):
+        """Returns JSON array of recent Lua files [{name, path}, ...] from RecentFilesManager."""
+        try:
+            from sff.recent_files import get_recent_files_manager
+            mgr = get_recent_files_manager()
+            files = mgr.get_all()
+            return json.dumps([{"name": p.name, "path": str(p)} for p in files])
+        except Exception as e:
+            logger.warning("get_recent_lua_files failed: %s", e)
+            return "[]"
+
+    @pyqtSlot(str, str, str)
+    def download_game_ddmod(self, app_id, source, lua_path):
+        """Download a game using DepotDownloaderMod.
+        source: 'hubcap' | 'oureveryday' | 'ryuu' | 'local'
+        lua_path: used when source == 'local'
+        Emits download_progress + task_finished signals."""
+        def _do():
+            self.download_progress.emit(json.dumps({
+                "app_id": app_id, "status": "Starting DDMod download", "progress": 0
+            }))
+            try:
+                from pathlib import Path as _Path
+                from sff.lua.endpoints import get_hubcap, get_oureverday, get_ryuu
+                from sff.lua.manager import parse_lua_contents
+                from sff.depot_downloader import run_download
+
+                steam_path = self._steam_path
+                dest = _Path(self._active_library) if self._active_library else steam_path
+                if dest is None:
+                    return (False, "No Steam library selected. Please select a download location.")
+
+                lua_dest = (steam_path / "config") if steam_path else _Path(".")
+
+                self.download_progress.emit(json.dumps({
+                    "app_id": app_id, "status": "Fetching Lua file...", "progress": 5
+                }))
+
+                if source == "local":
+                    lua_file = _Path(lua_path) if lua_path else None
+                    if not lua_file or not lua_file.exists():
+                        return (False, f"Lua file not found: {lua_path}")
+                elif source == "hubcap":
+                    lua_file = get_hubcap(lua_dest, app_id)
+                elif source == "oureveryday":
+                    lua_file = get_oureverday(lua_dest, app_id)
+                elif source == "ryuu":
+                    lua_file = get_ryuu(lua_dest, app_id, request_update=False)
+                else:
+                    return (False, f"Unknown source: {source}")
+
+                if not lua_file or not lua_file.exists():
+                    return (False, f"Failed to obtain Lua file from source '{source}'")
+
+                self.download_progress.emit(json.dumps({
+                    "app_id": app_id, "status": "Parsing Lua...", "progress": 15
+                }))
+
+                lua_text = lua_file.read_text(encoding="utf-8", errors="replace")
+                parsed = parse_lua_contents(lua_text, lua_file)
+                if not parsed or not parsed.depots:
+                    return (False, "Failed to parse Lua — no depot info found")
+
+                self.download_progress.emit(json.dumps({
+                    "app_id": app_id, "status": "Resolving manifests...", "progress": 25
+                }))
+
+                # Build game_data for run_download
+                depots_dict = {}
+                manifests_dict = {}
+                for d in parsed.depots:
+                    if d.decryption_key:
+                        depots_dict[str(d.depot_id)] = {"key": d.decryption_key}
+
+                # Try to auto-resolve manifest IDs via Steam App Info
+                if steam_path and depots_dict:
+                    try:
+                        from sff.manifest.downloader import ManifestDownloader
+                        md = ManifestDownloader(provider=None, steam_path=steam_path)
+                        manifest_map = md.get_manifest_ids(parsed, auto=True)
+                        for depot_id, manifest_id in manifest_map.items():
+                            if manifest_id:
+                                manifests_dict[str(depot_id)] = str(manifest_id)
+                    except Exception as me:
+                        logger.debug("Manifest auto-resolve failed (non-fatal): %s", me)
+
+                game_data = {
+                    "appid": parsed.app_id or app_id,
+                    "depots": depots_dict,
+                    "manifests": manifests_dict,
+                    "installdir": f"App_{parsed.app_id or app_id}",
+                }
+
+                selected_depots = list(depots_dict.keys())
+                if not selected_depots:
+                    return (False, "No depots with decryption keys found in Lua")
+
+                self.download_progress.emit(json.dumps({
+                    "app_id": app_id, "status": "Running DepotDownloaderMod...", "progress": 35
+                }))
+
+                def _print_fn(msg):
+                    self.download_progress.emit(json.dumps({
+                        "app_id": app_id, "status": msg, "progress": -1
+                    }))
+
+                ok, _size = run_download(game_data, selected_depots, dest, steam_path, print_fn=_print_fn)
+
+                # Add to recent files
+                try:
+                    from sff.recent_files import get_recent_files_manager
+                    get_recent_files_manager().add(lua_file)
+                except Exception:
+                    pass
+
+                return (ok, "Download complete" if ok else "DepotDownloaderMod reported failure")
+
+            except Exception as e:
+                logger.exception("download_game_ddmod failed: %s", e)
+                return (False, str(e))
+
+        def _on_done(result):
+            if isinstance(result, tuple):
+                ok, msg = result
+            else:
+                ok, msg = False, "Download failed"
+            self._emit_task_result("download_ddmod", ok, msg, app_id=app_id)
+
+        self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot(result=str)
     def get_avatar_base64(self):
         """Read the global GBE avatar from GSE Saves/settings/ and return a base64 data URL.
         Returns empty string if no avatar is set."""
@@ -2249,7 +2396,7 @@ class WebBridge(QObject):
                     subprocess.run(
                         [_rclone_exe, "mkdir",
                          _remote_dest.rstrip("/") + f"/SteaMidraAllSaves/{_loc}"],
-                        capture_output=True, timeout=30, **_no_window,
+                        capture_output=True, stdin=subprocess.DEVNULL, timeout=30, **_no_window,
                     )
 
                 def _backup_one_rclone(entry):
@@ -2282,7 +2429,7 @@ class WebBridge(QObject):
                 subprocess.run(
                     [_rclone_exe, "dedupe", "--dedupe-mode", "newest",
                      _remote_dest.rstrip("/") + "/SteaMidraAllSaves"],
-                    capture_output=True, timeout=180, **_no_window,
+                    capture_output=True, stdin=subprocess.DEVNULL, timeout=180, **_no_window,
                 )
 
             elif provider == "gdrive_api":

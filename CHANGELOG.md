@@ -1,5 +1,30 @@
 # Changelog
 
+## 6.0.5
+
+### Bug Fix — Cloud Save Provider Not Persisting
+
+- **Root cause fixed** — `cloud_provider`, `cloud_rclone_exe`, and `cloud_rclone_remote` were missing from the `Settings` enum. Every call to save these from the Cloud Saves tab silently did nothing. On restart the provider always reverted to local and rclone fields were empty.
+- Added all three as proper `SettingItem` entries. The Cloud Saves tab now saves and restores the chosen provider and rclone configuration correctly across restarts.
+
+### Bug Fix — rclone Auto-Backup Silently Failing
+
+- **Bundled exe fallback** — the Settings page auto-backup intentionally stores `rclone_exe = ''` (user should not need to enter a path). `_cloud_save_backup` in `main_window.py` returned early when the exe was empty. Now falls back to `third_party/rclone/rclone.exe` (same logic already present in the manual backup path).
+
+### Bug Fix — Google Drive Shows Not Connected on Restart
+
+- Resolved by the provider persistence fix above. `cloud_provider = 'gdrive'` now saves and restores, so `_checkGdriveStatus()` fires automatically on page enter. `get_service()` refreshes the cached OAuth token without user interaction.
+
+### Auto-Scan for New Games
+
+- `_cloud_save_backup` already called `scan_all_save_locations` before every backup run. New game save folders are picked up automatically — no manual rescan required. This path was unreachable before due to the silent save bug above.
+
+### CMD Flash Hardening
+
+- Added `stdin=subprocess.DEVNULL` to every rclone `subprocess.run` call across `cloud_saves.py`, `main_window.py`, and `web_bridge.py`. Closes stdin cleanly and prevents any stdin-triggered console allocation on Windows.
+
+---
+
 ## 6.0.4
 
 ### Bug Fix — rclone CMD Window

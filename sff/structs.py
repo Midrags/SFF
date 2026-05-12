@@ -223,6 +223,9 @@ class Settings(Enum):
     HV_FIRST_USE_WARNED = SettingItem("hv_first_use_warned", "HyperVisor First Use Warning Shown", False, bool)
     SAVE_WATCHER_INTERVAL = SettingItem("save_watcher_interval", "Background Save Watcher Interval (minutes, 0=off)", False, str)
     LAST_BACKUP_PROVIDER_CONFIG = SettingItem("last_backup_provider_config", "Last Cloud Save Provider Config (managed automatically)", False, str)
+    CLOUD_PROVIDER = SettingItem("cloud_provider", "Cloud Save Provider", False, str)
+    CLOUD_RCLONE_EXE = SettingItem("cloud_rclone_exe", "Cloud Save rclone Executable", False, str)
+    CLOUD_RCLONE_REMOTE = SettingItem("cloud_rclone_remote", "Cloud Save rclone Remote", False, str)
 
     @property
     def key_name(self):

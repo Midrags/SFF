@@ -289,6 +289,7 @@
             </div>
             <div id="store-connect-banner" class="connect-banner">
                 <p>Connect your Hubcap API key to browse the store.</p>
+                <p id="store-banner-msg" class="banner-submsg"></p>
                 <div class="connect-form">
                     <input type="password" id="api-key-input" placeholder="Enter Hubcap API key...">
                     <button id="api-key-connect" class="btn btn-primary">Connect</button>
@@ -1131,12 +1132,21 @@
                     <label class="dl-source-option">
                         <input type="radio" name="dl-source" value="ryuu"> Ryuu
                     </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="dl-source" value="local"> Local file
+                    </label>
                 </div>
                 <div id="ryuu-update-option" style="display:none; margin-top:8px; padding-left:4px;">
                     <label class="dl-source-option">
                         <input type="checkbox" id="ryuu-request-update"> Request Ryuu update before download
                         <small style="color:#888; display:block; margin-top:2px;">(can be slow and may fail)</small>
                     </label>
+                </div>
+                <div id="dl-local-row" style="display:none; margin-top:8px; padding-left:4px; display:none;">
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="text" id="dl-local-lua-path" readonly placeholder="Select a .lua file..." style="flex:1; font-size:12px;">
+                        <button id="dl-local-lua-browse" class="btn btn-sm">Browse</button>
+                    </div>
                 </div>
                 <button id="dl-fastest" class="download-option" data-tooltip="">
                     <svg class="dl-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
@@ -1152,8 +1162,96 @@
                         <span class="dl-desc">Uses DepotDownloaderMod to download a specific older version (requires .NET 9)</span>
                     </div>
                 </button>
+                <button id="dl-ddmod" class="download-option" data-tooltip="Download directly using DepotDownloaderMod with depot keys from the selected source (requires .NET 9)">
+                    <svg class="dl-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <div class="dl-info">
+                        <span class="dl-title">Direct download via DDMod</span>
+                        <span class="dl-desc">Downloads game files directly using DepotDownloaderMod with keys from the selected source (requires .NET 9)</span>
+                    </div>
+                </button>
             </div>
             <div class="modal-footer">
+                <button class="btn modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Download Method Choice Modal (Home tab) -->
+    <div id="ddmod-choose-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Download Game</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:14px;opacity:0.85;">Choose how to download this game.</p>
+                <button id="ddmod-choose-steam" class="download-option" data-tooltip="Uses Lua keys so Steam installs the game natively">
+                    <svg class="dl-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    <div class="dl-info">
+                        <span class="dl-title">Through Steam (Fastest)</span>
+                        <span class="dl-desc">Downloads manifests + keys so Steam installs the game natively.</span>
+                    </div>
+                </button>
+                <button id="ddmod-choose-ddmod" class="download-option" data-tooltip="Download game files directly using DepotDownloaderMod">
+                    <svg class="dl-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <div class="dl-info">
+                        <span class="dl-title">Via DepotDownloaderMod</span>
+                        <span class="dl-desc">Downloads game files directly using DDMod. Requires .NET 9.</span>
+                    </div>
+                </button>
+            </div>
+            <div class="modal-footer">
+                <button class="btn modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DDMod Home Download Modal -->
+    <div id="ddmod-home-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Download via DDMod</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group" style="margin-bottom:10px;">
+                    <label style="font-size:12px;font-weight:600;opacity:0.8;">App ID:</label>
+                    <input type="text" id="ddmod-home-appid" placeholder="e.g. 570" style="font-size:13px;">
+                </div>
+                <div class="dl-source-picker" style="margin-bottom:10px;">
+                    <span class="dl-source-label">Lua source:</span>
+                    <label class="dl-source-option">
+                        <input type="radio" name="ddmod-home-source" value="hubcap" checked> Hubcap
+                    </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="ddmod-home-source" value="oureveryday"> OurEveryday
+                    </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="ddmod-home-source" value="ryuu"> Ryuu
+                    </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="ddmod-home-source" value="local"> Local .lua
+                    </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="ddmod-home-source" value="recent"> Recent .lua
+                    </label>
+                </div>
+                <div id="ddmod-home-local-row" style="display:none; margin-bottom:10px;">
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="text" id="ddmod-home-local-path" readonly placeholder="Select a .lua file..." style="flex:1; font-size:12px;">
+                        <button id="ddmod-home-local-browse" class="btn btn-sm">Browse</button>
+                    </div>
+                </div>
+                <div id="ddmod-home-recent-row" style="display:none; margin-bottom:10px;">
+                    <select id="ddmod-home-recent-select" style="width:100%; font-size:13px;">
+                        <option value="">-- select a recent file --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="ddmod-home-download" class="btn btn-primary">Download via DDMod</button>
                 <button class="btn modal-cancel">Cancel</button>
             </div>
         </div>

@@ -304,8 +304,12 @@ def auto_gl_setup(method: str, archive_path: str, steam_exe_path: str) -> dict:
         # Patch the INI
         patch_dll_injector_ini(final_ini_path, str(steam_exe), final_dll)
 
-        # AppList folder
-        applist_dir = dest_dir / "AppList"
+        # AppList folder — must be next to DLLInjector.exe (GL reads it relative to itself)
+        dllinjector_hits = list(dest_dir.rglob("DLLInjector.exe"))
+        if dllinjector_hits:
+            applist_dir = dllinjector_hits[0].parent / "AppList"
+        else:
+            applist_dir = dest_dir / "AppList"
         applist_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info("GreenLuma setup complete in %s", dest_dir)

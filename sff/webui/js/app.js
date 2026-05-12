@@ -90,6 +90,9 @@ window.App = (function() {
                         Components.showModal('restart-after-download-modal');
                         _populateGameDropdown();
                     }
+                    if (result.task === 'download_ddmod' && result.success) {
+                        _populateGameDropdown();
+                    }
                     if (result.task === 'auto_gl_setup') {
                         var runBtn = document.getElementById('gl-setup-run');
                         if (runBtn) runBtn.disabled = false;
@@ -316,13 +319,28 @@ window.App = (function() {
             }
         });
 
-        // Radio change — show/hide Ryuu update option
+        // Radio change — show/hide Ryuu update option and local file row
         document.querySelectorAll('input[name="dl-source"]').forEach(function(r) {
             r.addEventListener('change', function() {
                 var opt = document.getElementById('ryuu-update-option');
+                var localRow = document.getElementById('dl-local-row');
                 if (opt) opt.style.display = this.value === 'ryuu' ? 'block' : 'none';
+                if (localRow) localRow.style.display = this.value === 'local' ? 'block' : 'none';
             });
         });
+
+        // Download modal — browse local lua file
+        var dlLocalBrowse = document.getElementById('dl-local-lua-browse');
+        if (dlLocalBrowse) {
+            dlLocalBrowse.addEventListener('click', function() {
+                Bridge.callSync('open_lua_file_dialog', function(path) {
+                    if (path) {
+                        var inp = document.getElementById('dl-local-lua-path');
+                        if (inp) inp.value = path;
+                    }
+                });
+            });
+        }
 
         // Download modal — fastest
         var dlFastest = document.getElementById('dl-fastest');
@@ -345,6 +363,100 @@ window.App = (function() {
                 var appId = this.dataset.appid;
                 Components.hideModal('download-modal');
                 _showVersionPicker(appId);
+            });
+        }
+
+        // Download modal — direct DDMod
+        var dlDdmod = document.getElementById('dl-ddmod');
+        if (dlDdmod) {
+            dlDdmod.addEventListener('click', function() {
+                var appId = this.dataset.appid;
+                var sourceEl = document.querySelector('input[name="dl-source"]:checked');
+                var source = sourceEl ? sourceEl.value : 'hubcap';
+                var luaPath = '';
+                if (source === 'local') {
+                    luaPath = (document.getElementById('dl-local-lua-path') || {}).value || '';
+                    if (!luaPath) {
+                        Components.showToast('warning', 'Please select a local .lua file first.');
+                        return;
+                    }
+                }
+                Components.hideModal('download-modal');
+                _startDdmodDownload(appId, source, luaPath);
+            });
+        }
+
+        // DDMod choose modal (home tab) — Through Steam button
+        var ddmodChooseSteam = document.getElementById('ddmod-choose-steam');
+        if (ddmodChooseSteam) {
+            ddmodChooseSteam.addEventListener('click', function() {
+                var appId = this.dataset.appid || '';
+                Components.hideModal('ddmod-choose-modal');
+                Bridge.call('run_game_action', appId, 'download_games');
+            });
+        }
+
+        // DDMod choose modal (home tab) — Via DDMod button
+        var ddmodChooseDdmod = document.getElementById('ddmod-choose-ddmod');
+        if (ddmodChooseDdmod) {
+            ddmodChooseDdmod.addEventListener('click', function() {
+                var appId = this.dataset.appid || '';
+                Components.hideModal('ddmod-choose-modal');
+                _openDdmodHomeModal(appId);
+            });
+        }
+
+        // DDMod home modal — source radio change
+        document.querySelectorAll('input[name="ddmod-home-source"]').forEach(function(r) {
+            r.addEventListener('change', function() {
+                var localRow = document.getElementById('ddmod-home-local-row');
+                var recentRow = document.getElementById('ddmod-home-recent-row');
+                if (localRow) localRow.style.display = this.value === 'local' ? 'block' : 'none';
+                if (recentRow) recentRow.style.display = this.value === 'recent' ? 'block' : 'none';
+            });
+        });
+
+        // DDMod home modal — browse local file
+        var ddmodHomeBrowse = document.getElementById('ddmod-home-local-browse');
+        if (ddmodHomeBrowse) {
+            ddmodHomeBrowse.addEventListener('click', function() {
+                Bridge.callSync('open_lua_file_dialog', function(path) {
+                    if (path) {
+                        var inp = document.getElementById('ddmod-home-local-path');
+                        if (inp) inp.value = path;
+                    }
+                });
+            });
+        }
+
+        // DDMod home modal — Download button
+        var ddmodHomeDownload = document.getElementById('ddmod-home-download');
+        if (ddmodHomeDownload) {
+            ddmodHomeDownload.addEventListener('click', function() {
+                var appId = (document.getElementById('ddmod-home-appid') || {}).value || '';
+                if (!appId) {
+                    Components.showToast('warning', 'Please enter an App ID.');
+                    return;
+                }
+                var sourceEl = document.querySelector('input[name="ddmod-home-source"]:checked');
+                var source = sourceEl ? sourceEl.value : 'hubcap';
+                var luaPath = '';
+                if (source === 'local') {
+                    luaPath = (document.getElementById('ddmod-home-local-path') || {}).value || '';
+                    if (!luaPath) {
+                        Components.showToast('warning', 'Please select a local .lua file first.');
+                        return;
+                    }
+                } else if (source === 'recent') {
+                    luaPath = (document.getElementById('ddmod-home-recent-select') || {}).value || '';
+                    if (!luaPath) {
+                        Components.showToast('warning', 'Please select a recent file.');
+                        return;
+                    }
+                    source = 'local';
+                }
+                Components.hideModal('ddmod-home-modal');
+                _startDdmodDownload(appId, source, luaPath);
             });
         }
 
@@ -396,6 +508,58 @@ window.App = (function() {
                 Bridge.call('restart_steam');
             });
         }
+    }
+
+    function _startDdmodDownload(appId, source, luaPath) {
+        Bridge.callSync('get_steam_libraries', function(json) {
+            var libs;
+            try { libs = JSON.parse(json || '[]'); } catch(e) { libs = []; }
+            if (libs.length === 0) {
+                Components.showToast('error', 'No Steam libraries found. Check your Steam path in Settings.');
+                return;
+            }
+            if (libs.length === 1) {
+                Bridge.call('set_active_library', libs[0]);
+                Components.showToast('info', 'Starting DDMod download for App ' + appId + '...');
+                Bridge.call('download_game_ddmod', appId, source, luaPath || '');
+            } else {
+                Components.showLibraryModal(libs, function(selectedLib) {
+                    Bridge.call('set_active_library', selectedLib);
+                    Components.showToast('info', 'Starting DDMod download for App ' + appId + '...');
+                    Bridge.call('download_game_ddmod', appId, source, luaPath || '');
+                });
+            }
+        });
+    }
+
+    function _openDdmodHomeModal(appId) {
+        var appIdInp = document.getElementById('ddmod-home-appid');
+        if (appIdInp) appIdInp.value = appId || '';
+        var localRow = document.getElementById('ddmod-home-local-row');
+        var recentRow = document.getElementById('ddmod-home-recent-row');
+        if (localRow) localRow.style.display = 'none';
+        if (recentRow) recentRow.style.display = 'none';
+        var firstRadio = document.querySelector('input[name="ddmod-home-source"][value="hubcap"]');
+        if (firstRadio) firstRadio.checked = true;
+
+        Bridge.callSync('get_recent_lua_files', function(json) {
+            var files;
+            try { files = JSON.parse(json || '[]'); } catch(e) { files = []; }
+            var sel = document.getElementById('ddmod-home-recent-select');
+            if (sel) {
+                sel.innerHTML = '<option value="">-- select a recent file --</option>';
+                files.forEach(function(f) {
+                    var opt = document.createElement('option');
+                    opt.value = f.path;
+                    opt.textContent = f.name;
+                    sel.appendChild(opt);
+                });
+                var recentRadio = document.querySelector('input[name="ddmod-home-source"][value="recent"]');
+                if (recentRadio) recentRadio.disabled = files.length === 0;
+            }
+        });
+
+        Components.showModal('ddmod-home-modal');
     }
 
     function _startDownload(appId, mode, source, requestUpdate) {
@@ -769,6 +933,16 @@ window.App = (function() {
                     }
                 }
             });
+            return;
+        }
+
+        if (action === 'download_games') {
+            var homeAppId = _getSelectedGameId() || '';
+            var chooseSteamBtn = document.getElementById('ddmod-choose-steam');
+            var chooseDdmodBtn = document.getElementById('ddmod-choose-ddmod');
+            if (chooseSteamBtn) chooseSteamBtn.dataset.appid = homeAppId;
+            if (chooseDdmodBtn) chooseDdmodBtn.dataset.appid = homeAppId;
+            Components.showModal('ddmod-choose-modal');
             return;
         }
 
