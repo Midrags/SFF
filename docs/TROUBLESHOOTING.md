@@ -180,6 +180,26 @@ You can delete `api_cache.json` — SteaMidra will create a new one when needed.
 
 ---
 
+## GreenLuma — Purchase Error After Setup
+
+If Steam shows a purchase error for a game after GreenLuma setup, it means Steam was opened directly (`steam.exe`) instead of through DLLInjector. You must always launch Steam by running **DLLInjector.exe as Administrator** — not `steam.exe` directly.
+
+**Steps:**
+1. Close Steam completely (check the system tray).
+2. Right-click `DLLInjector.exe` → **Run as administrator**.
+3. Steam will start automatically with GreenLuma injected.
+
+---
+
+### Tip — SteamKillInject (automate the above)
+
+**SteamKillInject** closes all running Steam processes and launches DLLInjector automatically in one step.
+
+- Run **SteamKillInject as Administrator**.
+- Make sure **DLLInjector.exe is also set to Run as Administrator** — right-click → Properties → Compatibility tab → check "Run this program as an administrator".
+
+---
+
 ## Need more help?
 
 Read the error message first — it often explains what went wrong. Check `debug.log` in the SteaMidra folder for more detail.

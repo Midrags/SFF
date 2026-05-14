@@ -1,5 +1,24 @@
 # Changelog
 
+## 6.1.1
+
+### Feature — Auto GreenLuma One-Click Download & Setup
+
+- The GreenLuma setup modal now downloads GreenLuma directly from the official link with one click. No need to locate or browse for an archive file.
+- Progress is reported live during download, extraction, and INI patching.
+
+### Bug Fix — DLLInjector GetHBITMAP Failed After Auto Setup
+
+- DLLInjector.ini was not receiving `UseFullPathsFromIni = 1` or a cleared `BootImage` value after auto-setup. Without `UseFullPathsFromIni = 1`, absolute paths written to the INI were ignored; a leftover `BootImage` path caused Windows to call `GetHBITMAP` on a non-existent bitmap file.
+- Fixed: INI patcher now enforces all required keys to match the reference working configuration.
+
+### Bug Fix — "Through Steam" Download Option Triggered DDMod Anonymously
+
+- The "Through Steam (Fastest)" button in the download choice dialog was routing through `process_lua_full` which also runs DepotDownloaderMod at the end using anonymous login. This caused 401 errors on games whose depot manifests require an authenticated session.
+- Fixed: button now routes directly to `download_game_fastest` (Steam-native path only, no DDMod invocation).
+
+---
+
 ## 6.1.0
 
 ### Bug Fix — System Tray Icon Not Visible
@@ -26,11 +45,6 @@
 
 - KDE Plasma requires both `app.setDesktopFileName()` and `window.setWindowIcon()` to display the icon in the taskbar. Only `app.setWindowIcon()` was called.
 - Fixed: `app.setDesktopFileName("steamidra")` is now set on Linux at startup, and `window.setWindowIcon()` is called directly on the `SFFMainWindow` instance after creation.
-
-### Bug Fix — Steam Method Download Fallback Missing on Linux
-
-- `process_from_store()` aborted with a hard error when .NET 9 was absent. On Linux with SLSteam installed this is unnecessary: the game can be registered in SLSteam and downloaded by clicking "Update" in the Steam library.
-- Fixed: if .NET 9 is not found and SLSteam is active, SteaMidra now writes the ACF, registers the app, and instructs the user to let Steam download it. This matches the existing behaviour in `process_lua_full()`.
 
 ## 6.0.5
 

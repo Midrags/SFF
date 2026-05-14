@@ -67,6 +67,7 @@ class WebBridge(QObject):
     download_progress = pyqtSignal(str)
     task_finished = pyqtSignal(str)
     log_message = pyqtSignal(str)
+    gl_progress = pyqtSignal(str)
 
     def __init__(self, ui, steam_path, parent=None):
         super().__init__(parent)
@@ -1544,6 +1545,50 @@ class WebBridge(QObject):
                 steam_exe = r"C:\Program Files (x86)\Steam\steam.exe"
             from sff.greenluma_setup import auto_gl_setup
             result = auto_gl_setup(method=method, archive_path=archive_path, steam_exe_path=steam_exe)
+            return (result["ok"], result["message"], result.get("applist_path", ""))
+
+        def _on_done(result):
+            if isinstance(result, tuple) and len(result) >= 2:
+                ok, msg = result[0], result[1]
+                applist_path = result[2] if len(result) > 2 else ""
+                if ok and applist_path:
+                    try:
+                        from sff.storage.settings import set_setting
+                        from sff.structs import Settings
+                        set_setting(Settings.APPLIST_FOLDER, applist_path)
+                    except Exception:
+                        pass
+                import json as _json
+                self.task_finished.emit(_json.dumps({
+                    "task": "auto_gl_setup",
+                    "success": bool(ok),
+                    "message": msg,
+                    "applist_path": applist_path,
+                }))
+            else:
+                import json as _json
+                self.task_finished.emit(_json.dumps({"task": "auto_gl_setup", "success": False, "message": "Setup failed"}))
+
+        self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot(str)
+    def download_gl_action(self, config_json):
+        """Download GreenLuma from Buzzheavier and run auto setup.
+        config_json: {method: 'A'|'B', steam_exe: str}
+        Emits gl_progress for live status and task_finished with task='auto_gl_setup'."""
+        def _do():
+            import json as _json
+            cfg = _json.loads(config_json)
+            method = cfg.get("method", "A")
+            steam_exe = cfg.get("steam_exe", "").strip()
+            if not steam_exe:
+                steam_exe = r"C:\Program Files (x86)\Steam\steam.exe"
+            from sff.greenluma_setup import download_and_setup_gl
+            result = download_and_setup_gl(
+                method=method,
+                steam_exe_path=steam_exe,
+                progress_cb=lambda msg: self.gl_progress.emit(msg),
+            )
             return (result["ok"], result["message"], result.get("applist_path", ""))
 
         def _on_done(result):

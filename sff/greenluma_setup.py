@@ -201,7 +201,7 @@ def find_ini_in_dir(dir_path: str) -> str:
 
 
 def patch_dll_injector_ini(ini_path: str, steam_exe: str, dll_path: str) -> None:
-    """Patch DLLInjector.ini with the correct Exe and Dll paths, line by line."""
+    """Patch DLLInjector.ini with all required keys, preserving comments and other lines."""
     p = Path(ini_path)
     try:
         text = p.read_text(encoding="utf-8", errors="replace")
@@ -209,39 +209,119 @@ def patch_dll_injector_ini(ini_path: str, steam_exe: str, dll_path: str) -> None
         text = ""
 
     if not text:
-        # Write a minimal config
+        # Write a complete minimal config that matches the reference INI
         text = (
             f"[{_DLL_INI_SECTION}]\r\n"
+            "AllowMultipleInstancesOfDLLInjector = 0\r\n"
+            "UseFullPathsFromIni = 1\r\n"
             f'Exe = "{steam_exe}"\r\n'
+            "CommandLine = -inhibitbootstrap\r\n"
             f'Dll = "{dll_path}"\r\n'
+            "WaitForProcessTermination = 1\r\n"
             "CreateFiles = 1\r\n"
             "FileToCreate_1 = NoQuestion.bin\r\n"
-            "AllowMultipleInstancesOfDLLInjector = 0\r\n"
-            "WaitForProcessTermination = 0\r\n"
+            "BootImage =\r\n"
         )
         p.write_text(text, encoding="utf-8")
         return
 
+    # Keys to enforce with their target values.
+    # Keys that should be quoted use a special marker: (value, quoted)
+    _ENFORCE = {
+        "Exe": (steam_exe, True),
+        "Dll": (dll_path, True),
+        "UseFullPathsFromIni": ("1", False),
+        "CommandLine": ("-inhibitbootstrap", False),
+        "WaitForProcessTermination": ("1", False),
+        "CreateFiles": ("1", False),
+        "FileToCreate_1": ("NoQuestion.bin", False),
+        "BootImage": ("", False),
+    }
+
     lines = text.splitlines(keepends=True)
     result = []
-    for line in lines:
+    seen = set()
+    section_line_idx = None
+
+    for i, line in enumerate(lines):
         stripped = line.strip()
+        # Track the [DllInjector] section header position
+        if stripped.lower() == f"[{_DLL_INI_SECTION.lower()}]":
+            section_line_idx = len(result)
+            result.append(line)
+            continue
+        # Skip comment lines and blank lines as-is
+        if not stripped or stripped.startswith("#"):
+            result.append(line)
+            continue
         key = stripped.split("=")[0].strip() if "=" in stripped else stripped
-        if key == "Exe":
+        if key in _ENFORCE:
+            seen.add(key)
+            val, quoted = _ENFORCE[key]
             indent = line[: len(line) - len(line.lstrip())]
-            result.append(f'{indent}Exe = "{steam_exe}"\r\n')
-        elif key == "Dll":
-            indent = line[: len(line) - len(line.lstrip())]
-            result.append(f'{indent}Dll = "{dll_path}"\r\n')
-        elif key == "CreateFiles":
-            indent = line[: len(line) - len(line.lstrip())]
-            result.append(f"{indent}CreateFiles = 1\r\n")
-        elif key == "FileToCreate_1":
-            indent = line[: len(line) - len(line.lstrip())]
-            result.append(f"{indent}FileToCreate_1 = NoQuestion.bin\r\n")
+            if quoted:
+                result.append(f'{indent}{key} = "{val}"\r\n')
+            else:
+                result.append(f"{indent}{key} = {val}\r\n")
         else:
             result.append(line)
+
+    # Inject any keys that were absent, right after the section header
+    missing = [k for k in _ENFORCE if k not in seen]
+    if missing:
+        inject_at = (section_line_idx + 1) if section_line_idx is not None else 0
+        inject_lines = []
+        for key in missing:
+            val, quoted = _ENFORCE[key]
+            if quoted:
+                inject_lines.append(f'{key} = "{val}"\r\n')
+            else:
+                inject_lines.append(f"{key} = {val}\r\n")
+        result[inject_at:inject_at] = inject_lines
+
     p.write_text("".join(result), encoding="utf-8")
+
+
+def download_and_setup_gl(
+    method: str,
+    steam_exe_path: str,
+    progress_cb=None,
+) -> dict:
+    """
+    Download GreenLuma from Buzzheavier and run auto_gl_setup.
+
+    progress_cb: optional callable(str) for live status messages.
+    Returns {'ok': bool, 'message': str, 'applist_path': str}.
+    """
+    import tempfile
+
+    _GL_FILE_ID = "cuygee4bo1ch"
+
+    def _report(msg: str) -> None:
+        if progress_cb:
+            try:
+                progress_cb(msg)
+            except Exception:
+                pass
+        logger.info(msg)
+
+    _report("Downloading GreenLuma...")
+
+    tmp = Path(tempfile.mkdtemp(prefix="steamidra_gl_dl_"))
+    try:
+        from sff.hv_fix import _download_buzzheavier
+        archive_path = _download_buzzheavier(_GL_FILE_ID, tmp)
+        if not archive_path or not archive_path.exists():
+            return {"ok": False, "message": "Download failed — could not reach download server.", "applist_path": ""}
+
+        _report("Download complete. Starting setup...")
+        result = auto_gl_setup(method, str(archive_path), steam_exe_path)
+        return result
+    except Exception as exc:
+        logger.error("download_and_setup_gl failed: %s", exc)
+        return {"ok": False, "message": f"Download/setup failed: {exc}", "applist_path": ""}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def auto_gl_setup(method: str, archive_path: str, steam_exe_path: str) -> dict:

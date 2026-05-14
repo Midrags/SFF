@@ -94,8 +94,10 @@ window.App = (function() {
                         _populateGameDropdown();
                     }
                     if (result.task === 'auto_gl_setup') {
-                        var runBtn = document.getElementById('gl-setup-run');
+                        var runBtn = document.getElementById('gl-download-run');
                         if (runBtn) runBtn.disabled = false;
+                        var statusEl = document.getElementById('gl-setup-status');
+                        if (statusEl) statusEl.textContent = result.success ? 'Setup complete.' : (result.message || 'Setup failed.');
                         if (result.success && result.applist_path) {
                             var folderInp = document.getElementById('setting-applist-folder');
                             if (folderInp) {
@@ -414,7 +416,7 @@ window.App = (function() {
             ddmodChooseSteam.addEventListener('click', function() {
                 var appId = this.dataset.appid || '';
                 Components.hideModal('ddmod-choose-modal');
-                Bridge.call('run_game_action', appId, 'download_games');
+                Bridge.call('download_game_fastest', appId);
             });
         }
 
@@ -1039,18 +1041,6 @@ window.App = (function() {
         if (_glSetupInitialized) return;
         _glSetupInitialized = true;
 
-        var archiveBrowse = document.getElementById('gl-archive-browse');
-        if (archiveBrowse) {
-            archiveBrowse.addEventListener('click', function() {
-                Bridge.callSync('open_archive_dialog', function(path) {
-                    if (path) {
-                        var inp = document.getElementById('gl-archive-path');
-                        if (inp) inp.value = path;
-                    }
-                });
-            });
-        }
-
         var steamBrowse = document.getElementById('gl-steam-browse');
         if (steamBrowse) {
             steamBrowse.addEventListener('click', function() {
@@ -1063,22 +1053,22 @@ window.App = (function() {
             });
         }
 
-        var runBtn = document.getElementById('gl-setup-run');
+        Bridge.on('gl_progress', function(msg) {
+            var statusEl = document.getElementById('gl-setup-status');
+            if (statusEl) statusEl.textContent = msg;
+        });
+
+        var runBtn = document.getElementById('gl-download-run');
         if (runBtn) {
             runBtn.addEventListener('click', function() {
-                var archivePath = (document.getElementById('gl-archive-path') || {}).value || '';
                 var steamExe = (document.getElementById('gl-steam-exe') || {}).value || '';
                 var methodEl = document.querySelector('input[name="gl-method"]:checked');
                 var method = methodEl ? methodEl.value : 'A';
-                if (!archivePath) {
-                    Components.showToast('warning', 'Please select the GreenLuma archive first');
-                    return;
-                }
+                var statusEl = document.getElementById('gl-setup-status');
+                if (statusEl) statusEl.textContent = 'Downloading GreenLuma...';
                 runBtn.disabled = true;
-                Components.hideModal('gl-setup-modal');
-                Bridge.call('auto_gl_setup_action', JSON.stringify({
+                Bridge.call('download_gl_action', JSON.stringify({
                     method: method,
-                    archive_path: archivePath,
                     steam_exe: steamExe
                 }));
             });
