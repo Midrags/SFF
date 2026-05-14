@@ -100,6 +100,8 @@ SteaMidra has a full graphical interface with a **Modern UI (new in 5.5.0, updat
 
 **Modern UI** — the new default interface, built with QWebEngine. Accessible from a clean sidebar with 8 tabs: Home (game picker with auto-refresh), Store (search/browse Hubcap, grid/list, pagination), Library (installed games), Downloads (live progress + history), Fix Game (full emulator pipeline), Tools (GBE Token Generator, VDF Extractor, Workshop), Cloud Saves (scan/backup/restore, Google Drive, rclone with 17 provider shortcuts, All Save Locations), and Settings. Supports 11+ themes, tooltips, and toast notifications.
 
+**Millennium Plugin** — SteaMidra ships a [Millennium](https://steambrew.app) plugin (`PlugInFiles/`) that adds SteaMidra controls directly inside the Steam client. See [PlugInFiles/README.md](PlugInFiles/README.md) for setup.
+
 **What the GUI gives you:**
 - **Tabbed interface** — Main, Store, Downloads, Fix Game, Tools, and Cloud Saves tabs.
 - Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.
@@ -119,9 +121,14 @@ SteaMidra has a full graphical interface with a **Modern UI (new in 5.5.0, updat
 
 ---
 
-## What's new
+## What's new in 6.1.0
 
-See [CHANGELOG.md](CHANGELOG.md) for what changed in the latest update.
+- System tray icon now shows correctly on launch (was invisible due to a null icon check bug).
+- Remove dialog and game cards animate out smoothly instead of snapping away.
+- Horizontal scrollbar no longer appears in the library page.
+- Millennium plugin released — add SteaMidra to your Steam client without leaving Steam.
+
+Full history: [CHANGELOG.md](CHANGELOG.md)
 
 ---
 

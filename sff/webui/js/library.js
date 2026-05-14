@@ -41,7 +41,18 @@ window.Library = (function() {
                 }
                 if (data.task === 'delete_game') {
                     if (data.success) {
-                        _refreshLibrary();
+                        var removedId = data.app_id || (window._lastDeletedAppId || '');
+                        var card = removedId
+                            ? document.querySelector('[data-appid="' + removedId + '"].game-card')
+                            : null;
+                        if (card) {
+                            card.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+                            card.style.opacity = '0';
+                            card.style.transform = 'scale(0.92)';
+                            setTimeout(function() { _refreshLibrary(); }, 200);
+                        } else {
+                            _refreshLibrary();
+                        }
                     }
                 }
                 if (data.task === 'update_check') {
@@ -64,6 +75,7 @@ window.Library = (function() {
                         FixGame.preSelect(appId);
                         App.navigateTo('fixgame');
                     } else if (action === 'delete') {
+                        window._lastDeletedAppId = appId;
                         _pendingDelete = {
                             appId: appId,
                             gamePath: btn.dataset.gamepath || ''

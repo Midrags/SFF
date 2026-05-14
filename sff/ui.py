@@ -149,6 +149,39 @@ def _cleanup_stale_manifests(steam_path, manifest_override: dict) -> None:
         )
 
 
+def _maybe_prompt_manifest_pins(parsed_lua):
+    """One-time prompt for setManifestid pins found in a Hubcap/Ryuu Lua file.
+
+    Saves the answer to settings so the user is never asked again.
+    If the user already answered, just prints a reminder when pins are active.
+    """
+    pin_map = getattr(parsed_lua, "manifest_overrides", {}) or {}
+    if not pin_map:
+        return
+    if get_setting(Settings.MANIFEST_PINS_ASKED):
+        if get_setting(Settings.USE_MANIFEST_PINS):
+            print(
+                Fore.CYAN
+                + f"[OK] Using {len(pin_map)} pinned manifest version(s) from Lua."
+                + Style.RESET_ALL
+            )
+        return
+    print(
+        Fore.YELLOW
+        + f"\nThis Lua file has {len(pin_map)} pinned manifest version(s).\n"
+        "Pinned versions lock the game to the exact version the Lua was built for.\n"
+        "Useful for specific crack versions; skip to fetch the latest Steam manifests."
+        + Style.RESET_ALL
+    )
+    choice = prompt_confirm("Use pinned manifest versions?")
+    set_setting(Settings.MANIFEST_PINS_ASKED, True)
+    set_setting(Settings.USE_MANIFEST_PINS, choice)
+    if choice:
+        print(Fore.GREEN + "[OK] Pinned manifest versions enabled and saved to Settings." + Style.RESET_ALL)
+    else:
+        print(Fore.YELLOW + "Skipped. Using latest Steam manifests. Change this any time in Settings." + Style.RESET_ALL)
+
+
 class UI:
     def __init__(
         self,
@@ -164,9 +197,14 @@ class UI:
             else None
         )
         self.os_type = os_type
-        self.sls_man = (
-            SLSManager(steam_path, provider) if os_type == OSType.LINUX else None
-        )
+        if os_type == OSType.LINUX:
+            try:
+                self.sls_man = SLSManager(steam_path, provider)
+            except FileNotFoundError as _sls_err:
+                logger.warning("SLSteam config not found — SLSteam features disabled: %s", _sls_err)
+                self.sls_man = None
+        else:
+            self.sls_man = None
         self.notification_service = get_notification_service()
         self.recent_files_manager = get_recent_files_manager()
         self.analytics_tracker = get_analytics_tracker()
@@ -717,6 +755,8 @@ class UI:
         parsed_lua = lua_manager.fetch_lua()
         if parsed_lua is None:
             return MainReturnCode.LOOP_NO_PROMPT
+        if lua_manager.last_endpoint in (LuaEndpoint.HUBCAP, LuaEndpoint.RYUU):
+            _maybe_prompt_manifest_pins(parsed_lua)
         lua_manager.backup_lua(parsed_lua)
         install_lua_to_steam(
             self.steam_path,
@@ -820,6 +860,8 @@ class UI:
         if parsed_lua is None:
             return MainReturnCode.LOOP_NO_PROMPT
         downloader.use_hubcap = (lua_manager.last_endpoint == LuaEndpoint.HUBCAP)
+        if lua_manager.last_endpoint in (LuaEndpoint.HUBCAP, LuaEndpoint.RYUU):
+            _maybe_prompt_manifest_pins(parsed_lua)
         # Track recent file
         if parsed_lua.path:
             self.recent_files_manager.add(parsed_lua.path)
@@ -860,35 +902,35 @@ class UI:
             downloader.download_manifests_parallel(parsed_lua, auto_manifest=True)
         else:
             downloader.download_manifests(parsed_lua, auto_manifest=True)
-        if sys.platform != "win32":
-            import re as _re
-            from sff.dotnet_utils import ensure_dotnet_9
-            from sff.depot_downloader import run_download
-            from pathvalidate import sanitize_filename
-            print(Fore.YELLOW + "\nDownloading game files via DepotDownloaderMod:" + Style.RESET_ALL)
-            if ensure_dotnet_9():
-                _manifest_re = _re.compile(
-                    r"setManifestid\s*\(\s*(\d+)\s*,\s*[\"']([0-9a-fA-F]+)[\"']\s*\)"
-                )
-                _manifests = {
-                    m.group(1): m.group(2)
-                    for m in _manifest_re.finditer(parsed_lua.contents or "")
-                }
-                _game_name_str = get_game_name(parsed_lua.app_id)
-                _installdir = sanitize_filename(_game_name_str).replace("'", "").strip() or str(parsed_lua.app_id)
-                _game_data = {
-                    "appid": str(parsed_lua.app_id),
-                    "depots": {
-                        str(dp.depot_id): {"key": dp.decryption_key}
-                        for dp in parsed_lua.depots
-                        if dp.decryption_key
-                    },
-                    "manifests": _manifests,
-                    "installdir": _installdir,
-                }
-                _selected = [str(dp.depot_id) for dp in parsed_lua.depots if dp.decryption_key]
-                run_download(_game_data, _selected, lib_path, self.steam_path, print_fn=print)
-            else:
+        import re as _re
+        from sff.dotnet_utils import ensure_dotnet_9
+        from sff.depot_downloader import run_download
+        from pathvalidate import sanitize_filename
+        print(Fore.YELLOW + "\nDownloading game files via DepotDownloaderMod:" + Style.RESET_ALL)
+        if ensure_dotnet_9():
+            _manifest_re = _re.compile(
+                r"setManifestid\s*\(\s*(\d+)\s*,\s*[\"']([0-9a-fA-F]+)[\"']\s*\)"
+            )
+            _manifests = {
+                m.group(1): m.group(2)
+                for m in _manifest_re.finditer(parsed_lua.contents or "")
+            }
+            _game_name_str = get_game_name(parsed_lua.app_id)
+            _installdir = sanitize_filename(_game_name_str).replace("'", "").strip() or str(parsed_lua.app_id)
+            _game_data = {
+                "appid": str(parsed_lua.app_id),
+                "depots": {
+                    str(dp.depot_id): {"key": dp.decryption_key}
+                    for dp in parsed_lua.depots
+                    if dp.decryption_key
+                },
+                "manifests": _manifests,
+                "installdir": _installdir,
+            }
+            _selected = [str(dp.depot_id) for dp in parsed_lua.depots if dp.decryption_key]
+            run_download(_game_data, _selected, lib_path, self.steam_path, print_fn=print)
+        else:
+            if sys.platform != "win32":
                 print(
                     Fore.YELLOW
                     + ".NET 9 not found. Game registered in SLSsteam — run Linux Tools Setup, then open Steam and click 'Update'."
@@ -971,7 +1013,9 @@ class UI:
             return MainReturnCode.LOOP_NO_PROMPT
         provider = self._steam_provider()
         downloader = ManifestDownloader(provider, self.steam_path)
-        downloader.use_hubcap = use_hubcap
+        downloader.use_hubcap = False
+        if use_hubcap:
+            _maybe_prompt_manifest_pins(parsed_lua)
         config = ConfigVDFWriter(self.steam_path)
         acf = ACFWriter(lib_path)
         steam_proc = (
@@ -1018,6 +1062,17 @@ class UI:
             downloader.download_manifests(parsed_lua, auto_manifest=False, manifest_override=manifest_override)
         print(Fore.YELLOW + "\nChecking .NET 9 runtime:" + Style.RESET_ALL)
         if not ensure_dotnet_9():
+            if sys.platform != "win32" and self.sls_man:
+                print(
+                    Fore.YELLOW
+                    + ".NET 9 not found. Game registered in SLSteam — open Steam and click 'Update' to let Steam download the game."
+                    + Style.RESET_ALL
+                )
+                acf.write_acf(parsed_lua)
+                ensure_library_has_app(self.steam_path, lib_path, str(parsed_lua.app_id))
+                if self.download_manager and _tracking_item:
+                    self.download_manager.complete_external(_tracking_item, success=True)
+                return MainReturnCode.LOOP_NO_PROMPT
             print(Fore.RED + ".NET 9 is required for DepotDownloaderMod. Aborting download." + Style.RESET_ALL)
             return MainReturnCode.LOOP_NO_PROMPT
         game_name_str = get_game_name(parsed_lua.app_id)

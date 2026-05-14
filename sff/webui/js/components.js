@@ -211,12 +211,18 @@ window.Components = (function() {
     // Show/hide a modal
     function showModal(modalId) {
         var modal = document.getElementById(modalId);
-        if (modal) modal.classList.remove('hidden');
+        if (!modal) return;
+        modal.classList.remove('hidden', 'modal-hiding');
     }
 
     function hideModal(modalId) {
         var modal = document.getElementById(modalId);
-        if (modal) modal.classList.add('hidden');
+        if (!modal || modal.classList.contains('hidden')) return;
+        modal.classList.add('modal-hiding');
+        setTimeout(function() {
+            modal.classList.remove('modal-hiding');
+            modal.classList.add('hidden');
+        }, 150);
     }
 
     // Show download modal for a specific game
@@ -284,14 +290,14 @@ window.Components = (function() {
         document.querySelectorAll('.modal-close, .modal-cancel').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 var modal = this.closest('.modal');
-                if (modal) modal.classList.add('hidden');
+                if (modal) hideModal(modal.id);
             });
         });
 
         document.querySelectorAll('.modal-overlay:not([data-no-close])').forEach(function(overlay) {
             overlay.addEventListener('click', function() {
                 var modal = this.closest('.modal');
-                if (modal) modal.classList.add('hidden');
+                if (modal) hideModal(modal.id);
             });
         });
     }

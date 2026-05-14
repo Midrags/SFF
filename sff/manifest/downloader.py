@@ -161,10 +161,17 @@ class ManifestDownloader:
             strats.append(InnerDepotManifestStrategy())
         strats.append(ManualManifestStrategy())
         resolver = ManifestIDResolver(strats)
+        use_pins = get_setting(Settings.USE_MANIFEST_PINS)
+        pin_map = getattr(lua, "manifest_overrides", {}) or {}
         for pair in lua.depots:
             depot_id = str(pair.depot_id)
             if not pair.decryption_key:
                 logger.debug(f"Skipping {depot_id} because it has no decryption key")
+                continue
+            if use_pins and depot_id in pin_map:
+                pinned_gid = pin_map[depot_id]
+                print(f"Depot {depot_id} using pinned manifest {pinned_gid} (Lua pin)")
+                manifest_ids[depot_id] = pinned_gid
                 continue
             manifest, strat = resolver.resolve(context, depot_id)
             if manifest == "":

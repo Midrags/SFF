@@ -35,7 +35,7 @@ MANIFESTS_TMP = Path(tempfile.gettempdir()) / "mistwalker_manifests"
 
 
 def get_deps_dir() -> Path:
-    return root_folder() / "third_party" / "linux" / "deps"
+    return root_folder() / "third_party" / "DDMod"
 
 
 def get_ddmod_dll() -> Path:

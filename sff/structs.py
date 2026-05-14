@@ -214,6 +214,8 @@ class Settings(Enum):
     # DLC Unlocker mode (CreamInstaller-compatible)
     USE_SMOKEAPI = SettingItem("use_smokeapi", "Prefer SmokeAPI over CreamAPI (Steam)", False, bool)
     HIDE_STORE_IMAGES = SettingItem("hide_store_images", "Hide Store Images", False, bool)
+    USE_MANIFEST_PINS = SettingItem("use_manifest_pins", "Use Pinned Manifest Versions from Lua", False, bool)
+    MANIFEST_PINS_ASKED = SettingItem("manifest_pins_asked", "Manifest Pin Prompt Shown (managed automatically)", False, bool)
 
     APPLIST_ID_LIMIT = SettingItem("applist_id_limit", "AppList ID Limit (0 = unlimited)", False, str)
     MANIFESTHUB_API_KEY = SettingItem("manifesthub_api_key", "ManifestHub API Key (manifesthub1.filegear-sg.me, 24h)", True, str)
@@ -337,6 +339,8 @@ class LuaParsedInfo(RawLua):
     app_id: str
     "The base app ID"
     depots: list[DepotKeyPair]
+    manifest_overrides: dict = field(default_factory=dict)
+    "depot_id -> manifest_gid pins from setManifestid() Lua calls"
 
 
 NamedIDs = NewType("NamedIDs", dict[str, str])

@@ -58,7 +58,7 @@ class TrayIcon(QObject):
             logger.warning("System tray not available")
             return
         self._tray = QSystemTrayIcon(self.parent())
-        if app_icon:
+        if app_icon and not app_icon.isNull():
             self._tray.setIcon(app_icon)
         elif self._icon_path:
             self._tray.setIcon(QIcon(self._icon_path))

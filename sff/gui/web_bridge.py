@@ -1873,11 +1873,11 @@ class WebBridge(QObject):
                     if not lua_file or not lua_file.exists():
                         return (False, f"Lua file not found: {lua_path}")
                 elif source == "hubcap":
-                    lua_file = get_hubcap(lua_dest, app_id)
+                    lua_file = get_hubcap(lua_dest, app_id, depotcache=(steam_path / "depotcache") if steam_path else None)
                 elif source == "oureveryday":
                     lua_file = get_oureverday(lua_dest, app_id)
                 elif source == "ryuu":
-                    lua_file = get_ryuu(lua_dest, app_id, request_update=False)
+                    lua_file = get_ryuu(lua_dest, app_id, request_update=False, depotcache=(steam_path / "depotcache") if steam_path else None)
                 else:
                     return (False, f"Unknown source: {source}")
 
@@ -1939,6 +1939,7 @@ class WebBridge(QObject):
                 game_name = ""
                 installdir = ""
                 buildid = "0"
+                _provider = None
                 if steam_path and depots_dict:
                     try:
                         from sff.steam_client import create_provider_for_current_thread
@@ -1980,28 +1981,58 @@ class WebBridge(QObject):
                 if not installdir:
                     installdir = game_name or f"App_{parsed.app_id or app_id}"
 
-                # Step 4: download manifest files from ManifestHub + GitHub for known IDs
+                # Pin info: tell the user if the Lua has setManifestid pins
+                if source in ("hubcap", "ryuu"):
+                    _pin_map = getattr(parsed, "manifest_overrides", {}) or {}
+                    if _pin_map:
+                        from sff.storage.settings import get_setting as _gs
+                        from sff.structs import Settings as _S
+                        if not _gs(_S.MANIFEST_PINS_ASKED):
+                            print(
+                                f"[!] {len(_pin_map)} pinned manifest version(s) found in this Lua."
+                                " To use them, enable 'Use Pinned Manifest Versions from Lua' in Settings."
+                            )
+
+                # Step 4: gmrc -> ManifestHub -> GitHub for known manifest IDs
                 if manifests_dict and steam_path:
                     try:
+                        import shutil as _step4_shutil
                         from sff.manifest.downloader import ManifestDownloader
-                        _md2 = ManifestDownloader(provider=None, steam_path=steam_path, use_hubcap=False)
+                        _md2 = ManifestDownloader(provider=_provider, steam_path=steam_path, use_hubcap=False)
                         _staging.mkdir(exist_ok=True)
                         _dc2 = steam_path / "depotcache"
                         _dc2.mkdir(parents=True, exist_ok=True)
                         _eff_app_id = str(parsed.app_id or app_id)
+                        _cdn2 = None
+                        if _provider:
+                            try:
+                                _cdn2 = _md2.get_cdn_client()
+                            except Exception as _ce:
+                                logger.debug("CDN client init failed (non-fatal): %s", _ce)
                         for _depot_id, _manifest_id in list(manifests_dict.items()):
+                            _dc_mf = _dc2 / f"{_depot_id}_{_manifest_id}.manifest"
                             _dest_mf = _staging / f"{_depot_id}_{_manifest_id}.manifest"
+                            if _dc_mf.exists():
+                                if not _dest_mf.exists():
+                                    _step4_shutil.copy2(_dc_mf, _dest_mf)
+                                continue
                             if _dest_mf.exists():
+                                _dc2.mkdir(parents=True, exist_ok=True)
+                                _step4_shutil.copy2(_dest_mf, _dc_mf)
                                 continue
                             print(f"Fetching manifest for depot {_depot_id} ({_manifest_id})...")
-                            _data = _md2._try_manifesthub_combined(_depot_id, _manifest_id, _eff_app_id)
-                            if _data:
-                                _dest_mf.write_bytes(_data)
-                                (_dc2 / _dest_mf.name).write_bytes(_data)
+                            if _cdn2:
+                                _data = _md2.download_single_manifest(_depot_id, _manifest_id, cdn_client=_cdn2, app_id=_eff_app_id)
                             else:
-                                logger.debug("ManifestHub/GitHub: no manifest for depot %s", _depot_id)
+                                _data = _md2._try_manifesthub_combined(_depot_id, _manifest_id, _eff_app_id)
+                            if _data:
+                                _written = _md2._write_manifest_to_depotcache(_data, _depot_id, _manifest_id)
+                                if _written and not _dest_mf.exists():
+                                    _step4_shutil.copy2(_written, _dest_mf)
+                            else:
+                                logger.debug("All sources failed for manifest depot %s", _depot_id)
                     except Exception as _fe:
-                        logger.debug("ManifestHub/GitHub manifest fetch failed (non-fatal): %s", _fe)
+                        logger.debug("Manifest fetch failed (non-fatal): %s", _fe)
 
                 game_data = {
                     "appid": parsed.app_id or app_id,

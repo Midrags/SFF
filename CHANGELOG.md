@@ -1,5 +1,37 @@
 # Changelog
 
+## 6.1.0
+
+### Bug Fix — System Tray Icon Not Visible
+
+- **Root cause:** `TrayIcon.setup()` called `self._tray.setIcon(app_icon)` without checking `app_icon.isNull()`. A null `QIcon` is truthy in Python, so the tray icon was created with no icon and stayed invisible.
+- Fixed: icon is now only set when `not app_icon.isNull()`. The tray icon appears correctly on first launch.
+
+### Bug Fix — Remove Button Dialog Closed Janky
+
+- Modal dismiss was instant (`display: none` with no exit animation), so the dialog snapped away instead of fading out.
+- Fixed: modal now plays a `fadeOut + slideDown` animation over 150 ms before hiding. The deleted game card also fades and shrinks out before the library grid refreshes, so there is no sudden flash.
+
+### Bug Fix — Horizontal Scrollbar Visible in Library
+
+- The `.content` area had `overflow-y: auto` but no `overflow-x` rule, so any element that briefly overflowed caused a bottom scrollbar.
+- Fixed: added `overflow-x: hidden` to `.content`.
+
+### Bug Fix — Linux Startup Crash (SLSteam Config Missing)
+
+- **Root cause:** `UI.__init__` called `SLSManager(steam_path, provider)` unconditionally on Linux. `SLSManager.__init__` raised `FileNotFoundError` when `~/.config/SLSsteam/config.yaml` did not exist, crashing the app before it opened.
+- Fixed: `SLSManager` is now created inside a `try/except FileNotFoundError`. If the config is absent, `sls_man` is set to `None` and a warning is logged. SteaMidra starts normally without SLSteam. Run "Linux Tools Setup" to install SLSteam.
+
+### Bug Fix — Linux Taskbar Icon Not Visible (KDE / Wayland)
+
+- KDE Plasma requires both `app.setDesktopFileName()` and `window.setWindowIcon()` to display the icon in the taskbar. Only `app.setWindowIcon()` was called.
+- Fixed: `app.setDesktopFileName("steamidra")` is now set on Linux at startup, and `window.setWindowIcon()` is called directly on the `SFFMainWindow` instance after creation.
+
+### Bug Fix — Steam Method Download Fallback Missing on Linux
+
+- `process_from_store()` aborted with a hard error when .NET 9 was absent. On Linux with SLSteam installed this is unnecessary: the game can be registered in SLSteam and downloaded by clicking "Update" in the Steam library.
+- Fixed: if .NET 9 is not found and SLSteam is active, SteaMidra now writes the ACF, registers the app, and instructs the user to let Steam download it. This matches the existing behaviour in `process_lua_full()`.
+
 ## 6.0.5
 
 ### DDMod Download — Correct Game Folder Name

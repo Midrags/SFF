@@ -118,6 +118,8 @@ def main():
             break
     if not _app_icon.isNull():
         app.setWindowIcon(_app_icon)
+    if sys.platform == "linux":
+        app.setDesktopFileName("steamidra")
 
     os_type = (
         OSType.WINDOWS
@@ -163,6 +165,8 @@ def main():
     app.setQuitOnLastWindowClosed(False)
 
     window = SFFMainWindow(ui, steam_path)
+    if not _app_icon.isNull():
+        window.setWindowIcon(_app_icon)
     window.show()
 
     from sff.tray_icon import TrayIcon

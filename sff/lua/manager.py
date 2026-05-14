@@ -48,6 +48,10 @@ _DEPOT_DEC_KEY_REGEX = re.compile(
     flags=re.MULTILINE,
 )
 _GENERAL_ADDAPPID_REGEX = re.compile(r"^\s*addappid\s*\(\s*(\d+)", flags=re.MULTILINE)
+_SETMANIFESTID_REGEX = re.compile(
+    r"^\s*setManifestid\s*\(\s*(\d+)\s*,\s*[\"'](\d+)[\"']\s*\)",
+    flags=re.MULTILINE,
+)
 
 
 def parse_lua_contents(contents, path):
@@ -64,7 +68,8 @@ def parse_lua_contents(contents, path):
         return None
     depot_pairs = [DepotKeyPair(*x) for x in depot_dec_key]
     depot_pairs.extend([DepotKeyPair(x, "") for x in ids_with_no_key])
-    return LuaParsedInfo(path, contents, app_id, depot_pairs)
+    manifest_overrides = dict(_SETMANIFESTID_REGEX.findall(contents))
+    return LuaParsedInfo(path, contents, app_id, depot_pairs, manifest_overrides)
 
 
 class LuaManager:
