@@ -1,4 +1,4 @@
-# SteaMidra
+# SteaMidra Trusted by r/FMHY [FMHY](https://fmhy.net/gaming-tools#steam-epic) and r/Piracy [Piracy](https://www.reddit.com/r/Piracy/wiki/megathread/games/)
 
 *Made by Midrag and his brother!*
 =======
