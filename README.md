@@ -2,7 +2,7 @@
 
 *Made by Midrag and his brother!*
 =======
-# If you use the normal mode patch of GL then you do not have to downgrade steam!!!
+# If you use the normal mode patch of GL from the GreenLuma guide under then you do not have to downgrade steam!!!
 
 Steam has updated and if you accidentally update your Steam client to a version after **10/03/2026** then normal GreenLuma (none patched version) won't work! Use this command to revert your Steam version or just use the patch:
 
