@@ -158,23 +158,26 @@ def _extract_7z(archive_path: str, dest_dir: str) -> None:
 
 
 def extract_archive(archive_path: str, dest_dir: str) -> None:
-    """Extract archive to dest_dir. Supports ZIP, RAR, 7z."""
+    """Extract archive to dest_dir. Supports ZIP, RAR, 7z.
+    Tries the extension-appropriate extractor first; if it fails, falls back
+    to the remaining formats so a misnamed archive (e.g. .rar saved as .7z)
+    is still extracted correctly."""
     ext = Path(archive_path).suffix.lower()
-    if ext == ".zip":
-        _extract_zip(archive_path, dest_dir)
-    elif ext == ".rar":
-        _extract_rar(archive_path, dest_dir)
-    elif ext == ".7z":
-        _extract_7z(archive_path, dest_dir)
-    else:
-        # Try ZIP first, then RAR, then 7z
-        for fn in (_extract_zip, _extract_rar, _extract_7z):
-            try:
-                fn(archive_path, dest_dir)
-                return
-            except Exception:
-                continue
-        raise RuntimeError(f"Unsupported or unextractable archive: {archive_path}")
+    _ORDER = {
+        ".zip": (_extract_zip, _extract_rar, _extract_7z),
+        ".rar": (_extract_rar, _extract_7z, _extract_zip),
+        ".7z":  (_extract_7z, _extract_rar, _extract_zip),
+    }
+    funcs = _ORDER.get(ext, (_extract_zip, _extract_rar, _extract_7z))
+    last_err: Exception | None = None
+    for fn in funcs:
+        try:
+            fn(archive_path, dest_dir)
+            return
+        except Exception as e:
+            last_err = e
+            continue
+    raise RuntimeError(f"Unsupported or unextractable archive: {archive_path}") from last_err
 
 
 def find_dll_in_dir(dir_path: str) -> str:
@@ -357,7 +360,7 @@ def auto_gl_setup(method: str, archive_path: str, steam_exe_path: str) -> dict:
     import tempfile
     tmp = Path(tempfile.mkdtemp(prefix="steamidra_gl_"))
     try:
-        logger.info("Extracting %s → %s", archive_path, tmp)
+        logger.info("Extracting %s -> %s", archive_path, tmp)
         extract_archive(archive_path, str(tmp))
 
         # Find DLL and INI

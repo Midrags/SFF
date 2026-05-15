@@ -25,7 +25,7 @@ A standard hypervisor (VirtualBox, VMware, Hyper-V) runs as an application on to
 
 Every HV crack ships as two parts:
 
-1. **VBS.cmd** — a command-line script that checks your current security settings and adjusts them so the system can load the HV driver. It includes a Revert Changes option. Current version: **v1.6.2**. Universal across all HV games.
+1. **VBS.cmd** — a command-line script that checks your current security settings and adjusts them so the system can load the HV driver. It includes a Revert Changes option. Universal across all HV games.
 2. **The crack itself** — game-specific EXEs/DLLs that do the actual Denuvo bypass, plus additional files such as a Goldberg Steam emulator to pass Steam's underlying protection. These files work only for the specific game version they were built for.
 
 ---
@@ -118,7 +118,7 @@ Whether any specific game is worth those trade-offs is your decision alone.
 - **Check your system first.** Run a reputable portable AV scanner before disabling security features. Have a look at Task Manager for unfamiliar processes.
 - **Verify files.** Confirm that the crack files come from a trusted source. Check checksums if available from a separate trusted location.
 - **Prefer open source.** If source code is included, compare it against the GitHub projects the HV driver is based on. Compile it yourself if you know how.
-- **Use only approved VBS.cmd versions.** Do not use scripts from unknown sources. The one bundled by SteaMidra (v1.6.2) is open source and reviewed.
+- **Use only approved VBS.cmd versions.** Do not use scripts from unknown sources. The one bundled by SteaMidra is open source and reviewed.
 - **Revert after every session.** This is not optional. Leaving DSE off and HVCI disabled permanently removes meaningful kernel protection.
 - **Kernel anti-cheats will not work** while DSE is off. FACEIT, Vanguard, and Easy Anti-Cheat require DSE. Do not try to use them in the same boot session.
 - **BitLocker users:** Make sure you have your BitLocker recovery key before making changes. Disabling VBS components can trigger a recovery key prompt on next boot.

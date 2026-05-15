@@ -5,7 +5,7 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 **What you need before using SteaMidra**
 
 - Steam installed.  
-- GreenLuma — you need to download and set it up yourself. See the [Setup Guide](SETUP_GUIDE.md) for the download link and steps.  
+- GreenLuma — SteaMidra can download and set it up automatically via **Auto GL Setup** (Home tab). See the [Setup Guide](SETUP_GUIDE.md) for details and manual steps.  
 - A Lua file for the game (or use SteaMidra to download one).  
 
 **Quick start**
@@ -36,6 +36,9 @@ How to use the online fix feature for multiplayer games.
 
 [Fixes & Bypasses](CRACK_FIX.md)  
 Using the community fix list as an alternative or supplement to online-fix.me. No account required.
+
+[CrakFiles — Fix list source](CRACK_FILES.md)  
+What the CrakFiles repository is, how SteaMidra fetches crackfiles.json, and a breakdown of every field including source_crack and original_download.
 
 [HyperVisor Guide](HV_GUIDE.md)  
 How HV cracks work, what Windows security features they require you to disable, security implications, and step-by-step setup. Read before using HV Auto.

@@ -23,19 +23,21 @@ Extract the ZIP anywhere — you will get a folder with `SteaMidra_GUI.exe` and 
 
 ## Step 2: GreenLuma
 
-Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: https://www.up-4ever.net/lyoi96gger8y
+> **Recommended — Auto GL Setup:** Open SteaMidra, go to the **Home** tab, click **Auto GL Setup** in the Quick Tools section, choose Method A or B, then click **Download GreenLuma**. SteaMidra downloads, extracts, and configures GreenLuma automatically. Skip to Step 3 when done.
 
-1. Extract the ZIP — you will see three folders. You only need `NormalModePatch.rar`.
-2. Extract `NormalModePatch.rar` and place all files into your `SteaMidra\Greenluma` folder.
+If you prefer to download manually: use this direct link: https://buzzheavier.com/cuygee4bo1ch [FIRST CLICK OPENS MALWARE POPUP!]. Download `GLPatch.rar`, then in Auto GL Setup click **Browse** to select the archive.
 
 ---
 
 ## Step 3: Configure GreenLuma
 
-1. Open your `SteaMidra\Greenluma` folder and run `GreenLumaSettings2025.exe`.
-2. Type `2` and press Enter.
-3. Set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`).
-4. Set the full path to `GreenLuma_2025_x64.dll` (default: `SteaMidra\Greenluma\GreenLuma_2025_x64.dll`).
+**If you used Auto GL Setup:** `DLLInjector.ini` is already patched. Skip to launching SteaMidra below.
+
+**Manual setup:** Open your `SteaMidra\Greenluma` folder and run `GreenLumaSettings2025.exe`.
+
+1. Type `2` and press Enter.
+2. Set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`).
+3. Set the full path to `GreenLuma_2025_x64.dll` (default: `SteaMidra\Greenluma\GreenLuma_2025_x64.dll`).
 
 ---
 

@@ -1,5 +1,28 @@
 # Changelog
 
+## 6.1.2
+
+### Bug Fix — Buzzheavier Download Always Failed
+
+- `_download_buzzheavier` used a two-step flow that hit `/{id}/download` with no token. Buzzheavier now requires a signed time-based token embedded in the page HTML. The old flow received HTML back instead of a file, causing 403 errors or py7zr reporting "not a 7z file".
+- Fixed: rewrote to a four-step flow — fetch page, extract token via regex, trigger download with token, validate magic bytes. Falls back to Server 2 (`&alt=true`) if Server 1 returns no redirect. Covers all callers: HV cracks, crack fixes, and Auto GL Setup.
+
+### Bug Fix — Auto GL Setup Unicode Crash on Windows
+
+- `greenluma_setup.py` logged the extraction step with a `→` arrow (U+2192). On systems using cp1252 encoding this raised a `UnicodeEncodeError` and aborted setup.
+- Fixed: replaced `→` with `->`.
+
+### Bug Fix — Auto GL Setup "Not a 7z File" on Wrong Extension
+
+- `extract_archive` dispatched solely on file extension. If the extension was wrong (e.g. a `.7z` file that was actually RAR or ZIP), it raised immediately with no fallback.
+- Fixed: when the extension-based extractor raises, the function now tries RAR, 7z, and ZIP in sequence before giving up.
+
+### Docs — CrakFiles Guide Added
+
+- New `docs/CRACK_FILES.md` documents the CrakFiles repository, the JSON structure, all field definitions, and how SteaMidra fetches and uses the fix list.
+
+---
+
 ## 6.1.1
 
 ### Feature — Auto GreenLuma One-Click Download & Setup

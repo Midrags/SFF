@@ -73,13 +73,44 @@ def _extract_file_id_from_url(href: str) -> tuple[str, str]:
 
 def _download_buzzheavier(file_id: str, temp_dir: Path) -> "Path | None":
     """Download a file from buzzheavier.com.
-    Two-step flow:
-      1. GET /{file_id}/download with HTMX headers → 204 + Hx-Redirect header (signed CDN URL)
-      2. Stream the file from the CDN URL; derive filename from Content-Disposition.
+    Four-step flow:
+      1. GET /{file_id} page to extract the signed token and real filename from HTML.
+      2. GET /{file_id}/download?t={token} (Server 1); fall back to &alt=true (Server 2).
+      3. Stream the file from the CDN URL returned via Hx-Redirect header.
+      4. Validate magic bytes to confirm a real archive was downloaded.
     Returns the Path of the downloaded file, or None on failure."""
     page_url = f"https://buzzheavier.com/{file_id}"
-    trigger_url = f"https://buzzheavier.com/{file_id}/download"
     print(Fore.CYAN + f"Downloading from buzzheavier.com ({file_id})..." + Style.RESET_ALL)
+
+    # Step 1: fetch page to get signed token and real filename
+    token = None
+    page_fname = f"{file_id}.rar"
+    try:
+        page_resp = httpx.get(
+            page_url,
+            headers={"User-Agent": _UA, "Accept": "text/html", "Accept-Language": "en-US,en;q=0.9"},
+            follow_redirects=True,
+            timeout=15,
+        )
+        page_html = page_resp.text
+        m_token = re.search(r'hx-get="[^"]*?/download\?t=([^"&]+)', page_html)
+        if m_token:
+            token = m_token.group(1)
+        m_fname = re.search(r'<span[^>]+text-2xl[^>]*>\s*([^<]+)\s*</span>', page_html)
+        if m_fname:
+            page_fname = m_fname.group(1).strip()
+    except Exception as e:
+        print(Fore.YELLOW + f"  Could not fetch page: {e}" + Style.RESET_ALL)
+
+    if not token:
+        print(
+            Fore.YELLOW
+            + "buzzheavier: no download token found on page.\n"
+            + "Opening the download page in your browser — download it manually."
+            + Style.RESET_ALL
+        )
+        webbrowser.open(page_url)
+        return None
 
     htmx_headers = {
         "User-Agent": _UA,
@@ -90,27 +121,34 @@ def _download_buzzheavier(file_id: str, temp_dir: Path) -> "Path | None":
         "Accept-Language": "en-US,en;q=0.9",
     }
 
-    # Step 1: trigger download to get signed CDN URL
-    try:
-        trigger_resp = httpx.get(trigger_url, headers=htmx_headers, follow_redirects=False, timeout=15)
-    except Exception as e:
-        print(Fore.RED + f"Download error (trigger): {e}" + Style.RESET_ALL)
-        webbrowser.open(page_url)
-        return None
+    # Step 2: trigger Server 1, fall back to Server 2
+    cdn_url = None
+    for alt in (False, True):
+        server_label = "Server 2" if alt else "Server 1"
+        trigger_suffix = f"?t={token}" + ("&alt=true" if alt else "")
+        trigger_url = f"https://buzzheavier.com/{file_id}/download{trigger_suffix}"
+        try:
+            trigger_resp = httpx.get(trigger_url, headers=htmx_headers, follow_redirects=False, timeout=15)
+            url = trigger_resp.headers.get("hx-redirect") or trigger_resp.headers.get("Hx-Redirect")
+            if url:
+                cdn_url = url
+                print(Fore.CYAN + f"  {server_label} ready." + Style.RESET_ALL)
+                break
+            print(Fore.YELLOW + f"  {server_label}: no redirect, trying next..." + Style.RESET_ALL)
+        except Exception as e:
+            print(Fore.YELLOW + f"  {server_label} trigger failed: {e}" + Style.RESET_ALL)
 
-    cdn_url = trigger_resp.headers.get("hx-redirect") or trigger_resp.headers.get("Hx-Redirect")
     if not cdn_url:
         print(
             Fore.YELLOW
             + "buzzheavier did not return a download URL.\n"
-            + "Opening the download page in your browser — download it manually, "
-            "then place the file in the game folder."
+            + "Opening the download page in your browser — download it manually."
             + Style.RESET_ALL
         )
         webbrowser.open(page_url)
         return None
 
-    # Step 2: stream file from CDN URL
+    # Step 3: stream file from CDN URL
     try:
         with httpx.stream(
             "GET",
@@ -121,8 +159,8 @@ def _download_buzzheavier(file_id: str, temp_dir: Path) -> "Path | None":
         ) as resp:
             resp.raise_for_status()
 
-            # Derive filename from Content-Disposition; fall back to {file_id}.7z
-            fname = f"{file_id}.7z"
+            # Filename: Content-Disposition > page title > fallback
+            fname = page_fname
             cd = resp.headers.get("content-disposition", "")
             if cd:
                 m = re.search(r'filename\*?=(?:UTF-8\'\'\'?)?"?([^";]+)"?', cd, re.IGNORECASE)
@@ -141,13 +179,47 @@ def _download_buzzheavier(file_id: str, temp_dir: Path) -> "Path | None":
                         pct = int(downloaded / total * 100)
                         print(f"\r  {pct}% ({downloaded // 1048576}MB / {total // 1048576}MB)", end="", flush=True)
             print()
-        return dest_path
     except httpx.HTTPStatusError as e:
         print(Fore.RED + f"Download failed: HTTP {e.response.status_code}" + Style.RESET_ALL)
         return None
     except Exception as e:
         print(Fore.RED + f"Download error: {e}" + Style.RESET_ALL)
         return None
+
+    # Step 4: validate magic bytes — must be a real archive, not an HTML error page
+    _MAGIC = {
+        b"Rar!": ".rar",
+        b"7z\xbc\xaf": ".7z",
+        b"PK\x03\x04": ".zip",
+        b"PK\x05\x06": ".zip",
+        b"PK\x07\x08": ".zip",
+    }
+    try:
+        with dest_path.open("rb") as f:
+            header = f.read(8)
+        real_ext = None
+        for sig, ext in _MAGIC.items():
+            if header.startswith(sig):
+                real_ext = ext
+                break
+        if real_ext is None:
+            print(
+                Fore.RED
+                + "Downloaded file is not a valid archive (received HTML or invalid data).\n"
+                + "Opening the download page in your browser — download it manually."
+                + Style.RESET_ALL
+            )
+            dest_path.unlink(missing_ok=True)
+            webbrowser.open(page_url)
+            return None
+        if dest_path.suffix.lower() != real_ext:
+            fixed = dest_path.with_suffix(real_ext)
+            dest_path.rename(fixed)
+            dest_path = fixed
+    except Exception as e:
+        print(Fore.YELLOW + f"  Archive validation warning: {e}" + Style.RESET_ALL)
+
+    return dest_path
 
 
 def _download_vikingfile(href: str, dest_path: Path) -> bool:

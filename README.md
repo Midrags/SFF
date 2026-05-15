@@ -29,7 +29,7 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 - Download and use Lua files for games, download manifests, and set up GreenLuma.
 - Write Lua and manifest data into Steam's config.
 - Multiplayer fixes: **online-fix.me** integration and **game fixes/bypasses (Ryuu)**.
-- **HyperVisor Cracks (HV Auto)** — download HyperVisor bypasses for Denuvo-protected games. Includes VBS.cmd (v1.6.2) to prepare your system. See the [HyperVisor Guide](docs/HV_GUIDE.md) before use.
+- **HyperVisor Cracks (HV Auto)** — download HyperVisor bypasses for Denuvo-protected games. Includes VBS.cmd to prepare your system. See the [HyperVisor Guide](docs/HV_GUIDE.md) before use.
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
@@ -50,11 +50,11 @@ You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere —
 
 ### Step 2: GreenLuma
 
-Join our [Discord server](https://discord.gg/V8aZqnbB84) to get the latest GreenLuma, or use this direct link: [GreenLuma Link](https://buzzheavier.com/cuygee4bo1ch) [FIRST CLICK OPENS MALWARE POPUP!].
+> **Recommended — Auto GL Setup (6.1.1+):** Open SteaMidra, go to the **Home** tab, click **Auto GL Setup** in the Quick Tools section, choose Method A or B, then click **Download GreenLuma**. SteaMidra downloads `GLPatch.rar` automatically, extracts it, patches `DLLInjector.ini`, and creates the `AppList` folder. Skip to Step 3 when done.
 
-> **Tip (6.0.3+):** SteaMidra can set up GreenLuma automatically. After downloading `GLPatch.rar`, open SteaMidra, go to the **Home** tab, click **Auto GL Setup** in the Quick Tools section, browse for the archive, choose Method A or B, and click **Setup GreenLuma**. It will extract the files, patch `DLLInjector.ini`, and create the `AppList` folder for you. Skip to Step 3 if you use this.
+If you prefer to download manually: join our [Discord server](https://discord.gg/V8aZqnbB84) or use this direct link: [GreenLuma Link](https://buzzheavier.com/cuygee4bo1ch) [FIRST CLICK OPENS MALWARE POPUP!]. Download `GLPatch.rar`, then in Auto GL Setup click **Browse** to select the archive instead of using the download button.
 
-Download `GLPatch.rar` from the link above. Or extract it manually and follow Plan A or Plan B:
+Or extract `GLPatch.rar` manually and follow Plan A or Plan B:
 
 **Method A — Separate folder (next to SteaMidra)**
 1. Create a `Greenluma` folder next to `SteaMidra_GUI.exe` (e.g. `C:\SteaMidra\Greenluma\`).
@@ -100,8 +100,6 @@ SteaMidra has a full graphical interface with a **Modern UI (new in 5.5.0, updat
 
 **Modern UI** — the new default interface, built with QWebEngine. Accessible from a clean sidebar with 8 tabs: Home (game picker with auto-refresh), Store (search/browse Hubcap, grid/list, pagination), Library (installed games), Downloads (live progress + history), Fix Game (full emulator pipeline), Tools (GBE Token Generator, VDF Extractor, Workshop), Cloud Saves (scan/backup/restore, Google Drive, rclone with 17 provider shortcuts, All Save Locations), and Settings. Supports 11+ themes, tooltips, and toast notifications.
 
-**Millennium Plugin** — SteaMidra ships a [Millennium](https://steambrew.app) plugin (`PlugInFiles/`) that adds SteaMidra controls directly inside the Steam client. See [PlugInFiles/README.md](PlugInFiles/README.md) for setup.
-
 **What the GUI gives you:**
 - **Tabbed interface** — Main, Store, Downloads, Fix Game, Tools, and Cloud Saves tabs.
 - Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.
@@ -121,12 +119,12 @@ SteaMidra has a full graphical interface with a **Modern UI (new in 5.5.0, updat
 
 ---
 
-## What's new in 6.1.0
+## What's new in 6.1.2
 
-- System tray icon now shows correctly on launch (was invisible due to a null icon check bug).
-- Remove dialog and game cards animate out smoothly instead of snapping away.
-- Horizontal scrollbar no longer appears in the library page.
-- Millennium plugin released — add SteaMidra to your Steam client without leaving Steam.
+- Buzzheavier downloads now work correctly — rewrote the download flow to use the signed token Buzzheavier requires. Fixes Auto GL Setup, HV cracks, and crack fixes all at once.
+- Auto GL Setup no longer crashes on Windows systems using cp1252 encoding.
+- Auto GL Setup now falls back through multiple archive formats if the file extension is wrong.
+- New guide: `docs/CRACK_FILES.md` covers the CrakFiles fix list format and fields.
 
 Full history: [CHANGELOG.md](CHANGELOG.md)
 
@@ -147,6 +145,8 @@ Full history: [CHANGELOG.md](CHANGELOG.md)
 [Multiplayer Fix](docs/MULTIPLAYER_FIX.md) – Using the online-fix.me multiplayer fix.
 
 [Fixes/Bypasses (Ryuu)](docs/RYUU_FIX.md) – Using Ryuu as a free, no-account alternative fix source.
+
+[CrakFiles — Fixes & Bypasses source](docs/CRACK_FILES.md) – What the CrakFiles repository is, how SteaMidra fetches and uses `crackfiles.json`, and a breakdown of every field in the fix list.
 
 [HyperVisor Guide](docs/HV_GUIDE.md) – How HV cracks work, security implications, and step-by-step setup for Denuvo HyperVisor bypasses.
 

@@ -576,7 +576,7 @@ class GameHandler:
                 "  - Revert changes after each play session using VBS.cmd > Revert Changes.\n"
                 "  - Scan your system with an AV before running the crack.\n"
                 "  - Most kernel anti-cheats (FACEIT, Vanguard) will not work while DSE is off.\n\n"
-                "The included VBS.cmd (v1.6.2) handles all security setting changes\n"
+                "The included VBS.cmd handles all security setting changes\n"
                 "and includes a Revert Changes option. Run it as Administrator.\n\n"
                 "For full details, read the cs.rin.ru guide:\n"
                 "  https://cs.rin.ru/forum/viewtopic.php?f=10&t=156407\n"
