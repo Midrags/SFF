@@ -52,7 +52,7 @@ You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere —
 
 > **Recommended — Auto GL Setup (6.1.1+):** Open SteaMidra, go to the **Home** tab, click **Auto GL Setup** in the Quick Tools section, choose Method A or B, then click **Download GreenLuma**. SteaMidra downloads `GLPatch.rar` automatically, extracts it, patches `DLLInjector.ini`, and creates the `AppList` folder. Skip to Step 3 when done.
 
-If you prefer to download manually: join our [Discord server](https://discord.gg/V8aZqnbB84) or use this direct link: [GreenLuma Link](https://buzzheavier.com/cuygee4bo1ch) [FIRST CLICK OPENS MALWARE POPUP!]. Download `GLPatch.rar`, then in Auto GL Setup click **Browse** to select the archive instead of using the download button.
+If you prefer to download manually: join our [Discord server](https://discord.gg/V8aZqnbB84) or use this direct link: [GreenLuma Link](https://pixeldrain.com/u/RDNd3SrR) [FIRST CLICK OPENS MALWARE POPUP!]. Download `GLPatch.rar`, then in Auto GL Setup click **Browse** to select the archive instead of using the download button.
 
 Or extract `GLPatch.rar` manually and follow Plan A or Plan B:
 
