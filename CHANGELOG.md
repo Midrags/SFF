@@ -15,7 +15,6 @@
 
 ### Bug Fix / Performance — DDMod Efficiency Improvements
 
-- Removed `-validate` flag — DDMod was re-hashing every already-downloaded file on each run, causing unnecessary I/O and time.
 - Reduced `-max-downloads` from 255 to 32 — 255 simultaneous CDN connections caused throttling and incomplete transfers on many CDN nodes.
 - Replaced the byte-by-byte stdout read loop with `readline()` — the old loop burned significant CPU for every character emitted by DDMod during a download.
 

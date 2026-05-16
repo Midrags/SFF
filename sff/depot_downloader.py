@@ -146,6 +146,7 @@ def run_download(
             "-depotkeys", str(KEYS_TMP),
             "-max-downloads", "32",
             "-os", "windows",
+            "-validate",
             "-dir", str(download_dir),
         ]
 
