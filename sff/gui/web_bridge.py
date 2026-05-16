@@ -135,84 +135,60 @@ class WebBridge(QObject):
         self.task_finished.emit(json.dumps(data))
 
     def _get_store_client(self):
-        if self._store_client is None and self._api_key:
-            from sff.store_browser import StoreApiClient
-            self._store_client = StoreApiClient(self._api_key)
+        if self._store_client is None:
+            if not self._api_key:
+                try:
+                    from sff.storage.settings import get_setting
+                    from sff.structs import Settings
+                    key = get_setting(Settings.HUBCAP_KEY)
+                    if key and isinstance(key, str) and key.strip():
+                        self._api_key = key.strip()
+                except Exception:
+                    pass
+            if self._api_key:
+                from sff.store_browser import StoreApiClient
+                self._store_client = StoreApiClient(self._api_key)
         return self._store_client
 
     # ── ASYNC slots — dispatch to QThread ────────────────────────
 
     @pyqtSlot(str, int, int, str)
     def search_games(self, query, offset, per_page, sort_by='updated'):
-        """Search the Hubcap store. Falls back to Steam catalog on failure. Emits search_results signal."""
+        """Search Steam catalog (primary). Overlays Hubcap manifest status when key is set. Emits search_results."""
         def _do():
-            _hubcap_error = False
+            # Steam catalog is always the primary source
+            result = _search_steam_catalog(query, offset, per_page)
+            result.pop('fallback', None)
+            # If Hubcap key is set, overlay manifest status/date/size on matching results
             client = self._get_store_client()
             if client:
-                try:
-                    if query:
-                        # Fetch large batch via /library?search= for client-side pagination
-                        all_games = client.get_library(limit=200, offset=0, search=query).games
-                        q_words = query.lower().split()
-                        # Name keyword + word filter (all query words must appear in name)
-                        filtered = []
-                        for g in all_games:
-                            name_lc = g.name.lower()
-                            if any(kw in name_lc for kw in _NONGAME_NAME_KW):
-                                continue
-                            if q_words and not all(w in name_lc for w in q_words):
-                                continue
-                            filtered.append(g)
-                        # Fetch images + types for ALL filtered items before pagination
-                        all_ids = [g.app_id for g in filtered]
-                        image_urls, type_map = _fetch_steam_image_urls(all_ids)
-                        # Type filter — must happen before total so pagination is accurate
-                        final = [g for g in filtered if type_map.get(g.app_id) not in _NON_GAME_TYPES]
-                        total = len(final)
-                        page_games = final[offset: offset + per_page]
-                        games = [{
-                            "app_id": g.app_id,
-                            "name": g.name,
-                            "last_updated": g.last_updated,
-                            "status": g.status,
-                            "size": g.size,
-                            "image_url": image_urls.get(g.app_id),
-                        } for g in page_games]
-                        return {"games": games, "total": total, "fallback": False}
-                    else:
-                        # Browse: /library endpoint with server-side pagination
-                        result = client.get_library(limit=per_page, offset=offset, sort_by=sort_by or 'updated')
-                        app_ids = [g.app_id for g in result.games]
-                        image_urls, type_map = _fetch_steam_image_urls(app_ids)
-                        games = []
-                        for g in result.games:
-                            if type_map.get(g.app_id) in _NON_GAME_TYPES:
-                                continue
-                            name_lc = g.name.lower()
-                            if any(kw in name_lc for kw in _NONGAME_NAME_KW):
-                                continue
-                            games.append({
-                                "app_id": g.app_id,
-                                "name": g.name,
-                                "last_updated": g.last_updated,
-                                "status": g.status,
-                                "size": g.size,
-                                "image_url": image_urls.get(g.app_id),
-                            })
-                        return {"games": games, "total": result.total, "fallback": False}
-                except Exception as e:
-                    logger.warning("Hubcap search failed, falling back to Steam catalog: %s", e)
-                    _hubcap_error = True
-            result = _search_steam_catalog(query, offset, per_page)
-            if _hubcap_error:
-                result['hubcap_error'] = True
+                result['has_hubcap'] = True
+                if result.get('games'):
+                    try:
+                        hubcap_result = client.get_library(
+                            limit=200, offset=0,
+                            search=query if query else None,
+                            sort_by=sort_by or 'updated',
+                        )
+                        hubcap_map = {g.app_id: g for g in hubcap_result.games}
+                        for g in result['games']:
+                            hg = hubcap_map.get(g['app_id'])
+                            if hg:
+                                if hg.status:
+                                    g['status'] = hg.status
+                                if hg.last_updated:
+                                    g['last_updated'] = hg.last_updated
+                                if hg.size:
+                                    g['size'] = hg.size
+                    except Exception as e:
+                        logger.warning("Hubcap enrichment failed: %s", e)
             return result
 
         def _on_done(data):
             if data:
                 self.search_results.emit(json.dumps(data))
             else:
-                self.search_results.emit(json.dumps({"games": [], "total": 0, "fallback": True}))
+                self.search_results.emit(json.dumps({"games": [], "total": 0}))
 
         self._run_async(_do, on_done=_on_done)
 
@@ -255,6 +231,9 @@ class WebBridge(QObject):
         Windows: prompt-free 11-step pipeline mirroring process_lua_full().
         Linux: auto-selects latest manifests, wraps process_from_store().
         Emits download_progress + task_finished signals."""
+        if not app_id or not app_id.strip().isdigit():
+            self._emit_task_result("download_fastest", False, f"Invalid App ID: '{app_id}'")
+            return
         def _do():
             self.download_progress.emit(json.dumps({
                 "app_id": app_id, "status": "Starting", "progress": 0
@@ -280,6 +259,9 @@ class WebBridge(QObject):
     def download_game_with_source(self, app_id, source, request_update='0'):
         """Fastest download with explicit source choice ('hubcap' or 'oureveryday').
         Emits download_progress + task_finished signals."""
+        if not app_id or not app_id.strip().isdigit():
+            self._emit_task_result("download_fastest", False, f"Invalid App ID: '{app_id}'")
+            return
         def _do():
             self.download_progress.emit(json.dumps({
                 "app_id": app_id, "status": "Starting", "progress": 0
@@ -481,10 +463,13 @@ class WebBridge(QObject):
                 "app_id": app_id, "status": "Downloading via DepotDownloader", "progress": 30
             }))
 
+            from pathlib import Path as _Path
+            lib_override = _Path(self._active_library) if self._active_library else self._steam_path
             self._ui.process_from_store(
                 app_id=app_id,
                 manifest_override=manifest_override,
                 use_hubcap=bool(self._api_key),
+                lib_path=lib_override,
             )
 
             self.download_progress.emit(json.dumps({
@@ -500,6 +485,8 @@ class WebBridge(QObject):
     def download_game_version(self, app_id, manifest_override_json):
         """Download specific version via process_from_store().
         Emits download_progress + task_finished signals."""
+        if not app_id or not app_id.strip().isdigit():
+            return
         def _do():
             try:
                 manifest_override = json.loads(manifest_override_json)
@@ -513,14 +500,13 @@ class WebBridge(QObject):
                 "app_id": app_id, "status": "Starting version download", "progress": 10
             }))
 
-            if self._active_library:
-                # Pre-set library to avoid prompt
-                pass  # gui_prompts.py will handle if needed
-
+            from pathlib import Path as _Path
+            lib_override = _Path(self._active_library) if self._active_library else self._steam_path
             self._ui.process_from_store(
                 app_id=app_id,
                 manifest_override=manifest_override,
                 use_hubcap=bool(self._api_key),
+                lib_path=lib_override,
             )
 
             self.download_progress.emit(json.dumps({
@@ -1625,6 +1611,7 @@ class WebBridge(QObject):
         from sff.storage.settings import set_setting
         from sff.structs import Settings
         set_setting(Settings.HUBCAP_KEY, api_key)
+        self.task_finished.emit(json.dumps({"task": "api_key_connected"}))
 
     @pyqtSlot(result=str)
     def get_stored_api_key(self):
@@ -1892,6 +1879,9 @@ class WebBridge(QObject):
         source: 'hubcap' | 'oureveryday' | 'ryuu' | 'local'
         lua_path: used when source == 'local'
         Emits download_progress + task_finished signals."""
+        if not app_id or not app_id.strip().isdigit():
+            self._emit_task_result("download_ddmod", False, f"Invalid App ID: '{app_id}'")
+            return
         def _do():
             self.download_progress.emit(json.dumps({
                 "app_id": app_id, "status": "Starting DDMod download", "progress": 0
@@ -2137,6 +2127,117 @@ class WebBridge(QObject):
             self._emit_task_result("download_ddmod", ok, msg, app_id=app_id)
 
         self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot(result=str)
+    def get_games_file_info(self):
+        """Return all_games.txt status as JSON {exists, mtime_str, count}."""
+        from sff.utils import root_folder
+        from datetime import datetime
+        all_games_file = root_folder(outside_internal=True) / "all_games.txt"
+        if not all_games_file.exists():
+            return json.dumps({"exists": False, "mtime_str": "", "count": 0})
+        try:
+            mtime = all_games_file.stat().st_mtime
+            mtime_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %I:%M %p")
+            count = sum(1 for _ in all_games_file.open(encoding="utf-8", errors="ignore"))
+            return json.dumps({"exists": True, "mtime_str": mtime_str, "count": count})
+        except Exception as e:
+            logger.debug("get_games_file_info failed: %s", e)
+            return json.dumps({"exists": True, "mtime_str": "", "count": 0})
+
+    @pyqtSlot()
+    def update_games_file(self):
+        """Download full Steam app list and write all_games.txt. Emits task_finished('update_games_file')."""
+        def _do():
+            try:
+                from sff.utils import root_folder
+                from sff.strings import STEAM_WEB_API_KEY as _DEFAULT_KEY
+                from sff.storage.settings import get_setting
+                from sff.structs import Settings
+                import urllib.request as _req
+                import json as _json
+                all_games_file = root_folder(outside_internal=True) / "all_games.txt"
+                api_key = get_setting(Settings.STEAM_WEB_API_KEY)
+                if not isinstance(api_key, str) or not api_key.strip():
+                    api_key = _DEFAULT_KEY
+                params = {"key": api_key, "max_results": "50000", "include_games": "1",
+                          "include_dlc": "0", "include_software": "0",
+                          "include_videos": "0", "include_hardware": "0"}
+                games = []
+                base_url = "https://api.steampowered.com/IStoreService/GetAppList/v1/"
+                page = 0
+                while True:
+                    page += 1
+                    print(f"Downloading game list page {page} ({len(games)} games so far)...")
+                    query_str = "&".join(f"{k}={v}" for k, v in params.items())
+                    url = f"{base_url}?{query_str}"
+                    req = _req.Request(url, headers={"User-Agent": "SteaMidra/6.1.0"})
+                    with _req.urlopen(req, timeout=30) as resp:
+                        data = _json.loads(resp.read())
+                    apps = data.get("response", {}).get("apps", [])
+                    games.extend(apps)
+                    more = data.get("response", {}).get("have_more_results")
+                    if not more:
+                        break
+                    last_id = data.get("response", {}).get("last_appid")
+                    if last_id:
+                        params["last_appid"] = str(last_id)
+                    else:
+                        break
+                print(f"Writing {len(games)} games to all_games.txt...")
+                games_str = [
+                    x.get("name", "UNKNOWN GAME") + f" [ID={x.get('appid')}]"
+                    for x in games
+                    if x.get("appid") and x.get("name", "").strip()
+                ]
+                all_games_file.parent.mkdir(parents=True, exist_ok=True)
+                with all_games_file.open("w", encoding="utf-8") as f:
+                    f.write("\n".join(games_str))
+                print(f"Game list updated: {len(games_str)} games written.")
+                return len(games_str)
+            except Exception as e:
+                logger.exception("update_games_file failed: %s", e)
+                return (False, str(e))
+
+        def _on_done(result):
+            if isinstance(result, int):
+                self._emit_task_result("update_games_file", True, f"Game list updated: {result} games")
+            elif isinstance(result, tuple) and not result[0]:
+                self._emit_task_result("update_games_file", False, f"Failed: {result[1]}")
+            else:
+                self._emit_task_result("update_games_file", False, "Failed to update game list")
+
+        self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot(str, result=str)
+    def search_games_file(self, query):
+        """Search all_games.txt by name. Returns JSON [{name, appid}, ...] max 200 results."""
+        import re as _re
+        from sff.utils import root_folder
+        all_games_file = root_folder(outside_internal=True) / "all_games.txt"
+        if not all_games_file.exists():
+            return "[]"
+        try:
+            q = query.strip().lower()
+            results = []
+            with all_games_file.open(encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    match = _re.search(r"\[ID=(\d+)\]$", line)
+                    if not match:
+                        continue
+                    name = line[:match.start()].strip()
+                    appid = match.group(1)
+                    if not q or q in name.lower():
+                        results.append({"name": name, "appid": appid})
+                    if len(results) >= 200:
+                        break
+            return json.dumps(results)
+        except Exception as e:
+            logger.debug("search_games_file failed: %s", e)
+            return "[]"
 
     @pyqtSlot(result=str)
     def get_avatar_base64(self):
@@ -2836,27 +2937,50 @@ _NON_GAME_TYPES = frozenset({2, 4, 6, 7, 9, 10, 11, 12, 13, 14})
 
 
 def _load_steam_applist():
-    """Download and cache the full Steam app list (ISteamApps/GetAppList/v2). Refreshes every 24h."""
+    """Load the full Steam app list. Prefers local all_games.txt (any age); falls back to HTTP only when absent."""
     global _STEAM_APPLIST_CACHE, _STEAM_APPLIST_CACHE_TIME
+    import re as _re
     import time
     import urllib.request as _req
     import json as _json
     now = time.time()
     if _STEAM_APPLIST_CACHE is not None and (now - _STEAM_APPLIST_CACHE_TIME) < 86400:
         return _STEAM_APPLIST_CACHE
+    # Prefer local all_games.txt — no age restriction; user refreshes via "Update List"
+    try:
+        from sff.utils import root_folder
+        all_games_file = root_folder(outside_internal=True) / "all_games.txt"
+        if all_games_file.exists() and all_games_file.stat().st_size > 0:
+            apps = []
+            _line_re = _re.compile(r'^(.*)\s+\[ID=(\d+)\]$')
+            with all_games_file.open(encoding="utf-8") as f:
+                for line in f:
+                    line = line.rstrip()
+                    m = _line_re.match(line)
+                    if m:
+                        apps.append({"name": m.group(1), "appid": int(m.group(2))})
+            if apps:
+                _STEAM_APPLIST_CACHE = apps
+                _STEAM_APPLIST_CACHE_TIME = now
+                logger.debug("Steam applist loaded from all_games.txt: %d apps", len(apps))
+                return apps
+    except Exception as e:
+        logger.debug("all_games.txt load failed (will try HTTP): %s", e)
+    # HTTP fallback — only reached when all_games.txt is absent or unreadable
     try:
         url = "https://api.steampowered.com/ISteamApps/GetAppList/v2/?format=json"
-        req = _req.Request(url, headers={"User-Agent": "SteaMidra/5.4.0"})
-        with _req.urlopen(req, timeout=15) as resp:
+        req = _req.Request(url, headers={"User-Agent": "SteaMidra/6.1.0"})
+        with _req.urlopen(req, timeout=60) as resp:
             data = _json.loads(resp.read())
         apps = data.get("applist", {}).get("apps", [])
         if apps:
             _STEAM_APPLIST_CACHE = apps
             _STEAM_APPLIST_CACHE_TIME = now
-            logger.debug("Steam applist loaded: %d apps", len(apps))
+            logger.debug("Steam applist loaded from HTTP: %d apps", len(apps))
             return apps
+        logger.warning("Steam applist HTTP response was empty")
     except Exception as e:
-        logger.debug("Steam applist fetch failed: %s", e)
+        logger.warning("Steam applist HTTP fetch failed: %s", e)
     return _STEAM_APPLIST_CACHE or []
 
 

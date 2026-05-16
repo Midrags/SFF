@@ -76,7 +76,7 @@ async def get_request(
             response = await client.get(url, headers=headers)
         if response.status_code == 200:
             try:
-                logger.debug(f"Received {response.content}")
+                logger.debug(f"Received {len(response.content)} bytes")
                 return response.text if type == "text" else response.json()
             except ValueError:
                 return

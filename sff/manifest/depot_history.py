@@ -565,6 +565,24 @@ def _fetch_hubcap_depots(app_id):
 
 
 # ---------------------------------------------------------------------------
+# CF challenge detection helper
+# ---------------------------------------------------------------------------
+
+def _is_cf_challenge(html: str) -> bool:
+    """Return True if *html* is a Cloudflare challenge/block page, not real content."""
+    if not html:
+        return True
+    lc = html.lower()
+    return any(marker in lc for marker in (
+        "just a moment",
+        "cf-browser-verification",
+        "cdn-cgi/challenge-platform",
+        "checking your browser",
+        "enable javascript and cookies",
+    ))
+
+
+# ---------------------------------------------------------------------------
 # Source 5a — SteamDB Layer 1: curl_cffi Chrome impersonation (fast path)
 # ---------------------------------------------------------------------------
 
@@ -673,6 +691,185 @@ def _fetch_steamdb_layer2(depot_ids: list) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Source 5c — SteamDB Layer 3A: zendriver CDP (primary browser layer)
+# ---------------------------------------------------------------------------
+
+async def _fetch_steamdb_zendriver_async(
+    depot_ids: list,
+    app_id,
+    progress_cb,
+    stop_event,
+    results_out: dict = None,
+) -> tuple:
+    """Async CDP scraping via zendriver — no navigator.webdriver, invisible to CF.
+
+    Runs Chrome with headless=False positioned off-screen so Cloudflare treats it
+    as a real visible browser without showing a window to the user.
+    Results are written into results_out in real-time so partial progress is
+    preserved even if the outer timeout fires.
+    """
+    import sys
+    import zendriver as zd
+    from zendriver.cdp import network as cdp_network
+
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    results: dict = {}
+    if results_out is None:
+        results_out = {}
+    remaining = list(depot_ids)
+
+    _, chrome_path = _detect_sb_browser(progress_cb=progress_cb)
+    zd_kwargs: dict = {
+        "headless": False,
+        "browser_args": ["--window-position=-32000,-32000", "--window-size=1280,720"],
+    }
+    if chrome_path:
+        zd_kwargs["browser_executable_path"] = chrome_path
+
+    browser = None
+    try:
+        browser = await zd.start(**zd_kwargs)
+
+        if app_id:
+            app_url = f"https://www.steamdb.info/app/{app_id}/depots/"
+            try:
+                if progress_cb:
+                    try:
+                        progress_cb(f"SteamDB: zendriver — warming CF clearance for app {app_id}\u2026")
+                    except Exception:
+                        pass
+                app_tab = await browser.get(app_url)
+                await asyncio.sleep(8)
+                html_app = await app_tab.get_content()
+                if _is_cf_challenge(html_app):
+                    await asyncio.sleep(6)
+                    html_app = await app_tab.get_content()
+                discovered = _parse_steamdb_app_depots(html_app)
+                depot_id_set = set(depot_ids)
+                extra = [d for d in discovered if d not in depot_id_set]
+                if extra:
+                    logger.debug("zendriver: discovered %d extra depot(s) from app page", len(extra))
+                    for d in extra:
+                        if d not in remaining:
+                            remaining.append(d)
+                try:
+                    cookies = await app_tab.send(cdp_network.get_all_cookies())
+                    for ck in cookies:
+                        if ck.name == "cf_clearance":
+                            ua = await app_tab.evaluate("navigator.userAgent")
+                            _save_cf_cookie_cache(ck.value, ua or "")
+                            logger.debug("zendriver: cf_clearance saved (app page)")
+                            break
+                except Exception as ck_exc:
+                    logger.debug("zendriver: cookie extract on app page failed: %s", ck_exc)
+            except Exception as app_exc:
+                logger.debug("zendriver: app page failed for %s: %s", app_id, app_exc)
+
+        all_len = len(remaining)
+        _zd_cf_fails = 0
+        for i, depot_id in enumerate(list(remaining)):
+            if stop_event is not None and stop_event.is_set():
+                break
+            if progress_cb:
+                try:
+                    progress_cb(f"SteamDB: zendriver depot {i + 1}/{all_len} ({depot_id})\u2026")
+                except Exception:
+                    pass
+            url = f"https://www.steamdb.info/depot/{depot_id}/manifests/"
+            try:
+                tab = await browser.get(url)
+                await asyncio.sleep(8)
+                html = await tab.get_content()
+                if _is_cf_challenge(html):
+                    await asyncio.sleep(8)
+                    html = await tab.get_content()
+                if not _is_cf_challenge(html):
+                    entries = _parse_steamdb_html(html)
+                    results[depot_id] = entries
+                    results_out[depot_id] = entries
+                    remaining.remove(depot_id)
+                    logger.debug("zendriver: depot %s -> %d entries", depot_id, len(entries))
+                    try:
+                        cookies = await tab.send(cdp_network.get_all_cookies())
+                        for ck in cookies:
+                            if ck.name == "cf_clearance":
+                                ua = await tab.evaluate("navigator.userAgent")
+                                _save_cf_cookie_cache(ck.value, ua or "")
+                                break
+                    except Exception:
+                        pass
+                else:
+                    _zd_cf_fails += 1
+                    logger.debug(
+                        "zendriver: CF challenge still active for depot %s (%d/2)",
+                        depot_id, _zd_cf_fails,
+                    )
+                    if _zd_cf_fails >= 2:
+                        logger.debug("zendriver: CF persistent after 2 depots, bailing to SeleniumBase")
+                        break
+            except Exception as exc:
+                logger.debug("zendriver: depot %s failed: %s", depot_id, exc)
+
+    finally:
+        if browser is not None:
+            try:
+                await browser.stop()
+            except Exception:
+                pass
+
+    return results, remaining
+
+
+def _fetch_steamdb_zendriver(
+    depot_ids: list,
+    app_id=None,
+    progress_cb=None,
+    stop_event=None,
+    results_out: dict = None,
+) -> tuple:
+    """Sync wrapper for zendriver CDP scraping. Returns (results_dict, remaining_list).
+
+    Runs a single off-screen Chrome session (headless=False, window off-screen).
+    Results are written into results_out in real-time so the caller can read
+    partial progress even if this function is interrupted by an outer timeout.
+    Gracefully skips if zendriver is not installed.
+    """
+    try:
+        import zendriver  # noqa: F401
+    except ImportError:
+        logger.debug("zendriver not installed, skipping Layer 3A")
+        return {}, list(depot_ids)
+
+    if results_out is None:
+        results_out = {}
+
+    results: dict = {}
+    remaining = list(depot_ids)
+    try:
+        loop = asyncio.new_event_loop()
+        try:
+            results, remaining = loop.run_until_complete(
+                _fetch_steamdb_zendriver_async(
+                    depot_ids, app_id, progress_cb, stop_event, results_out=results_out
+                )
+            )
+        finally:
+            loop.close()
+    except Exception as exc:
+        logger.debug("zendriver batch failed: %s", exc)
+        results, remaining = results_out.copy(), list(depot_ids)
+
+    if results:
+        logger.debug("zendriver: %d depot(s) scraped", len(results))
+    else:
+        logger.debug("zendriver: 0 results")
+
+    return results, remaining
+
+
+# ---------------------------------------------------------------------------
 # Source 5 — SteamDB via SeleniumBase UC mode
 # ---------------------------------------------------------------------------
 
@@ -747,7 +944,7 @@ def _detect_sb_browser(progress_cb=None):
     Return (browser_name, binary_path) for SeleniumBase UC mode.
     Preference order:
       1. Chrome bundled inside the frozen EXE (sys._MEIPASS/chrome-bundled/)
-      2. Installed system Chrome
+      2. Installed system Chrome (known file paths + Windows registry)
       3. Chrome for Testing auto-downloaded to ~/.sff/
     """
     import os, sys
@@ -756,10 +953,33 @@ def _detect_sb_browser(progress_cb=None):
         bundled = Path(sys._MEIPASS) / 'chrome-bundled' / 'chrome.exe'
         if bundled.exists():
             return 'chrome', str(bundled)
-    # 2. System Chrome
+    # 2a. System Chrome via known file paths
     for path in _CHROME_PATHS:
         if os.path.exists(path):
             return 'chrome', path
+    # 2b. System Chrome via Windows registry (covers non-standard install locations)
+    if sys.platform == "win32":
+        try:
+            import winreg as _wr
+            _reg_keys = [
+                (_wr.HKEY_LOCAL_MACHINE,
+                 r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"),
+                (_wr.HKEY_LOCAL_MACHINE,
+                 r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"),
+                (_wr.HKEY_CURRENT_USER,
+                 r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"),
+            ]
+            for _hive, _subkey in _reg_keys:
+                try:
+                    with _wr.OpenKey(_hive, _subkey) as _rk:
+                        _rpath = _wr.QueryValue(_rk, None)
+                        if _rpath and os.path.exists(_rpath):
+                            logger.debug("Chrome found via registry: %s", _rpath)
+                            return 'chrome', _rpath
+                except OSError:
+                    pass
+        except ImportError:
+            pass
     # 3. Auto-download Chrome for Testing
     chrome = _ensure_chrome_for_testing(progress_cb=progress_cb)
     if chrome:
@@ -768,24 +988,24 @@ def _detect_sb_browser(progress_cb=None):
 
 
 def _cleanup_chrome_for_testing():
-    """Kill any orphaned Chrome for Testing / ChromeDriver processes.
+    """Kill any orphaned automation Chrome / ChromeDriver processes.
 
-    SeleniumBase UC mode can leave zombie processes when the driver is
-    disconnected during Cloudflare bypass.  This only targets Chrome instances
-    from ``chrome-for-testing`` or ``chrome-bundled`` directories — the user's
-    regular Chrome browser is never touched.
+    Targets Chrome instances launched by zendriver or SeleniumBase UC mode.
+    Every automation-spawned Chrome carries ``--remote-debugging-port`` in its
+    command line; a user's regular browsing session never has that flag, so
+    this filter is safe regardless of whether system Chrome or a bundled binary
+    was used.
     """
     import subprocess, sys
     try:
         if sys.platform == "win32":
             subprocess.run(
                 ["powershell", "-NoProfile", "-Command",
-                 "Get-Process chrome -EA 0 | "
-                 "Where-Object { $_.Path -and "
-                 "($_.Path -like '*chrome-for-testing*' -or $_.Path -like '*chrome-bundled*') } | "
-                 "Stop-Process -Force -EA 0; "
+                 "Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | "
+                 "Where-Object { $_.CommandLine -like '*--remote-debugging-port*' } | "
+                 "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -EA 0 }; "
                  "Get-Process chromedriver -EA 0 | Stop-Process -Force -EA 0"],
-                capture_output=True, timeout=10,
+                capture_output=True, timeout=15,
             )
         else:
             subprocess.run(["pkill", "-f", "chrome-for-testing"],
@@ -794,6 +1014,7 @@ def _cleanup_chrome_for_testing():
                            capture_output=True, timeout=5)
     except Exception:
         pass
+
 
 
 def _fetch_steamdb_seleniumbase(depot_id):
@@ -812,11 +1033,11 @@ def _fetch_steamdb_seleniumbase(depot_id):
         with SB(**sb_kwargs) as sb:
             sb.driver.set_page_load_timeout(30)
             sb.driver.set_script_timeout(30)
-            sb.uc_open_with_reconnect(url, 6)
+            sb.uc_open_with_reconnect(url, 10)
             try:
-                sb.wait_for_element('td.tabular-nums', timeout=6)
+                sb.wait_for_element('td.tabular-nums', timeout=12)
             except Exception:
-                sb.sleep(2)
+                sb.sleep(4)
             entries = _parse_steamdb_html(sb.get_page_source())
             try:
                 for ck in sb.driver.get_cookies():
@@ -838,20 +1059,20 @@ def _fetch_steamdb_seleniumbase(depot_id):
 
 
 def _fetch_steamdb_batch(
-    depot_ids: list[str],
+    depot_ids: list,
     progress_cb=None,
     app_id=None,
     _stop_event=None,
 ):
     """
-    Scrape SteamDB depot/manifests pages using curl_cffi (Chrome TLS fingerprint)
-    as the fast path and SeleniumBase browser as fallback.
+    SeleniumBase Layer 3B: fallback browser scraper used when zendriver is unavailable
+    or failed.
 
-    After the browser solves Cloudflare on the first page, the cf_clearance cookie
-    is reused by curl_cffi for subsequent depots (~1.5s each instead of ~10s).
+    Uses headless2 (Chrome --headless=new) for sessions 0-1; switches to visible
+    window for session 2+ if headless keeps getting CF-blocked.
 
-    If Cloudflare rate-limits the session (2 consecutive blocks), the browser is
-    restarted to get a fresh CF solve (max 3 sessions = ~42 depots capacity).
+    curl_cffi fast path is disabled after 3 consecutive 403s to prevent IP
+    contamination from TLS fingerprint mismatches poisoning browser fetches.
 
     Returns {depot_id: [ManifestEntry, ...]}.
     """
@@ -863,7 +1084,6 @@ def _fetch_steamdb_batch(
         logger.debug("seleniumbase not installed, skipping SteamDB batch scrape")
         return {}
 
-    # curl_cffi impersonates Chrome TLS fingerprint so cf_clearance cookie works
     _cf_session = None
     try:
         from curl_cffi import requests as _cf_mod
@@ -873,14 +1093,14 @@ def _fetch_steamdb_batch(
 
     results = {}
     browser_name, binary = _detect_sb_browser(progress_cb=progress_cb)
-    sb_kwargs = dict(uc=True, headless=True, block_images=True, browser=browser_name)
-    if binary:
-        sb_kwargs["binary_location"] = binary
     cookie_saved = False
+    _curl_cffi_consecutive_fails = 0
+    _curl_cffi_disabled = False
 
     def _try_curl_cffi(did):
         """Fast path: curl_cffi with Chrome TLS impersonation + cached cf_clearance."""
-        if not _cf_session:
+        nonlocal _curl_cffi_consecutive_fails, _curl_cffi_disabled
+        if not _cf_session or _curl_cffi_disabled:
             return None
         cf_c, cf_ua = _get_valid_cf_cookie()
         if not cf_c:
@@ -894,9 +1114,18 @@ def _fetch_steamdb_batch(
                 timeout=10,
             )
             if r.status_code == 200:
+                _curl_cffi_consecutive_fails = 0
                 return _parse_steamdb_html(r.text)
             if r.status_code == 403:
                 logger.debug("curl_cffi: 403 for depot %s", did)
+                _curl_cffi_consecutive_fails += 1
+                if _curl_cffi_consecutive_fails >= 3:
+                    _curl_cffi_disabled = True
+                    logger.debug(
+                        "curl_cffi: disabled for session after %d consecutive 403s "
+                        "(prevents IP contamination)",
+                        _curl_cffi_consecutive_fails,
+                    )
         except Exception as exc:
             logger.debug("curl_cffi depot %s failed: %s", did, exc)
         return None
@@ -917,7 +1146,6 @@ def _fetch_steamdb_batch(
             pass
         return False
 
-    # Build depot queue
     all_depot_ids = list(depot_ids)
     remaining = list(depot_ids)
 
@@ -936,13 +1164,16 @@ def _fetch_steamdb_batch(
                 session_num + 1, len(remaining),
             )
 
+        sb_kwargs = dict(uc=True, headless=True, block_images=True, browser=browser_name)
+        if binary:
+            sb_kwargs["binary_location"] = binary
+
         consecutive_cf = 0
         try:
             with SB(**sb_kwargs) as sb:
                 sb.driver.set_page_load_timeout(30)
                 sb.driver.set_script_timeout(30)
 
-                # Session 0 + app_id: visit app page to solve CF + discover depots
                 if session_num == 0 and app_id:
                     try:
                         app_url = f"https://www.steamdb.info/app/{app_id}/depots/"
@@ -951,11 +1182,11 @@ def _fetch_steamdb_batch(
                                 progress_cb(f"SteamDB: discovering depots for app {app_id}\u2026")
                             except Exception:
                                 pass
-                        sb.uc_open_with_reconnect(app_url, 5)
+                        sb.uc_open_with_reconnect(app_url, 8)
                         try:
-                            sb.wait_for_element('a[href*="/depot/"]', timeout=7)
+                            sb.wait_for_element('a[href*="/depot/"]', timeout=12)
                         except Exception:
-                            sb.sleep(3)
+                            sb.sleep(4)
                         app_html = sb.get_page_source()
                         discovered = _parse_steamdb_app_depots(app_html)
                         depot_id_set = set(depot_ids)
@@ -967,8 +1198,7 @@ def _fetch_steamdb_batch(
                                 if d not in remaining:
                                     remaining.append(d)
                         _extract_cf_cookie(sb, "app page")
-                        # Fetch patchnotes for build IDs via curl_cffi
-                        if _cf_session and cookie_saved:
+                        if _cf_session and cookie_saved and not _curl_cffi_disabled:
                             try:
                                 pn_url = f"https://www.steamdb.info/app/{app_id}/patchnotes/"
                                 cf_c, cf_ua = _get_valid_cf_cookie()
@@ -990,10 +1220,9 @@ def _fetch_steamdb_batch(
                     except Exception as exc:
                         logger.debug("SteamDB app depots page failed for app %s: %s", app_id, exc)
 
-                # Restart sessions: visit steamdb.info to solve CF fresh
                 if session_num > 0:
                     try:
-                        sb.uc_open_with_reconnect("https://www.steamdb.info/", 5)
+                        sb.uc_open_with_reconnect("https://www.steamdb.info/", 8)
                         sb.sleep(2)
                         _extract_cf_cookie(sb, f"session {session_num + 1}")
                     except Exception:
@@ -1014,8 +1243,7 @@ def _fetch_steamdb_batch(
                         except Exception:
                             pass
 
-                    # Fast path: curl_cffi with Chrome TLS fingerprint
-                    if cookie_saved:
+                    if cookie_saved and not _curl_cffi_disabled:
                         time.sleep(random.uniform(0.8, 1.5))
                         entries = _try_curl_cffi(depot_id)
                         if entries is not None:
@@ -1025,31 +1253,28 @@ def _fetch_steamdb_batch(
                             logger.debug("SteamDB curl_cffi: depot %s -> %d entries", depot_id, len(entries))
                             continue
 
-                    # Browser fallback
-                    time.sleep(random.uniform(0.2, 0.5))
+                    time.sleep(random.uniform(1.5, 3.0))
                     url = f"https://www.steamdb.info/depot/{depot_id}/manifests/"
                     try:
-                        sb.uc_open_with_reconnect(url, 5)
+                        sb.uc_open_with_reconnect(url, 8)
                         try:
-                            sb.wait_for_element('td.tabular-nums', timeout=7)
+                            sb.wait_for_element('td.tabular-nums', timeout=15)
                         except Exception:
-                            sb.sleep(2)
+                            sb.sleep(4)
                         html = sb.get_page_source()
                         entries = _parse_steamdb_html(html)
 
-                        if not entries and 'td.tabular-nums' not in html:
-                            # CF block: count it, skip retry, maybe restart browser
+                        if _is_cf_challenge(html):
                             consecutive_cf += 1
                             logger.debug(
                                 "SteamDB batch: CF blocked depot %s (%d consecutive)",
                                 depot_id, consecutive_cf,
                             )
-                            if consecutive_cf >= 2:
+                            if consecutive_cf >= 3:
                                 logger.debug("SteamDB batch: restarting browser after %d CF blocks", consecutive_cf)
                                 break
                             continue
 
-                        # Browser success
                         consecutive_cf = 0
                         _extract_cf_cookie(sb)
                         logger.debug("SteamDB batch: depot %s -> %d entries", depot_id, len(entries))
@@ -1114,10 +1339,36 @@ def _fetch_steamdb_all(depot_ids: list, progress_cb=None, app_id=None) -> dict:
         remaining = [d for d in remaining if not results.get(d)]
         logger.debug("Layer2 done: %d total hits, %d remaining", len(results), len(remaining))
 
-    # Layer 3 — SeleniumBase batch (guaranteed CF bypass + app depot discovery)
-    # Only runs when there are depots still needing data; app_id is passed through
-    # for depot discovery within the same browser session.
-    # Hard 240-second timeout prevents SB startup / CF bypass from hanging forever.
+    # Layer 3A — zendriver CDP (primary browser layer, no navigator.webdriver)
+    if remaining:
+        import concurrent.futures as _cf_futures
+        import threading as _threading
+        _stop_evt_3a = _threading.Event()
+        _l3a_results_out: dict = {}
+        with _cf_futures.ThreadPoolExecutor(max_workers=1) as _l3a_ex:
+            _l3a_fut = _l3a_ex.submit(
+                _fetch_steamdb_zendriver, remaining, app_id, progress_cb,
+                _stop_evt_3a, _l3a_results_out,
+            )
+            try:
+                _l3a_results, _l3a_remaining = _l3a_fut.result(timeout=150)
+            except _cf_futures.TimeoutError:
+                logger.debug("Layer3A (zendriver) timed out after 150s — stopping")
+                _stop_evt_3a.set()
+                _l3a_results = _l3a_results_out.copy()
+                _l3a_remaining = [d for d in remaining if d not in _l3a_results]
+            except Exception as _l3a_exc:
+                logger.debug("Layer3A (zendriver) failed: %s", _l3a_exc)
+                _l3a_results = _l3a_results_out.copy()
+                _l3a_remaining = [d for d in remaining if d not in _l3a_results]
+        for did, entries in _l3a_results.items():
+            results.setdefault(did, entries)
+        remaining = [d for d in remaining if not results.get(d)]
+        logger.debug("Layer3A done: %d total hits, %d remaining", len(results), len(remaining))
+        _cleanup_chrome_for_testing()
+        time.sleep(5)
+
+    # Layer 3B — SeleniumBase batch (fallback when zendriver unavailable or failed)
     if remaining:
         import concurrent.futures as _cf_futures
         import threading as _threading
@@ -1130,13 +1381,12 @@ def _fetch_steamdb_all(depot_ids: list, progress_cb=None, app_id=None) -> dict:
             try:
                 _layer3_result = _l3_fut.result(timeout=360)
             except _cf_futures.TimeoutError:
-                logger.debug("Layer3 timed out after 360s — signalling stop and killing Chrome")
+                logger.debug("Layer3B (SeleniumBase) timed out after 360s — signalling stop and killing Chrome")
                 _stop_evt.set()
                 _cleanup_chrome_for_testing()
             except Exception as _l3_exc:
-                logger.debug("Layer3 failed: %s", _l3_exc)
-        layer3 = _layer3_result
-        for did, entries in layer3.items():
+                logger.debug("Layer3B (SeleniumBase) failed: %s", _l3_exc)
+        for did, entries in _layer3_result.items():
             results.setdefault(did, entries)
 
     return results
@@ -1625,6 +1875,52 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]], build_ids: d
     groups.sort(key=lambda g: g.date, reverse=True)
 
     # ---------------------------------------------------------------------------
+    # Post-process: resolve empty manifest_ids that the SteamDB app history page
+    # left blank.  That page records which depots changed per build but does not
+    # include manifest IDs.  For each group entry with manifest_id="", find the
+    # best non-empty manifest from the depot's full history.
+    # Priority: (1) non-CM dated entry with date <= group.date, (2) any non-CM
+    # non-dated entry, (3) oldest non-CM dated entry, (4) Steam CM last resort.
+    # ---------------------------------------------------------------------------
+    for group in groups:
+        for i, (depot_id, manifest_id) in enumerate(list(group.entries)):
+            if manifest_id:
+                continue
+            all_hist = depot_history.get(depot_id, [])
+            if not all_hist:
+                continue
+            # (1) non-CM dated, date <= group.date
+            pref = [
+                e for e in all_hist
+                if e.manifest_id
+                and e.source != "Steam CM"
+                and re.match(r"\d{4}-\d{2}-\d{2}", e.date)
+                and e.date <= group.date
+            ]
+            if pref:
+                best_pp = max(pref, key=lambda e: e.date)
+            else:
+                # (2) any non-CM non-dated (local fallback)
+                non_cm_nd = [e for e in all_hist if e.manifest_id and e.source != "Steam CM"
+                             and not re.match(r"\d{4}-\d{2}-\d{2}", e.date)]
+                if non_cm_nd:
+                    best_pp = non_cm_nd[0]
+                else:
+                    # (3) oldest non-CM dated (depot debuted after this build date)
+                    non_cm_d = [e for e in all_hist if e.manifest_id and e.source != "Steam CM"
+                                and re.match(r"\d{4}-\d{2}-\d{2}", e.date)]
+                    if non_cm_d:
+                        best_pp = min(non_cm_d, key=lambda e: e.date)
+                    else:
+                        # (4) Steam CM — only manifest available
+                        cm_pp = [e for e in all_hist if e.manifest_id and e.source == "Steam CM"]
+                        if not cm_pp:
+                            continue
+                        best_pp = cm_pp[0]
+            group.entries[i] = (depot_id, best_pp.manifest_id)
+            group.entry_map[depot_id] = best_pp
+
+    # ---------------------------------------------------------------------------
     # Fill-forward: for every dated group that is NOT Steam CM, ensure ALL known
     # depots appear.  Depots not changed on that exact date are filled in using
     # their most recent manifest entry with date <= group.date.  This makes each
@@ -1646,13 +1942,38 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]], build_ids: d
             # at the historical group date.
             candidates = [
                 e for e in depot_history.get(depot_id, [])
-                if re.match(r"\d{4}-\d{2}-\d{2}", e.date)
+                if e.manifest_id
+                and re.match(r"\d{4}-\d{2}-\d{2}", e.date)
                 and e.date <= group.date
                 and e.source != "Steam CM"
             ]
             if not candidates:
-                continue  # no real historical data for this depot at this point in time
-            best = max(candidates, key=lambda e: e.date)
+                # No dated manifest at or before this build date.
+                # Check for non-dated entries (local fallback tokens).
+                non_dated = [
+                    e for e in depot_history.get(depot_id, [])
+                    if e.source != "Steam CM"
+                    and not re.match(r"\d{4}-\d{2}-\d{2}", e.date)
+                ]
+                if non_dated:
+                    best = non_dated[0]
+                else:
+                    depot_entries = depot_history.get(depot_id, [])
+                    if not depot_entries:
+                        continue
+                    # Use Steam CM manifest if available.  Depots that genuinely
+                    # have no manifest on SteamDB (CM source also empty) are
+                    # included with manifest_id="" so DDMod downloads them
+                    # without pinning and GreenLuma handles the unlock.
+                    cm_fb = [e for e in depot_entries if e.manifest_id and e.source == "Steam CM"]
+                    if cm_fb:
+                        best = cm_fb[0]
+                    else:
+                        best = ManifestEntry(
+                            manifest_id="", date="", branch=group.branch, source="",
+                        )
+            else:
+                best = max(candidates, key=lambda e: e.date)
             pair = (depot_id, best.manifest_id)
             if pair not in set(group.entries):
                 group.entries.append(pair)

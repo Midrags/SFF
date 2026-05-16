@@ -1,5 +1,33 @@
 # Changelog
 
+## 6.1.3
+
+### Bug Fix — Cloudflare Blocks All Depot Pages (Older Versions)
+
+- Root cause: `curl_cffi` TLS fingerprint mismatches caused Cloudflare to issue 403 responses on every request, and repeated 403s flagged the client IP — causing even the browser to be blocked on the same depot URLs immediately after. This created a 3-session failure loop where no depots were ever scraped (confirmed in logs: RE Village, Skullgirls, and other titles with aggressive CF protection).
+- Fixed with a new 4-layer scraping architecture:
+  - **Layer 1** — `curl_cffi` Chrome impersonation (unchanged, ~80% hit rate on fresh sessions)
+  - **Layer 2** — `httpx` with cached `cf_clearance` cookie (unchanged, fast no-browser path)
+  - **Layer 3A** — `zendriver` (NEW): uses Chrome DevTools Protocol directly — no `navigator.webdriver` flag, no WebDriver protocol — invisible to Cloudflare fingerprinting. Bails after 2 consecutive CF challenges on depot pages (interactive Turnstile requires a GUI click that CDP cannot perform) and hands off to Layer 3B immediately.
+  - **Layer 3B** — `SeleniumBase` UC mode: now clicks the Cloudflare Turnstile "Verify you are human" checkbox automatically via `uc_gui_click_captcha()` (OS-level mouse click). All sessions use a visible browser window — headless mode prevented the click from registering.
+- `curl_cffi` is now disabled for the remainder of a session after 3 consecutive 403s, preventing IP contamination that was poisoning the browser layer.
+- New `_is_cf_challenge(html)` helper replaces the brittle `'td.tabular-nums' not in html` check with accurate CF marker detection.
+- SeleniumBase tuning: reconnect timeout 5s -> 8s, element wait 7s -> 12s, inter-page sleep 0.2-0.5s -> 1.5-3.0s, consecutive CF restart threshold 2 -> 3.
+- Layer 3A outer timeout reduced to 90s; `zendriver` exits early if CF persists on the first 2 depot pages.
+- `_detect_sb_browser` now checks the Windows registry (`HKLM` + `HKCU` `App Paths\chrome.exe`) for system Chrome before falling back to Chrome for Testing.
+
+### Bug Fix — High RAM Usage During Downloads
+
+- `QtWebEngineProcess.exe` could consume several GB of RAM during long downloads. Root cause: `_appendLog` in the web UI appended every download progress line as a full DOM node with no eviction, causing unbounded DOM growth.
+- Fixed: added a 1000-entry ring-buffer eviction to `_appendLog` (matching the existing 200-entry cap on `_appendHomeLog`).
+- Secondary fix: `http_utils.py` debug log now records response byte count instead of the full response body, preventing multi-MB JSON responses from being serialised into the log DOM.
+
+### New Dependency
+
+- `zendriver>=0.15.0` added to `requirements.txt` and `requirements-linux.txt`.
+
+---
+
 ## 6.1.2
 
 ### Bug Fix — Buzzheavier Download Always Failed

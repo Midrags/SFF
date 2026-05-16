@@ -975,10 +975,11 @@ class UI:
             )
         return MainReturnCode.LOOP
 
-    def process_from_store(self, app_id: str, manifest_override: dict, use_hubcap: bool):
+    def process_from_store(self, app_id: str, manifest_override: dict, use_hubcap: bool, lib_path=None):
         """Full download pipeline triggered from the Store tab version picker.
         Downloads game files via DepotDownloaderMod, then writes ACF so
         Steam shows a Play button instead of Update/Install.
+        lib_path: pre-selected Steam library path; skips the interactive prompt when provided.
         """
         import time
         from pathvalidate import sanitize_filename
@@ -988,7 +989,9 @@ class UI:
         from sff.lua.manager import parse_lua_contents
         start_time = time.time()
         app_id = str(app_id)
-        if (lib_path := self.select_steam_library()) is None:
+        if lib_path is None:
+            lib_path = self.select_steam_library()
+        if lib_path is None:
             return MainReturnCode.LOOP_NO_PROMPT
         saved_lua = Path.cwd() / "saved_lua"
         saved_lua.mkdir(exist_ok=True)
@@ -1345,17 +1348,24 @@ class UI:
 
         def _do_linux_frozen_update():
             if not download_url or not asset_name:
+                logger.warning("Linux update: no download URL found in release assets")
                 return
             print(f"Downloading {asset_name}...")
             if not download_to_path(download_url, update_zip):
                 print(Fore.RED + "Download failed." + Style.RESET_ALL)
+                logger.warning("Linux update: download_to_path failed for %s", download_url)
                 return
             print("Extracting update...")
             if tmp_update.exists():
                 shutil.rmtree(tmp_update, ignore_errors=True)
             tmp_update.mkdir(parents=True, exist_ok=True)
-            with zipfile.ZipFile(update_zip) as zf:
-                zf.extractall(tmp_update)
+            try:
+                with zipfile.ZipFile(update_zip) as zf:
+                    zf.extractall(tmp_update)
+            except Exception as _ze:
+                logger.warning("Linux update: ZIP extraction failed: %s", _ze)
+                print(Fore.RED + f"ZIP extraction failed: {_ze}" + Style.RESET_ALL)
+                return
             entries = list(tmp_update.iterdir())
             if len(entries) == 1 and entries[0].is_dir():
                 inner = entries[0]
@@ -1366,6 +1376,7 @@ class UI:
             install_sh = tmp_update / "steamidra_install.sh"
             if not install_sh.exists():
                 print(Fore.RED + "steamidra_install.sh not found in update package." + Style.RESET_ALL)
+                logger.warning("Linux update: steamidra_install.sh missing from %s", tmp_update)
                 return
             install_sh.chmod(0o755)
             install_cmd = f"cd {shutil.quote(str(tmp_update))} && bash steamidra_install.sh; exec bash"
@@ -1382,20 +1393,21 @@ class UI:
                         subprocess.Popen(term_cmd)
                         launched = True
                         break
-                    except Exception:
-                        pass
+                    except Exception as _te:
+                        logger.warning("Linux update: terminal %s failed: %s", term_cmd[0], _te)
             if not launched:
                 try:
                     subprocess.Popen(["bash", str(install_sh)], cwd=str(tmp_update))
                     launched = True
-                except Exception:
-                    pass
+                except Exception as _be:
+                    logger.warning("Linux update: headless bash fallback failed: %s", _be)
             if launched:
                 print(Fore.GREEN + "Install script launched. SteaMidra will close now." + Style.RESET_ALL)
                 sys.exit(0)
             else:
                 print(Fore.RED + "Could not launch a terminal. Run steamidra_install.sh manually from:" + Style.RESET_ALL)
                 print(f"  {tmp_update}")
+                logger.warning("Linux update: no terminal could be launched; update not applied")
 
         if not is_frozen:
             if download_url and prompt_confirm("Download and update automatically?"):

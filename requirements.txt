@@ -254,6 +254,8 @@ py7zr==0.22.0
 rarfile>=4.2
 curl_cffi>=0.7
     # via steam-manifest-decrypt (pyproject.toml) — curl_cffi Chrome impersonation for SteamDB CF bypass
+zendriver>=0.15.0
+    # SteamDB Cloudflare bypass — CDP-based browser automation (no navigator.webdriver)
 google-auth>=2.29.0
     # Google Drive API — OAuth 2.0 token handling
 google-auth-oauthlib>=1.2.0

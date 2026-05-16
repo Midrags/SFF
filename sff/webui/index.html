@@ -288,8 +288,8 @@
                 <button class="genre-chip" data-genre="vr">VR</button>
             </div>
             <div id="store-connect-banner" class="connect-banner">
-                <p>Connect your Hubcap API key to browse the store.</p>
-                <p id="store-banner-msg" class="banner-submsg"></p>
+                <p>Enter your Hubcap API key to see manifest availability.</p>
+                <p id="store-banner-msg" class="banner-submsg">You can browse all games without a key — Hubcap shows which ones have manifests ready to download.</p>
                 <div class="connect-form">
                     <input type="password" id="api-key-input" placeholder="Enter Hubcap API key...">
                     <button id="api-key-connect" class="btn btn-primary">Connect</button>
@@ -1209,6 +1209,96 @@
                 </button>
             </div>
             <div class="modal-footer">
+                <button class="btn modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Steam Home Download Modal -->
+    <div id="steam-home-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Download via Steam</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group" style="margin-bottom:10px;">
+                    <label style="font-size:12px;font-weight:600;opacity:0.8;">Game:</label>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <div id="steam-home-game-display" data-appid="" style="flex:1; font-size:13px; padding:6px 10px; background:var(--input-bg,rgba(255,255,255,0.07)); border:1px solid var(--border,rgba(255,255,255,0.12)); border-radius:6px; min-height:32px; opacity:0.85;">No game selected</div>
+                        <button id="steam-home-browse-game" class="btn btn-sm">Browse...</button>
+                    </div>
+                </div>
+                <div class="dl-source-picker" style="margin-bottom:10px;">
+                    <span class="dl-source-label">Lua source:</span>
+                    <label class="dl-source-option">
+                        <input type="radio" name="steam-home-source" value="hubcap" checked> Hubcap
+                    </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="steam-home-source" value="oureveryday"> OurEveryday
+                    </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="steam-home-source" value="ryuu"> Ryuu
+                    </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="steam-home-source" value="local"> Local .lua
+                    </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="steam-home-source" value="recent"> Recent .lua
+                    </label>
+                </div>
+                <div id="steam-home-ryuu-option" style="display:none; margin-bottom:8px;">
+                    <label style="font-size:12px;">
+                        <input type="checkbox" id="steam-home-request-update"> Request update from Ryuu before downloading
+                    </label>
+                </div>
+                <div id="steam-home-local-row" style="display:none; margin-bottom:10px;">
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="text" id="steam-home-local-path" readonly placeholder="Select a .lua or .zip file..." style="flex:1; font-size:12px;">
+                        <button id="steam-home-local-browse" class="btn btn-sm">Browse</button>
+                    </div>
+                </div>
+                <div id="steam-home-manifest-row" style="display:none; margin-bottom:10px;">
+                    <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">Manifest folder (optional):</div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="text" id="steam-home-manifest-path" readonly placeholder="Select folder with .manifest files..." style="flex:1; font-size:12px;">
+                        <button id="steam-home-manifest-browse" class="btn btn-sm">Browse</button>
+                    </div>
+                </div>
+                <div id="steam-home-recent-row" style="display:none; margin-bottom:10px;">
+                    <select id="steam-home-recent-select" style="width:100%; font-size:13px;">
+                        <option value="">-- select a recent file --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="steam-home-download" class="btn btn-primary">Download via Steam</button>
+                <button class="btn modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Steam Game Picker Modal -->
+    <div id="steam-game-picker-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content" style="max-width:520px;">
+            <div class="modal-header">
+                <h2>Select Game</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                    <span id="sgp-last-updated" style="font-size:11px; opacity:0.6; flex:1;"></span>
+                    <button id="sgp-update-btn" class="btn btn-sm">Update list</button>
+                </div>
+                <input type="text" id="sgp-search" placeholder="Search games..." style="width:100%; font-size:13px; margin-bottom:8px; box-sizing:border-box;">
+                <div id="sgp-list" style="max-height:320px; overflow-y:auto; border:1px solid var(--border,rgba(255,255,255,0.12)); border-radius:6px; padding:4px 0;"></div>
+                <div id="sgp-empty" style="display:none; text-align:center; padding:24px; opacity:0.5; font-size:13px;">No games found. Try updating the list first.</div>
+                <div id="sgp-loading" style="display:none; text-align:center; padding:16px; opacity:0.7; font-size:13px;">Loading...</div>
+            </div>
+            <div class="modal-footer">
+                <button id="sgp-select" class="btn btn-primary" disabled>Select</button>
                 <button class="btn modal-cancel">Cancel</button>
             </div>
         </div>

@@ -105,6 +105,9 @@ window.App = (function() {
                             }
                         }
                     }
+                    if (result.task === 'api_key_connected') {
+                        Store.onApiKeyAvailable('');
+                    }
                 } catch(e) {}
             });
 
@@ -226,6 +229,10 @@ window.App = (function() {
         }
 
         content.appendChild(line);
+        // Keep last 1000 lines to avoid unbounded DOM growth (prevents high RAM during downloads)
+        while (content.children.length > 1000) {
+            content.removeChild(content.firstChild);
+        }
         content.scrollTop = content.scrollHeight;
     }
 
@@ -393,6 +400,10 @@ window.App = (function() {
         if (dlDdmod) {
             dlDdmod.addEventListener('click', function() {
                 var appId = this.dataset.appid;
+                if (!appId) {
+                    Components.showToast('error', 'No App ID. Select a game and try again.');
+                    return;
+                }
                 var sourceEl = document.querySelector('input[name="dl-source"]:checked');
                 var source = sourceEl ? sourceEl.value : 'hubcap';
                 var luaPath = '';
@@ -416,7 +427,153 @@ window.App = (function() {
             ddmodChooseSteam.addEventListener('click', function() {
                 var appId = this.dataset.appid || '';
                 Components.hideModal('ddmod-choose-modal');
-                Bridge.call('download_game_fastest', appId);
+                _openSteamHomeModal(appId);
+            });
+        }
+
+        // Steam home modal — source radio change
+        document.querySelectorAll('input[name="steam-home-source"]').forEach(function(r) {
+            r.addEventListener('change', function() {
+                var ryuuOpt = document.getElementById('steam-home-ryuu-option');
+                var localRow = document.getElementById('steam-home-local-row');
+                var mfRow = document.getElementById('steam-home-manifest-row');
+                var recentRow = document.getElementById('steam-home-recent-row');
+                if (ryuuOpt) ryuuOpt.style.display = this.value === 'ryuu' ? 'block' : 'none';
+                if (localRow) localRow.style.display = this.value === 'local' ? 'block' : 'none';
+                if (recentRow) recentRow.style.display = this.value === 'recent' ? 'block' : 'none';
+                if (mfRow) mfRow.style.display = this.value === 'local' ? 'block' : 'none';
+            });
+        });
+
+        // Steam home modal — browse local lua/zip
+        var steamHomeBrowseLocal = document.getElementById('steam-home-local-browse');
+        if (steamHomeBrowseLocal) {
+            steamHomeBrowseLocal.addEventListener('click', function() {
+                Bridge.callSync('open_lua_file_dialog', function(path) {
+                    if (path) {
+                        var inp = document.getElementById('steam-home-local-path');
+                        if (inp) inp.value = path;
+                        var mfRow = document.getElementById('steam-home-manifest-row');
+                        if (mfRow) {
+                            var ext = path.split('.').pop().toLowerCase();
+                            mfRow.style.display = (ext === 'lua') ? 'block' : 'none';
+                        }
+                    }
+                });
+            });
+        }
+
+        // Steam home modal — browse manifest folder
+        var steamHomeBrowseMf = document.getElementById('steam-home-manifest-browse');
+        if (steamHomeBrowseMf) {
+            steamHomeBrowseMf.addEventListener('click', function() {
+                Bridge.callSync('open_manifest_folder_dialog', function(path) {
+                    if (path) {
+                        var inp = document.getElementById('steam-home-manifest-path');
+                        if (inp) inp.value = path;
+                    }
+                });
+            });
+        }
+
+        // Steam home modal — Browse game button
+        var steamHomeBrowseGame = document.getElementById('steam-home-browse-game');
+        if (steamHomeBrowseGame) {
+            steamHomeBrowseGame.addEventListener('click', function() {
+                _openSteamGamePicker();
+            });
+        }
+
+        // Steam game picker — update list button
+        var sgpUpdateBtn = document.getElementById('sgp-update-btn');
+        if (sgpUpdateBtn) {
+            sgpUpdateBtn.addEventListener('click', function() {
+                _sgpStartUpdate();
+            });
+        }
+
+        // Steam game picker — search input (debounced)
+        var sgpSearch = document.getElementById('sgp-search');
+        if (sgpSearch) {
+            var _sgpDebounce = null;
+            sgpSearch.addEventListener('input', function() {
+                var q = this.value;
+                clearTimeout(_sgpDebounce);
+                _sgpDebounce = setTimeout(function() { _sgpSearch(q); }, 300);
+            });
+        }
+
+        // Steam game picker — select button
+        var sgpSelectBtn = document.getElementById('sgp-select');
+        if (sgpSelectBtn) {
+            sgpSelectBtn.addEventListener('click', function() {
+                var selected = document.querySelector('#sgp-list .sgp-item.selected');
+                if (!selected) return;
+                var appId = selected.dataset.appid || '';
+                var name = selected.dataset.name || '';
+                var display = document.getElementById('steam-home-game-display');
+                if (display) {
+                    display.dataset.appid = appId;
+                    display.textContent = name + ' [ID=' + appId + ']';
+                }
+                Components.hideModal('steam-game-picker-modal');
+                Components.showModal('steam-home-modal');
+            });
+        }
+
+        // Listen for game list update result
+        Bridge.on('task_finished', function(json) {
+            try {
+                var data = JSON.parse(json);
+                if (data.task === 'update_games_file') {
+                    var btn = document.getElementById('sgp-update-btn');
+                    if (btn) { btn.disabled = false; btn.textContent = 'Update list'; }
+                    if (data.success) {
+                        _sgpRefreshInfo();
+                        _sgpSearch(document.getElementById('sgp-search') ? document.getElementById('sgp-search').value : '');
+                        Components.showToast('info', data.message || 'Game list updated.');
+                    } else {
+                        Components.showToast('error', data.message || 'Failed to update game list.');
+                    }
+                }
+            } catch(e) {}
+        });
+
+        // Steam home modal — Download button
+        var steamHomeDownload = document.getElementById('steam-home-download');
+        if (steamHomeDownload) {
+            steamHomeDownload.addEventListener('click', function() {
+                var display = document.getElementById('steam-home-game-display');
+                var appId = (display && display.dataset.appid) ? display.dataset.appid.trim() : '';
+                if (!appId || !/^\d+$/.test(appId)) {
+                    Components.showToast('warning', 'Please select a game first.');
+                    return;
+                }
+                var sourceEl = document.querySelector('input[name="steam-home-source"]:checked');
+                var source = sourceEl ? sourceEl.value : 'hubcap';
+                var updateEl = document.getElementById('steam-home-request-update');
+                var requestUpdate = (source === 'ryuu' && updateEl && updateEl.checked) ? '1' : '0';
+                Components.hideModal('steam-home-modal');
+                if (source === 'local') {
+                    var luaPath = (document.getElementById('steam-home-local-path') || {}).value || '';
+                    if (!luaPath) {
+                        Components.showToast('warning', 'Please select a local .lua or .zip file first.');
+                        Components.showModal('steam-home-modal');
+                        return;
+                    }
+                    var mf = (document.getElementById('steam-home-manifest-path') || {}).value || '';
+                    _startDdmodDownload(appId, 'local', luaPath, mf);
+                } else if (source === 'recent') {
+                    var recentPath = (document.getElementById('steam-home-recent-select') || {}).value || '';
+                    if (!recentPath) {
+                        Components.showToast('warning', 'Please select a recent file.');
+                        Components.showModal('steam-home-modal');
+                        return;
+                    }
+                    _startDdmodDownload(appId, 'local', recentPath, '');
+                } else {
+                    Bridge.call('download_game_with_source', appId, source, requestUpdate);
+                }
             });
         }
 
@@ -579,6 +736,126 @@ window.App = (function() {
         });
     }
 
+    function _openSteamHomeModal(appId, gameName) {
+        var display = document.getElementById('steam-home-game-display');
+        if (display) {
+            if (appId && /^\d+$/.test(appId.trim())) {
+                display.dataset.appid = appId.trim();
+                display.textContent = (gameName || ('App ' + appId.trim())) + ' [ID=' + appId.trim() + ']';
+            } else {
+                display.dataset.appid = '';
+                display.textContent = 'No game selected';
+            }
+        }
+        var ryuuOpt = document.getElementById('steam-home-ryuu-option');
+        if (ryuuOpt) ryuuOpt.style.display = 'none';
+        var localRow = document.getElementById('steam-home-local-row');
+        if (localRow) localRow.style.display = 'none';
+        var mfRow = document.getElementById('steam-home-manifest-row');
+        if (mfRow) { mfRow.style.display = 'none'; }
+        var mfInp = document.getElementById('steam-home-manifest-path');
+        if (mfInp) mfInp.value = '';
+        var recentRow = document.getElementById('steam-home-recent-row');
+        if (recentRow) recentRow.style.display = 'none';
+        var updateChk = document.getElementById('steam-home-request-update');
+        if (updateChk) updateChk.checked = false;
+        var firstRadio = document.querySelector('input[name="steam-home-source"][value="hubcap"]');
+        if (firstRadio) firstRadio.checked = true;
+        Bridge.callSync('get_recent_lua_files', function(json) {
+            var files;
+            try { files = JSON.parse(json || '[]'); } catch(e) { files = []; }
+            var sel = document.getElementById('steam-home-recent-select');
+            if (sel) {
+                sel.innerHTML = '<option value="">-- select a recent file --</option>';
+                files.forEach(function(f) {
+                    var opt = document.createElement('option');
+                    opt.value = f.path;
+                    opt.textContent = f.name;
+                    sel.appendChild(opt);
+                });
+                var recentRadio = document.querySelector('input[name="steam-home-source"][value="recent"]');
+                if (recentRadio) recentRadio.disabled = files.length === 0;
+            }
+        });
+        Components.showModal('steam-home-modal');
+    }
+
+    function _openSteamGamePicker() {
+        Components.hideModal('steam-home-modal');
+        var selectBtn = document.getElementById('sgp-select');
+        if (selectBtn) selectBtn.disabled = true;
+        var srchInp = document.getElementById('sgp-search');
+        if (srchInp) srchInp.value = '';
+        var list = document.getElementById('sgp-list');
+        if (list) list.innerHTML = '';
+        _sgpRefreshInfo();
+        Components.showModal('steam-game-picker-modal');
+        _sgpSearch('');
+    }
+
+    function _sgpRefreshInfo() {
+        Bridge.callSync('get_games_file_info', function(json) {
+            var info;
+            try { info = JSON.parse(json || '{}'); } catch(e) { info = {}; }
+            var lbl = document.getElementById('sgp-last-updated');
+            if (lbl) {
+                if (info.exists) {
+                    lbl.textContent = 'Last updated: ' + (info.mtime_str || 'unknown') + ' (' + (info.count || 0) + ' games)';
+                } else {
+                    lbl.textContent = 'No game list found. Click "Update list" to download.';
+                }
+            }
+        });
+    }
+
+    function _sgpSearch(query) {
+        var list = document.getElementById('sgp-list');
+        var empty = document.getElementById('sgp-empty');
+        var loading = document.getElementById('sgp-loading');
+        if (loading) loading.style.display = 'block';
+        if (list) list.style.display = 'none';
+        if (empty) empty.style.display = 'none';
+        Bridge.callWithCallback('search_games_file', query || '', function(json) {
+            var games;
+            try { games = JSON.parse(json || '[]'); } catch(e) { games = []; }
+            if (loading) loading.style.display = 'none';
+            if (!list) return;
+            list.style.display = 'block';
+            list.innerHTML = '';
+            if (games.length === 0) {
+                if (empty) empty.style.display = 'block';
+                list.style.display = 'none';
+                return;
+            }
+            games.forEach(function(g) {
+                var item = document.createElement('div');
+                item.className = 'sgp-item';
+                item.dataset.appid = g.appid;
+                item.dataset.name = g.name;
+                item.style.cssText = 'padding:6px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.05);';
+                item.textContent = g.name + ' [ID=' + g.appid + ']';
+                item.addEventListener('click', function() {
+                    list.querySelectorAll('.sgp-item').forEach(function(el) {
+                        el.style.background = '';
+                        el.classList.remove('selected');
+                    });
+                    this.style.background = 'rgba(139,92,246,0.25)';
+                    this.classList.add('selected');
+                    var selectBtn = document.getElementById('sgp-select');
+                    if (selectBtn) selectBtn.disabled = false;
+                });
+                list.appendChild(item);
+            });
+        });
+    }
+
+    function _sgpStartUpdate() {
+        var btn = document.getElementById('sgp-update-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Updating...'; }
+        Components.showToast('info', 'Downloading game list from Steam...');
+        Bridge.call('update_games_file');
+    }
+
     function _openDdmodHomeModal(appId) {
         var appIdInp = document.getElementById('ddmod-home-appid');
         if (appIdInp) appIdInp.value = appId || '';
@@ -637,6 +914,10 @@ window.App = (function() {
     }
 
     function _executeDownload(appId, mode, source, requestUpdate) {
+        if (!appId) {
+            Components.showToast('error', 'No App ID. Select a game and try again.');
+            return;
+        }
         Components.showToast('info', 'Starting download for App ' + appId + '...');
         if (mode === 'fastest') {
             var src = source || 'hubcap';
@@ -713,7 +994,7 @@ window.App = (function() {
                 });
 
                 // Click header to expand/collapse depot rows
-                tbody.addEventListener('click', function(e) {
+                tbody.onclick = function(e) {
                     var hdr = e.target.closest('.version-group-header');
                     if (!hdr) return;
                     // Don't toggle when clicking the checkbox
@@ -731,10 +1012,10 @@ window.App = (function() {
                         hdr.dataset.collapsed = 'true';
                         if (chevron) chevron.style.transform = '';
                     }
-                });
+                };
 
                 // Group header checkbox: toggle all depots in that group
-                tbody.addEventListener('change', function(e) {
+                tbody.onchange = function(e) {
                     if (e.target.classList.contains('version-group-check')) {
                         var gid = e.target.dataset.group;
                         tbody.querySelectorAll('.version-check[data-group="' + gid + '"]').forEach(function(cb) {
@@ -743,7 +1024,7 @@ window.App = (function() {
                     }
                     var checked = tbody.querySelectorAll('.version-check:checked');
                     if (dlBtn) dlBtn.disabled = checked.length === 0;
-                });
+                };
 
             } catch(e) {
                 Components.showToast('error', 'Failed to load version history');

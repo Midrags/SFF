@@ -111,8 +111,13 @@ def main():
         sys.exit(0)
 
     _app_icon = QIcon()
-    for _ic in ("SFF.ico", "SFF.png"):
-        _candidate = QIcon(str(Path(_ic)))
+    _icon_candidates = list(("SFF.ico", "SFF.png"))
+    if sys.platform == "linux":
+        _appdir = os.environ.get("APPDIR", "")
+        if _appdir:
+            _icon_candidates.insert(0, os.path.join(_appdir, "SteaMidra.png"))
+    for _ic in _icon_candidates:
+        _candidate = QIcon(str(_ic))
         if not _candidate.isNull():
             _app_icon = _candidate
             break
@@ -120,6 +125,42 @@ def main():
         app.setWindowIcon(_app_icon)
     if sys.platform == "linux":
         app.setDesktopFileName("steamidra")
+        _appimage = os.environ.get("APPIMAGE", "")
+        if _appimage:
+            try:
+                import shutil as _shutil
+                _home = Path.home()
+                _icon_dest_dir = _home / ".local/share/icons/hicolor/256x256/apps"
+                _icon_dest = _icon_dest_dir / "SteaMidra.png"
+                _desktop_dir = _home / ".local/share/applications"
+                _desktop_file = _desktop_dir / "steamidra.desktop"
+                _appdir_env = os.environ.get("APPDIR", "")
+                _icon_src = Path(_appdir_env) / "SteaMidra.png" if _appdir_env else None
+                if _icon_src and _icon_src.exists() and not _icon_dest.exists():
+                    _icon_dest_dir.mkdir(parents=True, exist_ok=True)
+                    _shutil.copy2(str(_icon_src), str(_icon_dest))
+                _new_exec = f"Exec={_appimage}"
+                _needs_write = (
+                    not _desktop_file.exists()
+                    or _new_exec not in _desktop_file.read_text(encoding="utf-8", errors="ignore")
+                )
+                if _needs_write:
+                    _desktop_dir.mkdir(parents=True, exist_ok=True)
+                    _desktop_file.write_text(
+                        "[Desktop Entry]\n"
+                        "Version=1.0\n"
+                        "Name=SteaMidra\n"
+                        "Comment=Steam game setup and manifest tool\n"
+                        f"{_new_exec}\n"
+                        "Icon=SteaMidra\n"
+                        "Terminal=false\n"
+                        "Type=Application\n"
+                        "Categories=Utility;\n"
+                        "StartupNotify=false\n",
+                        encoding="utf-8",
+                    )
+            except Exception:
+                pass
 
     os_type = (
         OSType.WINDOWS

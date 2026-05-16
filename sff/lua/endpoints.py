@@ -70,6 +70,10 @@ def get_oureverday(dest, app_id):
     import httpx as _httpx
     from sff.steam_client import create_provider_for_current_thread
 
+    if not app_id or not str(app_id).strip().isdigit():
+        print(Fore.RED + f"Invalid App ID: '{app_id}'" + Style.RESET_ALL)
+        return None
+
     # Step 1: Steam native query for depot IDs
     print(Fore.CYAN + f"[Step 1] Fetching depot list for {app_id} from Steam client..." + Style.RESET_ALL)
     try:
@@ -156,6 +160,9 @@ def get_oureverday(dest, app_id):
 
 
 def get_hubcap(dest, app_id, depotcache = None):
+    if not app_id or not str(app_id).strip().isdigit():
+        print(Fore.RED + f"Invalid App ID: '{app_id}'" + Style.RESET_ALL)
+        return None
     url = f"https://hubcapmanifest.com/api/v1/manifest/{app_id}"
 
     # Loop to allow retry with new API key
@@ -287,6 +294,9 @@ def get_hubcap(dest, app_id, depotcache = None):
 
 
 def get_ryuu(dest, app_id, depotcache=None, request_update=None):
+    if not app_id or not str(app_id).strip().isdigit():
+        print(Fore.RED + f"Invalid App ID: '{app_id}'" + Style.RESET_ALL)
+        return None
     if request_update is None:
         request_update = prompt_confirm(
             "[Optional] Request an update from Ryuu before downloading?\n"

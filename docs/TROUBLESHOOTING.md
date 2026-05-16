@@ -200,6 +200,33 @@ If Steam shows a purchase error for a game after GreenLuma setup, it means Steam
 
 ---
 
+## Older Versions shows no history / depot list is empty
+
+When using the **Older Versions** feature, the depot and manifest history panel stays empty or shows no entries for some games (e.g. Resident Evil Village).
+
+**Why it happens:** SteaMidra scrapes SteamDB to retrieve historical manifests. Cloudflare protects SteamDB with bot-detection challenges. The previous implementation sent HTTP requests with a mismatched TLS fingerprint, which caused Cloudflare to issue 403 responses and flag the IP — blocking the browser layer as well. All 3 retry sessions would fail identically.
+
+**Fixed in 6.1.3:** A new 4-layer scraping architecture handles these cases. `zendriver` (Layer 3A) uses Chrome DevTools Protocol — no WebDriver flag — and exits early if CF persists. `SeleniumBase` (Layer 3B) automatically clicks the Cloudflare Turnstile "Verify you are human" checkbox via `uc_gui_click_captcha()`. System Chrome is detected via the Windows registry before falling back to Chrome for Testing.
+
+If you are still seeing empty history after updating:
+1. Delete `~/.sff/cf_cookie_cache.json` to clear any stale cookies.
+2. Make sure `Google Chrome` is installed and up to date — the registry detection will find it automatically.
+3. Re-run Older Versions. A visible Chrome window will open and click the CF checkbox automatically.
+
+---
+
+## High RAM usage during downloads (QtWebEngineProcess.exe)
+
+During a large game download, `QtWebEngineProcess.exe` (the embedded Chromium renderer) consumes several GB of RAM.
+
+**Why it happens:** Every download progress line printed by the downloader was appended as a new DOM node in the log panel with no limit. Over a long download, hundreds of thousands of nodes accumulated, causing Chromium's renderer to bloat.
+
+**Fixed in 6.1.3:** The log panel now evicts old entries, keeping only the last 1000 lines. RAM usage stays flat regardless of download size.
+
+If you are still seeing high RAM on an older version, update to 6.1.3 or newer.
+
+---
+
 ## Need more help?
 
 Read the error message first — it often explains what went wrong. Check `debug.log` in the SteaMidra folder for more detail.

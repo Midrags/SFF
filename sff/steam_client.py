@@ -17,6 +17,7 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 import json
+import threading
 import time
 from typing import Any
 
@@ -43,43 +44,45 @@ def create_provider_for_current_thread():
 
 
 _MAX_APP_INFO_RETRIES = 3
+_GEVENT_LOCK = threading.Lock()
 
 
 def _get_product_info(client, app_ids):
     if len(app_ids) == 0:
         raise ValueError("app_ids cannot be empty.")
-    if not client.logged_on:
-        print("Logging in anonymously...", end="", flush=True)
-        client.anonymous_login()
-        print(" Done!")
-    last_error = None
-    for attempt in range(1, _MAX_APP_INFO_RETRIES + 1):
-        try:
-            print("Getting app info...")
-            logger.debug(f"Getting info for {', '.join([str(x) for x in app_ids])}")
-            start = time.time()
-            info = client.get_product_info(  # pyright: ignore[reportUnknownMemberType]
-                app_ids
-            )
-            # only none when app_ids is empty, which never happens
-            assert info is not None
-            logger.debug(f"Product info request took: {time.time() - start}s")
-            return ProductInfo(info)
-        except gevent.Timeout as e:
-            last_error = e
-            if attempt < _MAX_APP_INFO_RETRIES:
-                print(f"Request timed out. Trying again ({attempt}/{_MAX_APP_INFO_RETRIES})...")
-                try:
-                    client.anonymous_login()
-                except RuntimeError:
-                    pass
-                time.sleep(2)
-            else:
-                print(
-                    "Request timed out after several attempts. "
-                    "Check your internet connection and Steam status, then try again later."
+    with _GEVENT_LOCK:
+        if not client.logged_on:
+            print("Logging in anonymously...", end="", flush=True)
+            client.anonymous_login()
+            print(" Done!")
+        last_error = None
+        for attempt in range(1, _MAX_APP_INFO_RETRIES + 1):
+            try:
+                print("Getting app info...")
+                logger.debug(f"Getting info for {', '.join([str(x) for x in app_ids])}")
+                start = time.time()
+                info = client.get_product_info(  # pyright: ignore[reportUnknownMemberType]
+                    app_ids
                 )
-                raise
+                # only none when app_ids is empty, which never happens
+                assert info is not None
+                logger.debug(f"Product info request took: {time.time() - start}s")
+                return ProductInfo(info)
+            except gevent.Timeout as e:
+                last_error = e
+                if attempt < _MAX_APP_INFO_RETRIES:
+                    print(f"Request timed out. Trying again ({attempt}/{_MAX_APP_INFO_RETRIES})...")
+                    try:
+                        client.anonymous_login()
+                    except RuntimeError:
+                        pass
+                    time.sleep(2)
+                else:
+                    print(
+                        "Request timed out after several attempts. "
+                        "Check your internet connection and Steam status, then try again later."
+                    )
+                    raise
 
 
 class SteamInfoProvider:

@@ -120,20 +120,13 @@ window.Store = (function() {
                 _total = data.total || 0;
                 _totalPages = Math.max(1, Math.ceil(_total / _perPage));
                 _updatePagination();
-                if (!data.fallback) {
+                if (data.has_hubcap) {
                     _hideConnectBanner();
                 } else {
                     _showConnectBanner();
                     var msgEl = document.getElementById('store-banner-msg');
                     if (msgEl) {
-                        var gamesLen = (data.games || []).length;
-                        if (data.hubcap_error) {
-                            msgEl.textContent = 'Your Hubcap API key is invalid or expired. Enter a new one to restore full store access.';
-                        } else if (gamesLen > 0) {
-                            msgEl.textContent = 'Browsing Steam catalog (' + _total + ' games). Enter a Hubcap key to see manifest availability.';
-                        } else {
-                            msgEl.textContent = 'Could not load store — check your internet or enter a Hubcap API key.';
-                        }
+                        msgEl.textContent = 'You can browse all games without a key — Hubcap shows which ones have manifests ready to download.';
                     }
                 }
             } catch(e) {
@@ -144,6 +137,9 @@ window.Store = (function() {
 
     function onApiKeyAvailable(key) {
         _apiKeyConnected = true;
+        if (_initialized) {
+            _fetchGames();
+        }
     }
 
     function onPageEnter() {
