@@ -1,5 +1,42 @@
 # Changelog
 
+## 6.1.4
+
+### Bug Fix — Download Library / Drive Picker Missing on Home Tab Steam Downloads
+
+- The Home tab "Steam" source download button was calling `download_game_with_source` directly, bypassing `_startDownload`. This meant the Steam library selection dialog never appeared when multiple libraries were detected, so downloads always went to the first library.
+- Fixed: the button now routes through `_startDownload`, which shows the library picker before handing off to the download function.
+
+### Bug Fix — DDMod Downloaded Non-Windows Depots (Linux / macOS Content)
+
+- DepotDownloaderMod had no OS filter, so it would request depots whose `oslist` is set to `linux` or `macos` only — depots that contain no Windows game files. For multi-platform titles this wasted bandwidth and disk space downloading content that serves no purpose on Windows.
+- Fixed: new `filter_depots_by_os` helper reads the `config.oslist` field from App Info for each depot and drops any depot whose oslist is non-empty and does not include `windows`. Applied in `ui.py` (`process_lua_full`, `process_from_store`) and `web_bridge.py` (`download_game_ddmod`).
+- DDMod itself is now also launched with `-os windows` as an additional safeguard.
+
+### Bug Fix / Performance — DDMod Efficiency Improvements
+
+- Removed `-validate` flag — DDMod was re-hashing every already-downloaded file on each run, causing unnecessary I/O and time.
+- Reduced `-max-downloads` from 255 to 32 — 255 simultaneous CDN connections caused throttling and incomplete transfers on many CDN nodes.
+- Replaced the byte-by-byte stdout read loop with `readline()` — the old loop burned significant CPU for every character emitted by DDMod during a download.
+
+### Bug Fix — Depot History Fill-Forward Included Future Depots
+
+- The "Older Versions" fill-forward logic incorrectly included depots in build groups that predate the depot's own debut. For example, a depot that first appeared on 2024-01-15 could show up inside a version group dated 2023-06-01.
+- Fixed: if all dated non-CM manifest entries for a depot are strictly newer than the group date, the depot is excluded from that group.
+
+### Bug Fix — GUI Freeze / Memory Growth During Downloads
+
+- Web UI log forwarding (`_forward_log_to_web`, `_forward_stdout_to_web`) now returns immediately when `_web_ui_active` is `False`, preventing signal emissions and string processing for a panel the user is not looking at.
+- Stdout forwarding to the web UI is now throttled — at most one emission per 50 ms — so rapid DDMod progress lines cannot flood the Qt signal queue.
+- The classic UI `QPlainTextEdit` log now has `setMaximumBlockCount(5000)`, capping unbounded line accumulation during very long downloads.
+
+### Bug Fix — Store Tab Game Search Auto-Creates Missing Game List
+
+- If `all_games.txt` did not exist (e.g. fresh install, file deleted), the Store tab search silently returned no results with no indication of what was wrong.
+- Fixed: `search_games_file` now calls `update_games_file()` in the background and returns a user-visible message while the download runs.
+
+---
+
 ## 6.1.3
 
 ### Bug Fix — Cloudflare Blocks All Depot Pages (Older Versions)

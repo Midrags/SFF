@@ -572,7 +572,7 @@ window.App = (function() {
                     }
                     _startDdmodDownload(appId, 'local', recentPath, '');
                 } else {
-                    Bridge.call('download_game_with_source', appId, source, requestUpdate);
+                    _startDownload(appId, 'fastest', source, requestUpdate);
                 }
             });
         }

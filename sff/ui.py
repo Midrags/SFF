@@ -904,7 +904,7 @@ class UI:
             downloader.download_manifests(parsed_lua, auto_manifest=True)
         import re as _re
         from sff.dotnet_utils import ensure_dotnet_9
-        from sff.depot_downloader import run_download
+        from sff.depot_downloader import run_download, filter_depots_by_os
         from pathvalidate import sanitize_filename
         print(Fore.YELLOW + "\nDownloading game files via DepotDownloaderMod:" + Style.RESET_ALL)
         if ensure_dotnet_9():
@@ -928,6 +928,11 @@ class UI:
                 "installdir": _installdir,
             }
             _selected = [str(dp.depot_id) for dp in parsed_lua.depots if dp.decryption_key]
+            try:
+                _app_info = provider.get_single_app_info(int(parsed_lua.app_id))
+            except Exception:
+                _app_info = None
+            _selected = filter_depots_by_os(_selected, _app_info, print_fn=print)
             run_download(_game_data, _selected, lib_path, self.steam_path, print_fn=print)
         else:
             if sys.platform != "win32":
@@ -984,7 +989,7 @@ class UI:
         import time
         from pathvalidate import sanitize_filename
         from sff.dotnet_utils import ensure_dotnet_9
-        from sff.depot_downloader import run_download, MANIFESTS_TMP
+        from sff.depot_downloader import run_download, filter_depots_by_os, MANIFESTS_TMP
         from sff.lua.choices import download_lua_direct
         from sff.lua.manager import parse_lua_contents
         start_time = time.time()
@@ -1093,6 +1098,11 @@ class UI:
             "installdir": installdir,
         }
         selected_depots = list(manifest_override.keys())
+        try:
+            _app_info_os = provider.get_single_app_info(int(parsed_lua.app_id))
+        except Exception:
+            _app_info_os = None
+        selected_depots = filter_depots_by_os(selected_depots, _app_info_os, print_fn=print)
         print(Fore.YELLOW + "\nDownloading game files via DepotDownloaderMod:" + Style.RESET_ALL)
         download_ok, size_on_disk = run_download(
             game_data, selected_depots, lib_path, self.steam_path, print_fn=print,

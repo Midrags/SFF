@@ -138,6 +138,7 @@ class SFFMainWindow(QMainWindow):
         _saved_theme = get_setting(_S.THEME)
         self._current_theme = _saved_theme if (_saved_theme and _saved_theme in THEMES) else "dark"
         self._music_muted = False
+        self._last_web_stdout_time = 0.0
         self._game_list = []
         self._stream_emitter = StreamEmitter()
         self._log_window = GlobalLogWindow(self)
@@ -427,6 +428,7 @@ class SFFMainWindow(QMainWindow):
         log_layout = QVBoxLayout(log_group)
         self.log_text = QPlainTextEdit()
         self.log_text.setReadOnly(True)
+        self.log_text.setMaximumBlockCount(5000)
         self.log_text.setMinimumHeight(160)
         log_layout.addWidget(self.log_text)
         clear_btn = QPushButton(T("Clear log"))
@@ -730,6 +732,8 @@ class SFFMainWindow(QMainWindow):
 
     def _forward_log_to_web(self, levelno: int, html: str):
         """Forward log records to the web bridge so the web UI log panel shows them."""
+        if not getattr(self, '_web_ui_active', True):
+            return
         if hasattr(self, '_web_bridge') and self._web_bridge:
             import logging
             lvl = 'INFO'
@@ -751,6 +755,13 @@ class SFFMainWindow(QMainWindow):
 
     def _forward_stdout_to_web(self, text: str):
         """Forward _stream_emitter stdout lines to the web UI log panel."""
+        if not getattr(self, '_web_ui_active', True):
+            return
+        import time as _time
+        now = _time.monotonic()
+        if now - self._last_web_stdout_time < 0.05:
+            return
+        self._last_web_stdout_time = now
         if hasattr(self, '_web_bridge') and self._web_bridge:
             text = _ANSI_RE.sub("", text).strip()
             if text:

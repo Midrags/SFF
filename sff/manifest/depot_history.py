@@ -1940,8 +1940,16 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]], build_ids: d
             # Steam CM entries must never be used to fill SteamDB/mirror groups — they carry
             # the current build date (e.g. 2026-03-27) which does not represent the game state
             # at the historical group date.
+            depot_entries = depot_history.get(depot_id, [])
+            dated_non_cm = [
+                e for e in depot_entries
+                if e.manifest_id and e.source != "Steam CM"
+                and re.match(r"\d{4}-\d{2}-\d{2}", e.date)
+            ]
+            if dated_non_cm and all(e.date > group.date for e in dated_non_cm):
+                continue  # depot debuted after this build — exclude it
             candidates = [
-                e for e in depot_history.get(depot_id, [])
+                e for e in depot_entries
                 if e.manifest_id
                 and re.match(r"\d{4}-\d{2}-\d{2}", e.date)
                 and e.date <= group.date
@@ -1958,7 +1966,6 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]], build_ids: d
                 if non_dated:
                     best = non_dated[0]
                 else:
-                    depot_entries = depot_history.get(depot_id, [])
                     if not depot_entries:
                         continue
                     # Use Steam CM manifest if available.  Depots that genuinely

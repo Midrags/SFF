@@ -66,24 +66,8 @@ def _copy_manifests_to_temp(steam_path: Path, manifests: dict) -> None:
 def _read_process_output(proc: subprocess.Popen, print_fn) -> None:
     if not proc.stdout:
         return
-    buffer = bytearray()
-    while True:
-        chunk = proc.stdout.read(1)
-        if not chunk:
-            if proc.poll() is not None:
-                break
-            time.sleep(0.01)
-            continue
-        if chunk in (b"\r", b"\n"):
-            if buffer:
-                line = buffer.decode("utf-8", errors="replace").strip()
-                if line:
-                    print_fn(line)
-                buffer.clear()
-        else:
-            buffer.extend(chunk)
-    if buffer:
-        line = buffer.decode("utf-8", errors="replace").strip()
+    for raw_line in iter(proc.stdout.readline, b''):
+        line = raw_line.decode("utf-8", errors="replace").strip()
         if line:
             print_fn(line)
 
@@ -160,9 +144,9 @@ def run_download(
             "-app", appid,
             "-depot", depot_id_str,
             "-depotkeys", str(KEYS_TMP),
-            "-max-downloads", "255",
+            "-max-downloads", "32",
+            "-os", "windows",
             "-dir", str(download_dir),
-            "-validate",
         ]
 
         if manifest_id:
@@ -236,6 +220,39 @@ def run_download(
     )
 
     return all_ok, size_on_disk
+
+
+def filter_depots_by_os(
+    selected_depots: list,
+    app_info: dict,
+    print_fn=print,
+) -> list:
+    """Return selected_depots with non-Windows depots removed.
+
+    Keeps a depot if its oslist is empty/missing (shared content) or contains
+    'windows'.  Skips depots whose oslist is non-empty and lacks 'windows'.
+    Falls back to the original list when app_info is unavailable.
+    """
+    if not app_info:
+        return selected_depots
+    depots_section = app_info.get("depots", {})
+    filtered = []
+    for depot_id in selected_depots:
+        depot_meta = depots_section.get(str(depot_id), {})
+        oslist = ""
+        if isinstance(depot_meta, dict):
+            config = depot_meta.get("config", {})
+            if isinstance(config, dict):
+                oslist = config.get("oslist", "") or ""
+        if oslist and "windows" not in oslist.lower():
+            print_fn(
+                Fore.YELLOW
+                + f"Skipping depot {depot_id} (oslist={oslist!r}, not Windows)"
+                + Style.RESET_ALL
+            )
+            continue
+        filtered.append(depot_id)
+    return filtered
 
 
 def move_manifests_to_depotcache(dest_path: Path, manifests_dict: dict, print_fn=print) -> None:

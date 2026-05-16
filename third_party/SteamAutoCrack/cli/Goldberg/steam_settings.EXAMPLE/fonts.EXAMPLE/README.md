@@ -1,1 +1,0 @@
-Place your overlay fonts here, then modify `overlay_appearance` and point at the desired one.

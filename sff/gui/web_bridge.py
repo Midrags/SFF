@@ -1890,7 +1890,7 @@ class WebBridge(QObject):
                 from pathlib import Path as _Path
                 from sff.lua.endpoints import get_hubcap, get_oureverday, get_ryuu
                 from sff.lua.manager import parse_lua_contents
-                from sff.depot_downloader import run_download
+                from sff.depot_downloader import run_download, filter_depots_by_os
 
                 steam_path = self._steam_path
                 dest = _Path(self._active_library) if self._active_library else steam_path
@@ -1975,6 +1975,7 @@ class WebBridge(QObject):
                 installdir = ""
                 buildid = "0"
                 _provider = None
+                _app_info = None
                 if steam_path and depots_dict:
                     try:
                         from sff.steam_client import create_provider_for_current_thread
@@ -2090,6 +2091,10 @@ class WebBridge(QObject):
                     import re as _re
                     clean = _re.sub(r'\x1b\[[0-9;]*m', '', msg)
                     print(clean)
+
+                selected_depots = filter_depots_by_os(selected_depots, _app_info, print_fn=_print_fn)
+                for _sk in [k for k in list(depots_dict.keys()) if k not in selected_depots]:
+                    del depots_dict[_sk]
 
                 ok, _size = run_download(game_data, selected_depots, dest, steam_path, print_fn=_print_fn)
 
@@ -2216,7 +2221,8 @@ class WebBridge(QObject):
         from sff.utils import root_folder
         all_games_file = root_folder(outside_internal=True) / "all_games.txt"
         if not all_games_file.exists():
-            return "[]"
+            self.update_games_file()
+            return json.dumps([{"name": "Game list not found — downloading now. Please search again in a moment.", "appid": "0"}])
         try:
             q = query.strip().lower()
             results = []

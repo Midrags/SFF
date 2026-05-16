@@ -119,14 +119,7 @@ SteaMidra has a full graphical interface with a **Modern UI (new in 5.5.0, updat
 
 ---
 
-## What's new in 6.1.2
-
-- Buzzheavier downloads now work correctly — rewrote the download flow to use the signed token Buzzheavier requires. Fixes Auto GL Setup, HV cracks, and crack fixes all at once.
-- Auto GL Setup no longer crashes on Windows systems using cp1252 encoding.
-- Auto GL Setup now falls back through multiple archive formats if the file extension is wrong.
-- New guide: `docs/CRACK_FILES.md` covers the CrakFiles fix list format and fields.
-
-Full history: [CHANGELOG.md](CHANGELOG.md)
+Full changelog: [CHANGELOG.md](CHANGELOG.md)
 
 ---
 

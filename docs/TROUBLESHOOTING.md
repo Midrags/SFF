@@ -227,6 +227,18 @@ If you are still seeing high RAM on an older version, update to 6.1.3 or newer.
 
 ---
 
+## Cannot choose download drive / library — download always goes to the first drive
+
+When starting a Steam-source download from the Home tab, no dialog appears to choose which Steam library (drive) to download to. The game is always installed on the default library.
+
+**Why it happens:** The Home tab "Steam" source button was calling the download function directly without going through the library-picker step. Only the DDMod download path showed the library selector; the Steam download path bypassed it entirely.
+
+**Fixed in 6.1.4:** The button now routes through `_startDownload`, which shows the library selection dialog whenever more than one Steam library is detected before the download begins.
+
+If you are still not seeing the dialog, make sure you have more than one Steam library configured in Steam → Settings → Storage.
+
+---
+
 ## Need more help?
 
 Read the error message first — it often explains what went wrong. Check `debug.log` in the SteaMidra folder for more detail.
