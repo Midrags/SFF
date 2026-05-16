@@ -4675,7 +4675,7 @@ vsprintf_s(pFormattedMessage,formattedLen+1,pFormat,args);
 }
 #else
 {
-vsprintf(pFormattedMessage,pFormat,args);
+vsnprintf(pFormattedMessage,formattedLen+1,pFormat,args);
 }
 #endif
 Mf=ma_log_post(pLog,level,pFormattedMessage);
