@@ -159,7 +159,7 @@ a = Analysis(
         'sff.tools.capcom_save_fix',
         'py7zr',
         'rarfile',
-        'sff.greenluma_setup',
+        'sff.lumacore_setup',
         'seleniumbase',
         'undetected_chromedriver',
         'zendriver',
