@@ -469,6 +469,7 @@ class SFFMainWindow(QMainWindow):
         self._load_web_ui()
         self._web_ui_loaded = True
         self._tray = None
+        self._tray_hide_notified = False
         self._save_watcher_timer = QTimer(self)
         self._save_watcher_timer.timeout.connect(self._run_background_save_watcher)
         self._start_save_watcher()
@@ -793,7 +794,7 @@ class SFFMainWindow(QMainWindow):
         dlg.setMinimumSize(620, 500)
         layout = QVBoxLayout(dlg)
         layout.addWidget(QLabel("Double-click a setting to edit. Select and press Delete to clear."))
-        win_only = {Settings.APPLIST_FOLDER, Settings.GL_VERSION}
+        win_only: set[Settings] = set()
         linux_only = {Settings.SLS_CONFIG_LOCATION}
         skip: set[Settings] = set()
         if sys.platform == "win32":
@@ -941,17 +942,6 @@ class SFFMainWindow(QMainWindow):
                 self.ui.init_midi_player()
             else:
                 self.ui.kill_midi_player()
-        elif s == Settings.APPLIST_FOLDER:
-            try:
-                from sff.app_injector.applist import AppListManager
-                import sys
-                if sys.platform == "win32":
-                    self.ui.app_list_man = AppListManager(
-                        self.ui.steam_path, self.ui.provider
-                    )
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning(f"Failed to reinit AppListManager: {e}")
         elif s == Settings.STEAM_PATH:
             if parent_widget:
                 QMessageBox.information(
@@ -981,6 +971,12 @@ class SFFMainWindow(QMainWindow):
         if self._tray is not None and self._tray.minimize_to_tray:
             event.ignore()
             self.hide()
+            if not self._tray_hide_notified:
+                self._tray_hide_notified = True
+                self._tray.notify(
+                    "SteaMidra",
+                    "SteaMidra is running in the system tray. Click the ^ arrow near the clock to find it.",
+                )
         else:
             self._save_watcher_timer.stop()
             event.accept()

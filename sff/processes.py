@@ -56,10 +56,10 @@ def is_proc_running(process_name: str):
 
 class SteamProcess:
 
-    def __init__(self, steam_path: Path, applist_folder: Path):
+    def __init__(self, steam_path: Path, applist_folder: Path = None):
 
         self.steam_path = steam_path
-        self.injector_dir = applist_folder.parent
+        self.injector_dir = applist_folder.parent if applist_folder else None
         self.exe_name = "steam.exe"
         self.wait_time = 3
 
@@ -102,25 +102,10 @@ class SteamProcess:
 
     def resolve_injector_path(self):
 
-        candidates = ["DLLInjector.exe", "steam.exe"]
-        matches = [
-            x for x in map(lambda x: (self.injector_dir / x), candidates) if x.exists()
-        ]
-        if len(matches) == 1:
-            return str(matches[0].resolve())
-        if len(matches) == 0:
-            return None
-        print(f"The following were found: {', '.join(x.name for x in matches)}")
-        if prompt_confirm("Is your GreenLuma installation in Normal Mode right now?"):
-            return str(matches[0].resolve())
-        renamed_path = matches[0].parent / (matches[0].name + ".backup")
-        matches[0].rename(renamed_path)
-        print(
-            "You must be in stealth mode then. "
-            f"You shouldn't leave {candidates[0]} in that folder! I've renamed it "
-            f"to {renamed_path.name} for you."
-        )
-        return str(matches[1].resolve())
+        target = self.steam_path / self.exe_name
+        if target.exists():
+            return str(target.resolve())
+        return None
 
     def prompt_launch_or_restart(self):
 
@@ -202,7 +187,7 @@ class SteamProcess:
             print(f"ShellExecute failed ({error_msg}), trying without elevation...")
             try:
                 subprocess.Popen([injector], cwd=str(self.steam_path))
-                print("Steam launched (elevation skipped). GreenLuma injection may not work if admin rights are required.")
+                print("Steam launched (elevation skipped). Injection may not work if admin rights are required.")
                 return True
             except Exception:
                 pass

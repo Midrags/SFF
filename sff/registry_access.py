@@ -22,9 +22,6 @@ from pathlib import Path
 
 from colorama import Fore, Style
 
-from sff.prompts import prompt_confirm, prompt_select
-from sff.storage.settings import get_setting, set_setting
-from sff.structs import GreenLumaVersions, Settings
 from sff.utils import root_folder
 
 
@@ -56,27 +53,6 @@ def key_exists(hive, key_path):
         return False
 
 
-def get_greenluma_key():
-    greenluma_keynames = [x.value for x in GreenLumaVersions]
-    existing_keys = [
-        x
-        for x in greenluma_keynames
-        if key_exists(winreg.HKEY_CURRENT_USER, rf"SOFTWARE\{x}")
-    ]
-    if len(existing_keys) == 0:
-        selected_version = prompt_select(
-            "Which GreenLuma version do you have:", greenluma_keynames
-        )
-    elif len(existing_keys) == 1:
-        selected_version = existing_keys[0]
-    else:  # More than 1
-        print("More than one Greenluma key found.")
-        selected_version = prompt_select(
-            "Which version are you using rn?", existing_keys
-        )
-    return selected_version
-
-
 def read_subkey(hive, key_path, sub_key_name):
     try:
         with winreg.OpenKey(hive, key_path) as key:
@@ -86,45 +62,7 @@ def read_subkey(hive, key_path, sub_key_name):
 
 
 def set_stats_and_achievements(app_id):
-    if (selected_version := get_setting(Settings.GL_VERSION)) is None:
-        selected_version = get_greenluma_key()
-        set_setting(Settings.GL_VERSION, selected_version)
-
-    curr = read_subkey(
-        winreg.HKEY_CURRENT_USER,
-        rf"SOFTWARE\{selected_version}\AppID\{app_id}",
-        "SkipStatsAndAchievements",
-    )
-    if (enabled := get_setting(Settings.TRACK_GREENLUMA_ACH)) is None:
-        enabled = prompt_confirm(
-            "Would you like Greenluma (normal mode) to track achievements?"
-            + (
-                (" (Currently Disabled)" if curr else " (Currently Enabled)")
-                if curr is not None
-                else ""
-            )
-        )
-        if prompt_confirm(
-            "Would you like SteaMidra to remember this setting? "
-            "(You can change this in Settings)",
-            default=False,
-        ):
-            set_setting(Settings.TRACK_GREENLUMA_ACH, enabled)
-    try:
-        with winreg.CreateKey(
-            winreg.HKEY_CURRENT_USER, rf"SOFTWARE\{selected_version}\AppID\{app_id}"
-        ) as key:
-            winreg.SetValueEx(
-                key,
-                "SkipStatsAndAchievements",
-                0,
-                winreg.REG_DWORD,
-                0 if enabled else 1,
-            )
-        return True
-    except OSError as e:
-        print(f"Error setting registry key: {e}")
-        return False
+    return False
 
 
 def install_context_menu():

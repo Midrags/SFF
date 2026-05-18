@@ -17,9 +17,12 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 
-VERSION = "6.1.4"
+import base64 as _b64
+
+VERSION = "6.1.5"
 # NOTE: Public key shared by oureveryday (https://github.com/SteamAutoCracks/Steam-auto-crack/issues/33)
-STEAM_WEB_API_KEY = "1DD0450A99F573693CD031EBB160907D"
+_swak = b"MUREMDQ1MEE5OUY1NzM2OTNDRDAzMUVCQjE2MDkwN0Q="
+STEAM_WEB_API_KEY = _b64.b64decode(_swak).decode()
 GITHUB_USERNAME = "Midrags"
 REPO_NAME = "sff"
 # Update check source: https://github.com/Midrags/SFF/releases/

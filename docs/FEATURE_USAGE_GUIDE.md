@@ -38,7 +38,7 @@ In menus you can often press a number to choose an option. Escape or Back goes b
 
 SteaMidra has two separate download paths:
 
-- **Main tab “Download Games”** — downloads the **latest version** of a game directly from Steam. Fast, no .NET required. SteaMidra processes your Lua file, writes decryption keys, registers the AppList/SLSsteam IDs, and triggers Steam to download game files natively. Progress is tracked in the Downloads tab.
+- **Main tab "Download Games"** — downloads the **latest version** of a game directly from Steam. Fast, no .NET required. SteaMidra processes your Lua file, writes decryption keys, registers SLSsteam IDs (Linux) or LumaCore handles it via hook (Windows), and triggers Steam to download game files natively. Progress is tracked in the Downloads tab.
 - **Store tab** — lets you find and download **older or specific versions** of a game using Hubcap’s manifest library. Slower: it fetches the full depot and manifest ID list first, then downloads the game files via DepotDownloaderMod (.NET 9 required). Use this when you need a version other than the current latest.
 
 **Store browser (GUI)**

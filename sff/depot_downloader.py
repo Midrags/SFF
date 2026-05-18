@@ -44,7 +44,7 @@ def get_ddmod_dll() -> Path:
 
 def _copy_manifests_to_temp(steam_path: Path, manifests: dict) -> None:
     MANIFESTS_TMP.mkdir(parents=True, exist_ok=True)
-    depotcache = steam_path / "depotcache"
+    depotcache = steam_path / "steamapps" / "depotcache"
     if not depotcache.exists():
         return
     for depot_id, manifest_id in manifests.items():
@@ -66,10 +66,23 @@ def _copy_manifests_to_temp(steam_path: Path, manifests: dict) -> None:
 def _read_process_output(proc: subprocess.Popen, print_fn) -> None:
     if not proc.stdout:
         return
+    pre_alloc_count = 0
+    last_summary_t = 0.0
+    _SUMMARY_INTERVAL = 2.0
     for raw_line in iter(proc.stdout.readline, b''):
         line = raw_line.decode("utf-8", errors="replace").strip()
-        if line:
-            print_fn(line)
+        if not line:
+            continue
+        if line.startswith("Pre-allocating"):
+            pre_alloc_count += 1
+            now = time.monotonic()
+            if now - last_summary_t >= _SUMMARY_INTERVAL:
+                print_fn(f"[Pre-allocating files... {pre_alloc_count} so far]")
+                last_summary_t = now
+            continue
+        print_fn(line)
+    if pre_alloc_count > 0:
+        print_fn(f"[Pre-allocation complete: {pre_alloc_count} file(s)]")
 
 
 def _calculate_dir_size(path: Path) -> int:
@@ -232,23 +245,64 @@ def filter_depots_by_os(
 
     Keeps a depot if its oslist is empty/missing (shared content) or contains
     'windows'.  Skips depots whose oslist is non-empty and lacks 'windows'.
-    Falls back to the original list when app_info is unavailable.
+    Also skips Steam China depots (contain platform-specific bundles not needed
+    on global Steam).  Falls back to the original list when app_info is unavailable.
     """
     if not app_info:
         return selected_depots
-    depots_section = app_info.get("depots", {})
+    depots_section = app_info.get("depots", {}) if isinstance(app_info, dict) else {}
+
+    # Build set of Steam China depot IDs from depots-level and top-level steamchina sections
+    steamchina_ids: set[str] = set()
+    sc_section = depots_section.get("steamchina", {})
+    if isinstance(sc_section, dict):
+        steamchina_ids |= {str(k) for k in sc_section if str(k).isdigit()}
+    top_sc = app_info.get("steamchina", {}) if isinstance(app_info, dict) else {}
+    if isinstance(top_sc, dict):
+        steamchina_ids |= {str(k) for k in top_sc if str(k).isdigit()}
+
     filtered = []
     for depot_id in selected_depots:
         depot_meta = depots_section.get(str(depot_id), {})
         oslist = ""
+        category = ""
+        realm = ""
+        ostype = ""
+        depot_name = ""
         if isinstance(depot_meta, dict):
+            depot_name = depot_meta.get("name", "") or ""
             config = depot_meta.get("config", {})
             if isinstance(config, dict):
                 oslist = config.get("oslist", "") or ""
+                category = config.get("category", "") or ""
+                realm = config.get("realm", "") or ""
+                ostype = config.get("ostype", "") or ""
         if oslist and "windows" not in oslist.lower():
             print_fn(
                 Fore.YELLOW
                 + f"Skipping depot {depot_id} (oslist={oslist!r}, not Windows)"
+                + Style.RESET_ALL
+            )
+            continue
+        sc_flag = (
+            str(depot_id) in steamchina_ids
+            or "steamchina" in category.lower()
+            or "steamchina" in realm.lower()
+            or "steamchina" in ostype.lower()
+        )
+        if not sc_flag and depot_name:
+            name_lc = depot_name.lower()
+            name_up = depot_name.upper()
+            sc_flag = (
+                "steamchina" in name_lc
+                or name_up.endswith(" SC")
+                or name_up.endswith("_SC")
+                or any("\u4e00" <= c <= "\u9fff" for c in depot_name)
+            )
+        if sc_flag:
+            print_fn(
+                Fore.YELLOW
+                + f"Skipping depot {depot_id} (Steam China: realm={realm!r} category={category!r} name={depot_name!r})"
                 + Style.RESET_ALL
             )
             continue

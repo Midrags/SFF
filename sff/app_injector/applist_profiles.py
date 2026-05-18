@@ -23,8 +23,6 @@ import logging
 import re
 from pathlib import Path
 
-from sff.storage.settings import get_setting, set_setting
-from sff.structs import Settings
 from sff.utils import root_folder
 
 logger = logging.getLogger(__name__)
@@ -48,14 +46,6 @@ def get_profile_limit():
 
 
 def _resolve_limit():
-    limit_str = get_setting(Settings.APPLIST_ID_LIMIT)
-    if limit_str:
-        try:
-            n = int(limit_str)
-            if n > 0:
-                return n
-        except (ValueError, TypeError):
-            pass
     return None
 
 

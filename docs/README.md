@@ -1,23 +1,23 @@
 # SteaMidra Documentation
 
-SteaMidra helps you set up games to work with Steam using Lua scripts, manifests, and GreenLuma. It writes the right files into your Steam folder so games can run. It does not replace or crack Steam itself.
+SteaMidra helps you set up games to work with Steam using Lua scripts, manifests, and LumaCore. It writes the right files into your Steam folder so games can run. It does not replace or crack Steam itself.
 
 **What you need before using SteaMidra**
 
 - Steam installed.  
-- GreenLuma — SteaMidra can download and set it up automatically via **Auto GL Setup** (Home tab). See the [Setup Guide](SETUP_GUIDE.md) for details and manual steps.  
+- LumaCore — SteaMidra copies `dwmapi.dll` + `LumaCore.dll` into your Steam folder via **Auto LC Setup** (Home tab). See the [Setup Guide](SETUP_GUIDE.md) for details.  
 - A Lua file for the game (or use SteaMidra to download one).  
 
 **Quick start**
 
-1. Read the [Setup Guide](SETUP_GUIDE.md) to install what you need (including GreenLuma).  
+1. Read the [Setup Guide](SETUP_GUIDE.md) to install what you need (including LumaCore).  
 2. Read the [User Guide](USER_GUIDE.md) to see how each menu option works.  
 3. Use the [Quick Reference](QUICK_REFERENCE.md) for commands and shortcuts.
 
 **Guides**
 
 [Setup Guide](SETUP_GUIDE.md)  
-What to install (GreenLuma) and how to get started with the EXE.
+What to install (LumaCore) and how to get started with the EXE.
 
 [Python Setup](PYTHON_SETUP.md)  
 Running or building SteaMidra from source. Dependencies, virtual environment, and EXE build steps.
@@ -54,4 +54,4 @@ What changed in each release.
 
 **Credits**
 
-Made by Midrag and his brother. See the main [README](../README.md) for full credits including Lightse (GreenLuma patch), Hubcap Manifest, gbe_fork, and all other third-party tools. Use SteaMidra at your own risk.
+Made by Midrag and his brother. See the main [README](../README.md) for full credits including LumaCore, Hubcap Manifest, gbe_fork, and all other third-party tools. Use SteaMidra at your own risk.

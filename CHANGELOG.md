@@ -1,5 +1,35 @@
 # Changelog
 
+## 6.1.5
+
+### New Feature — LumaCore replaces GreenLuma (Windows)
+
+- LumaCore replaces GreenLuma as the DLL injector. Copy `dwmapi.dll` + `LumaCore.dll` into your Steam folder — no AppList folder, no `DLLInjector.ini`, no restart to add games.
+- **Auto LC Setup** (Home tab) — copies LumaCore DLLs from `sff/lumacore/` to your Steam folder and removes existing GreenLuma files automatically.
+- **LC Online Fix** (Home tab) — toggles `-onlinefix` in Steam's `localconfig.vdf` for a chosen app ID. LumaCore handles the SpaceWar (AppID 480) redirect at launch.
+- LumaCore reads `Steam/config/stplug-in/*.lua` — the same folder SteaMidra writes to. No migration needed.
+- Hot-add: games appear in the Steam library the moment their Lua file is created.
+- GreenLuma Settings page section removed: GL version, AppList folder, AppList profiles, achievement tracking, and ID limit settings are gone.
+
+### New Feature — Windows Installer (`SteaMidra-6.1.5-Setup.exe`)
+
+- Added a modern NSIS MUI2 wizard installer for Windows.
+- Installs to `C:\Program Files\SteaMidra` by default; user can choose any directory.
+- Components page lets users select: .NET 9 Runtime, Visual C++ 2022 Redistributable (x64 + x86), Desktop Shortcut, Start Menu Shortcut.
+- .NET 9 Runtime and VC++ 2022 Redistributable components detect existing installations and skip silently if already present. Downloads happen at install time from official Microsoft URLs.
+- Prompts the user to add the installation directory to Windows Defender exclusions (prevents false-positive flags on the download tool).
+- Registers SteaMidra in Windows Add/Remove Programs (with publisher, version, icon, and uninstall string).
+- Uninstaller gracefully terminates `SteaMidra_GUI.exe`, removes all files, shortcuts, registry entries, and the Defender exclusion.
+- `build_installer.bat` automates the full build: runs PyInstaller then compiles the NSIS script.
+
+### Improvement — Settings Page: Updates Section
+
+- "Check for Updates" is now a prominent button at the very top of the Settings page under a dedicated "Updates" section.
+- Current version is displayed dynamically next to the button.
+- The small link previously hidden in the "About" section has been removed.
+
+---
+
 ## 6.1.4
 
 ### Bug Fix — Download Library / Drive Picker Missing on Home Tab Steam Downloads

@@ -15,8 +15,6 @@ window.App = (function() {
         new Components.CustomSelect('home-game-select', 'home-game-select-ui');
         new Components.CustomSelect('fixgame-game-select', 'fixgame-game-select-ui');
         new Components.CustomSelect('store-sort', 'store-sort-ui');
-        new Components.CustomSelect('setting-gl-version', 'setting-gl-version-ui');
-        new Components.CustomSelect('profile-select', 'profile-select-ui');
         new Components.CustomSelect('setting-language', 'setting-language-ui');
         Tooltips.init();
         _initSidebar();
@@ -93,17 +91,15 @@ window.App = (function() {
                     if (result.task === 'download_ddmod' && result.success) {
                         _populateGameDropdown();
                     }
-                    if (result.task === 'auto_gl_setup') {
-                        var runBtn = document.getElementById('gl-download-run');
+                    if (result.task === 'auto_lc_setup') {
+                        var runBtn = document.getElementById('lc-install-run');
                         if (runBtn) runBtn.disabled = false;
-                        var statusEl = document.getElementById('gl-setup-status');
-                        if (statusEl) statusEl.textContent = result.success ? 'Setup complete.' : (result.message || 'Setup failed.');
-                        if (result.success && result.applist_path) {
-                            var folderInp = document.getElementById('setting-applist-folder');
-                            if (folderInp) {
-                                folderInp.value = result.applist_path;
-                            }
-                        }
+                        var statusEl = document.getElementById('lc-setup-status');
+                        if (statusEl) statusEl.textContent = result.success ? 'LumaCore installed.' : (result.message || 'Setup failed.');
+                    }
+                    if (result.task === 'lc_online_fix') {
+                        var ofStatus = document.getElementById('lc-onlinefix-status');
+                        if (ofStatus) ofStatus.textContent = result.success ? (result.message || 'Done.') : (result.message || 'Failed.');
                     }
                     if (result.task === 'api_key_connected') {
                         Store.onApiKeyAvailable('');
@@ -1268,6 +1264,25 @@ window.App = (function() {
             return;
         }
 
+        if (action === 'auto_lc_setup') {
+            _initLcSetupModal();
+            Bridge.callWithCallback('get_setting', 'steam_path', function(steamPath) {
+                var pathInp = document.getElementById('lc-steam-path');
+                if (pathInp && steamPath && !pathInp.value) pathInp.value = steamPath;
+            });
+            Components.showModal('lc-setup-modal');
+            return;
+        }
+
+        if (action === 'lc_online_fix') {
+            _initLcOnlineFixModal();
+            var appId = _getSelectedGameId();
+            var appIdInp = document.getElementById('lc-onlinefix-appid');
+            if (appIdInp && appId) appIdInp.value = appId;
+            Components.showModal('lc-online-fix-modal');
+            return;
+        }
+
         if (action === 'download_games') {
             var homeAppId = _getSelectedGameId() || '';
             var chooseSteamBtn = document.getElementById('ddmod-choose-steam');
@@ -1278,23 +1293,11 @@ window.App = (function() {
             return;
         }
 
-        if (action === 'auto_gl_setup') {
-            _initGlSetupModal();
-            Bridge.callWithCallback('get_setting', 'steam_path', function(steamPath) {
-                var steamExeInp = document.getElementById('gl-steam-exe');
-                if (steamExeInp && steamPath && !steamExeInp.value) {
-                    steamExeInp.value = steamPath.replace(/[\\/]$/, '') + '\\steam.exe';
-                }
-            });
-            Components.showModal('gl-setup-modal');
-            return;
-        }
-
         // Non-game actions don't need a game selected
         var nonGameActions = [
             'download_games', 'download_manifests', 'recent_lua', 'update_manifests',
             'mute_toggle', 'remove_game', 'context_menu', 'applist_menu', 'offline_fix',
-            'check_updates', 'scan_library', 'analytics', 'auto_gl_setup'
+            'check_updates', 'scan_library', 'analytics', 'auto_lc_setup', 'lc_online_fix'
         ];
         // Outside-Steam game action
         if (_outsideMode && nonGameActions.indexOf(action) === -1) {
@@ -1317,41 +1320,52 @@ window.App = (function() {
         Bridge.call('run_game_action', appId || '', action);
     }
 
-    var _glSetupInitialized = false;
-    function _initGlSetupModal() {
-        if (_glSetupInitialized) return;
-        _glSetupInitialized = true;
+    var _lcSetupInitialized = false;
+    function _initLcSetupModal() {
+        if (_lcSetupInitialized) return;
+        _lcSetupInitialized = true;
 
-        var steamBrowse = document.getElementById('gl-steam-browse');
-        if (steamBrowse) {
-            steamBrowse.addEventListener('click', function() {
-                Bridge.callSync('open_exe_file_dialog', function(path) {
-                    if (path) {
-                        var inp = document.getElementById('gl-steam-exe');
-                        if (inp) inp.value = path;
-                    }
+        Bridge.on('lc_progress', function(msg) {
+            var statusEl = document.getElementById('lc-setup-status');
+            if (statusEl) statusEl.textContent = msg;
+        });
+
+        var runBtn = document.getElementById('lc-install-run');
+        if (runBtn) {
+            runBtn.addEventListener('click', function() {
+                var steamPath = (document.getElementById('lc-steam-path') || {}).value || '';
+                var statusEl = document.getElementById('lc-setup-status');
+                if (statusEl) statusEl.textContent = 'Installing LumaCore...';
+                runBtn.disabled = true;
+                Bridge.call('install_lumacore', steamPath);
+            });
+        }
+    }
+
+    var _lcOnlineFixInitialized = false;
+    function _initLcOnlineFixModal() {
+        if (_lcOnlineFixInitialized) return;
+        _lcOnlineFixInitialized = true;
+
+        var checkBtn = document.getElementById('lc-onlinefix-check');
+        if (checkBtn) {
+            checkBtn.addEventListener('click', function() {
+                var appId = (document.getElementById('lc-onlinefix-appid') || {}).value || '';
+                if (!appId) { Components.showToast('warning', 'Enter an App ID first.'); return; }
+                Bridge.callWithCallback('get_launch_option_status', appId, function(status) {
+                    var ofStatus = document.getElementById('lc-onlinefix-status');
+                    if (ofStatus) ofStatus.textContent = status || 'Unknown';
                 });
             });
         }
 
-        Bridge.on('gl_progress', function(msg) {
-            var statusEl = document.getElementById('gl-setup-status');
-            if (statusEl) statusEl.textContent = msg;
-        });
-
-        var runBtn = document.getElementById('gl-download-run');
-        if (runBtn) {
-            runBtn.addEventListener('click', function() {
-                var steamExe = (document.getElementById('gl-steam-exe') || {}).value || '';
-                var methodEl = document.querySelector('input[name="gl-method"]:checked');
-                var method = methodEl ? methodEl.value : 'A';
-                var statusEl = document.getElementById('gl-setup-status');
-                if (statusEl) statusEl.textContent = 'Downloading GreenLuma...';
-                runBtn.disabled = true;
-                Bridge.call('download_gl_action', JSON.stringify({
-                    method: method,
-                    steam_exe: steamExe
-                }));
+        var toggleBtn = document.getElementById('lc-onlinefix-toggle');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function() {
+                var appId = (document.getElementById('lc-onlinefix-appid') || {}).value || '';
+                if (!appId) { Components.showToast('warning', 'Enter an App ID first.'); return; }
+                Bridge.call('toggle_online_fix', appId);
+                Components.showToast('info', 'Toggling LC Online Fix for App ' + appId + '...');
             });
         }
     }

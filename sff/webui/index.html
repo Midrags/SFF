@@ -48,7 +48,7 @@
                 <span class="nav-label" data-i18n="Cloud Saves">Cloud Saves</span>
             </button>
             <div class="nav-separator"></div>
-            <button class="nav-item" data-page="settings" data-tooltip="Themes, Steam path, API keys, AppList Profiles">
+            <button class="nav-item" data-page="settings" data-tooltip="Themes, Steam path, API keys, Preferences">
                 <svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
                 <span class="nav-label" data-i18n="Settings">Settings</span>
             </button>
@@ -211,13 +211,17 @@
                         <svg class="action-icon" viewBox="0 0 24 24"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55"/><path d="M5 12.55a10.94 10.94 0 015.17-2.39"/><path d="M10.71 5.05A16 16 0 0122.56 9"/><path d="M1.42 9a15.91 15.91 0 014.7-2.88"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
                         <span class="action-title">Offline Fix</span>
                     </button>
-                    <button class="action-card compact" data-action="applist_menu" data-tooltip="Manage GreenLuma AppList IDs">
+                    <button class="action-card compact platform-linux" data-action="applist_menu" data-tooltip="Manage SLS injection IDs (Linux only)">
                         <svg class="action-icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                         <span class="action-title">AppList IDs</span>
                     </button>
-                    <button class="action-card compact platform-win" data-action="auto_gl_setup" data-tooltip="Automatically extract and configure GreenLuma (Windows only)">
+                    <button class="action-card compact platform-win" data-action="auto_lc_setup" data-tooltip="Copy LumaCore DLLs to your Steam folder and remove old GreenLuma files (Windows only)">
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
-                        <span class="action-title">Auto GL Setup</span>
+                        <span class="action-title">Auto LC Setup</span>
+                    </button>
+                    <button class="action-card compact platform-win" data-action="lc_online_fix" data-tooltip="Toggle the LC Online Fix launch option for a specific app (Windows only)">
+                        <svg class="action-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                        <span class="action-title">LC Online Fix</span>
                     </button>
                 </div>
             </div>
@@ -806,6 +810,12 @@
             </div>
 
             <div class="settings-section">
+                <h2 class="section-title">Updates</h2>
+                <p class="setting-hint" style="margin-bottom:12px;">Current version: <strong id="settings-version-label">loading...</strong></p>
+                <button id="about-update" class="btn btn-primary" style="min-width:180px;">Check for Updates</button>
+            </div>
+
+            <div class="settings-section">
                 <h2 class="section-title">Theme</h2>
                 <div id="theme-picker" class="theme-grid"></div>
             </div>
@@ -908,47 +918,6 @@
                 </div>
             </div>
 
-            <div class="settings-section platform-win">
-                <h2 class="section-title">GreenLuma</h2>
-                <div class="input-group" style="max-width:260px;">
-                    <label>GreenLuma Version:</label>
-                    <select id="setting-gl-version" style="display:none" data-tooltip="Select GreenLuma version">
-                        <option value="GLR">GLR</option>
-                        <option value="GL2020">GL2020</option>
-                        <option value="GL2024">GL2024</option>
-                        <option value="GL2025">GL2025</option>
-                    </select>
-                    <div class="custom-select" id="setting-gl-version-ui">
-                        <div class="custom-select-display">
-                            <span class="custom-select-text">GL2025</span>
-                            <span class="custom-select-arrow">&#9662;</span>
-                        </div>
-                        <div class="custom-select-dropdown hidden"></div>
-                    </div>
-                </div>
-                <div class="input-group" style="margin-top:16px;">
-                    <label>GreenLuma AppList Folder:</label>
-                    <div class="input-with-btn" style="margin-top:6px;">
-                        <input type="text" id="setting-applist-folder" placeholder="Auto-detected" data-tooltip="Path to GreenLuma AppList folder" style="min-width:0;flex:1;">
-                        <button id="setting-applist-browse" class="btn" style="white-space:nowrap;">Browse</button>
-                        <button id="setting-applist-save" class="btn btn-primary setting-save-btn" data-key="applist_folder" data-input="setting-applist-folder" style="white-space:nowrap;">Save</button>
-                    </div>
-                </div>
-                <div class="input-group" style="margin-top:16px;">
-                    <label>AppList Tools:</label>
-                    <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;">
-                        <button id="applist-clear" class="btn btn-danger" style="padding:9px 20px;" data-tooltip="Delete all numbered .txt ID files from the GreenLuma AppList folder (game files untouched)">Clear AppList</button>
-                        <button id="applist-rebuild" class="btn" style="padding:9px 20px;" data-tooltip="Clear AppList then repopulate with App IDs of currently installed Steam games">Rebuild from Installed</button>
-                    </div>
-                </div>
-                <div class="checkbox-group" style="margin-top:16px;">
-                    <label class="checkbox-option" data-tooltip="Track achievements via GreenLuma registry entries">
-                        <input type="checkbox" id="setting-track-ach">
-                        <span>Track Achievements via GreenLuma</span>
-                    </label>
-                </div>
-            </div>
-
             <div class="settings-section">
                 <h2 class="section-title">Download Settings</h2>
                 <div class="input-group">
@@ -992,28 +961,6 @@
             </div>
 
             <div class="settings-section">
-                <h2 class="section-title">AppList Profiles</h2>
-                <p>Manage GreenLuma AppList profiles — create, switch, save, merge, delete, or rename.</p>
-                <div class="profile-controls">
-                    <select id="profile-select" style="display:none" data-tooltip="Select a saved AppList profile">
-                        <option value="">-- Select profile --</option>
-                    </select>
-                    <div class="custom-select" id="profile-select-ui">
-                        <div class="custom-select-display">
-                            <span class="custom-select-text">-- Select profile --</span>
-                            <span class="custom-select-arrow">&#9662;</span>
-                        </div>
-                        <div class="custom-select-dropdown hidden"></div>
-                    </div>
-                    <button id="profile-switch" class="btn" data-tooltip="Switch to the selected profile">Switch</button>
-                    <button id="profile-save" class="btn" data-tooltip="Save current AppList as a profile">Save Current</button>
-                    <button id="profile-create" class="btn" data-tooltip="Create a new empty profile">New</button>
-                    <button id="profile-rename" class="btn" data-tooltip="Rename the selected profile">Rename</button>
-                    <button id="profile-delete" class="btn btn-danger" data-tooltip="Delete the selected profile">Delete</button>
-                </div>
-            </div>
-
-            <div class="settings-section">
                 <h2 class="section-title">Preferences</h2>
                 <div class="input-group">
                     <label>Language:</label>
@@ -1040,10 +987,6 @@
                         </div>
                         <div class="custom-select-dropdown hidden"></div>
                     </div>
-                </div>
-                <div class="input-group">
-                    <label>AppList ID Limit (0 = unlimited):</label>
-                    <input type="number" id="setting-id-limit" value="0" min="0" data-tooltip="Maximum number of IDs in the AppList (0 for no limit)">
                 </div>
                 <div class="checkbox-group">
                     <label class="checkbox-option" data-tooltip="Enable desktop notifications for completed tasks">
@@ -1106,7 +1049,7 @@
             <div class="settings-section">
                 <h2 class="section-title">About</h2>
                 <p id="about-info">SteaMidra — Steam game setup and manifest tool<br>
-                    <a href="#" id="about-github">GitHub</a> · <a href="#" id="about-update">Check for Updates</a>
+                    <a href="#" id="about-github">GitHub</a>
                 </p>
             </div>
         </section>
@@ -1458,12 +1401,12 @@
                 <p style="margin-bottom:14px;opacity:0.9;">How do you want to remove <strong id="library-delete-game-name"></strong>?</p>
                 <div style="display:flex;flex-direction:column;gap:10px;">
                     <button id="library-delete-applist" class="btn btn-primary" style="text-align:left;padding:12px 16px;">
-                        <strong>Remove from AppList only</strong>
-                        <span style="display:block;font-size:12px;opacity:0.7;margin-top:3px;">Deletes the game from GreenLuma AppList and all saved profiles. Game files stay on disk.</span>
+                        <strong>Remove from library</strong>
+                        <span style="display:block;font-size:12px;opacity:0.7;margin-top:3px;">Removes the stplug-in Lua entry. Game files stay on disk.</span>
                     </button>
                     <button id="library-delete-full" class="btn btn-danger" style="text-align:left;padding:12px 16px;">
                         <strong>Remove completely</strong>
-                        <span style="display:block;font-size:12px;opacity:0.7;margin-top:3px;">Removes from AppList and permanently deletes all game files from disk. This cannot be undone.</span>
+                        <span style="display:block;font-size:12px;opacity:0.7;margin-top:3px;">Permanently deletes all game files from disk. This cannot be undone.</span>
                     </button>
                 </div>
             </div>
@@ -1473,49 +1416,48 @@
         </div>
     </div>
 
-    <!-- Auto GL Setup Modal -->
-    <div id="gl-setup-modal" class="modal hidden">
+    <!-- Auto LC Setup Modal -->
+    <div id="lc-setup-modal" class="modal hidden">
         <div class="modal-overlay"></div>
-        <div class="modal-content" style="max-width:520px;">
+        <div class="modal-content" style="max-width:480px;">
             <div class="modal-header">
-                <h2>Auto GreenLuma Setup</h2>
+                <h2>Auto LC Setup</h2>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:14px;opacity:0.85;font-size:13px;">Downloads and configures GreenLuma automatically. Choose where to install it and click the button below.</p>
-                <div style="margin-bottom:14px;">
-                    <p style="font-size:12px;font-weight:600;margin-bottom:8px;opacity:0.7;">INSTALLATION METHOD</p>
-                    <label class="gl-method-option" style="display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;margin-bottom:8px;">
-                        <input type="radio" name="gl-method" value="A" checked style="margin-top:3px;accent-color:var(--accent,#e94560);">
-                        <div>
-                            <div style="font-weight:600;font-size:13px;">Next to SteaMidra.exe</div>
-                            <div style="font-size:11px;opacity:0.6;margin-top:2px;">Creates a GreenLuma folder beside SteaMidra. DLLInjector.exe stays separate from Steam.</div>
-                        </div>
-                    </label>
-                    <label class="gl-method-option" style="display:flex;align-items:flex-start;gap:10px;padding:10px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;cursor:pointer;">
-                        <input type="radio" name="gl-method" value="B" style="margin-top:3px;accent-color:var(--accent,#e94560);">
-                        <div>
-                            <div style="font-weight:600;font-size:13px;">Inside Steam folder</div>
-                            <div style="font-size:11px;opacity:0.6;margin-top:2px;">Extracts GreenLuma directly into the Steam installation directory.</div>
-                        </div>
-                    </label>
-                </div>
+                <p style="margin-bottom:14px;opacity:0.85;font-size:13px;">Downloads the latest <code>LumaCore</code> release from GitHub, removes all GreenLuma files (first run only), cleans up old LumaCore DLLs, then installs <code>dwmapi.dll</code> and <code>LumaCore.dll</code> into your Steam directory.</p>
                 <div class="input-group" style="margin-bottom:14px;">
-                    <label style="font-size:12px;font-weight:600;opacity:0.7;">STEAM EXE PATH</label>
-                    <div class="input-with-btn" style="margin-top:6px;">
-                        <input type="text" id="gl-steam-exe" placeholder="C:\Program Files (x86)\Steam\steam.exe">
-                        <button id="gl-steam-browse" class="btn">Browse</button>
-                    </div>
+                    <label style="font-size:12px;font-weight:600;opacity:0.7;">STEAM PATH</label>
+                    <input type="text" id="lc-steam-path" placeholder="Auto-detected" style="margin-top:6px;width:100%;">
                 </div>
-                <div id="gl-setup-status" style="margin-top:4px;font-size:12px;opacity:0.7;min-height:18px;"></div>
-                <div style="margin-top:14px;padding:10px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;font-size:11px;line-height:1.6;opacity:0.8;">
-                    <div style="font-weight:700;font-size:11px;opacity:0.6;margin-bottom:6px;letter-spacing:0.05em;">TIPS</div>
-                    <div style="margin-bottom:6px;">&#9888; <strong>Purchase error?</strong> Always launch Steam through <strong>DLLInjector.exe</strong> as Administrator, not steam.exe directly.</div>
-                    <div>&#8986; <strong>SteamKillInject</strong> closes Steam and runs DLLInjector automatically. Run it as Administrator and make sure DLLInjector.exe is also set to Run as Administrator.</div>
-                </div>
+                <div id="lc-setup-status" style="font-size:12px;opacity:0.75;min-height:18px;"></div>
             </div>
             <div class="modal-footer">
-                <button id="gl-download-run" class="btn btn-primary">Download &amp; Setup GreenLuma</button>
+                <button id="lc-install-run" class="btn btn-primary">Install LumaCore</button>
+                <button class="btn modal-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LC Online Fix Modal -->
+    <div id="lc-online-fix-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content" style="max-width:440px;">
+            <div class="modal-header">
+                <h2>LC Online Fix</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:14px;opacity:0.85;font-size:13px;">Toggles <code>-onlinefix</code> in Steam's <code>localconfig.vdf</code> for the chosen app. LumaCore redirects the launch through AppID 480 so online play works.</p>
+                <div class="input-group" style="margin-bottom:14px;">
+                    <label style="font-size:12px;font-weight:600;opacity:0.7;">APP ID</label>
+                    <input type="text" id="lc-onlinefix-appid" placeholder="e.g. 1172470" style="margin-top:6px;width:100%;">
+                </div>
+                <div id="lc-onlinefix-status" style="font-size:12px;opacity:0.75;min-height:18px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="lc-onlinefix-check" class="btn">Check Status</button>
+                <button id="lc-onlinefix-toggle" class="btn btn-primary">Toggle</button>
                 <button class="btn modal-cancel">Cancel</button>
             </div>
         </div>

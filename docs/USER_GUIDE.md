@@ -37,7 +37,7 @@ Providers:
 
 **All Save Locations** (at the bottom of the tab): click Scan All to find saves across all known emu save paths — CODEX, EMPRESS, RUNE, OnlineFix, Goldberg, GSE, and Steam userdata. Check the rows you want, pick a destination, and click Backup. To restore, scan an existing backup root and pick a location and game from the dropdowns.
 
-**Settings** — change theme (11+ options), Steam path, API keys, AppList profiles, and all other preferences. Settings apply immediately. Language changes take effect without restarting the app.
+**Settings** — change theme (11+ options), Steam path, API keys, and all other preferences. Settings apply immediately. Language changes take effect without restarting the app.
 
 ---
 
@@ -51,31 +51,24 @@ The main way to add a game. Goes through these steps:
 - Choose from saved .lua files — every file you process gets saved, find it here (useful for updates)
 - Automatically download a .lua file — download one from oureveryday or Hubcap Manifest
 
-**2. GreenLuma achievement tracking**
-"Would you like GreenLuma (normal mode) to track achievements?"
-GreenLuma can store achievements in the registry. They can be viewed with Achievement Watcher (use darktakayanagi's fork for GL2025 support).
-
-**3. Adding AppList IDs**
-IDs from the .lua file are added to the AppList folder.
-
-**4. DLC Check**
+**2. DLC Check**
 Runs the DLC check automatically (see Check DLC section below).
 
-**5. Config VDF writing**
+**3. Config VDF writing**
 Decryption keys from each depot are written into Steam's config.vdf.
 
-**6. Lua backup**
+**4. Lua backup**
 The .lua file is saved to the `saved_lua` folder.
 
-**7. ACF writing**
+**5. ACF writing**
 Creates or overwrites the .acf file for the game. ACF files tell Steam the state of a game installation. If SteaMidra asks "Are you updating a game you already have installed or is this a new installation?", choose "I'm updating a game" to skip rewriting it, or "New installation" to overwrite it.
 
-**8. Manifest downloading**
+**6. Manifest downloading**
 Manifests are downloaded and moved to Steam's depotcache folder.
 
 ### Store tab — Download game directly
 
-The Store tab lets you pick a specific game version (depot + manifest combination) and download the full game files automatically via DepotDownloaderMod. This is separate from the main tab GreenLuma flow.
+The Store tab lets you pick a specific game version (depot + manifest combination) and download the full game files automatically via DepotDownloaderMod. This is separate from the main tab LumaCore flow.
 
 **How it works:**
 
@@ -86,7 +79,7 @@ Browse the Store tab, find the game, and pick the version you want. SteaMidra fe
 SteaMidra automatically downloads the Lua file for the selected game (from Hubcap or OurEveryday, depending on your selection).
 
 **3. Setup**
-Decryption keys are added to Steam's config.vdf. AppList / SLSSteam IDs are registered. The Lua is saved to `saved_lua`.
+Decryption keys are added to Steam's config.vdf. SLSSteam IDs are registered (Linux only). The Lua is saved to `saved_lua`.
 
 **4. Manifest pre-download**
 Manifest files are downloaded using your selected manifest IDs. These are required by DepotDownloaderMod for authentication (`GetManifestRequestCode` verification).
@@ -128,7 +121,7 @@ Tracks workshop items you have and checks if newer versions are available. You c
 ### Check DLC status of a game
 Shows all DLC for a game and whether each one is available to you. There are two types:
 - **DOWNLOAD REQUIRED** — has a depot, you need a .lua file that contains keys for that DLC
-- **PRE-INSTALLED** — no depot needed, just add the DLC ID to your AppList folder (SteaMidra can do this for you)
+- **PRE-INSTALLED** — no depot needed, just add the DLC ID to the stplug-in Lua file (SteaMidra can do this for you)
 
 ### DLC Unlockers (CreamInstaller)
 Install DLC unlockers for Steam or Ubisoft games. For Steam games you can use SmokeAPI or CreamAPI (with optional Koaloader). For Ubisoft games, older and newer Ubisoft Connect unlockers are supported. The menu will guide you through choosing the game and which DLC to unlock.
@@ -150,13 +143,13 @@ Logs into online-fix.me, finds the fix for your game, downloads it, and extracts
 Searches a curated fix list for a fix or bypass for your game. No account needed — SteaMidra fetches the list, lets you search with fuzzy matching, downloads the fix, and extracts it straight into the game folder. This is a second source of fixes that often covers games not found on online-fix.me. See [Fixes & Bypasses](CRACK_FIX.md) for more detail.
 
 ### Offline Mode Fix
-GreenLuma has a bug where Steam gets stuck if launched in Offline Mode. This toggles the Offline Mode flag in Steam's loginusers.vdf for the selected user so you can get back to Online Mode.
+Toggles the Offline Mode flag in Steam's loginusers.vdf for the selected user. Use this to get back to Online Mode if Steam gets stuck.
 
-### Manage AppList IDs
-View and delete IDs that have been added to your AppList folder. Also lets you manage AppList profiles if you need to work around GreenLuma's 184 ID limit (see README for how profiles work).
+### Manage IDs (Linux only)
+View and delete IDs registered with SLSteam. On Windows, IDs are managed by LumaCore automatically.
 
 ### Remove a game from library (stplug-in)
-Removes a game's Lua from the stplug-in folder and cleans up its AppList entry. Choose from a list of games or type an App ID. Restart Steam afterward for changes to take effect.
+Removes a game's Lua from the stplug-in folder. Choose from a list of games or type an App ID. Restart Steam afterward for changes to take effect.
 
 ### View analytics dashboard
 Shows local usage stats — how many operations you ran, which features you used most, and success rates. Nothing is sent online; it's all stored locally.
@@ -171,7 +164,7 @@ Adds or removes a right-click option on .lua and .zip files in Windows Explorer 
 Runs the SteamAutoCrack CLI on a game. Choose a Steam game from your library or point to any game folder outside Steam. Requires the SteamAutoCrack repo placed in `third_party/SteamAutoCrack` with the CLI built into `third_party/SteamAutoCrack/cli/`.
 
 ### Settings
-Edit, export, or import SteaMidra settings. Settings are usually set automatically as you use the tool, but you can change Steam path, GreenLuma folder, API keys, credentials, and feature toggles here. Export saves your config to a JSON file; import loads it back.
+Edit, export, or import SteaMidra settings. Settings are usually set automatically as you use the tool, but you can change Steam path, API keys, credentials, and feature toggles here. Export saves your config to a JSON file; import loads it back.
 
 ---
 

@@ -133,18 +133,6 @@ class MainReturnCode(Enum):
     EXIT = auto()
 
 
-class GreenLumaVersions(Enum):
-    """These are the keynames in HKCU\\SOFTWARE\\"""
-
-    GLR = "GLR"
-    GL2020 = "GL2020"
-    GL2024 = "GL2024"
-    GL2025 = "GL2025"
-
-    def __str__(self):
-        return self.value
-
-
 class SettingCustomTypes(Enum):
     DIR = auto()
     FILE = auto()
@@ -185,20 +173,11 @@ class Settings(Enum):
     STEAM_USER = SettingItem("steam_user", "Steam Username", False, str)
     STEAM_PASS = SettingItem("steam_pass", "Steam Password", True, str)
     STEAM32_ID = SettingItem("steam32_id", "Steam32 ID", False, str)
-    GL_VERSION = SettingItem(
-        "greenluma_version", "GreenLuma Version", False, list(GreenLumaVersions)
-    )
-    APPLIST_FOLDER = SettingItem(
-        "applist_folder", "GreenLuma AppList Folder", False, SettingCustomTypes.DIR
-    )
     SLS_CONFIG_LOCATION = SettingItem(
         "sls_config_loc",
         "SLSSteam Config File Location",
         False,
         SettingCustomTypes.FILE,
-    )
-    TRACK_GREENLUMA_ACH = SettingItem(
-        "gl_track_ach", "Track Achievements via Greenluma", False, bool
     )
     STEAM_WEB_API_KEY = SettingItem("steam_web_api_key", "Steam Web API Key", True, str)
     PLAY_MUSIC = SettingItem("play_music", "Play Music", False, bool)
@@ -217,7 +196,6 @@ class Settings(Enum):
     USE_MANIFEST_PINS = SettingItem("use_manifest_pins", "Use Pinned Manifest Versions from Lua", False, bool)
     MANIFEST_PINS_ASKED = SettingItem("manifest_pins_asked", "Manifest Pin Prompt Shown (managed automatically)", False, bool)
 
-    APPLIST_ID_LIMIT = SettingItem("applist_id_limit", "AppList ID Limit (0 = unlimited)", False, str)
     MANIFESTHUB_API_KEY = SettingItem("manifesthub_api_key", "ManifestHub API Key (manifesthub1.filegear-sg.me, 24h)", True, str)
     MANIFESTHUB_KEY_EXPIRY = SettingItem("manifesthub_key_expiry", "ManifestHub Key Expiry (UTC epoch, managed automatically)", False, str)
     LANGUAGE = SettingItem("language", "Language (Requires Restart)", False, list(SupportedLanguages))

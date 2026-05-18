@@ -23,7 +23,7 @@ Process recent .lua file: Opens your last processed files so you can run them ag
 
 Scan game library: Lets SteaMidra find games in your Steam libraries.
 
-Settings: Change Steam path, GreenLuma folder, and other options.
+Settings: Change Steam path and other options.
 
 **Keyboard**
 

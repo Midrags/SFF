@@ -45,14 +45,9 @@ def create_acf(
     acf_path = steamapps_dir / f"appmanifest_{appid}.acf"
 
     installed_depots_lines = []
-    has_windows_depot = False
     for depot_id in selected_depots:
         depot_id_str = str(depot_id)
         manifest_gid = manifests.get(depot_id_str, "")
-        depot_info = depots.get(depot_id_str, {})
-        oslist = depot_info.get("oslist", "")
-        if "windows" in oslist.lower():
-            has_windows_depot = True
         if manifest_gid:
             installed_depots_lines.append(
                 f'\t\t"{depot_id_str}"\n\t\t{{\n'
@@ -63,19 +58,16 @@ def create_acf(
 
     installed_depots_block = "\n".join(installed_depots_lines)
 
-    if has_windows_depot:
-        user_config = (
-            '\t"UserConfig"\n\t{\n'
-            '\t\t"platform_override_source"\t\t"windows"\n'
-            '\t\t"platform_override_dest"\t\t"linux"\n'
-            '\t}\n'
-            '\t"MountedConfig"\n\t{\n'
-            '\t\t"platform_override_source"\t\t"windows"\n'
-            '\t\t"platform_override_dest"\t\t"linux"\n'
-            '\t}\n'
-        )
-    else:
-        user_config = '\t"UserConfig"\n\t{\n\t}\n\t"MountedConfig"\n\t{\n\t}\n'
+    user_config = (
+        '\t"UserConfig"\n\t{\n'
+        '\t\t"platform_override_source"\t\t"windows"\n'
+        '\t\t"platform_override_dest"\t\t"linux"\n'
+        '\t}\n'
+        '\t"MountedConfig"\n\t{\n'
+        '\t\t"platform_override_source"\t\t"windows"\n'
+        '\t\t"platform_override_dest"\t\t"linux"\n'
+        '\t}\n'
+    )
 
     acf_content = (
         '"AppState"\n'

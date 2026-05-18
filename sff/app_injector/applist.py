@@ -39,10 +39,9 @@ from sff.app_injector.applist_profiles import (
 from sff.app_injector.base import AppInjectionManager
 from sff.lua.writer import ConfigVDFWriter
 from sff.manifest.downloader import ManifestDownloader
-from sff.prompts import prompt_confirm, prompt_dir, prompt_select, prompt_text
+from sff.prompts import prompt_confirm, prompt_select, prompt_text
 from sff.steam_client import ParsedDLC, SteamInfoProvider, get_product_info
 from sff.steam_store import get_dlc_list_from_store, get_dlc_names_from_store
-from sff.storage.settings import get_setting, set_setting
 from sff.structs import (
     AppIDInfo,
     AppListChoice,
@@ -54,7 +53,6 @@ from sff.structs import (
     MainReturnCode,
     OrganizedAppIDs,
     ProductInfo,
-    Settings,
 )
 from sff.utils import enter_path
 from typing import Union
@@ -65,49 +63,13 @@ logger = logging.getLogger(__name__)
 
 class AppListManager(AppInjectionManager):
     def __init__(self, steam_path, provider):
-        # Get ID limit from settings (None/0 = unlimited)
-        limit_str = get_setting(Settings.APPLIST_ID_LIMIT)
-        if limit_str:
-            try:
-                self.max_id_limit = int(limit_str)
-                if self.max_id_limit <= 0:
-                    self.max_id_limit = None  # 0 or negative = unlimited
-            except (ValueError, TypeError):
-                self.max_id_limit = None  # Invalid value = unlimited
-        else:
-            self.max_id_limit = None  # No setting = unlimited by default
+        self.max_id_limit = None
         self.steam_path = steam_path
         self.provider = provider
         # App ID / Depot IDs mapped to their name and type
         self.id_map: dict[int, DepotOrAppID] = {}
-        saved_applist = get_setting(Settings.APPLIST_FOLDER)
-        self.applist_folder = (
-            steam_path / "AppList" if saved_applist is None else Path(saved_applist)
-        )
-        if not self.applist_folder.exists():
-            self.applist_folder = prompt_dir(
-                "Could not find AppList folder. " "Please specify the full path here:"
-            )
-            set_setting(Settings.APPLIST_FOLDER, str(self.applist_folder.absolute()))
-        elif saved_applist is None:
-            colorized = (
-                Fore.YELLOW + str(self.applist_folder.resolve()) + Style.RESET_ALL
-            )
-            print(
-                f"AppsList folder automatically selected: {colorized}\n"
-                "Change this in settings if it's the wrong folder."
-            )
-            set_setting(Settings.APPLIST_FOLDER, str(self.applist_folder.absolute()))
-        if saved_applist:
-            colorized = (
-                Fore.YELLOW + str(self.applist_folder.resolve()) + Style.RESET_ALL
-            )
-            print(f"Your AppList folder is {colorized}")
-            print(
-                Fore.LIGHTBLACK_EX
-                + "If you are using Stealth Mode (Any folder), make sure"
-                " this points to the folder you put GreenLuma in" + Style.RESET_ALL
-            )
+        self.applist_folder = steam_path / "AppList"
+        self.applist_folder.mkdir(parents=True, exist_ok=True)
         self.fix_names()
 
     def get_local_filenames(self, sort = False):

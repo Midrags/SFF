@@ -303,7 +303,9 @@ def get_ryuu(dest, app_id, depotcache=None, request_update=None):
             "  (This can be slow and may fail — skip to get the current version.)"
         )
 
-    while True:
+    max_attempts = 3
+    attempt = 0
+    while attempt < max_attempts:
         if not (ryuu_key := get_setting(Settings.RYUU_KEY)):
             ryuu_key = prompt_secret(
                 "Paste your Ryuu API key: ",
@@ -355,11 +357,24 @@ def get_ryuu(dest, app_id, depotcache=None, request_update=None):
             print(Fore.RED + f"Ryuu: Game not found (App ID {app_id})." + Style.RESET_ALL)
             return None
 
-        if resp.status_code != 200:
-            print(Fore.RED + f"Ryuu returned HTTP {resp.status_code}." + Style.RESET_ALL)
+        if resp.status_code == 403:
+            attempt += 1
+            print(
+                Fore.RED
+                + f"Ryuu: Access denied (403) — API key rejected or subscription expired."
+                  f" (Attempt {attempt}/{max_attempts})"
+                + Style.RESET_ALL
+            )
+            if attempt >= max_attempts:
+                print(Fore.RED + "Ryuu: Max attempts reached. Check your API key in Settings." + Style.RESET_ALL)
+                return None
             if prompt_confirm("Do you want to enter a new API key?"):
                 set_setting(Settings.RYUU_KEY, "")
                 continue
+            return None
+
+        if resp.status_code != 200:
+            print(Fore.RED + f"Ryuu returned HTTP {resp.status_code}. Cannot recover." + Style.RESET_ALL)
             return None
 
         lua_bytes = read_lua_from_zip(io.BytesIO(resp.content), decode=False, depotcache=depotcache)
@@ -371,5 +386,6 @@ def get_ryuu(dest, app_id, depotcache=None, request_update=None):
         with lua_path.open("wb") as f:
             f.write(lua_bytes)
         _update_fallback_depotkeys(lua_bytes)
-        print(Fore.GREEN + f"\u2705 Ryuu: Downloaded Lua for {app_id}" + Style.RESET_ALL)
+        print(Fore.GREEN + f"[OK] Ryuu: Downloaded Lua for {app_id}" + Style.RESET_ALL)
         return lua_path
+    return None

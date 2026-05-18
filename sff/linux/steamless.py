@@ -89,7 +89,7 @@ def process_game(game_dir: Path, game_name: str = "", print_fn=print) -> bool:
         print_fn(Fore.RED + f"Steamless.CLI.dll not found at {dll}" + Style.RESET_ALL)
         return False
 
-    dotnet_root = str(Path(dotnet_path).parent.parent)
+    dotnet_root = str(Path(dotnet_path).parent)
     env = os.environ.copy()
     env["DOTNET_ROOT"] = dotnet_root
 

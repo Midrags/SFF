@@ -1,20 +1,13 @@
 # SteaMidra Trusted by r/FMHY [FMHY](https://fmhy.net/gaming-tools#steam-epic) and r/Piracy [Piracy](https://www.reddit.com/r/Piracy/wiki/megathread/games/#:~:text=SteaMidra)
 
 *Made by Midrag and his brother!*
-=======
-# If you use the normal mode patch of GL from the GreenLuma guide under then you do not have to downgrade steam!!!
-
-Steam has updated and if you accidentally update your Steam client to a version after **10/03/2026** then normal GreenLuma (none patched version) won't work! Use this command to revert your Steam version or just use the patch:
-
-"C:\Program Files (x86)\Steam\steam.exe" -forcesteamupdate -forcepackagedownload -overridepackageurl http://web.archive.org/web/20260122074724if_/media.steampowered.com/client -exitsteam
-
 ## Educational use only. Use at your own risk.
 
 > ⚠️ **Antivirus Warning:** Before doing anything, add the entire **SteaMidra folder** (especially `sff\dlc_unlockers\resources`) to Windows Defender exclusions — the DLC unlocker tools inside trigger false positives.
 >
 > To add exclusions: **Windows Security → Virus & threat protection → Manage settings → Exclusions → Add or remove exclusions → Add a folder**.
 
-SteaMidra helps you set up games to work with Steam using Lua scripts, manifests, and GreenLuma. It writes the right files into your Steam folder so games and DLC can run. It does not replace or crack Steam itself.
+SteaMidra helps you set up games to work with Steam using Lua scripts, manifests, and LumaCore. It writes the right files into your Steam folder so games and DLC can run. It does not replace or crack Steam itself.
 
 Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
@@ -26,11 +19,11 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
 ## Features
 
-- Download and use Lua files for games, download manifests, and set up GreenLuma.
+- Download and use Lua files for games, download manifests, and set up LumaCore.
 - Write Lua and manifest data into Steam's config.
 - Multiplayer fixes: **online-fix.me** integration and **game fixes/bypasses (Ryuu)**.
 - **HyperVisor Cracks (HV Auto)** — download HyperVisor bypasses for Denuvo-protected games. Includes VBS.cmd to prepare your system. See the [HyperVisor Guide](docs/HV_GUIDE.md) before use.
-- DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), AppList management, and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
+- DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
 - **Linux support** — SLSSteam ID management, platform-aware MIDI, and Linux-compatible auto-update.
@@ -48,49 +41,17 @@ You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere —
 
 **Do not run SteaMidra yet.** Complete Steps 2 and 3 first so all folders exist before first launch.
 
-### Step 2: GreenLuma
+### Step 2: LumaCore
 
-> **Recommended — Auto GL Setup (6.1.1+):** Open SteaMidra, go to the **Home** tab, click **Auto GL Setup** in the Quick Tools section, choose Method A or B, then click **Download GreenLuma**. SteaMidra downloads `GLPatch.rar` automatically, extracts it, patches `DLLInjector.ini`, and creates the `AppList` folder. Skip to Step 3 when done.
+Open SteaMidra, go to the **Home** tab, click **Auto LC Setup**, then click **Install LumaCore**. SteaMidra copies `dwmapi.dll` + `LumaCore.dll` from `sff/lumacore/` into the Steam folder and removes old GreenLuma files automatically.
 
-If you prefer to download manually: join our [Discord server](https://discord.gg/V8aZqnbB84) or use this direct link: [GreenLuma Link](https://pixeldrain.com/u/RDNd3SrR) [FIRST CLICK OPENS MALWARE POPUP!]. Download `GLPatch.rar`, then in Auto GL Setup click **Browse** to select the archive instead of using the download button.
+If the installer reports "No DLLs found": build from `LumaCore/build.bat` or ask on [Discord](https://discord.gg/V8aZqnbB84).
 
-Or extract `GLPatch.rar` manually and follow Plan A or Plan B:
+### Step 3: Launch Steam
 
-**Method A — Separate folder (next to SteaMidra)**
-1. Create a `Greenluma` folder next to `SteaMidra_GUI.exe` (e.g. `C:\SteaMidra\Greenluma\`).
-2. Copy all files from `GLPatch.rar` into `C:\SteaMidra\Greenluma\`.
-3. Create an `AppList` folder inside it: `C:\SteaMidra\Greenluma\AppList\`.
-
-**Method B — Inside Steam folder (simpler)**
-1. Copy all files from `GLPatch.rar` directly into `C:\Program Files (x86)\Steam\`.
-2. Create an `AppList` folder inside Steam: `C:\Program Files (x86)\Steam\AppList\`.
-
-### Step 3: Setup GreenLuma
-
-**If you used Auto GL Setup (recommended):** `DLLInjector.ini` is already patched. Skip to launching SteaMidra below.
-
-**Manual setup:** Go into whichever folder you chose in Step 2 and run `GreenLumaSettings_2025.exe`.
-
-- Type `2` and press Enter — set the full path to `steam.exe` (default: `C:\Program Files (x86)\Steam\steam.exe`) and to `GreenLuma_2025_x64.dll` (example for Method A: `C:\SteaMidra\Greenluma\GreenLuma_2025_x64.dll`; for Method B: `C:\Program Files (x86)\Steam\GreenLuma_2025_x64.dll`).
-- Type `4` and press Enter — disables GreenLuma's questions/prompts on every Steam launch.
-
-Now run `SteaMidra_GUI.exe`. On first launch it will ask you to select your AppList folder — point it to the one you created in Step 2 (e.g. `C:\SteaMidra\Greenluma\AppList` or `C:\Program Files (x86)\Steam\AppList`). You are all set. See the [User Guide](docs/USER_GUIDE.md) for how to add games.
+Run `SteaMidra_GUI.exe` and add a game on the Home tab. LumaCore makes it appear in the Steam library immediately. See the [User Guide](docs/USER_GUIDE.md) for how to add games.
 
 > Running from source (Python)? See the [Python Setup Guide](docs/PYTHON_SETUP.md).
-
----
-
-### AppList profiles (GreenLuma limit workaround)
-
-GreenLuma has a hard limit of 184 App IDs (patched). To use more games, use AppList profiles:
-
-1. **Manage AppList IDs** → **AppList Profiles** (CLI) or the profiles option in the GUI
-2. **Create profile** – creates an empty profile. Switch to it before adding more games.
-3. **Switch to profile** – loads that profile's IDs into the AppList folder (truncated to the limit).
-4. **Save current AppList to profile** – saves your current IDs into a profile (new or existing).
-5. **Delete / Rename** – manage profile names and remove unused profiles.
-
-When your AppList reaches 130 IDs, SteaMidra shows a popup dialog reminding you to create a new profile. Create an empty profile, switch to it, then add more games.
 
 ---
 
@@ -109,7 +70,7 @@ SteaMidra has a full graphical interface with a **Modern UI (new in 5.5.0, updat
 - **GBE Token Generator** — generate full Goldberg emulator configs with achievements, DLCs, stats, and icons.
 - **Cloud Saves** — Steam userdata save backup/restore. Scans `Steam/userdata/<steam32id>/` for all games with saves, back up and restore with one click (safety backup created automatically). Supports local folder, **Google Drive** (sign in once), and **rclone** (Dropbox, OneDrive, MEGA, S3, Backblaze B2, SFTP, and 70+ other backends — click a provider shortcut to pre-fill the remote format, then hit Setup in Terminal to configure it without leaving the app). **All Save Locations** scans every known emu save path (CODEX, EMPRESS, RUNE, OnlineFix, Goldberg, GSE, Steam userdata) and backs them all up in one operation.
 - **VDF Key Extractor** — extract depot decryption keys from Steam's config.vdf.
-- Lua/manifest processing, AppList management, and library tools all accessible from buttons.
+- Lua/manifest processing and library tools all accessible from buttons.
 - Full settings dialog where you can edit, delete, export, and import all settings.
 - **11+ themes** including Dracula, Nord, Cyberpunk, and more.
 - **System tray icon** for quick show/hide and exit.
@@ -127,7 +88,7 @@ Full changelog: [CHANGELOG.md](CHANGELOG.md)
 
 [Documentation index](docs/README.md) – Start here.
 
-[Setup Guide](docs/SETUP_GUIDE.md) – What to install (including GreenLuma).
+[Setup Guide](docs/SETUP_GUIDE.md) – What to install (including LumaCore).
 
 [User Guide](docs/USER_GUIDE.md) – What each menu option does and how to add games.
 
@@ -161,7 +122,7 @@ See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for common problems and s
 
 **Made by Midrag and his brother.**
 
-**GreenLuma** – SteaMidra works alongside GreenLuma for AppList injection. GreenLuma is a separate tool and must be downloaded and set up independently. GreenLuma patch developed by **Lightse**.
+**LumaCore** – Windows DLL injector bundled with SteaMidra. Reads Lua files from `Steam/config/stplug-in/` to inject app licenses into Package 0 without AppList files.
 
 **gbe_fork** – The "Crack a game" feature uses **gbe_fork**, a Steam emulator for running games offline. License in `third_party_licenses/gbe_fork.LICENSE`.
 
@@ -187,4 +148,6 @@ README rewrite assisted by **itsphox**.
 
 SteaMidra is licensed under the GNU General Public License v3.0 (see LICENSE file).
 
-Use at your own risk. For educational purposes only.
+## Disclaimer
+
+This project is provided for research and educational purposes only. You are responsible for complying with local laws, platform terms of service, and software licenses.

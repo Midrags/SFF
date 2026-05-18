@@ -1,0 +1,314 @@
+// proto/steam_messages.proto
+// Steam protobuf response message definitions for OpenSteamTool.
+
+syntax = "proto2";
+
+// ============================================================
+// CMsgProtoBufHeader
+// ============================================================
+message CMsgGCRoutingProtoBufHeader {
+	optional uint64 dst_gcid_queue = 1;
+	optional uint32 dst_gc_dir_index = 2;
+}
+
+message CMsgProtoBufHeader {
+	enum ESessionDisposition {
+		k_ESessionDispositionNormal = 0;
+		k_ESessionDispositionDisconnect = 1;
+	}
+
+	optional fixed64 steamid = 1;
+	optional int32 client_sessionid = 2;
+	optional uint32 routing_appid = 3;
+	optional fixed64 jobid_source = 10 [default = 18446744073709551615];
+	optional fixed64 jobid_target = 11 [default = 18446744073709551615];
+	optional string target_job_name = 12;
+	optional int32 seq_num = 24;
+	optional int32 eresult = 13 [default = 2];
+	optional string error_message = 14;
+	optional uint32 auth_account_flags = 16;
+	optional uint32 token_source = 22;
+	optional bool admin_spoofing_user = 23;
+	optional int32 transport_error = 17 [default = 1];
+	optional uint64 messageid = 18 [default = 18446744073709551615];
+	optional uint32 publisher_group_id = 19;
+	optional uint32 sysid = 20;
+	optional uint64 trace_tag = 21;
+	optional uint32 webapi_key_id = 25;
+	optional bool is_from_external_source = 26;
+	repeated uint32 forward_to_sysid = 27;
+	optional uint32 cm_sysid = 28;
+	optional uint32 launcher_type = 31 [default = 0];
+	optional uint32 realm = 32 [default = 0];
+	optional int32 timeout_ms = 33 [default = -1];
+	optional string debug_source = 34;
+	optional uint32 debug_source_string_index = 35;
+	optional uint64 token_id = 36;
+	optional .CMsgGCRoutingProtoBufHeader routing_gc = 37;
+	optional .CMsgProtoBufHeader.ESessionDisposition session_disposition = 38 [default = k_ESessionDispositionNormal];
+	optional string wg_token = 39;
+	optional string webui_auth_key = 40;
+
+	oneof ip_addr {
+		uint32 ip = 15;
+		bytes ip_v6 = 29;
+	}
+}
+
+// ============================================================
+// EncryptedAppTicket — nested sub-message
+// ============================================================
+
+message EncryptedAppTicket {
+    optional uint32 ticket_version_no              = 1;
+    optional uint32 crc_encryptedticket            = 2;
+    optional uint32 cb_encrypteduserdata           = 3;
+    optional uint32 cb_encrypted_appownershipticket = 4;
+    optional bytes  encrypted_ticket               = 5;
+}
+
+// ============================================================
+// CMsgClientRequestEncryptedAppTicketResponse  (eMsg 5527)
+// ============================================================
+
+message CMsgClientRequestEncryptedAppTicketResponse {
+    optional uint32              app_id                = 1;
+    optional int32               eresult               = 2 [default = 2];
+    optional EncryptedAppTicket  encrypted_app_ticket  = 3;
+}
+
+
+// ============================================================
+// CMsgClientPICSProductInfoRequest  (eMsg 8903)
+// ============================================================
+message CMsgClientPICSProductInfoRequest {
+	message AppInfo {
+		optional uint32 appid = 1;
+		optional uint64 access_token = 2;
+		optional bool only_public_obsolete = 3;
+	}
+
+	message PackageInfo {
+		optional uint32 packageid = 1;
+		optional uint64 access_token = 2;
+	}
+
+	repeated .CMsgClientPICSProductInfoRequest.PackageInfo packages = 1;
+	repeated .CMsgClientPICSProductInfoRequest.AppInfo apps = 2;
+	optional bool meta_data_only = 3;
+	optional uint32 num_prev_failed = 4;
+	optional uint32 OBSOLETE_supports_package_tokens = 5;
+	optional uint32 sequence_number = 6;
+	optional bool single_response = 7;
+}
+
+// ============================================================
+// CFamilyGroupsClient_NotifyRunningApps_Notification  (eMsg 147 target_job_name)
+// ============================================================
+message CFamilyGroupsClient_NotifyRunningApps_Notification {
+	message PlayingMember {
+		optional fixed64 member_steamid = 1;
+		optional fixed64 owner_steamid = 2;
+	}
+
+	message RunningApp {
+		optional uint32 appid = 1;
+		optional bool is_locked = 2;
+		repeated .CFamilyGroupsClient_NotifyRunningApps_Notification.PlayingMember playing_members = 3;
+	}
+
+	optional uint64 family_groupid = 1;
+	repeated .CFamilyGroupsClient_NotifyRunningApps_Notification.RunningApp running_apps = 2;
+}
+
+// ============================================================
+// CMsgClientSharedLibraryStopPlaying  (eMsg 9406)
+// ============================================================
+message CMsgClientSharedLibraryStopPlaying {
+	optional int32 seconds_left = 1;
+	repeated .CMsgClientSharedLibraryStopPlaying_StopApp stop_apps = 2;
+}
+
+message CMsgClientSharedLibraryStopPlaying_StopApp {
+	optional uint32 app_id = 1;
+	optional uint32 owner_id = 2;
+}
+
+// ============================================================
+// CPlayer_GetUserStats  
+// ============================================================
+//ServiceMethodCallFromClient (151)
+message CPlayer_GetUserStats_Request {
+	optional uint64 steamid = 1;
+	optional uint32 appid = 2;
+	optional bytes sha_schema = 3;
+	optional uint32 crc_stats = 4;
+}
+
+message CPlayer_GetUserStats_Response {
+	message Unlock_Time {
+		optional uint32 achievement_bit = 1;
+		optional fixed32 unlock_time = 2;
+	}
+
+	message Stats {
+		optional uint32 stat_id = 1;
+		optional uint32 stat_value = 2;
+		repeated .CPlayer_GetUserStats_Response.Unlock_Time unlock_times = 3;
+	}
+
+	optional bytes sha_schema = 1;
+	optional uint32 crc_stats = 2;
+	optional bytes schema = 3;
+	repeated .CPlayer_GetUserStats_Response.Stats stats = 4;
+}
+
+message CMsgClientGetUserStats {
+	optional fixed64 game_id = 1;
+	optional uint32 crc_stats = 2;
+	optional int32 schema_local_version = 3;
+	optional fixed64 steam_id_for_user = 4;
+}
+
+message CMsgClientGetUserStatsResponse {
+	message Stats {
+		optional uint32 stat_id = 1;
+		optional uint32 stat_value = 2;
+	}
+
+	message Achievement_Blocks {
+		optional uint32 achievement_id = 1;
+		repeated fixed32 unlock_time = 2;
+	}
+
+	optional fixed64 game_id = 1;
+	optional int32 eresult = 2 [default = 2];
+	optional uint32 crc_stats = 3;
+	optional bytes schema = 4;
+	repeated .CMsgClientGetUserStatsResponse.Stats stats = 5;
+	repeated .CMsgClientGetUserStatsResponse.Achievement_Blocks achievement_blocks = 6;
+}
+
+message CContentServerDirectory_GetManifestRequestCode_Request {
+	optional uint32 app_id = 1;
+	optional uint32 depot_id = 2;
+	optional uint64 manifest_id = 3;
+	optional string app_branch = 4;
+	optional string branch_password_hash = 5;
+}
+
+message CContentServerDirectory_GetManifestRequestCode_Response {
+	optional uint64 manifest_request_code = 1;
+}
+
+message CMsgIPAddress {
+	oneof ip {
+		fixed32 v4 = 1;
+		bytes v6 = 2;
+	}
+}
+
+message CMsgClientGamesPlayed {
+	message ProcessInfo {
+		optional uint32 process_id = 1;
+		optional uint32 process_id_parent = 2;
+		optional bool parent_is_steam = 3;
+	}
+
+	message GamePlayed {
+		optional uint64 steam_id_gs = 1;
+		optional fixed64 game_id = 2;
+		optional uint32 deprecated_game_ip_address = 3;
+		optional uint32 game_port = 4;
+		optional bool is_secure = 5;
+		optional bytes token = 6;
+		optional string game_extra_info = 7;
+		optional bytes game_data_blob = 8;
+		optional uint32 process_id = 9;
+		optional uint32 streaming_provider_id = 10;
+		optional uint32 game_flags = 11;
+		optional uint32 owner_id = 12;
+		optional string vr_hmd_vendor = 13;
+		optional string vr_hmd_model = 14;
+		optional uint32 launch_option_type = 15 [default = 0];
+		optional int32 primary_controller_type = 16 [default = -1];
+		optional string primary_steam_controller_serial = 17;
+		optional uint32 total_steam_controller_count = 18 [default = 0];
+		optional uint32 total_non_steam_controller_count = 19 [default = 0];
+		optional uint64 controller_workshop_file_id = 20 [default = 0];
+		optional uint32 launch_source = 21 [default = 0];
+		optional uint32 vr_hmd_runtime = 22;
+		optional .CMsgIPAddress game_ip_address = 23;
+		optional uint32 controller_connection_type = 24 [default = 0];
+		optional int32 game_os_platform = 25;
+		optional uint32 game_build_id = 26;
+		optional uint32 compat_tool_id = 27 [default = 0];
+		optional string compat_tool_cmd = 28;
+		optional uint32 compat_tool_build_id = 29;
+		optional string beta_name = 30;
+		optional uint32 dlc_context = 31;
+		repeated .CMsgClientGamesPlayed.ProcessInfo process_id_list = 32;
+	}
+
+	repeated .CMsgClientGamesPlayed.GamePlayed games_played = 1;
+	optional uint32 client_os_type = 2;
+	optional uint32 cloud_gaming_platform = 3;
+	optional bool recent_reauthentication = 4;
+}
+
+message CMsgClientPersonaState {
+	message Friend {
+		message ClanData {
+			optional uint32 ogg_app_id = 1;
+			optional uint64 chat_group_id = 2;
+		}
+
+		message KV {
+			optional string key = 1;
+			optional string value = 2;
+		}
+
+		message OtherGameData {
+			optional uint64 gameid = 1;
+			repeated .CMsgClientPersonaState.Friend.KV rich_presence = 2;
+		}
+
+		optional fixed64 friendid = 1;
+		optional uint32 persona_state = 2;
+		optional uint32 game_played_app_id = 3;
+		optional uint32 game_server_ip = 4;
+		optional uint32 game_server_port = 5;
+		optional uint32 persona_state_flags = 6;
+		optional uint32 online_session_instances = 7;
+		optional bool persona_set_by_user = 10;
+		optional string player_name = 15;
+		optional uint32 query_port = 20;
+		optional fixed64 steamid_source = 25;
+		optional bytes avatar_hash = 31;
+		optional uint32 last_logoff = 45;
+		optional uint32 last_logon = 46;
+		optional uint32 last_seen_online = 47;
+		optional uint32 clan_rank = 50;
+		optional string game_name = 55;
+		optional fixed64 gameid = 56;
+		optional bytes game_data_blob = 60;
+		optional .CMsgClientPersonaState.Friend.ClanData clan_data = 64;
+		optional string clan_tag = 65;
+		repeated .CMsgClientPersonaState.Friend.KV rich_presence = 71;
+		optional fixed64 broadcast_id = 72;
+		optional fixed64 game_lobby_id = 73;
+		optional uint32 watching_broadcast_accountid = 74;
+		optional uint32 watching_broadcast_appid = 75;
+		optional uint32 watching_broadcast_viewers = 76;
+		optional string watching_broadcast_title = 77;
+		optional bool is_community_banned = 78;
+		optional bool player_name_pending_review = 79;
+		optional bool avatar_pending_review = 80;
+		optional bool on_steam_deck = 81;
+		repeated .CMsgClientPersonaState.Friend.OtherGameData other_game_data = 82;
+		optional uint32 gaming_device_type = 83;
+	}
+
+	optional uint32 status_flags = 1;
+	repeated .CMsgClientPersonaState.Friend friends = 2;
+}

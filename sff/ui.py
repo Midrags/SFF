@@ -32,7 +32,6 @@ from typing import Optional, Union
 
 from colorama import Fore, Style
 
-from sff.app_injector.applist import AppListManager
 from sff.app_injector.sls import SLSManager
 from sff.analytics import get_analytics_tracker
 from sff.download_manager import DownloadManager
@@ -191,11 +190,7 @@ class UI:
     ):
         self.provider = provider
         self.steam_path = steam_path
-        self.app_list_man = (
-            AppListManager(steam_path, self.provider)
-            if os_type == OSType.WINDOWS
-            else None
-        )
+        self.app_list_man = None
         self.os_type = os_type
         if os_type == OSType.LINUX:
             try:
@@ -276,7 +271,7 @@ class UI:
         return MainReturnCode.LOOP_NO_PROMPT
 
     def _edit_settings_submenu(self):
-        win_only = [Settings.APPLIST_FOLDER, Settings.GL_VERSION]
+        win_only: list = []
         linux_only = [Settings.SLS_CONFIG_LOCATION]
         if self.os_type == OSType.WINDOWS:
             ignore = linux_only
@@ -360,20 +355,11 @@ class UI:
                         self.kill_midi_player()
                     elif value is False and new_settings_value is True:
                         self.init_midi_player()
-                if (
-                    selected_key == Settings.APPLIST_FOLDER
-                    and self.os_type == OSType.WINDOWS
-                ):
-                    self.app_list_man = AppListManager(self.steam_path, self.provider)
 
     def _get_applist_ids(self):
-        if self.app_list_man is None and self.sls_man is None:
+        if self.sls_man is None:
             return None
-        if self.app_list_man:
-            return [x.app_id for x in self.app_list_man.get_local_ids()]
-        if self.sls_man:
-            return self.sls_man.get_local_ids()
-        return None
+        return self.sls_man.get_local_ids()
 
     def _export_settings_submenu(self):
         print(Fore.CYAN + "\n=== Export Settings ===" + Style.RESET_ALL)
@@ -487,8 +473,6 @@ class UI:
 
     @music_toggle_decorator
     def applist_menu(self):
-        if self.app_list_man is not None:
-            return self.app_list_man.display_menu(self.provider)
         if self.sls_man is not None:
             return self.sls_man.display_menu(self.provider)
         print("No injection manager available on this platform.")
@@ -534,12 +518,9 @@ class UI:
             if raw is None:
                 return MainReturnCode.LOOP
             to_remove = [raw]
-            if not (stplug_in / f"{raw}.lua").exists() and (
-                self.app_list_man is None
-                or raw not in [x.app_id for x in self.app_list_man.get_local_ids()]
-            ):
+            if not (stplug_in / f"{raw}.lua").exists():
                 print(
-                    Fore.YELLOW + f"App ID {raw} has no LUA in stplug-in and is not in AppList. Nothing to remove."
+                    Fore.YELLOW + f"App ID {raw} has no LUA in stplug-in. Nothing to remove."
                     + Style.RESET_ALL
                 )
                 return MainReturnCode.LOOP
@@ -577,7 +558,7 @@ class UI:
         scope = prompt_select(
             "How much do you want to remove?",
             [
-                ("AppList + stplug-in only (current behaviour)", "basic"),
+                ("stplug-in only (keep ACF/manifests)", "basic"),
                 ("Full clean: + ACF + manifests (game disappears from Steam)", "full"),
                 ("Full clean: + ACF + manifests + config.vdf decryption keys", "full_keys"),
             ],
@@ -614,16 +595,6 @@ class UI:
                     if remove_keys and config_writer and mounted_depots:
                         n_keys = config_writer.remove_decryption_keys(list(mounted_depots.keys()))
                         print(Fore.CYAN + f"Removed {n_keys} decryption key(s) from config.vdf." + Style.RESET_ALL)
-        if self.app_list_man:
-            path_and_ids = self.app_list_man.get_local_ids(sort=True)
-            path_map_ids = {x.app_id for x in path_and_ids}
-            ids_to_remove = [a for a in to_remove if a in path_map_ids]
-            if ids_to_remove:
-                paths_to_delete = self.app_list_man._get_paths_from_ids(
-                    set(ids_to_remove), path_and_ids
-                )
-                all_paths = [x.path for x in path_and_ids]
-                self.app_list_man.delete_paths(paths_to_delete, all_paths)
         print(
             Fore.GREEN + f"Removed {len(to_remove)} game(s). Restart Steam for changes to take effect."
             + Style.RESET_ALL
@@ -747,11 +718,7 @@ class UI:
                 return MainReturnCode.LOOP_NO_PROMPT
         lua_manager = LuaManager(self.os_type)
         downloader = ManifestDownloader(self._steam_provider(), self.steam_path)
-        steam_proc = (
-            SteamProcess(self.steam_path, self.app_list_man.applist_folder)
-            if self.app_list_man
-            else None
-        )
+        steam_proc = None
         parsed_lua = lua_manager.fetch_lua()
         if parsed_lua is None:
             return MainReturnCode.LOOP_NO_PROMPT
@@ -827,12 +794,8 @@ class UI:
                     end="",
                 )
             else:
-                extra_msg = (
-                    "Close Steam and run DLLInjector again "
-                    "(or not depending on how you installed Greenluma). "
-                ) if not auto_launch else ""
                 print(
-                    extra_msg + 'Your game should show up in the library ready to "update"',
+                    'Your game should show up in the library ready to "update"',
                     end="",
                 )
         print(Style.RESET_ALL)
@@ -849,11 +812,7 @@ class UI:
         downloader = ManifestDownloader(provider, self.steam_path)
         config = ConfigVDFWriter(self.steam_path)
         acf = ACFWriter(lib_path)
-        steam_proc = (
-            SteamProcess(self.steam_path, self.app_list_man.applist_folder)
-            if self.app_list_man
-            else None
-        )
+        steam_proc = None
         parsed_lua = lua_manager.fetch_lua(
             LuaChoice.ADD_LUA if file else None, override_path=file
         )
@@ -875,11 +834,7 @@ class UI:
                 app_id=int(parsed_lua.app_id), game_name=game_name,
             )
         set_stats_and_achievements(int(parsed_lua.app_id))
-        if self.app_list_man:
-            print(Fore.YELLOW + "\nAdding to AppList folder:" + Style.RESET_ALL)
-            self.app_list_man.add_ids(parsed_lua)
-            self.app_list_man.dlc_check(self.provider, int(parsed_lua.app_id))
-        elif self.sls_man:
+        if self.sls_man:
             print(Fore.YELLOW + "\nAdding to SLSSteam config:" + Style.RESET_ALL)
             self.sls_man.add_ids(parsed_lua)
             self.sls_man.dlc_check(self.provider, int(parsed_lua.app_id))
@@ -968,14 +923,9 @@ class UI:
                 + Style.RESET_ALL
             )
         else:
-            extra_msg = (
-                "Close Steam and run DLLInjector again "
-                "(or not depending on how you installed Greenluma). "
-            ) if not auto_launch else ""
             print(
                 Fore.GREEN
-                + f"\nSuccess! {extra_msg}"
-                + 'Your game should show up in the library ready to "update"'
+                + "\nSuccess! Your game should show up in the library ready to \"update\""
                 + Style.RESET_ALL
             )
         return MainReturnCode.LOOP
@@ -1026,11 +976,7 @@ class UI:
             _maybe_prompt_manifest_pins(parsed_lua)
         config = ConfigVDFWriter(self.steam_path)
         acf = ACFWriter(lib_path)
-        steam_proc = (
-            SteamProcess(self.steam_path, self.app_list_man.applist_folder)
-            if self.app_list_man
-            else None
-        )
+        steam_proc = None
         if parsed_lua.path:
             self.recent_files_manager.add(parsed_lua.path)
         self.analytics_tracker.record_feature_usage("process_from_store")
@@ -1041,11 +987,7 @@ class UI:
                 app_id=int(parsed_lua.app_id), game_name=game_name,
             )
         set_stats_and_achievements(int(parsed_lua.app_id))
-        if self.app_list_man:
-            print(Fore.YELLOW + "\nAdding to AppList folder:" + Style.RESET_ALL)
-            self.app_list_man.add_ids(parsed_lua)
-            self.app_list_man.dlc_check(self.provider, int(parsed_lua.app_id), auto_add_depot_dlcs=True)
-        elif self.sls_man:
+        if self.sls_man:
             print(Fore.YELLOW + "\nAdding to SLSSteam config:" + Style.RESET_ALL)
             self.sls_man.add_ids(parsed_lua)
             self.sls_man.dlc_check(self.provider, int(parsed_lua.app_id), auto_add_depot_dlcs=True)

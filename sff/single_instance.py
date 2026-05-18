@@ -68,7 +68,7 @@ class SingleInstanceGuard:
         self._server = QLocalServer()
         self._server.newConnection.connect(lambda: self._handle_connection(on_show))
         if not self._server.listen(_SERVER_NAME):
-            logger.warning("SingleInstanceGuard: could not start server — %s", self._server.errorString())
+            logger.debug("SingleInstanceGuard: could not start server — %s", self._server.errorString())
         else:
             logger.debug("SingleInstanceGuard: listening on %s", _SERVER_NAME)
 

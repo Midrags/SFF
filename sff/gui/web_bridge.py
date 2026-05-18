@@ -26,6 +26,7 @@ Only trivial getters use synchronous result= slots.
 import json
 import logging
 import shutil
+import ssl as _ssl
 import sys
 from pathlib import Path
 
@@ -33,6 +34,19 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QFileDialog
 
 logger = logging.getLogger(__name__)
+
+_SSL_CTX = None
+
+
+def _get_ssl_ctx():
+    global _SSL_CTX
+    if _SSL_CTX is None:
+        try:
+            import certifi as _certifi
+            _SSL_CTX = _ssl.create_default_context(cafile=_certifi.where())
+        except Exception:
+            _SSL_CTX = _ssl.create_default_context()
+    return _SSL_CTX
 
 
 class _Worker(QObject):
@@ -67,7 +81,7 @@ class WebBridge(QObject):
     download_progress = pyqtSignal(str)
     task_finished = pyqtSignal(str)
     log_message = pyqtSignal(str)
-    gl_progress = pyqtSignal(str)
+    lc_progress = pyqtSignal(str)
 
     def __init__(self, ui, steam_path, parent=None):
         super().__init__(parent)
@@ -1477,6 +1491,49 @@ class WebBridge(QObject):
 
         self._run_async(_do, on_done=_on_done)
 
+    @pyqtSlot(str)
+    def install_lumacore(self, steam_path_str):
+        """Copy LumaCore DLLs into the Steam folder and remove GreenLuma remnants."""
+        def _do():
+            from pathlib import Path
+            from sff.lumacore_setup import install_lumacore
+            steam_path = Path(steam_path_str) if steam_path_str else self._ui.steam_path
+            def _progress(msg):
+                self.lc_progress.emit(msg)
+            success, message = install_lumacore(steam_path, _progress)
+            return success, message
+
+        def _on_done(result):
+            success, message = result if isinstance(result, tuple) else (False, str(result))
+            self._emit_task_result("auto_lc_setup", success, message)
+
+        self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot(str)
+    def toggle_online_fix(self, app_id):
+        """Toggle the LC Online Fix launch option for app_id in localconfig.vdf."""
+        def _do():
+            from sff.launch_options import toggle_online_fix, online_fix_enabled
+            enabled = toggle_online_fix(self._ui.steam_path, app_id)
+            state = "enabled" if enabled else "disabled"
+            return True, f"LC Online Fix {state} for App {app_id}"
+
+        def _on_done(result):
+            success, message = result if isinstance(result, tuple) else (False, str(result))
+            self._emit_task_result("lc_online_fix", success, message)
+
+        self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot(str, result=str)
+    def get_launch_option_status(self, app_id):
+        """Return a human-readable string describing the current LC Online Fix state for app_id."""
+        try:
+            from sff.launch_options import online_fix_enabled
+            enabled = online_fix_enabled(self._ui.steam_path, app_id)
+            return "LC Online Fix: enabled" if enabled else "LC Online Fix: disabled"
+        except Exception as exc:
+            return f"Error: {exc}"
+
     # ── SYNC slots — fast, no I/O ────────────────────────────────
 
     @pyqtSlot(result=str)
@@ -1503,6 +1560,12 @@ class WebBridge(QObject):
         """Returns 'win32' or 'linux'."""
         return sys.platform
 
+    @pyqtSlot(result=str)
+    def get_app_version(self):
+        """Returns the current SteaMidra version string."""
+        from sff.strings import VERSION
+        return VERSION
+
     @pyqtSlot(str, result=str)
     def get_disk_usage(self, path):
         """Return disk usage JSON {total, used, free} for the given path."""
@@ -1513,93 +1576,6 @@ class WebBridge(QObject):
             return _json.dumps({"total": usage.total, "used": usage.used, "free": usage.free})
         except Exception:
             return _json.dumps({"error": True})
-
-    @pyqtSlot(str)
-    def auto_gl_setup_action(self, config_json):
-        """Extract and configure GreenLuma from a ZIP or RAR archive.
-        config_json: {method: 'A'|'B', archive_path: str, steam_exe: str}
-        Emits task_finished with task='auto_gl_setup'."""
-        def _do():
-            import json as _json
-            cfg = _json.loads(config_json)
-            method = cfg.get("method", "A")
-            archive_path = cfg.get("archive_path", "").strip()
-            steam_exe = cfg.get("steam_exe", "").strip()
-            if not archive_path:
-                return (False, "No archive selected.", "")
-            if not steam_exe:
-                steam_exe = r"C:\Program Files (x86)\Steam\steam.exe"
-            from sff.greenluma_setup import auto_gl_setup
-            result = auto_gl_setup(method=method, archive_path=archive_path, steam_exe_path=steam_exe)
-            return (result["ok"], result["message"], result.get("applist_path", ""))
-
-        def _on_done(result):
-            if isinstance(result, tuple) and len(result) >= 2:
-                ok, msg = result[0], result[1]
-                applist_path = result[2] if len(result) > 2 else ""
-                if ok and applist_path:
-                    try:
-                        from sff.storage.settings import set_setting
-                        from sff.structs import Settings
-                        set_setting(Settings.APPLIST_FOLDER, applist_path)
-                    except Exception:
-                        pass
-                import json as _json
-                self.task_finished.emit(_json.dumps({
-                    "task": "auto_gl_setup",
-                    "success": bool(ok),
-                    "message": msg,
-                    "applist_path": applist_path,
-                }))
-            else:
-                import json as _json
-                self.task_finished.emit(_json.dumps({"task": "auto_gl_setup", "success": False, "message": "Setup failed"}))
-
-        self._run_async(_do, on_done=_on_done)
-
-    @pyqtSlot(str)
-    def download_gl_action(self, config_json):
-        """Download GreenLuma from Buzzheavier and run auto setup.
-        config_json: {method: 'A'|'B', steam_exe: str}
-        Emits gl_progress for live status and task_finished with task='auto_gl_setup'."""
-        def _do():
-            import json as _json
-            cfg = _json.loads(config_json)
-            method = cfg.get("method", "A")
-            steam_exe = cfg.get("steam_exe", "").strip()
-            if not steam_exe:
-                steam_exe = r"C:\Program Files (x86)\Steam\steam.exe"
-            from sff.greenluma_setup import download_and_setup_gl
-            result = download_and_setup_gl(
-                method=method,
-                steam_exe_path=steam_exe,
-                progress_cb=lambda msg: self.gl_progress.emit(msg),
-            )
-            return (result["ok"], result["message"], result.get("applist_path", ""))
-
-        def _on_done(result):
-            if isinstance(result, tuple) and len(result) >= 2:
-                ok, msg = result[0], result[1]
-                applist_path = result[2] if len(result) > 2 else ""
-                if ok and applist_path:
-                    try:
-                        from sff.storage.settings import set_setting
-                        from sff.structs import Settings
-                        set_setting(Settings.APPLIST_FOLDER, applist_path)
-                    except Exception:
-                        pass
-                import json as _json
-                self.task_finished.emit(_json.dumps({
-                    "task": "auto_gl_setup",
-                    "success": bool(ok),
-                    "message": msg,
-                    "applist_path": applist_path,
-                }))
-            else:
-                import json as _json
-                self.task_finished.emit(_json.dumps({"task": "auto_gl_setup", "success": False, "message": "Setup failed"}))
-
-        self._run_async(_do, on_done=_on_done)
 
     @pyqtSlot(str)
     def connect_store(self, api_key):
@@ -1623,115 +1599,12 @@ class WebBridge(QObject):
             self._api_key = key
         return key or ""
 
-    @pyqtSlot(result=str)
-    def list_profiles(self):
-        """Returns JSON array of profile names."""
-        from sff.app_injector.applist_profiles import list_profiles
-        return json.dumps(list_profiles())
-
-    @pyqtSlot(str)
-    def switch_profile(self, name):
-        """Switch to a named AppList profile."""
-        def _do():
-            from sff.app_injector.applist_profiles import switch_profile
-            from sff.storage.settings import get_setting
-            from sff.structs import Settings
-            from pathlib import Path
-            if hasattr(self._ui, 'app_list_man') and self._ui.app_list_man:
-                folder = self._ui.app_list_man.applist_folder
-            else:
-                saved = get_setting(Settings.APPLIST_FOLDER)
-                if not saved:
-                    return False
-                folder = Path(saved)
-            success, count = switch_profile(name, folder)
-            return success
-
-        def _on_done(result):
-            self._emit_task_result("switch_profile", bool(result), f"Switched to '{name}'")
-
-        self._run_async(_do, on_done=_on_done)
-
-    @pyqtSlot(str)
-    def save_profile(self, name):
-        """Save current AppList as a profile."""
-        from sff.app_injector.applist_profiles import save_profile
-        if hasattr(self._ui, 'app_list_man') and self._ui.app_list_man:
-            ids = [x.app_id for x in self._ui.app_list_man.get_local_ids(sort=True)]
-            save_profile(name, ids)
-
-    @pyqtSlot(str)
-    def delete_profile(self, name):
-        """Delete a profile."""
-        from sff.app_injector.applist_profiles import delete_profile
-        delete_profile(name)
-
-    @pyqtSlot(str, str)
-    def rename_profile(self, old_name, new_name):
-        """Rename a profile."""
-        from sff.app_injector.applist_profiles import rename_profile
-        rename_profile(old_name, new_name)
-
     @pyqtSlot(str)
     def open_url(self, url):
         """Open a URL in the system default browser."""
         from PyQt6.QtCore import QUrl
         from PyQt6.QtGui import QDesktopServices
         QDesktopServices.openUrl(QUrl(url))
-
-    @pyqtSlot()
-    def clear_applist(self):
-        """Delete all numbered .txt files from the GreenLuma AppList folder."""
-        def _do():
-            if not hasattr(self._ui, 'app_list_man') or not self._ui.app_list_man:
-                return -1
-            folder = Path(self._ui.app_list_man.applist_folder)
-            count = 0
-            for f in folder.glob("*.txt"):
-                if f.stem.isdigit():
-                    f.unlink(missing_ok=True)
-                    count += 1
-            return count
-
-        def _on_done(count):
-            if count == -1:
-                self.task_finished.emit(json.dumps({
-                    "task": "applist_cleared", "success": False,
-                    "message": "AppList manager not available", "count": 0,
-                }))
-            else:
-                self.task_finished.emit(json.dumps({
-                    "task": "applist_cleared", "success": True,
-                    "message": f"Cleared {count} IDs from AppList", "count": count,
-                }))
-
-        self._run_async(_do, on_done=_on_done)
-
-    @pyqtSlot()
-    def rebuild_applist_from_installed(self):
-        """Clear AppList and repopulate with only currently installed Steam games."""
-        def _do():
-            if not hasattr(self._ui, 'app_list_man') or not self._ui.app_list_man:
-                return {"success": False, "message": "AppList manager not available", "count": 0}
-            folder = Path(self._ui.app_list_man.applist_folder)
-            for f in folder.glob("*.txt"):
-                if f.stem.isdigit():
-                    f.unlink(missing_ok=True)
-            games = json.loads(self.get_installed_games())
-            app_ids = [g["app_id"] for g in games if g.get("app_id")]
-            for i, app_id in enumerate(app_ids):
-                (folder / f"{i}.txt").write_text(str(app_id), encoding="utf-8")
-            return {"success": True, "count": len(app_ids)}
-
-        def _on_done(result):
-            self.task_finished.emit(json.dumps({
-                "task": "applist_rebuilt",
-                "success": result.get("success", False),
-                "message": result.get("message", f"Rebuilt AppList with {result.get('count', 0)} installed games"),
-                "count": result.get("count", 0),
-            }))
-
-        self._run_async(_do, on_done=_on_done)
 
     @pyqtSlot(str, str)
     def set_setting(self, key, value):
@@ -1811,7 +1684,7 @@ class WebBridge(QObject):
         """Opens a file picker for ZIP/RAR/7z archives. Returns selected file path."""
         path, _ = QFileDialog.getOpenFileName(
             self.parent(),
-            "Select GreenLuma Archive",
+            "Select Archive",
             "",
             "Archives (*.zip *.rar *.7z);;All Files (*)",
         )
@@ -2087,9 +1960,22 @@ class WebBridge(QObject):
                     "app_id": app_id, "status": "Running DepotDownloaderMod...", "progress": 35
                 }))
 
+                _last_emit = [0.0]
+                _PASS_PREFIXES = (
+                    "---", "[OK]", "[FAIL]",
+                    "Depot ", "Total ", "Error", "Skipping",
+                    "WARNING", "Network error", "[Pre-allocation", "[!",
+                )
+
                 def _print_fn(msg):
-                    import re as _re
-                    clean = _re.sub(r'\x1b\[[0-9;]*m', '', msg)
+                    import re as _re, time as _t
+                    clean = _re.sub(r'\x1b\[[0-9;]*m', '', msg).strip()
+                    if not clean:
+                        return
+                    now = _t.monotonic()
+                    if not clean.startswith(_PASS_PREFIXES) and now - _last_emit[0] < 0.2:
+                        return
+                    _last_emit[0] = now
                     print(clean)
 
                 selected_depots = filter_depots_by_os(selected_depots, _app_info, print_fn=_print_fn)
@@ -2177,7 +2063,7 @@ class WebBridge(QObject):
                     query_str = "&".join(f"{k}={v}" for k, v in params.items())
                     url = f"{base_url}?{query_str}"
                     req = _req.Request(url, headers={"User-Agent": "SteaMidra/6.1.0"})
-                    with _req.urlopen(req, timeout=30) as resp:
+                    with _req.urlopen(req, timeout=30, context=_get_ssl_ctx()) as resp:
                         data = _json.loads(resp.read())
                     apps = data.get("response", {}).get("apps", [])
                     games.extend(apps)
@@ -2472,8 +2358,8 @@ class WebBridge(QObject):
 
     @pyqtSlot(str, str, str)
     def delete_game(self, app_id, game_path, mode):
-        """Remove a game from the AppList and optionally delete its files.
-        mode='applist' removes from AppList folder + all profiles only.
+        """Remove a game from the library and optionally delete its files.
+        mode='applist' removes the stplug-in Lua only.
         mode='full' also deletes the ACF manifest and the game folder from disk.
         """
         def _do():
@@ -2482,43 +2368,8 @@ class WebBridge(QObject):
             if app_id_int is None:
                 return (False, "Invalid App ID")
 
-            removed_from_applist = False
-
-            # --- Remove from AppList folder ---
-            if hasattr(self._ui, 'app_list_man') and self._ui.app_list_man:
-                folder = Path(self._ui.app_list_man.applist_folder)
-                for f in list(folder.glob("*.txt")):
-                    if not f.stem.isdigit():
-                        continue
-                    try:
-                        if f.read_text(encoding="utf-8").strip() == str(app_id_int):
-                            f.unlink()
-                            removed_from_applist = True
-                            break
-                    except OSError:
-                        pass
-                if removed_from_applist:
-                    remaining = sorted(
-                        [f for f in folder.glob("*.txt") if f.stem.isdigit()],
-                        key=lambda f: int(f.stem),
-                    )
-                    for i, f in enumerate(remaining):
-                        target = folder / f"{i}.txt"
-                        if f != target:
-                            f.rename(target)
-
-            # --- Remove from all saved profiles ---
-            try:
-                from sff.app_injector.applist_profiles import list_profiles, load_profile, save_profile
-                for profile_name in list_profiles():
-                    ids = load_profile(profile_name)
-                    if ids and app_id_int in ids:
-                        save_profile(profile_name, [i for i in ids if i != app_id_int])
-            except Exception as e:
-                logger.warning("delete_game: profile update failed: %s", e)
-
             if mode != "full":
-                return (True, "Removed from AppList")
+                return (True, "Removed from library")
 
             # --- Delete game files (mode='full') ---
             files_deleted = False
@@ -2547,8 +2398,8 @@ class WebBridge(QObject):
                         logger.warning("delete_game: folder removal failed: %s", e)
 
             if files_deleted:
-                return (True, "Game removed from AppList and deleted from disk")
-            return (True, "Removed from AppList (game folder not found or already gone)")
+                return (True, "Game removed and deleted from disk")
+            return (True, "Removed from library (game folder not found or already gone)")
 
         def _on_done(result):
             if isinstance(result, tuple):
@@ -2918,7 +2769,7 @@ def _fetch_steam_image_urls(app_ids):
             + _urlparse.quote(_json.dumps(payload, separators=(",", ":")))
         )
         request = _req.Request(url, headers={"User-Agent": "SteaMidra/5.4.0"})
-        with _req.urlopen(request, timeout=5) as resp:
+        with _req.urlopen(request, timeout=5, context=_get_ssl_ctx()) as resp:
             data = _json.loads(resp.read())
         for item in data.get("response", {}).get("store_items", []):
             appid = item.get("appid")
@@ -2976,7 +2827,7 @@ def _load_steam_applist():
     try:
         url = "https://api.steampowered.com/ISteamApps/GetAppList/v2/?format=json"
         req = _req.Request(url, headers={"User-Agent": "SteaMidra/6.1.0"})
-        with _req.urlopen(req, timeout=60) as resp:
+        with _req.urlopen(req, timeout=60, context=_get_ssl_ctx()) as resp:
             data = _json.loads(resp.read())
         apps = data.get("applist", {}).get("apps", [])
         if apps:
@@ -2986,7 +2837,49 @@ def _load_steam_applist():
             return apps
         logger.warning("Steam applist HTTP response was empty")
     except Exception as e:
-        logger.warning("Steam applist HTTP fetch failed: %s", e)
+        logger.warning("Steam applist HTTP fetch failed: %s — trying paginated fallback", e)
+        try:
+            from sff.utils import root_folder
+            from sff.strings import STEAM_WEB_API_KEY as _DEFAULT_KEY
+            from sff.storage.settings import get_setting
+            from sff.structs import Settings
+            _all_games_file = root_folder(outside_internal=True) / "all_games.txt"
+            _api_key = get_setting(Settings.STEAM_WEB_API_KEY)
+            if not isinstance(_api_key, str) or not _api_key.strip():
+                _api_key = _DEFAULT_KEY
+            _params = {"key": _api_key, "max_results": "50000", "include_games": "1",
+                       "include_dlc": "0", "include_software": "0",
+                       "include_videos": "0", "include_hardware": "0"}
+            _games = []
+            _base = "https://api.steampowered.com/IStoreService/GetAppList/v1/"
+            while True:
+                _qs = "&".join(f"{k}={v}" for k, v in _params.items())
+                _req2 = _req.Request(f"{_base}?{_qs}", headers={"User-Agent": "SteaMidra/6.1.0"})
+                with _req.urlopen(_req2, timeout=30, context=_get_ssl_ctx()) as _resp:
+                    _data = _json.loads(_resp.read())
+                _games.extend(_data.get("response", {}).get("apps", []))
+                if not _data.get("response", {}).get("have_more_results"):
+                    break
+                _last = _data.get("response", {}).get("last_appid")
+                if _last:
+                    _params["last_appid"] = str(_last)
+                else:
+                    break
+            if _games:
+                _gs = [
+                    x.get("name", "UNKNOWN GAME") + f" [ID={x.get('appid')}]"
+                    for x in _games
+                    if x.get("appid") and x.get("name", "").strip()
+                ]
+                _all_games_file.parent.mkdir(parents=True, exist_ok=True)
+                with _all_games_file.open("w", encoding="utf-8") as _f:
+                    _f.write("\n".join(_gs))
+                logger.debug("Steam applist built via paginated fallback: %d games", len(_games))
+                _STEAM_APPLIST_CACHE = _games
+                _STEAM_APPLIST_CACHE_TIME = now
+                return _games
+        except Exception as e2:
+            logger.warning("Steam applist paginated fallback failed: %s", e2)
     return _STEAM_APPLIST_CACHE or []
 
 
