@@ -43,9 +43,9 @@ You will get a ZIP file (`SteaMidra-x.x.x-windows.zip`). Extract it anywhere —
 
 ### Step 2: LumaCore
 
-Open SteaMidra, go to the **Home** tab, click **Auto LC Setup**, then click **Install LumaCore**. SteaMidra copies `dwmapi.dll` + `LumaCore.dll` from `sff/lumacore/` into the Steam folder and removes old GreenLuma files automatically.
+Open SteaMidra, go to the **Home** tab, click **Auto LC Setup**, then click **Install LumaCore**. SteaMidra downloads the latest LumaCore release from GitHub and installs `dwmapi.dll` + `LumaCore.dll` into the Steam folder, removing old GreenLuma files automatically.
 
-If the installer reports "No DLLs found": build from `LumaCore/build.bat` or ask on [Discord](https://discord.gg/V8aZqnbB84).
+If the install fails, ask on [Discord](https://discord.gg/V8aZqnbB84).
 
 ### Step 3: Launch Steam
 
