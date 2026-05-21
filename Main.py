@@ -136,7 +136,7 @@ def main(ui, args: argparse.Namespace):
 
     if ui.app_list_man:
 
-        logger.debug(f"AppList path is {ui.app_list_man.applist_folder.resolve()}")
+        logger.debug(f"Injection folder: {ui.app_list_man.applist_folder.resolve()}")
 
     elif ui.sls_man:
 
@@ -152,7 +152,7 @@ def main(ui, args: argparse.Namespace):
 
     if args.export_ids:
 
-        return ui.export_applist_ids(Path(args.export_ids))
+        return ui.export_injection_ids(Path(args.export_ids))
 
     
 
@@ -274,9 +274,9 @@ def main(ui, args: argparse.Namespace):
 
 
 
-    if menu_choice == MainMenu.MANAGE_APPLIST:
+    if menu_choice == MainMenu.MANAGE_INJECTION:
 
-        return ui.applist_menu()
+        return ui.injection_menu()
 
 
 
@@ -380,7 +380,7 @@ if __name__ == "__main__":
 
                         prog='SteaMidra',
 
-                        description='SteaMidra - set up games for Steam with Lua scripts, manifests, and GreenLuma',
+                        description='SteaMidra - set up games for Steam with Lua scripts, manifests, and LumaCore',
 
                         epilog='https://github.com/Midrags/SFF/releases')
 

@@ -146,54 +146,13 @@ class SteamProcess:
             return False
         print("Launching Steam...")
         try:
-            import ctypes
-            import sys
-            already_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
-            if already_admin:
-                # Already elevated — ShellExecuteW("runas") would fail with Access Denied.
-                # Launch the injector directly; it inherits the elevated token.
-                subprocess.Popen([injector], cwd=str(self.steam_path))
-                print("Steam launched successfully!")
-                return True
-            # Not admin — use ShellExecute with 'runas' verb to request elevation
-            ret = ctypes.windll.shell32.ShellExecuteW(
-                None,                    # hwnd
-                "runas",                 # operation (run as admin)
-                injector,                # file to execute
-                None,                    # parameters
-                str(self.steam_path),    # working directory
-                1                        # SW_SHOWNORMAL (show window normally)
+            subprocess.Popen(
+                [injector],
+                cwd=str(self.steam_path),
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
-            # ShellExecute returns a value > 32 on success
-            if ret > 32:
-                print("Steam launched successfully!")
-                return True
-            # ShellExecuteW failed — try launching without elevation as a last resort
-            error_messages = {
-                0: "Out of memory or resources",
-                2: "File not found",
-                3: "Path not found",
-                5: "Access denied",
-                8: "Out of memory",
-                26: "Sharing violation",
-                27: "File association incomplete or invalid",
-                28: "DDE timeout",
-                29: "DDE transaction failed",
-                30: "DDE busy",
-                31: "No file association",
-                32: "DLL not found"
-            }
-            error_msg = error_messages.get(ret, f"Unknown error (code {ret})")
-            print(f"ShellExecute failed ({error_msg}), trying without elevation...")
-            try:
-                subprocess.Popen([injector], cwd=str(self.steam_path))
-                print("Steam launched (elevation skipped). Injection may not work if admin rights are required.")
-                return True
-            except Exception:
-                pass
-            print(f"\nFailed to launch Steam: {error_msg}")
-            print("Please launch Steam manually from your Start Menu or Desktop.")
-            return False
+            print("Steam launched successfully!")
+            return True
         except Exception as e:
             print(f"\nError launching Steam: {e}")
             print("Please launch Steam manually from your Start Menu or Desktop.")

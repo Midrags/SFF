@@ -23,10 +23,14 @@
 #include "utils/Settings.h"
 
 
-// Handle to diversion.dll once LoadDiversion() copies and loads it.
+// Handle to lcoverlay.dll once LoadDiversion() copies and loads it.
 // All hook targets in steamclient64.dll are resolved through this module.
 // Null until LoadDiversion() succeeds.
 inline HMODULE diversion_hModule = nullptr;
+
+// InitThread handle retained so DLL_PROCESS_DETACH can wait for init to finish
+// before unhooking. Closed after the wait completes.
+inline HANDLE g_InitThread = nullptr;
 
 // Set to true by InitThread after every hook has been installed.
 // SteamUI.cpp's LoadModuleWithPath hook polls this before returning diversion_hModule
@@ -36,7 +40,7 @@ inline std::atomic<bool> g_HooksInstalled{false};
 // Runtime paths filled in by LoadDiversion() from the process working directory.
 inline char SteamInstallPath[MAX_PATH] = {};  // Steam root: the folder containing steam.exe
 inline char SteamclientPath[MAX_PATH] = {};  // <SteamInstallPath>\steamclient64.dll
-inline char DiversionPath[MAX_PATH]   = {};  // <SteamInstallPath>\bin\diversion.dll (hooked copy)
+inline char DiversionPath[MAX_PATH]   = {};  // <SteamInstallPath>\bin\lcoverlay.dll (hooked copy)
 inline char LuaDir[MAX_PATH]          = {};  // <SteamInstallPath>\config\stplug-in
 inline char ConfigPath[MAX_PATH]      = {};  // <SteamInstallPath>\lumacore.toml
 

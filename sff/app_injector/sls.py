@@ -33,7 +33,7 @@ from sff.steam_client import ParsedDLC, SteamInfoProvider
 from sff.steam_store import get_dlc_list_from_store, get_dlc_names_from_store
 from sff.storage.settings import get_setting, set_setting
 from sff.storage.yaml import YAMLParser
-from sff.structs import AppListChoice, DLCTypes, LuaParsedInfo, MainReturnCode, Settings
+from sff.structs import InjectionChoice, DLCTypes, LuaParsedInfo, MainReturnCode, Settings
 from sff.utils import enter_path
 from typing import Union
 
@@ -148,19 +148,19 @@ class SLSManager(AppInjectionManager):
         choice = prompt_select(
             "Choose:",
             [
-                (AppListChoice.ADD.value, AppListChoice.ADD),
-                (AppListChoice.DELETE.value, AppListChoice.DELETE),
+                (InjectionChoice.ADD.value, InjectionChoice.ADD),
+                (InjectionChoice.DELETE.value, InjectionChoice.DELETE),
             ],
             cancellable=True,
         )
         if choice is None:
             return MainReturnCode.LOOP_NO_PROMPT
-        if choice == AppListChoice.ADD:
+        if choice == InjectionChoice.ADD:
             ids_raw = prompt_text("Enter IDs to add (space-separated):")
             ids = [int(x) for x in ids_raw.split() if x.isdigit()]
             if ids:
                 self.add_ids(ids)
-        elif choice == AppListChoice.DELETE:
+        elif choice == InjectionChoice.DELETE:
             local_ids = self.get_local_ids()
             if not local_ids:
                 print("No IDs in SLSSteam config.")

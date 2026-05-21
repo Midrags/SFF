@@ -1,13 +1,13 @@
 #pragma once
 #include <cstdint>
 
-// ---- compile-time FNV-1a hash (32-bit) --------
-constexpr uint32_t Fnv1aHash(const char* str)
+// ---- compile-time FNV-1a hash (32-bit) used by LumaCore for target_job_name dispatch ----
+constexpr uint32_t LcHash32(const char* str)
 {
-    uint32_t hash = 0x811c9dc5;
+    uint32_t h = 0x811c9dc5u;
     while (*str) {
-        hash ^= static_cast<uint32_t>(*str++);
-        hash *= 0x01000193;
+        h ^= static_cast<uint32_t>(static_cast<unsigned char>(*str++));
+        h *= 0x01000193u;
     }
-    return hash;
+    return h;
 }

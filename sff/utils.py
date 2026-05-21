@@ -33,6 +33,18 @@ import vdf  # type: ignore
 logger = logging.getLogger(__name__)
 
 
+def sff_data_dir() -> Path:
+    """Return a writable directory for SteaMidra user data (logs, settings, cache).
+
+    Always returns the directory containing the running script or exe.
+    On a frozen build this is the exe's parent (e.g. %LOCALAPPDATA%\\SteaMidra\\
+    when installed via the NSIS installer). When running from source it is the
+    project root next to Main_gui.py. settings.bin, debug.log, and cache files
+    are always written beside the entry-point, never in a platform-specific dir.
+    """
+    return root_folder(outside_internal=True)
+
+
 def root_folder(outside_internal = False):
 
     is_frozen = getattr(sys, "frozen", False)

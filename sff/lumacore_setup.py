@@ -19,7 +19,9 @@
 """Download the latest LumaCore release from GitHub and install DLLs into the Steam folder."""
 
 import logging
+import os
 import shutil
+import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
@@ -29,6 +31,94 @@ import httpx
 import rarfile  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+_EXTRACTOR_CANDIDATES: list[tuple[str, str]] = [
+    ("7z",                                         "7z"),
+    ("7zz",                                        "7z"),
+    (r"C:\Program Files\7-Zip\7z.exe",             "7z"),
+    (r"C:\Program Files (x86)\7-Zip\7z.exe",      "7z"),
+    (r"C:\Program Files\WinRAR\WinRAR.exe",        "winrar"),
+    (r"C:\Program Files (x86)\WinRAR\WinRAR.exe",  "winrar"),
+    ("WinRAR",                                     "winrar"),
+    ("unrar",                                      "unrar"),
+]
+
+
+def _find_extractor() -> tuple[str, str]:
+    """Return (exe_path, tool_type) for the first usable archive extractor, or ('', '')."""
+    for candidate, tool_type in _EXTRACTOR_CANDIDATES:
+        if tool_type in ("winrar", "unrar"):
+            if os.path.isabs(candidate):
+                if Path(candidate).is_file():
+                    return candidate, tool_type
+            else:
+                resolved = shutil.which(candidate)
+                if resolved:
+                    return resolved, tool_type
+            continue
+        try:
+            result = subprocess.run(
+                [candidate, "--help"],
+                capture_output=True,
+                timeout=5,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            if result.returncode in (0, 1):
+                return candidate, tool_type
+        except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+            continue
+    return "", ""
+
+
+def _extract_dlls_via_subprocess(
+    archive: Path,
+    steam_path: Path,
+    callback: Optional[Callable[[str], None]],
+) -> bool:
+    """Extract LumaCore DLLs using an external archiver (WinRAR / 7-Zip / unrar)."""
+    exe, tool_type = _find_extractor()
+    if not exe:
+        _progress("No external extractor found. Install 7-Zip or WinRAR.", callback)
+        return False
+    _progress(f"Using {Path(exe).name} for extraction...", callback)
+    with tempfile.TemporaryDirectory(prefix="sff_lc_ext_") as tmp:
+        tmp_path = Path(tmp)
+        if tool_type == "winrar":
+            cmd = [exe, "x", "-y", str(archive), tmp + os.sep]
+        elif tool_type == "unrar":
+            cmd = [exe, "x", "-y", str(archive), tmp + os.sep]
+        else:
+            cmd = [exe, "x", str(archive), f"-o{tmp}", "-y"]
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                timeout=120,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            if result.returncode != 0:
+                err = result.stderr.decode(errors="replace")[:200]
+                _progress(f"Extractor returned error: {err}", callback)
+                return False
+        except subprocess.TimeoutExpired:
+            _progress("Extraction timed out.", callback)
+            return False
+        except Exception as exc:
+            _progress(f"Extraction subprocess failed: {exc}", callback)
+            return False
+        for dll in _LC_DLLS:
+            dll_lower = dll.lower()
+            found: Optional[Path] = None
+            for p in tmp_path.rglob("*"):
+                if p.is_file() and p.name.lower() == dll_lower:
+                    found = p
+                    break
+            if found is None:
+                _progress(f"DLL not found in extracted archive: {dll}", callback)
+                return False
+            (steam_path / dll).write_bytes(found.read_bytes())
+            _progress(f"Installed {dll}", callback)
+    return True
 
 _LUMACORE_GITHUB_REPO = "KoriaPolis/LumaCore"
 _LUMACORE_RELEASE_API = f"https://api.github.com/repos/{_LUMACORE_GITHUB_REPO}/releases/latest"
@@ -61,6 +151,7 @@ _GL_ROOT_DIRS = (
 _LC_RESET_FILES = (
     ("", "dwmapi.dll"),
     ("", "LumaCore.dll"),
+    ("bin", "lcoverlay.dll"),
     ("bin", "diversion.dll"),
 )
 
@@ -174,9 +265,9 @@ def _extract_zip(archive: Path, steam_path: Path,
                 _progress(f"Installed {dll}", callback)
         return True
     except Exception as exc:
-        logger.error("ZIP extraction failed: %s", exc)
-        _progress(f"Extraction failed: {exc}", callback)
-        return False
+        logger.error("ZIP extraction failed: %s — trying external tool", exc)
+        _progress(f"ZIP extraction failed ({exc}), trying external tool...", callback)
+        return _extract_dlls_via_subprocess(archive, steam_path, callback)
 
 
 def _extract_rar(archive: Path, steam_path: Path,
@@ -193,9 +284,9 @@ def _extract_rar(archive: Path, steam_path: Path,
                 _progress(f"Installed {dll}", callback)
         return True
     except Exception as exc:
-        logger.error("RAR extraction failed: %s", exc)
-        _progress(f"Extraction failed: {exc}", callback)
-        return False
+        logger.error("RAR extraction failed: %s — trying external tool", exc)
+        _progress(f"RAR extraction failed ({exc}), trying external tool...", callback)
+        return _extract_dlls_via_subprocess(archive, steam_path, callback)
 
 
 def install_lumacore(

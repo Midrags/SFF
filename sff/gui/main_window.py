@@ -233,12 +233,12 @@ class SFFMainWindow(QMainWindow):
             "  - Update all manifests: Refresh manifests for all previously\n"
             "    downloaded games.\n\n"
             "Library & Steam Tools:\n"
-            "  - Manage AppList Profiles: Create, switch, save, merge,\n"
-            "    delete, or rename GreenLuma AppList profiles.\n"
+            "  - Manage Injection Profiles: Create, switch, save, merge,\n"
+            "    delete, or rename app ID injection profiles.\n"
             "  - Offline mode fix: Patch config.vdf so Steam starts in\n"
             "    offline mode reliably.\n"
             "  - Mute: Toggle background music on/off.\n"
-            "  - Remove game from library: Remove a game's ACF and AppList entry.\n"
+            "  - Remove game from library: Remove a game's ACF and registered app ID.\n"
             "  - Context menu: Add/remove SteaMidra from Windows Explorer\n"
             "    right-click menu.",
             parent_widget=self,
@@ -400,7 +400,7 @@ class SFFMainWindow(QMainWindow):
         tools_layout = QVBoxLayout(tools_group)
         tools_row1 = QHBoxLayout()
         for label, func in [
-            (T("Manage AppList Profiles"), lambda: self.ui.applist_menu()),
+            (T("Manage Injection Profiles"), lambda: self.ui.injection_menu()),
             (T("Offline mode fix"), lambda: self.ui.offline_fix_menu()),
         ]:
             btn = QPushButton(label)

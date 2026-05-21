@@ -6,7 +6,7 @@ namespace {
     using CUtlMemoryGrow_t = void* (*)(CUtlVector<AppId_t>* pVec, int grow_size);
     CUtlMemoryGrow_t oCUtlMemoryGrow = nullptr;
 
-    HOOK_FUNC(LoadPackage, bool, PackageInfo* pInfo, uint8* sha1, int32 cn, void* p4) {
+    LC_HOOK_DEF(LoadPackage, bool, PackageInfo* pInfo, uint8* sha1, int32 cn, void* p4) {
         bool result = oLoadPackage(pInfo, sha1, cn, p4);
 
         if (pInfo->PackageId == 0) {
@@ -18,13 +18,14 @@ namespace {
                 oCUtlMemoryGrow(&pInfo->AppIdVec, numToAdd);
                 for (uint32 i = 0; i < numToAdd; i++)
                     pInfo->AppIdVec.m_Memory.m_pMemory[oldSize + i] = appIds[i];
+                pInfo->AppIdVec.m_Size = oldSize + numToAdd;
             }
         }
 
         return result;
     }
 
-    HOOK_FUNC(CheckAppOwnership, bool, void* pObj, AppId_t appId, AppOwnership* pOwn) {
+    LC_HOOK_DEF(CheckAppOwnership, bool, void* pObj, AppId_t appId, AppOwnership* pOwn) {
         bool result = oCheckAppOwnership(pObj, appId, pOwn);
         if (LuaLoader::HasDepot(appId)) {
             if (result && pOwn->ExistInPackageNums > 1
@@ -41,7 +42,7 @@ namespace {
         return result;
     }
 
-    HOOK_FUNC(SendCallbackToPipe, bool, void* pSteamEngine, HSteamPipe hSteamPipe,
+    LC_HOOK_DEF(SendCallbackToPipe, bool, void* pSteamEngine, HSteamPipe hSteamPipe,
               HSteamUser iClientUser, int iCallback, void* pCallbackData, int cubCallbackData) {
         // ── Callback modifier dispatch ─────────────────────────────────────────
         // Intercept callbacks before they reach the pipe and modify data in-place.
@@ -60,21 +61,21 @@ namespace {
 
 namespace PackagePatch {
     void Install() {
-        RESOLVE_D(CUtlMemoryGrow);
+        LC_RESOLVE_D(CUtlMemoryGrow);
 
-        HOOK_BEGIN();
-        INSTALL_HOOK_D(LoadPackage);
-        INSTALL_HOOK_D(CheckAppOwnership);
-        INSTALL_HOOK_D(SendCallbackToPipe);
-        HOOK_END();
+        LC_TX_OPEN();
+        LC_ATTACH_D(LoadPackage);
+        LC_ATTACH_D(CheckAppOwnership);
+        LC_ATTACH_D(SendCallbackToPipe);
+        LC_TX_COMMIT();
     }
 
     void Uninstall() {
-        UNHOOK_BEGIN();
-        UNINSTALL_HOOK(LoadPackage);
-        UNINSTALL_HOOK(CheckAppOwnership);
-        UNINSTALL_HOOK(SendCallbackToPipe);
-        UNHOOK_END();
+        LC_TX_OPEN();
+        LC_DETACH(LoadPackage);
+        LC_DETACH(CheckAppOwnership);
+        LC_DETACH(SendCallbackToPipe);
+        LC_TX_COMMIT();
         oCUtlMemoryGrow = nullptr;
     }
 }

@@ -17,7 +17,7 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 """
-SteaMidra - set up games for Steam with Lua scripts, manifests, and GreenLuma.
+SteaMidra - set up games for Steam with Lua scripts, manifests, and LumaCore.
 
 Core package for game library management, manifest decryption,
 DLC unlockers (CreamInstaller-compatible), and Steam integration.

@@ -61,12 +61,12 @@ class MainMenu(Enum):
     HV_FIX = "HyperVisor bypasses (HVAuto)"
     OFFLINE_FIX = "Offline Mode Fix"
     if sys.platform == "win32":
-        MANAGE_APPLIST = "Manage AppList IDs"
+        MANAGE_INJECTION = "Manage Injected IDs"
         REMOVE_GAME = "Remove a game from library (stplug-in)"
     elif sys.platform == "linux":
-        MANAGE_APPLIST = "Manage SLSSteam IDs"
+        MANAGE_INJECTION = "Manage SLSSteam IDs"
     else:
-        MANAGE_APPLIST = "Manage injected IDs"
+        MANAGE_INJECTION = "Manage injected IDs"
     if sys.platform == "linux":
         LINUX_SETUP = "Set up Linux tools (SLSsteam + .NET 9)"
         LINUX_DOWNLOAD = "Download a game (Linux)"
@@ -106,16 +106,16 @@ GAME_SPECIFIC_CHOICES = (
 )
 
 
-class AppListChoice(Enum):
+class InjectionChoice(Enum):
     ADD = "Add IDs"
     DELETE = "View/Delete IDs"
-    PROFILES = "AppList Profiles (create, switch, save)"
+    PROFILES = "Injection Profiles (create, switch, save)"
 
 
-class AppListProfileChoice(Enum):
+class InjectionProfileChoice(Enum):
     CREATE = "Create profile"
     SWITCH = "Switch to profile"
-    SAVE = "Save current AppList to profile"
+    SAVE = "Save current profile"
     MERGE = "Merge another profile into a profile"
     DELETE = "Delete profile"
     RENAME = "Rename profile"
@@ -289,7 +289,7 @@ OrganizedAppIDs = dict[int, AppIDInfo]
 "A dict of IDs where Depot IDs are organized inside their parent App IDs"
 
 
-class AppListPathAndID(NamedTuple):
+class InjectionPathAndID(NamedTuple):
     path: Path
     app_id: int
 

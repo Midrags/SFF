@@ -5,6 +5,7 @@
 #include "entry.h"
 #include "utils/Hash.h"
 #include "SteamCapture.h"
+#include <unordered_map>
 
 namespace {
 
@@ -20,19 +21,21 @@ namespace {
     // ════════════════════════════════════════════════════════════════
     using namespace IPCBus;
 
-    std::vector<IpcHandlerEntry> g_Handlers;
+    static constexpr uint64 MakeHandlerKey(EIPCInterface iface, uint32 funcHash) {
+        return (static_cast<uint64>(iface) << 32) | funcHash;
+    }
+
+    std::unordered_map<uint64, IpcHandlerEntry> g_Handlers;
 
     static const IpcHandlerEntry* FindHandler(EIPCInterface iface, uint32 funcHash) {
-        for (auto& e : g_Handlers) {
-            if (e.interfaceID == iface && e.funcHash == funcHash) return &e;
-        }
-        return nullptr;
+        auto it = g_Handlers.find(MakeHandlerKey(iface, funcHash));
+        return (it != g_Handlers.end()) ? &it->second : nullptr;
     }
 
     // ════════════════════════════════════════════════════════════════
     //  Main hook
     // ════════════════════════════════════════════════════════════════
-    HOOK_FUNC(IPCProcessMessage, bool,
+    LC_HOOK_DEF(IPCProcessMessage, bool,
               void* pServer, HSteamPipe hSteamPipe,
               CUtlBuffer* pRead, CUtlBuffer* pWrite)
     {
@@ -46,7 +49,7 @@ namespace {
             const auto cmd = static_cast<EIPCCommand>(data[OFFSET_CMD]);
 
             if (cmd == EIPCCommand::Handshake) {
-                LOG_IPC_INFO("[Handshake]: {}", pipe->DebugString());
+                if (pipe) LOG_IPC_INFO("[Handshake]: {}", pipe->DebugString());
             } else if (cmd == EIPCCommand::InterfaceCall) {
                 // exclude InterfaceCall from steam
                 if (!pipe || (pipe->m_hSteamPipe & 0xFFFF) <= 2) {
@@ -97,25 +100,27 @@ namespace {
 namespace IPCBus {
 
     void RegisterHandlers(const IpcHandlerEntry* entries, size_t count) {
-        g_Handlers.insert(g_Handlers.end(), entries, entries + count);
+        g_Handlers.reserve(g_Handlers.size() + count);
+        for (size_t i = 0; i < count; ++i)
+            g_Handlers.emplace(MakeHandlerKey(entries[i].interfaceID, entries[i].funcHash), entries[i]);
     }
 
     void Install() {
-        RESOLVE_D(GetPipeClient);
+        LC_RESOLVE_D(GetPipeClient);
 
         // Interface modules register their handlers here.
         CmdUser::Register();
         CmdUtils::Register();
 
-        HOOK_BEGIN();
-        INSTALL_HOOK_D(IPCProcessMessage);
-        HOOK_END();
+        LC_TX_OPEN();
+        LC_ATTACH_D(IPCProcessMessage);
+        LC_TX_COMMIT();
     }
 
     void Uninstall() {
-        UNHOOK_BEGIN();
-        UNINSTALL_HOOK(IPCProcessMessage);
-        UNHOOK_END();
+        LC_TX_OPEN();
+        LC_DETACH(IPCProcessMessage);
+        LC_TX_COMMIT();
         oGetPipeClient = nullptr;
         g_Handlers.clear();
     }

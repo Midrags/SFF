@@ -1,8 +1,9 @@
 #pragma once
 
-// Macros for installing, resolving, and removing Detours hooks in loaded DLL modules.
-// The _D variants operate on diversion_hModule (the hooked copy of steamclient64.dll).
-// All other variants take an explicit HMODULE so you can target steamui.dll or any other module.
+// Hook plumbing macros for LumaCore. Wraps Microsoft Detours for attaching/detaching
+// function hooks inside loaded DLL modules.
+// _D variants target diversion_hModule (the hooked copy of steamclient64.dll).
+// All others take an explicit HMODULE to target steamui.dll or any other loaded image.
 
 #include <windows.h>
 #include <detours.h>
@@ -10,45 +11,34 @@
 #include "PatternDb.h"
 #include "StringFind.h"
 
-// Detours requires you to wrap hook installations and removals in a transaction.
-// DetourTransactionBegin() opens the batch. DetourUpdateThread() registers the calling
-// thread so Detours can adjust its instruction pointer past any trampolines it creates
-// (this prevents the thread from jumping into patched bytes mid-trampoline after Commit).
-// DetourTransactionCommit() applies all pending hook changes atomically.
-#define HOOK_BEGIN()                          \
+// Open a Detours transaction. DetourTransactionBegin starts the batch;
+// DetourUpdateThread registers the calling thread so Detours adjusts its
+// instruction pointer past any trampolines before Commit fires.
+// Always pair with LC_TX_COMMIT.
+#define LC_TX_OPEN()                          \
     do {                                       \
         DetourTransactionBegin();              \
         DetourUpdateThread(GetCurrentThread())
 
-#define HOOK_END()                            \
+// Close and apply the open Detours transaction atomically.
+#define LC_TX_COMMIT()                        \
         DetourTransactionCommit();             \
     } while (0)
 
-#define UNHOOK_BEGIN()                        \
-    do {                                       \
-        DetourTransactionBegin();              \
-        DetourUpdateThread(GetCurrentThread())
-
-#define UNHOOK_END()                          \
-        DetourTransactionCommit();             \
-    } while (0)
-
-// Declares a hooked function and the pointer used to call the original.
-// One macro expands to three things:
-//   1. A function-pointer type alias:  using LoadModuleWithPath_t = HMODULE(__fastcall*)(const char*, bool);
-//   2. The original-function pointer:  inline LoadModuleWithPath_t oLoadModuleWithPath = nullptr;
-//   3. The hook function signature:    HMODULE __fastcall hkLoadModuleWithPath(const char* path, bool f)
-// Write the hook body in braces immediately after the macro.
-// Call oLoadModuleWithPath(...) inside the body to invoke the real function.
-#define HOOK_FUNC(name, ret, ...)                         \
-    using name##_t = ret(__fastcall*)(__VA_ARGS__);        \
-    inline name##_t o##name = nullptr;                      \
+// Declare a hooked function and its original-pointer trampoline.
+// Expands to:
+//   1. A function-pointer typedef:   typedef HMODULE(__fastcall* LoadModuleWithPath_t)(const char*, bool);
+//   2. The trampoline pointer:        inline LoadModuleWithPath_t oLoadModuleWithPath = nullptr;
+//   3. The hook function signature:   HMODULE __fastcall hkLoadModuleWithPath(const char* path, bool flags)
+// Write the hook body in braces immediately after. Call o<name>(...) to invoke the original.
+#define LC_HOOK_DEF(name, ret, ...)                           \
+    typedef ret(__fastcall* name##_t)(__VA_ARGS__);            \
+    inline name##_t o##name = nullptr;                          \
     ret __fastcall hk##name(__VA_ARGS__)
 
-// Finds the target function by scanning module for its byte pattern (via FIND_SIG),
-// stores the original address in o<name>, and tells Detours to redirect calls to hk<name>.
-// If the pattern is not found, the hook is silently skipped. Call between HOOK_BEGIN/HOOK_END.
-#define INSTALL_HOOK(module, name)                                    \
+// Locate the target via FIND_SIG, store the original in o<name>, redirect to hk<name>.
+// Silently skips if the pattern is not found. Call inside LC_TX_OPEN / LC_TX_COMMIT.
+#define LC_ATTACH(module, name)                                       \
     do {                                                              \
         void* _p_ = FIND_SIG(module, name);                            \
         if (_p_) {                                                    \
@@ -58,11 +48,11 @@
         }                                                             \
     } while (0)
 
-#define INSTALL_HOOK_D(name)            INSTALL_HOOK(diversion_hModule, name)
+#define LC_ATTACH_D(name)            LC_ATTACH(diversion_hModule, name)
 
-// Same as INSTALL_HOOK but takes an explicit signature array instead of following
-// the PatternDb.h naming convention. Use when the array name differs from the function name.
-#define INSTALL_HOOK_EX(module, name, sigs)                           \
+// Like LC_ATTACH but accepts an explicit signature array instead of using the
+// PatternDb.h naming convention. Use when the array name differs from the function name.
+#define LC_ATTACH_EX(module, name, sigs)                              \
     do {                                                              \
         void* _p_ = ByteSearch(module, #name, sigs, std::size(sigs));  \
         if (_p_) {                                                    \
@@ -72,12 +62,27 @@
         }                                                             \
     } while (0)
 
-#define INSTALL_HOOK_EX_D(name, sigs)     INSTALL_HOOK_EX(diversion_hModule, name, sigs)
+#define LC_ATTACH_EX_D(name, sigs)     LC_ATTACH_EX(diversion_hModule, name, sigs)
 
-// Two-stage search: tries to locate the function via string cross-reference first
-// (more robust across builds), then falls back to byte patterns if no string hit is found.
-// strSigs is a list of StringXRefSig entries; byteSigs is a Signature array from PatternDb.h.
-#define INSTALL_HOOK_STR_D(name, strSigs, byteSigs)                           \
+// Attach via string XRef only. Use when no reliable byte pattern exists.
+#define LC_ATTACH_STR_ONLY_D(name, strSigs)                                   \
+    do {                                                                       \
+        void* _p_ = nullptr;                                                   \
+        for (const auto& _s_ : (strSigs)) {                                    \
+            _p_ = StringFind::FindFunction(diversion_hModule,                  \
+                                           _s_.str, _s_.occurrence);            \
+            if (_p_) break;                                                    \
+        }                                                                      \
+        if (_p_) {                                                             \
+            o##name = (name##_t)_p_;                                           \
+            DetourAttach(reinterpret_cast<PVOID*>(&o##name),                   \
+                         reinterpret_cast<PVOID>(hk##name));                   \
+        }                                                                      \
+    } while (0)
+
+// Two-stage attach: string cross-reference first (robust across builds),
+// byte-pattern fallback if no string hit. strSigs = StringXRefSig list; byteSigs = Signature array.
+#define LC_ATTACH_STR_D(name, strSigs, byteSigs)                              \
     do {                                                                       \
         void* _p_ = nullptr;                                                   \
         for (const auto& _s_ : (strSigs)) {                                    \
@@ -94,23 +99,36 @@
         }                                                                      \
     } while (0)
 
-// Finds the function address and stores it in o<name> without installing a hook.
-// Use this to get a callable pointer to an internal Steam function without intercepting it.
-// Does not touch Detours — no transaction needed.
-#define RESOLVE(module, name) \
+// Resolve a function address into o<name> without hooking it.
+// Use to call internal Steam functions directly. No Detours transaction needed.
+#define LC_RESOLVE(module, name) \
     o##name = reinterpret_cast<name##_t>(FIND_SIG(module, name))
 
-#define RESOLVE_D(name)       RESOLVE(diversion_hModule, name)
+#define LC_RESOLVE_D(name)       LC_RESOLVE(diversion_hModule, name)
 
-#define RESOLVE_EX(module, name, sigs) \
+#define LC_RESOLVE_EX(module, name, sigs) \
     o##name = reinterpret_cast<name##_t>(ByteSearch(module, #name, sigs, std::size(sigs)))
 
-#define RESOLVE_EX_D(name, sigs)  RESOLVE_EX(diversion_hModule, name, sigs)
+#define LC_RESOLVE_EX_D(name, sigs)  LC_RESOLVE_EX(diversion_hModule, name, sigs)
 
-// Detaches the Detours hook and clears o<name> back to nullptr.
-// Checks o<name> before detaching so it is safe to call even if the hook was never installed
-// (e.g. because the pattern didn't match at startup). Call between UNHOOK_BEGIN/UNHOOK_END.
-#define UNINSTALL_HOOK(name)                                          \
+// Two-stage resolve: string XRef first, byte-pattern fallback.
+#define LC_RESOLVE_STR_D(name, strSigs, byteSigs)                              \
+    do {                                                                        \
+        void* _p_ = nullptr;                                                    \
+        for (const auto& _s_ : (strSigs)) {                                     \
+            _p_ = StringFind::FindFunction(diversion_hModule,                   \
+                                           _s_.str, _s_.occurrence);             \
+            if (_p_) break;                                                     \
+        }                                                                       \
+        if (!_p_) _p_ = ByteSearch(diversion_hModule, #name,                   \
+                                    (byteSigs), std::size((byteSigs)));          \
+        o##name = reinterpret_cast<name##_t>(_p_);                              \
+    } while (0)
+
+// Remove a Detours hook and clear the trampoline pointer to nullptr.
+// Safe to call even if the hook was never installed (pattern miss at startup).
+// Call inside LC_TX_OPEN / LC_TX_COMMIT.
+#define LC_DETACH(name)                                               \
     do {                                                              \
         if (o##name) {                                                \
             DetourDetach(reinterpret_cast<PVOID*>(&o##name),           \

@@ -39,7 +39,7 @@ window.Bridge = (function() {
             'download_progress',
             'task_finished',
             'log_message',
-            'gl_progress'
+            'lc_progress'
         ];
         signalNames.forEach(function(name) {
             if (_py[name] && typeof _py[name].connect === 'function') {

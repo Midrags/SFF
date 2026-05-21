@@ -8,7 +8,7 @@ namespace {
     constexpr int MAX_RETRY = 20;
     constexpr auto RETRY_INTERVAL = 300ms;
 
-    HOOK_FUNC(LoadModuleWithPath, HMODULE, const char* path, bool flags) {
+    LC_HOOK_DEF(LoadModuleWithPath, HMODULE, const char* path, bool flags) {
         LOG_INFO("LoadModuleWithPath called with path: {} , flags: {}", path, flags);
         // wait for hooks to be installed 
         for (int i = 0; i < MAX_RETRY && !g_HooksInstalled.load(); ++i){
@@ -24,14 +24,14 @@ namespace {
 
 namespace SteamUI {
     void CoreHook() {
-        HOOK_BEGIN();
-        INSTALL_HOOK(GetModuleHandleA("steamui.dll"), LoadModuleWithPath);
-        HOOK_END();
+        LC_TX_OPEN();
+        LC_ATTACH(GetModuleHandleA("steamui.dll"), LoadModuleWithPath);
+        LC_TX_COMMIT();
     }
 
     void CoreUnhook() {
-        UNHOOK_BEGIN();
-        UNINSTALL_HOOK(LoadModuleWithPath);
-        UNHOOK_END();
+        LC_TX_OPEN();
+        LC_DETACH(LoadModuleWithPath);
+        LC_TX_COMMIT();
     }
 }

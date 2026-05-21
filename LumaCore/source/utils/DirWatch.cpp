@@ -3,215 +3,189 @@
 #include "LuaLoader.h"
 #include "hooks/SteamCapture.h"
 #include "Logger.h"
-#include <thread>
 #include <atomic>
-#include <vector>
 #include <string>
+#include <thread>
 #include <unordered_map>
+#include <vector>
 
 namespace DirWatch {
-    static std::atomic<bool> g_running{false};
-    static std::thread g_watcherThread;
-    static std::vector<std::string> g_watchDirs;
 
-    static const DWORD kDebounceMs = 500;
+    static constexpr DWORD kBufBytes   = 65536;
+    static constexpr DWORD kDebounceMs = 500;
 
-    struct FileChange {
+    // ── WatchSlot: encapsulates all per-directory watch state ──────────────────
+    // Each monitored directory gets one slot. Open() acquires the directory handle
+    // and arms the first overlapped read. Harvest() drains one completed read into
+    // the caller-supplied accumulator map (full path -> action) and immediately
+    // re-arms. Close() tears down the slot cleanly.
+    struct WatchSlot {
         std::string path;
-        DWORD action;   // FILE_ACTION_ADDED / MODIFIED / REMOVED
-    };
+        HANDLE      hDir   = nullptr;
+        HANDLE      hEvent = nullptr;
+        OVERLAPPED  ov     = {};
+        char        buf[kBufBytes]{};
 
-    // Merge new changes into accumulated map, keeping last action per file.
-    static void MergeChanges(
-        std::unordered_map<std::string, DWORD>& accumulated,
-        std::vector<std::string>& order,
-        const std::vector<FileChange>& newChanges)
-    {
-        for (const auto& ch : newChanges) {
-            if (accumulated.find(ch.path) == accumulated.end())
-                order.push_back(ch.path);
-            accumulated[ch.path] = ch.action;
-        }
-    }
+        bool Open() {
+            hEvent = CreateEventA(nullptr, FALSE, FALSE, nullptr);
+            if (!hEvent) return false;
+            ov.hEvent = hEvent;
 
-    static void ProcessChanges(
-        const std::unordered_map<std::string, DWORD>& accumulated,
-        const std::vector<std::string>& order)
-    {
-        LOG_PACKAGE_INFO("Processing {} Lua file change(s)", order.size());
-        for (const auto& path : order) {
-            DWORD action = accumulated.at(path);
-            if (action == FILE_ACTION_REMOVED) {
-                LuaLoader::UnloadFile(path);
-            } else {
-                // ADDED or MODIFIED — ParseFile internally calls UnloadFile first.
-                LuaLoader::ParseFile(path);
-            }
-        }
-
-        SteamCapture::NotifyLicenseChanged();
-        LOG_PACKAGE_INFO("Refresh completed");
-    }
-
-    // Collects .lua file changes from the notification buffer.
-    // Deduplicates by filename — keeps only the last action per file.
-    static std::vector<FileChange> CollectLuaChanges(
-        const char* buffer, DWORD bytesReturned, const std::string& dir)
-    {
-        // Use a map to deduplicate: filename -> last action
-        std::unordered_map<std::string, DWORD> seen;
-        std::vector<std::string> order; // preserve first-seen order
-
-        const FILE_NOTIFY_INFORMATION* info =
-            reinterpret_cast<const FILE_NOTIFY_INFORMATION*>(buffer);
-        while (info) {
-            if (info->Action == FILE_ACTION_ADDED
-                || info->Action == FILE_ACTION_MODIFIED
-                || info->Action == FILE_ACTION_REMOVED) {
-                std::wstring_view fname(info->FileName, info->FileNameLength / sizeof(wchar_t));
-                if (fname.size() >= 4 && fname.substr(fname.size() - 4) == L".lua") {
-                    std::string name(fname.begin(), fname.end());
-                    if (seen.find(name) == seen.end())
-                        order.push_back(name);
-                    seen[name] = info->Action; // last action wins
-                }
-            }
-            if (info->NextEntryOffset == 0) break;
-            info = reinterpret_cast<const FILE_NOTIFY_INFORMATION*>(
-                reinterpret_cast<const char*>(info) + info->NextEntryOffset);
-        }
-
-        std::vector<FileChange> result;
-        for (const auto& name : order) {
-            DWORD action = seen[name];
-            LOG_PACKAGE_INFO("Lua file {}: {}",
-                action == FILE_ACTION_ADDED ? "added" :
-                action == FILE_ACTION_MODIFIED ? "modified" : "removed", name);
-            result.push_back({dir + "\\" + name, action});
-        }
-        return result;
-    }
-
-    static bool IssueRead(HANDLE dir, char* buf, DWORD bufSize, OVERLAPPED* ov) {
-        DWORD dummy = 0;
-        if (!ReadDirectoryChangesW(dir, buf, bufSize, FALSE,
-                                   FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE,
-                                   &dummy, ov, nullptr)) {
-            if (GetLastError() != ERROR_IO_PENDING) {
-                LOG_PACKAGE_WARN("ReadDirectoryChangesW failed: {}", GetLastError());
-                return false;
-            }
-        }
-        return true;
-    }
-
-    static void WatcherThread() {
-        const size_t numDirs = g_watchDirs.size();
-        std::vector<HANDLE> dirHandles(numDirs, nullptr);
-        std::vector<OVERLAPPED> overlapped(numDirs);
-        std::vector<HANDLE> events(numDirs, nullptr);
-        std::vector<std::vector<char>> buffers(numDirs);
-
-        for (size_t i = 0; i < numDirs; ++i) {
-            events[i] = CreateEventA(nullptr, FALSE, FALSE, nullptr);
-            overlapped[i].hEvent = events[i];
-            buffers[i].resize(65536);
-
-            dirHandles[i] = CreateFileA(
-                g_watchDirs[i].c_str(),
+            hDir = CreateFileA(path.c_str(),
                 FILE_LIST_DIRECTORY,
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                 nullptr, OPEN_EXISTING,
                 FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
                 nullptr);
-
-            if (dirHandles[i] == INVALID_HANDLE_VALUE) {
-                LOG_PACKAGE_WARN("Failed to open: {} (err={})", g_watchDirs[i], GetLastError());
-                dirHandles[i] = nullptr;
-                continue;
+            if (hDir == INVALID_HANDLE_VALUE) {
+                LOG_PACKAGE_WARN("DirWatch: failed to open '{}' (err={})", path, GetLastError());
+                CloseHandle(hEvent);
+                hDir = hEvent = nullptr;
+                return false;
             }
-
-            if (!IssueRead(dirHandles[i], buffers[i].data(),
-                           static_cast<DWORD>(buffers[i].size()), &overlapped[i])) {
-                CloseHandle(dirHandles[i]);
-                dirHandles[i] = nullptr;
-                continue;
-            }
-
-            LOG_PACKAGE_INFO("Watching: {}", g_watchDirs[i]);
+            return Arm();
         }
 
-        bool allFailed = true;
-        for (auto& h : dirHandles) if (h) { allFailed = false; break; }
-        if (allFailed) {
-            LOG_PACKAGE_WARN("No directories could be opened");
-            for (auto& e : events) if (e) CloseHandle(e);
+        bool Arm() {
+            DWORD nb = 0;
+            if (!ReadDirectoryChangesW(hDir, buf, kBufBytes, FALSE,
+                                       FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE,
+                                       &nb, &ov, nullptr)) {
+                if (GetLastError() != ERROR_IO_PENDING) {
+                    LOG_PACKAGE_WARN("DirWatch: ReadDirectoryChangesW failed (err={})",
+                                     GetLastError());
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Drain one completed overlapped result into acc (full-path -> last-action map).
+        // Re-arms immediately so events that arrive during the debounce window aren't lost.
+        void Harvest(std::unordered_map<std::string, DWORD>& acc,
+                     std::vector<std::string>& ordering)
+        {
+            DWORD nb = 0;
+            if (!GetOverlappedResult(hDir, &ov, &nb, FALSE) || !nb) { Arm(); return; }
+
+            const FILE_NOTIFY_INFORMATION* rec =
+                reinterpret_cast<const FILE_NOTIFY_INFORMATION*>(buf);
+            while (rec) {
+                DWORD act = rec->Action;
+                if (act == FILE_ACTION_ADDED || act == FILE_ACTION_MODIFIED
+                        || act == FILE_ACTION_REMOVED) {
+                    std::wstring_view fn(rec->FileName, rec->FileNameLength / sizeof(wchar_t));
+                    if (fn.size() >= 4 && fn.substr(fn.size() - 4) == L".lua") {
+                        std::string name(fn.size(), '\0');
+                        for (size_t i = 0; i < fn.size(); ++i)
+                            name[i] = static_cast<char>(fn[i]);
+                        std::string full = path + "\\" + name;
+                        LOG_PACKAGE_INFO("Lua file {}: {}",
+                            act == FILE_ACTION_ADDED    ? "added"    :
+                            act == FILE_ACTION_MODIFIED ? "modified" : "removed", name);
+                        if (!acc.count(full)) ordering.push_back(full);
+                        acc[full] = act;
+                    }
+                }
+                if (!rec->NextEntryOffset) break;
+                rec = reinterpret_cast<const FILE_NOTIFY_INFORMATION*>(
+                    reinterpret_cast<const char*>(rec) + rec->NextEntryOffset);
+            }
+            Arm();
+        }
+
+        void Close() {
+            if (hDir && hDir != INVALID_HANDLE_VALUE) { CloseHandle(hDir); hDir = nullptr; }
+            if (hEvent) { CloseHandle(hEvent); hEvent = nullptr; }
+        }
+
+        bool Valid() const { return hDir && hDir != INVALID_HANDLE_VALUE; }
+    };
+
+    static std::atomic<bool> g_alive{false};
+    static std::thread        g_MonitorThread;
+    static std::vector<std::string> g_dirs;
+
+    // ── MonitorThread ──────────────────────────────────────────────────────────
+    static void MonitorThread()
+    {
+        // Build one WatchSlot per directory.
+        std::vector<WatchSlot> slots(g_dirs.size());
+        for (size_t i = 0; i < slots.size(); ++i) {
+            slots[i].path = g_dirs[i];
+            if (slots[i].Open())
+                LOG_PACKAGE_INFO("DirWatch: watching '{}'", g_dirs[i]);
+        }
+
+        // Collect only the valid slots into the event/index arrays for WaitForMultipleObjects.
+        std::vector<HANDLE> evts;
+        std::vector<size_t> idxMap;
+        evts.reserve(slots.size());
+        idxMap.reserve(slots.size());
+        for (size_t i = 0; i < slots.size(); ++i) {
+            if (slots[i].Valid()) {
+                evts.push_back(slots[i].hEvent);
+                idxMap.push_back(i);
+            }
+        }
+
+        if (evts.empty()) {
+            LOG_PACKAGE_WARN("DirWatch: no directories could be opened");
+            for (auto& s : slots) s.Close();
             return;
         }
 
-        while (g_running) {
-            DWORD waitResult = WaitForMultipleObjects(
-                static_cast<DWORD>(numDirs), events.data(), FALSE, 1000);
+        const DWORD nEvts = static_cast<DWORD>(evts.size());
 
-            if (!g_running) break;
-            if (waitResult == WAIT_TIMEOUT) continue;
-            if (waitResult < WAIT_OBJECT_0 || waitResult >= WAIT_OBJECT_0 + numDirs) continue;
+        while (g_alive) {
+            DWORD wr = WaitForMultipleObjects(nEvts, evts.data(), FALSE, 1000);
+            if (!g_alive) break;
+            if (wr == WAIT_TIMEOUT) continue;
+            if (wr < WAIT_OBJECT_0 || wr >= WAIT_OBJECT_0 + nEvts) continue;
 
-            // First event arrived — collect it and start debounce window.
-            // Keep draining events until no new events arrive within kDebounceMs.
-            std::unordered_map<std::string, DWORD> accumulated;
-            std::vector<std::string> order;
+            std::unordered_map<std::string, DWORD> acc;
+            std::vector<std::string> ordering;
 
-            auto drainEvent = [&](size_t idx) {
-                HANDLE dir = dirHandles[idx];
-                if (!dir) return;
-                DWORD bytesReturned = 0;
-                if (GetOverlappedResult(dir, &overlapped[idx], &bytesReturned, FALSE)
-                    && bytesReturned > 0) {
-                    auto changes = CollectLuaChanges(
-                        buffers[idx].data(), bytesReturned, g_watchDirs[idx]);
-                    MergeChanges(accumulated, order, changes);
-                }
-                // Re-arm immediately so we catch events during debounce
-                IssueRead(dir, buffers[idx].data(),
-                          static_cast<DWORD>(buffers[idx].size()), &overlapped[idx]);
-            };
+            slots[idxMap[wr - WAIT_OBJECT_0]].Harvest(acc, ordering);
 
-            drainEvent(waitResult - WAIT_OBJECT_0);
-
-            // Debounce loop: keep waiting for more events
-            while (g_running) {
-                DWORD debounceResult = WaitForMultipleObjects(
-                    static_cast<DWORD>(numDirs), events.data(), FALSE, kDebounceMs);
-                if (!g_running) break;
-                if (debounceResult == WAIT_TIMEOUT) break; // quiet period — done accumulating
-                if (debounceResult < WAIT_OBJECT_0 || debounceResult >= WAIT_OBJECT_0 + numDirs) break;
-                drainEvent(debounceResult - WAIT_OBJECT_0);
+            // Debounce: keep draining until a quiet period of kDebounceMs.
+            while (g_alive) {
+                DWORD dr = WaitForMultipleObjects(nEvts, evts.data(), FALSE, kDebounceMs);
+                if (!g_alive || dr == WAIT_TIMEOUT) break;
+                if (dr < WAIT_OBJECT_0 || dr >= WAIT_OBJECT_0 + nEvts) break;
+                slots[idxMap[dr - WAIT_OBJECT_0]].Harvest(acc, ordering);
             }
 
-            if (!order.empty())
-                ProcessChanges(accumulated, order);
+            if (!ordering.empty()) {
+                LOG_PACKAGE_INFO("DirWatch: processing {} Lua file change(s)", ordering.size());
+                for (const auto& fullPath : ordering) {
+                    if (acc[fullPath] == FILE_ACTION_REMOVED)
+                        LuaLoader::UnloadFile(fullPath);
+                    else
+                        LuaLoader::ParseFile(fullPath);
+                }
+                SteamCapture::NotifyLicenseChanged();
+                LOG_PACKAGE_INFO("DirWatch: refresh completed");
+            }
         }
 
-        for (auto& h : dirHandles) if (h) CloseHandle(h);
-        for (auto& e : events) if (e) CloseHandle(e);
-        LOG_PACKAGE_INFO("Stopped");
+        for (auto& s : slots) s.Close();
+        LOG_PACKAGE_INFO("DirWatch: stopped");
     }
 
     void Start(const std::vector<std::string>& directories) {
-        if (g_running.exchange(true)) {
-            LOG_PACKAGE_WARN("Already running");
+        if (g_alive.exchange(true)) {
+            LOG_PACKAGE_WARN("DirWatch: already running");
             return;
         }
-        g_watchDirs = directories;
-        g_watcherThread = std::thread(WatcherThread);
+        g_dirs          = directories;
+        g_MonitorThread = std::thread(MonitorThread);
     }
 
     void Stop() {
-        if (!g_running) return;
-        g_running = false;
-        if (g_watcherThread.joinable()) {
-            g_watcherThread.join();
-        }
+        if (!g_alive) return;
+        g_alive = false;
+        if (g_MonitorThread.joinable())
+            g_MonitorThread.join();
     }
 }

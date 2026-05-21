@@ -11,7 +11,7 @@ SteaMidra helps you set up games to work with Steam using Lua scripts, manifests
 
 Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
-**Latest SteaMidra setup tutorial:** ["Normal" tutorial for new users](https://youtu.be/9aAaQ8dSnTY)
+**Old SteaMidra setup tutorial (outdated):** ["Outdated" tutorial for new users](https://youtu.be/9aAaQ8dSnTY)
 
 **Python setup tutorial:** [Python Tutorial](https://youtu.be/cFfItiV8-pk)
 
@@ -122,7 +122,7 @@ See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for common problems and s
 
 **Made by Midrag and his brother.**
 
-**LumaCore** – Windows DLL injector bundled with SteaMidra. Reads Lua files from `Steam/config/stplug-in/` to inject app licenses into Package 0 without AppList files.
+**LumaCore** – Windows DLL hook library bundled with SteaMidra. Injects into Steam at startup via a `dwmapi.dll` proxy, reads Lua files from `Steam/config/stplug-in/`, and patches Steam's in-memory license tables so games appear owned without AppList files or Steam restarts.
 
 **gbe_fork** – The "Crack a game" feature uses **gbe_fork**, a Steam emulator for running games offline. License in `third_party_licenses/gbe_fork.LICENSE`.
 

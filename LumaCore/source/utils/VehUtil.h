@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <cstdint>
 #include <vector>
+#include "hooks/StringFind.h"
 
 // ── VEH one-shot capture entry ───────────────────────────────────────────────
 struct CaptureEntry {
@@ -18,7 +19,7 @@ struct CaptureEntry {
 #define VEH_ARM(name, out)          ARM_CAPTURE_D(name, out);
 // LOCATE_LIST(X): X(FuncName)
 #define VEH_DECL_RESOLVE(name)      name##_t o##name;
-#define VEH_LOCATE(name)            RESOLVE_D(name);
+#define VEH_LOCATE(name)            LC_RESOLVE_D(name);
 #define VEH_ZERO_RESOLVE(name)      o##name = nullptr;
 
 // ── ARM_CAPTURE_D ────────────────────────────────────────────────────────────
@@ -27,6 +28,31 @@ struct CaptureEntry {
 #define ARM_CAPTURE_D(name, outVar)                                            \
     do {                                                                        \
         if (auto* _p_ = FIND_SIG(diversion_hModule, name)) {                   \
+            o##name = reinterpret_cast<name##_t>(_p_);                         \
+            g_captures.push_back({                                              \
+                reinterpret_cast<void**>(&o##name),                            \
+                reinterpret_cast<void**>(&(outVar)),                           \
+                *reinterpret_cast<uint8_t*>(_p_),                              \
+                #name                                                           \
+            });                                                                 \
+            VehUtil::ArmInt3(_p_);                                              \
+        }                                                                       \
+    } while (0)
+
+// ── ARM_CAPTURE_STR_D ───────────────────────────────────────────────────────
+// Like ARM_CAPTURE_D but tries string cross-reference first, then falls back
+// to byte pattern. Use when the target function contains a globally unique
+// string literal.
+#define ARM_CAPTURE_STR_D(name, outVar, strSigs, byteSigs)                     \
+    do {                                                                        \
+        void* _p_ = nullptr;                                                    \
+        for (const auto& _s_ : (strSigs)) {                                     \
+            _p_ = StringFind::FindFunction(diversion_hModule,                   \
+                                           _s_.str, _s_.occurrence);             \
+            if (_p_) break;                                                     \
+        }                                                                       \
+        if (!_p_) _p_ = FIND_SIG(diversion_hModule, name);                     \
+        if (_p_) {                                                              \
             o##name = reinterpret_cast<name##_t>(_p_);                         \
             g_captures.push_back({                                              \
                 reinterpret_cast<void**>(&o##name),                            \

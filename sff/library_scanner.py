@@ -53,7 +53,7 @@ class LibraryScanner:
         self.lua_backup_path = lua_backup_path
         self.applist_folder = applist_folder
 
-    def _get_applist_ids(self):
+    def _get_injection_ids(self):
         app_ids = set()
         if not self.applist_folder or not self.applist_folder.exists():
             return app_ids
@@ -104,7 +104,7 @@ class LibraryScanner:
 
     def scan_all_games(self, scan_all_drives = True):
         logger.info("Starting comprehensive library scan...")
-        applist_ids = self._get_applist_ids()
+        applist_ids = self._get_injection_ids()
         if scan_all_drives:
             steam_libs = self._scan_all_drives()
         else:
@@ -203,10 +203,10 @@ class LibraryScanner:
         report.append("=" * 80)
         report.append(f"\nTotal games found: {len(games)}")
         report.append(f"Downloaded games (with files): {len(downloaded_only)}")
-        report.append(f"Games in AppList: {sum(1 for g in games if g.in_applist)}")
+        report.append(f"Games in Injection: {sum(1 for g in games if g.in_applist)}")
         report.append(f"Games needing manifests: {len(needs_manifest)}")
         report.append(f"Games with lua backups: {sum(1 for g in games if g.has_lua_backup)}")
-        report.append(f"Orphaned AppList IDs (no ACF): {sum(1 for g in games if not g.has_acf)}")
+        report.append(f"Orphaned Injection IDs (no ACF): {sum(1 for g in games if not g.has_acf)}")
         if downloaded_only:
             report.append("\n" + "=" * 80)
             report.append("Downloaded Games:")
@@ -214,7 +214,7 @@ class LibraryScanner:
             for game in sorted(downloaded_only, key=lambda g: g.name.lower()):
                 report.append(f"\n[{game.app_id}] {game.name}")
                 report.append(f"  Library: {game.library_path}")
-                report.append(f"  In AppList: {'Yes' if game.in_applist else 'No'}")
+                report.append(f"  In Injection: {'Yes' if game.in_applist else 'No'}")
                 report.append(f"  Has Lua Backup: {'Yes' if game.has_lua_backup else 'No'}")
                 report.append(f"  Needs Manifest: {'Yes' if game.needs_manifest else 'No'}")
         if needs_manifest:
@@ -225,7 +225,7 @@ class LibraryScanner:
                 report.append(f"\n[{game.app_id}] {game.name}")
                 if game.has_acf:
                     report.append(f"  Library: {game.library_path}")
-                report.append(f"  In AppList: {'Yes' if game.in_applist else 'No'}")
+                report.append(f"  In Injection: {'Yes' if game.in_applist else 'No'}")
                 report.append(f"  Has Lua Backup: {'Yes' if game.has_lua_backup else 'No'}")
         return "\n".join(report)
 

@@ -1,5 +1,32 @@
 # Changelog
 
+## 6.2
+
+### LumaCore — Bug Fixes and Improvements
+
+- Fixed critical bug where Lua-added app IDs were invisible to Steam after injection — the app ID vector size was not updated after memory growth in two separate code paths
+- Fixed packet router writing modifications directly into Steam's own memory buffers — all patched data now goes into a dedicated local buffer
+- Fixed unbounded `g_JobIdToAppId` map growth — entries older than 30 seconds are pruned on each insert
+- Fixed data race on the online-fix real app ID — converted to `std::atomic<AppId_t>`
+- Fixed race conditions in the send and receive ring buffers — separate mutexes added for each pool
+- Fixed DLL unload race — the init thread handle is now stored globally and waited on during detach
+- Fixed Steam install path detection at startup — uses `GetModuleHandleExA` + `GetModuleFileNameA` instead of `GetCurrentDirectoryA`, which was unreliable inside DllMain
+- Fixed `-onlinefix` flag detection — uses exact word-boundary matching to prevent false matches on flags like `-onlinefixpatch`
+- Fixed buffer overflow risk in the packet router — size check added before all protobuf serialization calls
+- Fixed controller and game overlay compatibility when `-onlinefix` is active
+- Fixed IPC handler lookup — replaced linear O(N) scan with an O(1) unordered map
+- Added `RichPresence` module — games unlocked via Lua now show a "currently playing" status in Steam
+
+### SteaMidra — Improvements
+
+- Auto LC Setup now removes the legacy `diversion.dll` file when updating from an older LumaCore version
+- Added `LumaCoreManager` class for consistent app ID management on Windows
+- Added game name caching for Lua backup file listings
+- Various download manager, UI, and SLSteam improvements
+- Also fixed the bugs with OS unsupported and all that stuff
+
+---
+
 ## 6.1.5
 
 ### New Feature — LumaCore replaces GreenLuma (Windows)

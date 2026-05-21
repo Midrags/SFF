@@ -26,8 +26,12 @@ from sff.structs import NamedIDs
 def _load_named_ids(file):
     if not file.exists():
         return NamedIDs({})
-    with file.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with file.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else NamedIDs({})
+    except (json.JSONDecodeError, ValueError):
+        return NamedIDs({})
 
 
 def _save_named_ids(file, data):

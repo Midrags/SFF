@@ -44,7 +44,7 @@ from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from sff.steam_path import validate_steam_path
 from sff.storage.settings import get_setting, set_setting
 from sff.structs import OSType, Settings
-from sff.utils import root_folder
+from sff.utils import root_folder, sff_data_dir
 
 try:
     _root = root_folder(outside_internal=True)
@@ -64,7 +64,7 @@ except Exception as e:
 
 logger = logging.getLogger("sff")
 logger.setLevel(logging.DEBUG)
-fh = logging.FileHandler("debug.log")
+fh = logging.FileHandler(str(sff_data_dir() / "debug.log"))
 fh.setFormatter(
     logging.Formatter(
         "%(asctime)s::%(name)s::%(levelname)s::%(message)s",

@@ -5,7 +5,7 @@
 // Prepares the runtime paths and loads the hooked copy of steamclient64.dll.
 //
 // The diversion pattern: instead of hooking the real steamclient64.dll directly,
-// LumaCore copies it to bin\diversion.dll and loads that copy. The SteamUI hook then
+// LumaCore copies it to bin\lcoverlay.dll and loads that copy. The SteamUI hook then
 // intercepts steamui.dll's LoadModuleWithPath("steamclient64.dll") call and returns
 // diversion_hModule, so Steam's UI layer ends up using the hooked copy transparently.
 //
@@ -14,11 +14,18 @@
 // Returns false if either operation fails after all retries.
 bool LoadDiversion()
 {
-    if (!GetCurrentDirectoryA(MAX_PATH, SteamInstallPath)) {
+    HMODULE hSelf = nullptr;
+    GetModuleHandleExA(
+        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        reinterpret_cast<LPCSTR>(&LoadDiversion), &hSelf);
+    if (!GetModuleFileNameA(hSelf, SteamInstallPath, MAX_PATH))
         return false;
-    }
-    sprintf_s(SteamclientPath, MAX_PATH, "%s\\steamclient64.dll",  SteamInstallPath);
-    sprintf_s(DiversionPath,   MAX_PATH, "%s\\bin\\diversion.dll", SteamInstallPath);
+    char* lastSlash = strrchr(SteamInstallPath, '\\');
+    if (lastSlash) *lastSlash = '\0';
+
+    sprintf_s(SteamclientPath, MAX_PATH, "%s\\steamclient64.dll",   SteamInstallPath);
+    sprintf_s(DiversionPath,   MAX_PATH, "%s\\bin\\lcoverlay.dll",  SteamInstallPath);
     sprintf_s(LuaDir,          MAX_PATH, "%s\\config\\stplug-in", SteamInstallPath);
     sprintf_s(ConfigPath,      MAX_PATH, "%s\\lumacore.toml",      SteamInstallPath);
     // ensure bin\ directory exists before copying
@@ -48,7 +55,7 @@ bool LoadDiversion()
             Sleep(100);
         }
     }
-    LOG_INFO("LumaCore: loaded diversion.dll from {}", DiversionPath);
+    LOG_INFO("LumaCore: loaded lcoverlay.dll from {}", DiversionPath);
     return true;
 }
 
@@ -116,14 +123,20 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, PVOID pvReserved)
         // Start InitThread to do all real work outside the loader lock.
         // DllMain must return quickly and must not call LoadLibrary, open files,
         // or install hooks — doing so under the loader lock causes deadlocks.
-        HANDLE h = CreateThread(nullptr, 0, InitThread, hModule, 0, nullptr);
-        if (h) CloseHandle(h);
+        g_InitThread = CreateThread(nullptr, 0, InitThread, hModule, 0, nullptr);
     }
     else if (dwReason == DLL_PROCESS_DETACH)
     {
-        DirWatch::Stop();
-        SteamUI::CoreUnhook();
-        LumaCore::Detach();
+        if (g_InitThread) {
+            WaitForSingleObject(g_InitThread, 5000);
+            CloseHandle(g_InitThread);
+            g_InitThread = nullptr;
+        }
+        if (g_HooksInstalled.load()) {
+            DirWatch::Stop();
+            SteamUI::CoreUnhook();
+            LumaCore::Detach();
+        }
     }
 
     return TRUE;

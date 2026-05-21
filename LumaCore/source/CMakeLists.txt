@@ -91,10 +91,11 @@ add_library(LumaCore SHARED
     hooks/CmdUtils.cpp
     # hooks/KeyValues.cpp  # disabled: KeyValues::Install() not called
     hooks/ManifestBind.cpp
-    hooks/SteamCapture.cpp
+    hooks/RuntimeCapture.cpp
     hooks/PacketRouter.cpp
     hooks/SteamUI.cpp
     hooks/PackagePatch.cpp
+    hooks/RichPresence.cpp
     hooks/LicenseHooks.cpp
     hooks/StringFind.cpp
 

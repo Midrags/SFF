@@ -33,6 +33,7 @@ from typing import Optional, Union
 from colorama import Fore, Style
 
 from sff.app_injector.sls import SLSManager
+from sff.app_injector.lumacore import LumaCoreManager
 from sff.analytics import get_analytics_tracker
 from sff.download_manager import DownloadManager
 from sff.game_specific import ACFInfo, GameHandler
@@ -200,6 +201,8 @@ class UI:
                 self.sls_man = None
         else:
             self.sls_man = None
+        if os_type == OSType.WINDOWS:
+            self.app_list_man = LumaCoreManager(steam_path, provider)
         self.notification_service = get_notification_service()
         self.recent_files_manager = get_recent_files_manager()
         self.analytics_tracker = get_analytics_tracker()
@@ -356,10 +359,20 @@ class UI:
                     elif value is False and new_settings_value is True:
                         self.init_midi_player()
 
-    def _get_applist_ids(self):
-        if self.sls_man is None:
-            return None
-        return self.sls_man.get_local_ids()
+    def _get_injection_ids(self):
+        if self.sls_man is not None:
+            return self.sls_man.get_local_ids()
+        if self.os_type == OSType.WINDOWS:
+            stplug_in = self.steam_path / "config" / "stplug-in"
+            ids = set()
+            if stplug_in.exists():
+                for f in stplug_in.glob("*.lua"):
+                    try:
+                        ids.add(int(f.stem))
+                    except ValueError:
+                        pass
+            return ids
+        return None
 
     def _export_settings_submenu(self):
         print(Fore.CYAN + "\n=== Export Settings ===" + Style.RESET_ALL)
@@ -472,10 +485,32 @@ class UI:
         return MainReturnCode.LOOP
 
     @music_toggle_decorator
-    def applist_menu(self):
+    def injection_menu(self):
         if self.sls_man is not None:
             return self.sls_man.display_menu(self.provider)
-        print("No injection manager available on this platform.")
+        if self.app_list_man is not None:
+            stplug_in = self.steam_path / "config" / "stplug-in"
+            if not stplug_in.exists():
+                print(
+                    Fore.YELLOW
+                    + "LumaCore stplug-in folder not found. "
+                    + "Download a game first to register it."
+                    + Style.RESET_ALL
+                )
+                return MainReturnCode.LOOP_NO_PROMPT
+            ids = self.app_list_man.get_local_ids()
+            if not ids:
+                print(Fore.YELLOW + "No games registered in LumaCore stplug-in yet." + Style.RESET_ALL)
+            else:
+                print(Fore.CYAN + f"LumaCore stplug-in: {len(ids)} game(s) registered." + Style.RESET_ALL)
+                for app_id in sorted(ids):
+                    print(f"  App ID: {app_id}")
+            return MainReturnCode.LOOP_NO_PROMPT
+        print(
+            Fore.RED
+            + "No injection manager available on this platform."
+            + Style.RESET_ALL
+        )
         return MainReturnCode.LOOP_NO_PROMPT
 
     def remove_game_menu(self):
@@ -617,7 +652,7 @@ class UI:
     def handle_game_specific(self, choice):
         injection_manager = self.app_list_man or self.sls_man
         if injection_manager is None:
-            print("Unsupported OS for this action.")
+            print("Game injection manager not configured (Injection or SLSteam required).")
             return MainReturnCode.LOOP_NO_PROMPT
         if (lib_path := self.select_steam_library()) is None:
             return MainReturnCode.LOOP_NO_PROMPT
@@ -642,7 +677,7 @@ class UI:
     ):
         injection_manager = self.app_list_man or self.sls_man
         if injection_manager is None:
-            print("Unsupported OS for this action.")
+            print("Game injection manager not configured (Injection or SLSteam required).")
             return MainReturnCode.LOOP_NO_PROMPT
         steam_libs = get_steam_libs(self.steam_path)
         lib_path = steam_libs[0] if steam_libs else self.steam_path
@@ -672,7 +707,7 @@ class UI:
         if choice == "steam":
             injection_manager = self.app_list_man or self.sls_man
             if injection_manager is None:
-                print(Fore.RED + "Unsupported OS for this action." + Style.RESET_ALL)
+                print(Fore.RED + "Game injection manager not configured (Injection or SLSteam required)." + Style.RESET_ALL)
                 return MainReturnCode.LOOP_NO_PROMPT
             if (lib_path := self.select_steam_library()) is None:
                 return MainReturnCode.LOOP_NO_PROMPT
@@ -1383,7 +1418,7 @@ class UI:
         return MainReturnCode.LOOP_NO_PROMPT
 
     def update_all_manifests(self):
-        applist_ids = self._get_applist_ids()
+        applist_ids = self._get_injection_ids()
         if applist_ids is None:
             print("This OS is not supported for this action.")
             return MainReturnCode.LOOP_NO_PROMPT
@@ -1392,9 +1427,13 @@ class UI:
         provider = self._steam_provider()
         downloader = ManifestDownloader(provider, self.steam_path)
         steam_proc = (
-            SteamProcess(self.steam_path, self.app_list_man.applist_folder)
-            if self.app_list_man
-            else None
+            SteamProcess(
+                self.steam_path,
+                self.app_list_man.applist_folder if (
+                    self.app_list_man and getattr(self.app_list_man, 'applist_folder', None)
+                ) else None,
+            )
+            if self.os_type == OSType.WINDOWS else None
         )
         excluded_set = set(
             x.strip() for x in
@@ -1467,9 +1506,9 @@ class UI:
         )
         return MainReturnCode.LOOP
 
-    def export_applist_ids(self, export_path):
+    def export_injection_ids(self, export_path):
         try:
-            ids = self._get_applist_ids()
+            ids = self._get_injection_ids()
             if ids is None:
                 print(Fore.RED + "This OS is not supported for this action." + Style.RESET_ALL)
                 return MainReturnCode.EXIT
@@ -1525,7 +1564,7 @@ class UI:
 
     def auto_update_manifests(self):
         print(Fore.CYAN + "\n=== Auto-Update Manifests ===" + Style.RESET_ALL)
-        applist_ids = self._get_applist_ids()
+        applist_ids = self._get_injection_ids()
         if applist_ids is None:
             print(Fore.RED + "This OS is not supported for this action." + Style.RESET_ALL)
             return MainReturnCode.EXIT

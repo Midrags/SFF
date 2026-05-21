@@ -1971,7 +1971,7 @@ def group_by_version(depot_history: dict[str, list[ManifestEntry]], build_ids: d
                     # Use Steam CM manifest if available.  Depots that genuinely
                     # have no manifest on SteamDB (CM source also empty) are
                     # included with manifest_id="" so DDMod downloads them
-                    # without pinning and GreenLuma handles the unlock.
+                    # without pinning and LumaCore handles the unlock.
                     cm_fb = [e for e in depot_entries if e.manifest_id and e.source == "Steam CM"]
                     if cm_fb:
                         best = cm_fb[0]

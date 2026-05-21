@@ -40,7 +40,7 @@ class DownloadStatus(Enum):
 
 
 class DownloadMode(Enum):
-    GREENLUMA = "GreenLuma"
+    LUMACORE = "LumaCore"
 
 
 @dataclass
@@ -48,7 +48,7 @@ class DownloadItem:
     app_id: int
     game_name: str
     status: DownloadStatus = DownloadStatus.QUEUED
-    mode: DownloadMode = DownloadMode.GREENLUMA
+    mode: DownloadMode = DownloadMode.LUMACORE
     progress: int = 0  # 0-100
     total_bytes: int = 0
     downloaded_bytes: int = 0
@@ -153,7 +153,7 @@ class DownloadManager:
         app_id: int,
         game_name: str,
         dest_path: str,
-        mode = DownloadMode.GREENLUMA,
+        mode = DownloadMode.LUMACORE,
         download_func = None,
     ):
         # download_func(app_id, dest_path, progress_callback) -> bool

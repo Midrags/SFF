@@ -10,52 +10,48 @@
 // and ByteSearch falls back to trying all signature entries in declaration order.
 extern std::string g_steamBuildId;
 
-// Parses a hex-pattern string into two parallel arrays: one holding the expected byte values
-// and one holding a per-byte match flag. A concrete byte (e.g. "4C") writes its value into
-// bytes[] and sets mask[i] = 1 (must match). A wildcard "??" writes 0 into bytes[] and
-// sets mask[i] = 0 (skip this position during scan). Returns false if the string is empty
-// or contains a token that isn't a valid hex pair or ??.
+// Converts a single hex character to its numeric value, or -1 on invalid input.
+static int HexDigit(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+// Converts a hex-pattern string into two parallel arrays: byte values and match flags.
+// Concrete byte "4C" → bytes[i]=0x4C, mask[i]=1. Wildcard "??" → bytes[i]=0, mask[i]=0.
+// Returns false on empty input or any token that isn't a valid hex pair or "??".
 static bool ParseSignature(const char* str, std::vector<uint8_t>& bytes, std::vector<uint8_t>& mask)
 {
     bytes.clear();
     mask.clear();
 
     for (const char* p = str; *p; ) {
-        // skip delimiters
         if (*p == ' ' || *p == '\t' || *p == ',') { ++p; continue; }
 
         if (p[0] == '?' && p[1] == '?') {
             bytes.push_back(0);
-            mask.push_back(0);       // 0 = wildcard
+            mask.push_back(0);
             p += 2;
             continue;
         }
 
-        // expect two hex digits
-        char hi = p[0], lo = p[1];
-        if (!hi || !lo) return false;
+        int hi = HexDigit(p[0]);
+        int lo = HexDigit(p[1]);
+        if (hi < 0 || lo < 0) return false;
 
-        auto nib = [](char c) -> int {
-            if (c >= '0' && c <= '9') return c - '0';
-            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-            return -1;
-        };
-        int h = nib(hi), l = nib(lo);
-        if (h < 0 || l < 0) return false;
-
-        bytes.push_back((uint8_t)((h << 4) | l));
-        mask.push_back(1);           // 1 = must match
+        bytes.push_back(static_cast<uint8_t>((hi << 4) | lo));
+        mask.push_back(1);
         p += 2;
     }
     return !bytes.empty();
 }
 
-// Slides a window of patLen bytes across the module's full image and checks each position
-// against the parsed pattern. Where mask[i] == 1 the byte must match exactly; where
-// mask[i] == 0 (wildcard) it is accepted regardless of value.
-// matchIndex controls which hit to return: 1 returns the first match, 2 the second, and so on.
-// Returns nullptr if the pattern is never found or if the requested occurrence doesn't exist.
+// Scans a loaded module's image for a byte pattern.
+// Uses memchr on the first concrete (non-wildcard) byte to skip large stretches of mismatches,
+// which is significantly faster than a byte-by-byte walk on large images.
+// matchIndex controls which occurrence to return (1 = first, 2 = second, etc.).
 static void* ScanOne(HMODULE module, const std::vector<uint8_t>& bytes,
                      const std::vector<uint8_t>& mask, int matchIndex)
 {
@@ -63,24 +59,48 @@ static void* ScanOne(HMODULE module, const std::vector<uint8_t>& bytes,
     if (!GetModuleInformation(GetCurrentProcess(), module, &modInfo, sizeof(MODULEINFO)))
         return nullptr;
 
-    auto* base = static_cast<uint8_t*>(modInfo.lpBaseOfDll);
-    SIZE_T size = modInfo.SizeOfImage;
-    SIZE_T patLen = bytes.size();
+    const uint8_t* base    = static_cast<const uint8_t*>(modInfo.lpBaseOfDll);
+    const SIZE_T   imgSize = modInfo.SizeOfImage;
+    const SIZE_T   patLen  = bytes.size();
 
-    if (size < patLen) return nullptr;
+    if (imgSize < patLen) return nullptr;
 
-    int currentMatch = 0;
-    for (SIZE_T i = 0; i <= size - patLen; ++i) {
-        bool found = true;
+    // Locate the first concrete byte in the pattern to use as an anchor.
+    // memchr on the anchor byte is far faster than testing every start offset.
+    SIZE_T  anchorOff  = SIZE_T(-1);
+    uint8_t anchorByte = 0;
+    for (SIZE_T k = 0; k < patLen; ++k) {
+        if (mask[k]) { anchorOff = k; anchorByte = bytes[k]; break; }
+    }
+
+    const SIZE_T scanEnd = imgSize - patLen;  // last valid pattern-start offset
+    int hits = 0;
+
+    if (anchorOff == SIZE_T(-1)) {
+        // All-wildcard pattern — every start position matches.
+        return (hits + 1 == matchIndex) ? const_cast<uint8_t*>(base) : nullptr;
+    }
+
+    // For each anchor hit at (base + aPos), the candidate pattern start is (aPos - anchorOff).
+    const uint8_t* scanFrom = base + anchorOff;
+    SIZE_T         left     = scanEnd + 1;
+
+    while (left) {
+        const uint8_t* aHit = static_cast<const uint8_t*>(memchr(scanFrom, anchorByte, left));
+        if (!aHit) break;
+
+        const uint8_t* start = aHit - anchorOff;
+        bool ok = true;
         for (SIZE_T j = 0; j < patLen; ++j) {
-            if (mask[j] && base[i + j] != bytes[j]) {
-                found = false;
-                break;
-            }
+            if (mask[j] && start[j] != bytes[j]) { ok = false; break; }
         }
-        if (found && ++currentMatch == matchIndex) {
-            return base + i;
-        }
+        if (ok && ++hits == matchIndex)
+            return const_cast<uint8_t*>(start);
+
+        SIZE_T consumed = static_cast<SIZE_T>(aHit + 1 - scanFrom);
+        if (consumed >= left) break;
+        left    -= consumed;
+        scanFrom = aHit + 1;
     }
     return nullptr;
 }

@@ -359,9 +359,9 @@ class WebBridge(QObject):
             except Exception as e:
                 logger.warning("set_stats_and_achievements failed: %s", e)
 
-            # Step 4: add to AppList
+            # Step 4: register app ID for injection
             self.download_progress.emit(json.dumps({
-                "app_id": app_id, "status": "Adding to AppList", "progress": 40
+                "app_id": app_id, "status": "Registering app ID", "progress": 40
             }))
             if hasattr(self._ui, 'app_list_man') and self._ui.app_list_man:
                 try:
@@ -570,7 +570,7 @@ class WebBridge(QObject):
                 "download_manifests": lambda: self._ui.process_lua_minimal(),
                 "recent_lua": lambda: self._ui.recent_files_menu(),
                 "update_manifests": lambda: self._ui.update_all_manifests(),
-                "applist_menu": lambda: self._ui.applist_menu(),
+                "injection_menu": lambda: self._ui.injection_menu(),
                 "offline_fix": lambda: self._ui.offline_fix_menu(),
                 "remove_game": lambda: self._ui.remove_game_menu(),
                 "context_menu": lambda: self._ui.manage_context_menu(),
@@ -581,7 +581,10 @@ class WebBridge(QObject):
 
             if action in non_game_actions:
                 try:
-                    non_game_actions[action]()
+                    from sff.structs import MainReturnCode
+                    result = non_game_actions[action]()
+                    if result is MainReturnCode.EXIT:
+                        return f"Action '{action}' is not supported on this platform or configuration."
                     return None
                 except Exception as e:
                     return str(e)
@@ -1351,13 +1354,7 @@ class WebBridge(QObject):
                 if not self._steam_path:
                     return (False, "Steam path not set")
 
-                applist_folder = None
-                if hasattr(self._ui, 'app_list_man') and self._ui.app_list_man:
-                    applist_folder = self._ui.app_list_man.applist_folder
-                if not applist_folder:
-                    return (False, "AppList folder not found")
-
-                steam_proc = SteamProcess(self._steam_path, applist_folder)
+                steam_proc = SteamProcess(self._steam_path)
 
                 # Kill Steam if running
                 if is_proc_running(steam_proc.exe_name):
@@ -1372,28 +1369,18 @@ class WebBridge(QObject):
                         return (False, "Steam did not close in time — try again")
                     print(" Done!")
 
-                # Find injector: prefer DLLInjector.exe, fallback to steam.exe
-                injector = steam_proc.injector_dir / "DLLInjector.exe"
+                injector = self._steam_path / "steam.exe"
                 if not injector.exists():
-                    injector = self._steam_path / "steam.exe"
-                if not injector.exists():
-                    return (False, "DLLInjector.exe and steam.exe not found")
+                    return (False, "steam.exe not found in Steam folder")
 
-                print(f"Launching {injector.name}...")
+                print("Launching Steam...")
                 try:
-                    import ctypes as _ctypes
-                    already_admin = bool(_ctypes.windll.shell32.IsUserAnAdmin())
-                    if already_admin:
-                        subprocess.Popen([str(injector)], cwd=str(self._steam_path))
-                        return (True, "Steam launched successfully")
-                    # Not admin — request UAC elevation via ShellExecuteW runas
-                    ret = _ctypes.windll.shell32.ShellExecuteW(
-                        None, "runas", str(injector), None, str(self._steam_path), 1)
-                    if ret > 32:
-                        return (True, "Steam launched successfully")
-                    # Elevation declined/failed — try without elevation as fallback
-                    subprocess.Popen([str(injector)], cwd=str(self._steam_path))
-                    return (True, "Steam launched (elevation skipped)")
+                    subprocess.Popen(
+                        [str(injector)],
+                        cwd=str(self._steam_path),
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                    )
+                    return (True, "Steam launched successfully")
                 except Exception as e:
                     return (False, f"Failed to launch: {e}")
 
@@ -1493,7 +1480,7 @@ class WebBridge(QObject):
 
     @pyqtSlot(str)
     def install_lumacore(self, steam_path_str):
-        """Copy LumaCore DLLs into the Steam folder and remove GreenLuma remnants."""
+        """Copy LumaCore DLLs into the Steam folder and clean up legacy injection files."""
         def _do():
             from pathlib import Path
             from sff.lumacore_setup import install_lumacore

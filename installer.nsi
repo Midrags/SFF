@@ -4,7 +4,7 @@
 !define APPNAME    "SteaMidra"
 !define COMPANY    "Midrags"
 !ifndef VERSION
-  !define VERSION  "6.1.5"
+  !define VERSION  "6.2"
 !endif
 !define EXENAME    "SteaMidra_GUI.exe"
 !define PUBLISHER  "Midrags"
@@ -12,8 +12,8 @@
 Name "${APPNAME}"
 OutFile "SteaMidra-${VERSION}-Setup.exe"
 
-InstallDir "$PROGRAMFILES64\${APPNAME}"
-InstallDirRegKey HKLM "Software\${COMPANY}\${APPNAME}" "InstallDir"
+InstallDir "$LOCALAPPDATA\${APPNAME}"
+InstallDirRegKey HKCU "Software\${COMPANY}\${APPNAME}" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 BrandingText "${APPNAME} ${VERSION}"
@@ -76,13 +76,13 @@ Section "SteaMidra (required)" SEC_MAIN
 
     ; Add/Remove Programs (64-bit registry hive)
     SetRegView 64
-    WriteRegStr  HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayName"      "${APPNAME}"
-    WriteRegStr  HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayVersion"   "${VERSION}"
-    WriteRegStr  HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "Publisher"        "${PUBLISHER}"
-    WriteRegStr  HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayIcon"      "$INSTDIR\SteaMidra.ico"
-    WriteRegStr  HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "UninstallString"  '"$INSTDIR\Uninstall.exe"'
-    WriteRegStr  HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
-    WriteRegStr  HKLM "Software\${COMPANY}\${APPNAME}" "InstallDir" "$INSTDIR"
+    WriteRegStr  HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayName"      "${APPNAME}"
+    WriteRegStr  HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayVersion"   "${VERSION}"
+    WriteRegStr  HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "Publisher"        "${PUBLISHER}"
+    WriteRegStr  HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayIcon"      "$INSTDIR\SteaMidra.ico"
+    WriteRegStr  HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "UninstallString"  '"$INSTDIR\Uninstall.exe"'
+    WriteRegStr  HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
+    WriteRegStr  HKCU "Software\${COMPANY}\${APPNAME}" "InstallDir" "$INSTDIR"
 
     ; Windows Defender exclusion
     MessageBox MB_YESNO|MB_ICONINFORMATION \
@@ -199,8 +199,8 @@ Section "Uninstall"
 
     ; Remove registry keys (64-bit registry hive)
     SetRegView 64
-    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
-    DeleteRegKey HKLM "Software\${COMPANY}\${APPNAME}"
+    DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
+    DeleteRegKey HKCU "Software\${COMPANY}\${APPNAME}"
 
     ; Remove Defender exclusion
     nsExec::ExecToLog 'powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Remove-MpPreference -ExclusionPath $\"$INSTDIR$\""'

@@ -1,10 +1,12 @@
-#include "SteamCapture.h"
+#include "RuntimeCapture.h"
 #include "Macros.h"
 #include "utils/VehUtil.h"
 #include "entry.h"
+#include <cstdio>
 
 namespace {
     // ── function type aliases (alphabetical) ─────────────────────────────────
+    using BuildSpawnEnvBlock_t           = bool(*)(void*, char**, uint32*);
     using CUtlBufferEnsureCapacity_t     = void*(*)(CUtlBuffer*, int);
     using CUtlMemoryGrow_t               = void*(*)(CUtlVector<AppId_t>*, int);
     using GetAppDataFromAppInfo_t        = int64(*)(void*, AppId_t, const char*, uint8*, int32);
@@ -31,12 +33,88 @@ namespace {
     VEH_GRAB_LIST(VEH_DECL_CAPTURE)
     VEH_TRACK_LIST(VEH_DECL_RESOLVE)
 
-    uint8_t*  g_spawnProcessTarget;
-    PVOID     g_vehHandle;
+    // ── per-session state ─────────────────────────────────────────────────────
+    uint8_t*              g_spawnProcessTarget = nullptr;
+    PVOID                 g_vehHandle          = nullptr;
+    std::atomic<AppId_t>  g_OnlineFixRealAppId{0};
+    std::unordered_map<AppId_t, std::string> g_GameNameCache;
+    static std::vector<CaptureEntry> g_captures;
 
-    // Assumes one game at a time.  Set by SpawnProcess VEH when -onlinefix
-    // is detected; cleared when a non-onlinefix game launches.
-    std::atomic<AppId_t> g_OnlineFixRealAppId{0};
+    // ── BuildSpawnEnvBlock Detours hook ──────────────────────────────────────
+    // Patches SteamOverlayGameId=480 and SteamAppId=480 in the env block that
+    // Steam passes to CreateProcess when launching a game with -onlinefix.
+    // The original function sets those to 480 (kOnlineFixAppId) because
+    // the SpawnProcess VEH already rewrote *pGameID. We rebuild the block
+    // with the real appid so controllers and the Steam overlay attach correctly.
+    LC_HOOK_DEF(BuildSpawnEnvBlock, bool, void* pThis, char** ppEnvBlock, uint32* pcbEnvBlock)
+    {
+        bool result = oBuildSpawnEnvBlock(pThis, ppEnvBlock, pcbEnvBlock);
+        AppId_t realId = g_OnlineFixRealAppId.load(std::memory_order_acquire);
+        if (!result || !realId || !ppEnvBlock || !*ppEnvBlock) return result;
+
+        char realStr[16];
+        int  realLen = sprintf_s(realStr, sizeof(realStr), "%u", realId);
+        char fakeStr[16];
+        int  fakeLen = sprintf_s(fakeStr, sizeof(fakeStr), "%u",
+                                 static_cast<uint32>(kOnlineFixAppId));
+        (void)fakeLen;
+
+        static const char* kPatch[] = { "SteamOverlayGameId=", "SteamAppId=" };
+
+        // First pass: check if anything needs patching.
+        bool needsPatch = false;
+        const char* scan = *ppEnvBlock;
+        while (*scan) {
+            for (const char* pfx : kPatch) {
+                size_t pl = strlen(pfx);
+                if (strncmp(scan, pfx, pl) == 0 && strcmp(scan + pl, fakeStr) == 0) {
+                    needsPatch = true;
+                    break;
+                }
+            }
+            if (needsPatch) break;
+            scan += strlen(scan) + 1;
+        }
+        if (!needsPatch) return result;
+
+        // Second pass: rebuild with patched entries.
+        // +64 bytes headroom covers the difference between "480" (3 chars) and
+        // any realistic appid (up to 10 chars), multiplied by the 2 target keys.
+        uint32 cbNew = *pcbEnvBlock + 64;
+        char*  newEnv = static_cast<char*>(VirtualAlloc(nullptr, cbNew,
+                            MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
+        if (!newEnv) return result;
+
+        char* src = *ppEnvBlock;
+        char* dst = newEnv;
+        while (*src) {
+            size_t entryLen = strlen(src);
+            bool replaced = false;
+            for (const char* pfx : kPatch) {
+                size_t pl = strlen(pfx);
+                if (strncmp(src, pfx, pl) == 0 && strcmp(src + pl, fakeStr) == 0) {
+                    memcpy(dst, pfx, pl);
+                    dst += pl;
+                    memcpy(dst, realStr, realLen + 1);
+                    dst += realLen + 1;
+                    replaced = true;
+                    break;
+                }
+            }
+            if (!replaced) {
+                memcpy(dst, src, entryLen + 1);
+                dst += entryLen + 1;
+            }
+            src += entryLen + 1;
+        }
+        *dst = '\0';
+
+        *ppEnvBlock  = newEnv;
+        *pcbEnvBlock = static_cast<uint32>(dst - newEnv + 1);
+        LOG_MISC_INFO("BuildSpawnEnvBlock: patched SteamOverlayGameId/SteamAppId {} -> {}",
+                      kOnlineFixAppId, realId);
+        return result;
+    }
 
     // Returns true when flag appears as a whole word in cmd (space- or end-delimited).
     // Prevents substring matches like "-onlinefixpatch" triggering the -onlinefix path.
@@ -51,10 +129,6 @@ namespace {
         }
         return false;
     }
-
-    std::unordered_map<AppId_t, std::string> g_GameNameCache;
-
-    static std::vector<CaptureEntry> g_captures;
 
     // ── VEH handler ──────────────────────────────────────────────────────────
     // Scoped to this module's int3 sites only. Foreign RIP ->
@@ -141,6 +215,10 @@ namespace SteamCapture {
 
         if (!g_captures.empty() || g_spawnProcessTarget)
             g_vehHandle = AddVectoredExceptionHandler(1, VehHandler);
+
+        LC_TX_OPEN();
+        LC_ATTACH_STR_ONLY_D(BuildSpawnEnvBlock, BuildSpawnEnvBlockStrSigs);
+        LC_TX_COMMIT();
     }
 
     void Uninstall() {
@@ -154,6 +232,10 @@ namespace SteamCapture {
         if (g_spawnProcessTarget && *g_spawnProcessTarget == 0xCC)
             VehUtil::RestoreByte(g_spawnProcessTarget, 0x48);
         g_spawnProcessTarget = nullptr;
+
+        LC_TX_OPEN();
+        LC_DETACH(BuildSpawnEnvBlock);
+        LC_TX_COMMIT();
 
         VEH_TRACK_LIST(VEH_ZERO_RESOLVE)
         g_OnlineFixRealAppId.store(0, std::memory_order_relaxed);

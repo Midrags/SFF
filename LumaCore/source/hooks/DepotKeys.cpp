@@ -4,7 +4,7 @@
 #include <string>
 
 namespace {
-    HOOK_FUNC(LoadDepotDecryptionKey, int32, void* pObject, uint32 foo,char* KeyName, char* Key, uint32 KeySize) {
+    LC_HOOK_DEF(LoadDepotDecryptionKey, int32, void* pObject, uint32 foo,char* KeyName, char* Key, uint32 KeySize) {
         std::string name(KeyName);
         LOG_DECRYPTIONKEY_DEBUG("LoadDepotDecryptionKey called for KeyName='{}'", name);
         // Expected shape: ".../<DepotId>\DecryptionKey"
@@ -29,14 +29,14 @@ namespace {
 
 namespace DepotKeys {
     void Install() {
-        HOOK_BEGIN();
-        INSTALL_HOOK_D(LoadDepotDecryptionKey);
-        HOOK_END();
+        LC_TX_OPEN();
+        LC_ATTACH_D(LoadDepotDecryptionKey);
+        LC_TX_COMMIT();
     }
 
     void Uninstall() {
-        UNHOOK_BEGIN();
-        UNINSTALL_HOOK(LoadDepotDecryptionKey);
-        UNHOOK_END();
+        LC_TX_OPEN();
+        LC_DETACH(LoadDepotDecryptionKey);
+        LC_TX_COMMIT();
     }
 }

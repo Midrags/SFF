@@ -24,12 +24,12 @@ import msgpack  # type: ignore
 
 from sff.secret_store import keyring_decrypt, keyring_encrypt
 from sff.structs import Settings
-from sff.utils import root_folder
+from sff.utils import root_folder, sff_data_dir
 from typing import cast
 
 logger = logging.getLogger(__name__)
 
-SETTINGS_FILE = root_folder(outside_internal=True) / "settings.bin"
+SETTINGS_FILE = sff_data_dir() / "settings.bin"
 SETTINGS_VERSION = "1.0.0"  # For migration tracking
 
 

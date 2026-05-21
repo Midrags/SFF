@@ -1,12 +1,10 @@
 #include "PacketRouter.h"
-#include "ManifestBind.h"
 #include "SteamCapture.h"
+#include "RichPresence.h"
 #include "Macros.h"
 #include "entry.h"
 #include "utils/Ticket.h"
 #include "utils/Hash.h"
-#include <chrono>
-#include <future>
 #include <mutex>
 #include <unordered_map>
 
@@ -22,37 +20,40 @@ namespace {
     constexpr uint32 kMaxPacketSize = 8 + kMaxHdrSize + kMaxBodySize;
     constexpr int    kPacketPoolSize = 8;
 
-    // ── Incoming (RecvPkt) packet pool ─────────────────────
-    uint8  g_NewBody[kMaxBodySize];
-    uint32 g_cbNewBody   = 0;
-    uint8  g_NewHdr[kMaxHdrSize];
-    uint32 g_cbNewHdr    = 0;
-    bool   g_NeedReplaceBody = false;
-    bool   g_NeedReplaceHdr  = false;
-    bool   g_ResizedInPlace = false;
-    uint32 g_NewBodySize    = 0;
-    uint8  g_RecvPacketPool[kPacketPoolSize][kMaxPacketSize];
-    int    g_RecvPacketPoolIdx = 0;
+    static std::mutex g_RxLock;
+    static std::mutex g_TxLock;
+
+    // ── Incoming (RecvPkt) packet pool ───────────────────────
+    uint8  g_RxBody[kMaxBodySize];
+    uint32 g_RxBodyLen   = 0;
+    uint8  g_RxHdr[kMaxHdrSize];
+    uint32 g_RxHdrLen    = 0;
+    bool   g_PatchRx = false;
+    bool   g_PatchRxHdr  = false;
+    bool   g_BodyShrunk = false;
+    uint32 g_RxBodySize    = 0;
+    uint8  g_RxPool[kPacketPoolSize][kMaxPacketSize];
+    int    g_RxPoolIdx = 0;
 
     // ── Outgoing (BBuildAndAsyncSendFrame) — same pattern ───────
-    uint8  g_SendNewBody[kMaxBodySize];
-    uint32 g_cbSendNewBody = 0;
-    bool   g_NeedReplaceSend = false;
-    uint8  g_SendPacketPool[kPacketPoolSize][kMaxPacketSize];
-    int    g_SendPacketPoolIdx = 0;
+    uint8  g_TxBody[kMaxBodySize];
+    uint32 g_TxBodyLen = 0;
+    bool   g_PatchTx = false;
+    uint8  g_TxPool[kPacketPoolSize][kMaxPacketSize];
+    int    g_TxPoolIdx = 0;
 
     // ── EMsg -> name lookup  ─────────────────────────
     using PchMsgNameFromEMsg_t = char*(*)(EMsg);
     PchMsgNameFromEMsg_t oPchMsgNameFromEMsg = nullptr;
 
-    inline const char* MsgName(EMsg eMsg) {
+    inline const char* EmsgName(EMsg eMsg) {
         if (oPchMsgNameFromEMsg) return oPchMsgNameFromEMsg(eMsg);
         return "?";
     }
 
 
     // ── Packet layout ──────────────────────────────────────────
-    inline bool UnpackRaw(const uint8* data, uint32 size,
+    inline bool DecodeFrame(const uint8* data, uint32 size,
                           EMsg& eMsg, const uint8*& pHdr, uint32& cbHdr,
                           const uint8*& pBody, uint32& cbBody)
     {
@@ -79,14 +80,15 @@ namespace {
     }
 
     // ── Incoming: replace header and/or body (ring-buffer pool) ──
-    inline void ReplaceRecvPacket(CNetPacket* p,
+    inline void PatchRecvFrame(CNetPacket* p,
                                   const uint8* pNewHdr, uint32 cbNewHdr,
                                   const uint8* pNewBody, uint32 cbNewBody)
     {
         uint32 newSize = sizeof(MsgHdr) + cbNewHdr + cbNewBody;
-        if (newSize > sizeof(g_RecvPacketPool[0])) return;
+        if (newSize > sizeof(g_RxPool[0])) return;
 
-        uint8* buf = g_RecvPacketPool[g_RecvPacketPoolIdx];
+        std::lock_guard<std::mutex> lock(g_RxLock);
+        uint8* buf = g_RxPool[g_RxPoolIdx];
         const MsgHdr* orig = reinterpret_cast<const MsgHdr*>(p->m_pubData);
         MsgHdr* out = reinterpret_cast<MsgHdr*>(buf);
         out->eMsg         = orig->eMsg;
@@ -97,33 +99,33 @@ namespace {
         p->m_pubData = buf;
         p->m_cubData = newSize;
 
-        g_RecvPacketPoolIdx = (g_RecvPacketPoolIdx + 1) % kPacketPoolSize;
+        g_RxPoolIdx = (g_RxPoolIdx + 1) % kPacketPoolSize;
     }
 
     // ── Outgoing: assemble modified packet (ring-buffer pool) ────
-    inline uint8* ReplaceSendPacket(const uint8* pubData,
+    inline uint8* PatchSendFrame(const uint8* pubData,
                                     uint32 cbHdr, const uint8* pHdr,
                                     const uint8* pNewBody, uint32 cbNewBody,
                                     uint32* pNewSize)
     {
         *pNewSize = sizeof(MsgHdr) + cbHdr + cbNewBody;
-        if (*pNewSize > sizeof(g_SendPacketPool[0])) return nullptr;
+        if (*pNewSize > sizeof(g_TxPool[0])) return nullptr;
 
-        uint8* buf = g_SendPacketPool[g_SendPacketPoolIdx];
+        std::lock_guard<std::mutex> lock(g_TxLock);
+        uint8* buf = g_TxPool[g_TxPoolIdx];
         const MsgHdr* orig = reinterpret_cast<const MsgHdr*>(pubData);
         MsgHdr* out = reinterpret_cast<MsgHdr*>(buf);
         out->eMsg         = orig->eMsg;
         out->headerLength = cbHdr;
         memcpy(buf + sizeof(MsgHdr), pHdr, cbHdr);
         memcpy(buf + sizeof(MsgHdr) + cbHdr, pNewBody, cbNewBody);
-        g_SendPacketPoolIdx = (g_SendPacketPoolIdx + 1) % kPacketPoolSize;
+        g_TxPoolIdx = (g_TxPoolIdx + 1) % kPacketPoolSize;
         return buf;
     }
 
     // ── Hash constants for target_job_name dispatch ─────────────
-    constexpr uint32 HASH_JOB_NotifyRunningApps      = Fnv1aHash("FamilyGroupsClient.NotifyRunningApps#1");
-    constexpr uint32 HASH_JOB_GetUserStats            = Fnv1aHash("Player.GetUserStats#1");
-    constexpr uint32 HASH_JOB_GetManifestRequestCode  = Fnv1aHash("ContentServerDirectory.GetManifestRequestCode#1");
+    constexpr uint32 HASH_JOB_NotifyRunningApps      = LcHash32("FamilyGroupsClient.NotifyRunningApps#1");
+    constexpr uint32 HASH_JOB_GetUserStats            = LcHash32("Player.GetUserStats#1");
 } // anonymous namespace
 
 
@@ -177,12 +179,12 @@ namespace AccessToken {
         LOG_PICS_DEBUG("CMsgClientPICSProductInfoRequest: injected={} no_token={} not_in_add_appid={} total={}",
                    injected, noToken, notAddAppId, req.apps_size());
 
-        g_cbSendNewBody = static_cast<uint32>(req.ByteSizeLong());
-        if (g_cbSendNewBody > kMaxBodySize) {
-            LOG_PICS_WARN("CMsgClientPICSProductInfoRequest: encoded size {} exceeds buffer", g_cbSendNewBody);
+        g_TxBodyLen = static_cast<uint32>(req.ByteSizeLong());
+        if (g_TxBodyLen > kMaxBodySize) {
+            LOG_PICS_WARN("CMsgClientPICSProductInfoRequest: encoded size {} exceeds buffer", g_TxBodyLen);
             return false;
         }
-        if (!req.SerializeToArray(g_SendNewBody, kMaxBodySize)) {
+        if (!req.SerializeToArray(g_TxBody, kMaxBodySize)) {
             LOG_PICS_WARN("CMsgClientPICSProductInfoRequest: Failed to encode modified request");
             return false;
         }
@@ -204,8 +206,10 @@ namespace AccessToken {
 // ════════════════════════════════════════════════════════════════
 namespace UserStats {
 
-    // jobid_source -> appid mapping (eMsg 151 request -> eMsg 147 response)
-    std::unordered_map<uint64, AppId_t> g_JobIdToAppId;
+    // jobid_source -> {appid, insert_time} mapping (eMsg 151 request -> eMsg 147 response)
+    // Entries older than 30 s are pruned on each insert to prevent unbounded growth.
+    using JobEntry = std::pair<AppId_t, std::chrono::steady_clock::time_point>;
+    std::unordered_map<uint64, JobEntry> g_JobIdToAppId;
 
     // ── Send: CPlayer_GetUserStats_Request (eMsg 151) ──────────
     bool HandleSend_GetUserStats(const uint8* pBody, uint32 cbBody,
@@ -240,15 +244,23 @@ namespace UserStats {
         CMsgProtoBufHeader hdr;
         if (hdr.ParseFromArray(pHdr, cbHdr) && hdr.has_jobid_source()) {
             uint64 jobId = hdr.jobid_source();
-            g_JobIdToAppId[jobId] = appId;
+            auto now = std::chrono::steady_clock::now();
+            std::erase_if(g_JobIdToAppId, [&now](const auto& e) {
+                return now - e.second.second > std::chrono::seconds(30);
+            });
+            g_JobIdToAppId[jobId] = {appId, now};
             LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats request: stored jobid={} -> appid={}", jobId, appId);
         }
 
         uint64_t newSteamId = LuaLoader::GetStatSteamId(appId);
         req.set_steamid(newSteamId);
 
-        g_cbSendNewBody = static_cast<uint32>(req.ByteSizeLong());
-        if (!req.SerializeToArray(g_SendNewBody, kMaxBodySize)) {
+        g_TxBodyLen = static_cast<uint32>(req.ByteSizeLong());
+        if (g_TxBodyLen > kMaxBodySize) {
+            LOG_ACHIEVEMENT_WARN("Player::GetUserStats request: encoded size {} exceeds buffer", g_TxBodyLen);
+            return false;
+        }
+        if (!req.SerializeToArray(g_TxBody, kMaxBodySize)) {
             LOG_ACHIEVEMENT_WARN("Player::GetUserStats request: failed to encode");
             return false;
         }
@@ -277,7 +289,7 @@ namespace UserStats {
             uint64 jobId = hdrMsg.jobid_target();
             auto it = g_JobIdToAppId.find(jobId);
             if (it != g_JobIdToAppId.end()) {
-                appId = it->second;
+                appId = it->second.first;
                 hasAppId = true;
                 LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats response: matched jobid={} -> appid={}", jobId, appId);
                 g_JobIdToAppId.erase(it);
@@ -285,11 +297,11 @@ namespace UserStats {
         }
 
         hdrMsg.set_eresult(static_cast<int32_t>(k_EResultOK));
-        g_cbNewHdr = static_cast<uint32>(hdrMsg.ByteSizeLong());
-        if (g_cbNewHdr > kMaxHdrSize || !hdrMsg.SerializeToArray(g_NewHdr, kMaxHdrSize))
+        g_RxHdrLen = static_cast<uint32>(hdrMsg.ByteSizeLong());
+        if (g_RxHdrLen > kMaxHdrSize || !hdrMsg.SerializeToArray(g_RxHdr, kMaxHdrSize))
             return;
         LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats response: modified header:\n{}", hdrMsg.DebugString());
-        g_NeedReplaceHdr = true;
+        g_PatchRxHdr = true;
 
         // Body: strip stats (only if appid was matched and is in our config)
         CPlayer_GetUserStats_Response resp;
@@ -305,12 +317,12 @@ namespace UserStats {
         }
 
         resp.clear_stats();
-        g_NewBodySize = static_cast<uint32>(resp.ByteSizeLong());
-        if (!resp.SerializeToArray(const_cast<uint8*>(pBody), cbBody)){
+        g_RxBodyLen = static_cast<uint32>(resp.ByteSizeLong());
+        if (!resp.SerializeToArray(g_RxBody, kMaxBodySize)) {
             LOG_ACHIEVEMENT_WARN("Player::GetUserStats response: failed to SerializeToArray modified response");
             return;
         }
-        g_ResizedInPlace = true;
+        g_PatchRx = true;
 
         LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats response: modified body:\n{}", resp.DebugString());
     }
@@ -342,8 +354,12 @@ namespace UserStats {
         uint64_t newSteamId = LuaLoader::GetStatSteamId(appId);
         req.set_steam_id_for_user(newSteamId);
 
-        g_cbSendNewBody = static_cast<uint32>(req.ByteSizeLong());
-        if (!req.SerializeToArray(g_SendNewBody, kMaxBodySize)) {
+        g_TxBodyLen = static_cast<uint32>(req.ByteSizeLong());
+        if (g_TxBodyLen > kMaxBodySize) {
+            LOG_ACHIEVEMENT_WARN("ClientGetUserStats request: encoded size {} exceeds buffer", g_TxBodyLen);
+            return false;
+        }
+        if (!req.SerializeToArray(g_TxBody, kMaxBodySize)) {
             LOG_ACHIEVEMENT_WARN("ClientGetUserStats request: failed to SerializeToArray");
             return false;
         }
@@ -369,11 +385,9 @@ namespace UserStats {
         resp.set_eresult(1);  // k_EResultOK
         LOG_ACHIEVEMENT_DEBUG("ClientGetUserStats response: clear stats and achievement_blocks, set eresult=OK");
 
-        g_NewBodySize = static_cast<uint32>(resp.ByteSizeLong());
-        if (!resp.SerializeToArray(const_cast<uint8*>(pBody), cbBody))
+        g_RxBodyLen = static_cast<uint32>(resp.ByteSizeLong());
+        if (!resp.SerializeToArray(g_RxBody, kMaxBodySize))
             return false;
-
-        g_ResizedInPlace = true;
         LOG_ACHIEVEMENT_DEBUG("ClientGetUserStats response: modified body:\n{}", resp.DebugString());
         return true;
     }
@@ -412,136 +426,22 @@ namespace ETicket {
         resp.set_eresult(k_EResultOK);
 
         auto encSize = resp.ByteSizeLong();
-        if (encSize > sizeof(g_NewBody)) {
+        if (encSize > sizeof(g_RxBody)) {
             LOG_NETPACKET_WARN("ClientRequestEncryptedAppTicketResponse: modified message too large");
             return;
         }
-        if (!resp.SerializeToArray(g_NewBody, sizeof(g_NewBody))) {
+        if (!resp.SerializeToArray(g_RxBody, sizeof(g_RxBody))) {
             LOG_NETPACKET_WARN("ClientRequestEncryptedAppTicketResponse: failed to SerializeToArray modified response");
             return;
         }
         
         LOG_NETPACKET_DEBUG("ClientRequestEncryptedAppTicketResponse: modified body:\n{}", resp.DebugString());
 
-        g_cbNewBody = static_cast<uint32>(encSize);
-        g_NeedReplaceBody = true;
+        g_RxBodyLen = static_cast<uint32>(encSize);
+        g_PatchRx = true;
     }
 
 } // namespace ETicket
-
-
-// ════════════════════════════════════════════════════════════════
-//  Manifest
-//
-//  Outgoing: ContentServerDirectory.GetManifestRequestCode#1 (eMsg 151)
-//  Incoming: ContentServerDirectory.GetManifestRequestCode#1 (eMsg 147)
-//
-//  On send: for depots in the Lua config, launch an async HTTP fetch
-//  from manifest.steam.run.  On recv: wait up to 12 s for the result
-//  and replace both the response header (eresult=OK) and body
-//  (manifest_request_code).  If the fetch times out or fails the
-//  original server response passes through unmodified.
-// ════════════════════════════════════════════════════════════════
-namespace Manifest {
-
-    std::unordered_map<uint64, std::shared_future<uint64>> g_CodeFutures;
-    std::mutex g_CodeMutex;
-    constexpr uint32 kMaxWaitSeconds = 12;
-
-    bool HandleSend(const uint8* pBody, uint32 cbBody,
-                    const uint8* pHdr,  uint32 cbHdr)
-    {
-        CContentServerDirectory_GetManifestRequestCode_Request req;
-        if (!req.ParseFromArray(pBody, cbBody)) {
-            LOG_MANIFEST_WARN("GetManifestRequestCode send: failed to parse request");
-            return false;
-        }
-        if (!req.has_depot_id() || !req.has_manifest_id()) return false;
-        if (!LuaLoader::HasDepot(req.depot_id()))           return false;
-
-        CMsgProtoBufHeader hdr;
-        if (!hdr.ParseFromArray(pHdr, cbHdr) || !hdr.has_jobid_source()) {
-            LOG_MANIFEST_WARN("GetManifestRequestCode send: missing jobid_source");
-            return false;
-        }
-
-        uint64 jobId       = hdr.jobid_source();
-        uint64 manifestGid = req.manifest_id();
-        uint32 depotId     = req.depot_id();
-        uint32 appId       = req.has_app_id() ? req.app_id() : 0;
-
-        LOG_MANIFEST_DEBUG("GetManifestRequestCode send: depot={} gid={} jobid={} app={}",
-                           depotId, manifestGid, jobId, appId);
-
-        auto task = std::async(std::launch::async,
-            [manifestGid, depotId, appId]() -> uint64 {
-                uint64 code = 0;
-                ManifestBind::FetchManifestRequestCode(manifestGid, &code, appId, depotId);
-                return code;
-            });
-
-        {
-            std::lock_guard<std::mutex> lock(g_CodeMutex);
-            g_CodeFutures[jobId] = task.share();
-        }
-        return false;
-    }
-
-    void HandleRecv(const uint8* pBody, uint32 cbBody,
-                    const uint8* pHdr,  uint32 cbHdr)
-    {
-        CMsgProtoBufHeader hdr;
-        if (!hdr.ParseFromArray(pHdr, cbHdr)) {
-            LOG_MANIFEST_WARN("GetManifestRequestCode recv: failed to parse header");
-            return;
-        }
-
-        uint64 jobId = hdr.jobid_target();
-        std::shared_future<uint64> future;
-
-        {
-            std::lock_guard<std::mutex> lock(g_CodeMutex);
-            auto it = g_CodeFutures.find(jobId);
-            if (it == g_CodeFutures.end()) return;
-            future = it->second;
-            g_CodeFutures.erase(it);
-        }
-
-        auto status = future.wait_for(std::chrono::seconds(kMaxWaitSeconds));
-        if (status != std::future_status::ready) {
-            LOG_MANIFEST_WARN("GetManifestRequestCode recv: HTTP timed out (jobid={})", jobId);
-            return;
-        }
-
-        uint64 code = future.get();
-        if (!code) {
-            LOG_MANIFEST_WARN("GetManifestRequestCode recv: got code=0 (jobid={})", jobId);
-            return;
-        }
-
-        LOG_MANIFEST_DEBUG("GetManifestRequestCode recv: injecting code={} jobid={}",
-                           code, jobId);
-
-        hdr.set_eresult(static_cast<int32_t>(k_EResultOK));
-        g_cbNewHdr = static_cast<uint32>(hdr.ByteSizeLong());
-        if (g_cbNewHdr > kMaxHdrSize || !hdr.SerializeToArray(g_NewHdr, kMaxHdrSize)) {
-            LOG_MANIFEST_WARN("GetManifestRequestCode recv: failed to serialize header");
-            return;
-        }
-        g_NeedReplaceHdr = true;
-
-        CContentServerDirectory_GetManifestRequestCode_Response resp;
-        resp.set_manifest_request_code(code);
-        g_cbNewBody = static_cast<uint32>(resp.ByteSizeLong());
-        if (g_cbNewBody > kMaxBodySize || !resp.SerializeToArray(g_NewBody, kMaxBodySize)) {
-            LOG_MANIFEST_WARN("GetManifestRequestCode recv: failed to serialize body");
-            g_NeedReplaceHdr = false;
-            return;
-        }
-        g_NeedReplaceBody = true;
-    }
-
-} // namespace Manifest
 
 
 // ════════════════════════════════════════════════════════════════
@@ -552,8 +452,8 @@ namespace FamilySharing {
     void ClearBody(const uint8*, uint32)
     {
         LOG_NETPACKET_DEBUG("Clearing family sharing message...");
-        g_cbNewBody = 0;
-        g_NeedReplaceBody = true;
+        g_RxBodyLen = 0;
+        g_PatchRx = true;
     }
 
 } // namespace FamilySharing
@@ -604,12 +504,12 @@ namespace OnlineFix {
 
         if (!patched) return false;
 
-        g_cbSendNewBody = static_cast<uint32>(msg.ByteSizeLong());
-        if (g_cbSendNewBody > kMaxBodySize) {
-            LOG_ONLINEFIX_WARN("OnlineFix: encoded size {} exceeds buffer", g_cbSendNewBody);
+        g_TxBodyLen = static_cast<uint32>(msg.ByteSizeLong());
+        if (g_TxBodyLen > kMaxBodySize) {
+            LOG_ONLINEFIX_WARN("OnlineFix: encoded size {} exceeds buffer", g_TxBodyLen);
             return false;
         }
-        if (!msg.SerializeToArray(g_SendNewBody, kMaxBodySize)) {
+        if (!msg.SerializeToArray(g_TxBody, kMaxBodySize)) {
             LOG_ONLINEFIX_WARN("OnlineFix: failed to SerializeToArray");
             return false;
         }
@@ -631,14 +531,10 @@ namespace {
                         const uint8* pHdr, uint32 cbHdr)
     {
         LOG_NETPACKET_DEBUG("Send target_job_name: {}", targetJobName);
-        switch (Fnv1aHash(targetJobName)) {
+        switch (LcHash32(targetJobName)) {
 
         case HASH_JOB_GetUserStats:
             return UserStats::HandleSend_GetUserStats(pBody, cbBody, pHdr, cbHdr);
-
-        case HASH_JOB_GetManifestRequestCode:
-            Manifest::HandleSend(pBody, cbBody, pHdr, cbHdr);
-            return false;
 
         // ---- add new 151 service methods here ----
         }
@@ -648,32 +544,32 @@ namespace {
     void SendJob(EMsg eMsg, const uint8* pBody, uint32 cbBody,
                  const uint8* pHdr, uint32 cbHdr)
     {
-        g_NeedReplaceSend = false;
+        g_PatchTx = false;
 
         LOG_NETPACKET_DEBUG("Send eMsg {}({}) (cbBody={}, cbHdr={})",
-                        MsgName(eMsg), static_cast<uint32>(eMsg), cbBody, cbHdr);
+                        EmsgName(eMsg), static_cast<uint32>(eMsg), cbBody, cbHdr);
 
         switch (eMsg) {
 
         case k_EMsgServiceMethodCallFromClient: {   // 151
             CMsgProtoBufHeader hdr;
             if (hdr.ParseFromArray(pHdr, cbHdr) && hdr.has_target_job_name()) {
-                g_NeedReplaceSend = SendServiceJob(hdr.target_job_name().c_str(), pBody, cbBody, pHdr, cbHdr);
+                g_PatchTx = SendServiceJob(hdr.target_job_name().c_str(), pBody, cbBody, pHdr, cbHdr);
             }
             return;
         }
 
         case k_EMsgClientPICSProductInfoRequest:     // 8903
-            g_NeedReplaceSend = AccessToken::HandleSend(pBody, cbBody);
+            g_PatchTx = AccessToken::HandleSend(pBody, cbBody);
             return;
 
         case k_EMsgClientGamesPlayed:                 // 742
         case k_EMsgClientGamesPlayedWithDataBlob:     // 5410
-            g_NeedReplaceSend = OnlineFix::HandleSend(pBody, cbBody);
+            g_PatchTx = OnlineFix::HandleSend(pBody, cbBody);
             return;
 
         case k_EMsgClientGetUserStats:               // 818
-            g_NeedReplaceSend = UserStats::HandleSend_ClientGetUserStats(pBody, cbBody);
+            g_PatchTx = UserStats::HandleSend_ClientGetUserStats(pBody, cbBody);
             return;
 
         default:
@@ -686,10 +582,10 @@ namespace {
                         const uint8* pHdr, uint32 cbHdr)
     {
         LOG_NETPACKET_DEBUG("Recv target_job_name: {}", targetJobName);
-        g_NeedReplaceBody = false;
-        g_NeedReplaceHdr  = false;
+        g_PatchRx = false;
+        g_PatchRxHdr  = false;
 
-        switch (Fnv1aHash(targetJobName)) {
+        switch (LcHash32(targetJobName)) {
 
         case HASH_JOB_NotifyRunningApps:
             FamilySharing::ClearBody(pBody, cbBody);
@@ -699,10 +595,6 @@ namespace {
             UserStats::HandleRecv_GetUserStatsResponse(pHdr, cbHdr, pBody, cbBody);
             return;
 
-        case HASH_JOB_GetManifestRequestCode:
-            Manifest::HandleRecv(pBody, cbBody, pHdr, cbHdr);
-            return;
-
         // ---- add new 147 service methods here ----
         }
     }
@@ -710,15 +602,15 @@ namespace {
     void RecvJob(EMsg eMsg, const uint8* pBody, uint32 cbBody,
                  const uint8* pHdr, uint32 cbHdr)
     {
-        g_NeedReplaceBody = false;
-        g_NeedReplaceHdr  = false;
+        g_PatchRx = false;
+        g_PatchRxHdr  = false;
 
         if(eMsg == k_EMsgMulti) {
             LOG_NETPACKET_TRACE("Received k_EMsgMulti, skipping dispatch");
             return;
         }
         LOG_NETPACKET_DEBUG("Recv eMsg {}({}) (cbBody={}, cbHdr={})",
-                        MsgName(eMsg), static_cast<uint32>(eMsg), cbBody, cbHdr);
+                        EmsgName(eMsg), static_cast<uint32>(eMsg), cbBody, cbHdr);
 
         switch (eMsg) {
 
@@ -735,9 +627,19 @@ namespace {
         //     return;
 
         case k_EMsgClientGetUserStatsResponse:     // 819
-            g_NeedReplaceBody = UserStats::HandleRecv_ClientGetUserStatsResponse(
+            g_PatchRx = UserStats::HandleRecv_ClientGetUserStatsResponse(
                 pBody, cbBody);
             return;
+
+        case k_EMsgClientPersonaState:     // 766
+        {
+            uint32 rpSize = 0;
+            if (RichPresence::HandleRecv(pBody, cbBody, g_RxBody, kMaxBodySize, &rpSize)) {
+                g_RxBodyLen = rpSize;
+                g_PatchRx = true;
+            }
+            return;
+        }
 
         case k_EMsgClientSharedLibraryStopPlaying:     // 9406
             FamilySharing::ClearBody(pBody, cbBody);
@@ -752,7 +654,7 @@ namespace {
     //  Hooks
     // ════════════════════════════════════════════════════════════
 
-    HOOK_FUNC(BBuildAndAsyncSendFrame, bool,
+    LC_HOOK_DEF(BBuildAndAsyncSendFrame, bool,
               void* pObject, EWebSocketOpCode eWebSocketOpCode,
               uint8* pubData, uint32 cubData)
     {
@@ -762,13 +664,13 @@ namespace {
         EMsg eMsg;
         const uint8 *pHdr, *pBody;
         uint32 cbHdr, cbBody;
-        if (UnpackRaw(pubData, cubData, eMsg, pHdr, cbHdr, pBody, cbBody)) {
+        if (DecodeFrame(pubData, cubData, eMsg, pHdr, cbHdr, pBody, cbBody)) {
             SendJob(eMsg, pBody, cbBody, pHdr, cbHdr);
 
-            if (g_NeedReplaceSend) {
+            if (g_PatchTx) {
                 uint32 newSize = 0;
-                uint8* buf = ReplaceSendPacket(pubData, cbHdr, pHdr,
-                                               g_SendNewBody, g_cbSendNewBody, &newSize);
+                uint8* buf = PatchSendFrame(pubData, cbHdr, pHdr,
+                                               g_TxBody, g_TxBodyLen, &newSize);
                 if (buf)
                     return oBBuildAndAsyncSendFrame(pObject, eWebSocketOpCode, buf, newSize);
             }
@@ -776,29 +678,29 @@ namespace {
         return oBBuildAndAsyncSendFrame(pObject, eWebSocketOpCode, pubData, cubData);
     }
 
-    HOOK_FUNC(RecvPkt, void*, void* pThis, CNetPacket* pPacket)
+    LC_HOOK_DEF(RecvPkt, void*, void* pThis, CNetPacket* pPacket)
     {
         EMsg eMsg;
         const uint8 *pBody, *pHdr;
         uint32 cbBody, cbHdr;
-        if (UnpackRaw(pPacket->m_pubData, pPacket->m_cubData,
+        if (DecodeFrame(pPacket->m_pubData, pPacket->m_cubData,
                      eMsg, pHdr, cbHdr, pBody, cbBody)) {
-            g_ResizedInPlace = false;
+            g_BodyShrunk = false;
             RecvJob(eMsg, pBody, cbBody, pHdr, cbHdr);
 
-            if (g_ResizedInPlace && g_NeedReplaceHdr) {
+            if (g_BodyShrunk && g_PatchRxHdr) {
                 // Body shrunk in-place + header changed -> full replace via pool
-                ReplaceRecvPacket(pPacket,
-                    g_NewHdr, g_cbNewHdr,
-                    pBody, g_NewBodySize);
-            } else if (g_ResizedInPlace) {
-                pPacket->m_cubData = sizeof(MsgHdr) + cbHdr + g_NewBodySize;
-            } else if (g_NeedReplaceHdr || g_NeedReplaceBody) {
-                ReplaceRecvPacket(pPacket,
-                    g_NeedReplaceHdr  ? g_NewHdr  : pHdr,
-                    g_NeedReplaceHdr  ? g_cbNewHdr : cbHdr,
-                    g_NeedReplaceBody ? g_NewBody : pBody,
-                    g_NeedReplaceBody ? g_cbNewBody : cbBody);
+                PatchRecvFrame(pPacket,
+                    g_RxHdr, g_RxHdrLen,
+                    pBody, g_RxBodySize);
+            } else if (g_BodyShrunk) {
+                pPacket->m_cubData = sizeof(MsgHdr) + cbHdr + g_RxBodySize;
+            } else if (g_PatchRxHdr || g_PatchRx) {
+                PatchRecvFrame(pPacket,
+                    g_PatchRxHdr  ? g_RxHdr  : pHdr,
+                    g_PatchRxHdr  ? g_RxHdrLen : cbHdr,
+                    g_PatchRx ? g_RxBody : pBody,
+                    g_PatchRx ? g_RxBodyLen : cbBody);
             }
         }
 
@@ -810,18 +712,18 @@ namespace {
 
 namespace PacketRouter {
     void Install() {
-        RESOLVE_D(PchMsgNameFromEMsg);
-        HOOK_BEGIN();
-        INSTALL_HOOK_D(BBuildAndAsyncSendFrame);
-        INSTALL_HOOK_D(RecvPkt);
-        HOOK_END();
+        LC_RESOLVE_D(PchMsgNameFromEMsg);
+        LC_TX_OPEN();
+        LC_ATTACH_D(BBuildAndAsyncSendFrame);
+        LC_ATTACH_D(RecvPkt);
+        LC_TX_COMMIT();
     }
 
     void Uninstall() {
-        UNHOOK_BEGIN();
-        UNINSTALL_HOOK(BBuildAndAsyncSendFrame);
-        UNINSTALL_HOOK(RecvPkt);
-        UNHOOK_END();
+        LC_TX_OPEN();
+        LC_DETACH(BBuildAndAsyncSendFrame);
+        LC_DETACH(RecvPkt);
+        LC_TX_COMMIT();
         oPchMsgNameFromEMsg = nullptr;
     }
 }
