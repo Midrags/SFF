@@ -2,11 +2,11 @@
 #include "Macros.h"
 #include "utils/VehUtil.h"
 #include "entry.h"
-#include <cstdio>
 
 namespace {
     // ── function type aliases (alphabetical) ─────────────────────────────────
-    using BuildSpawnEnvBlock_t           = bool(*)(void*, char**, uint32*);
+    using BuildSpawnEnvBlock_t           = __int64(*)(void*, uint64_t*, void*, void*, uint64_t*, void*, int, void*, void*, unsigned int, char);
+    using OptedInMask_t                  = __int64(*)(void*, unsigned int);
     using CUtlBufferEnsureCapacity_t     = void*(*)(CUtlBuffer*, int);
     using CUtlMemoryGrow_t               = void*(*)(CUtlVector<AppId_t>*, int);
     using GetAppDataFromAppInfo_t        = int64(*)(void*, AppId_t, const char*, uint8*, int32);
@@ -41,79 +41,41 @@ namespace {
     static std::vector<CaptureEntry> g_captures;
 
     // ── BuildSpawnEnvBlock Detours hook ──────────────────────────────────────
-    // Patches SteamOverlayGameId=480 and SteamAppId=480 in the env block that
-    // Steam passes to CreateProcess when launching a game with -onlinefix.
-    // The original function sets those to 480 (kOnlineFixAppId) because
-    // the SpawnProcess VEH already rewrote *pGameID. We rebuild the block
-    // with the real appid so controllers and the Steam overlay attach correctly.
-    LC_HOOK_DEF(BuildSpawnEnvBlock, bool, void* pThis, char** ppEnvBlock, uint32* pcbEnvBlock)
+    // Patches pOverlayCGameID from 480 to the real appid before delegating.
+    // This fixes the overlay identity (screenshots, community hub) for -onlinefix games.
+    // pCGameID is left at 480 so the lobby/matchmaking redirection still holds.
+    // OST approach: patch the overlay CGameID argument, not the env block string.
+    LC_HOOK_DEF(BuildSpawnEnvBlock, __int64,
+                void* pThis, uint64_t* pCGameID, void* a3, void* env,
+                uint64_t* pOverlayCGameID, void* a6, int a7,
+                void* a8, void* a9, unsigned int a10, char a11)
     {
-        bool result = oBuildSpawnEnvBlock(pThis, ppEnvBlock, pcbEnvBlock);
-        AppId_t realId = g_OnlineFixRealAppId.load(std::memory_order_acquire);
-        if (!result || !realId || !ppEnvBlock || !*ppEnvBlock) return result;
-
-        char realStr[16];
-        int  realLen = sprintf_s(realStr, sizeof(realStr), "%u", realId);
-        char fakeStr[16];
-        int  fakeLen = sprintf_s(fakeStr, sizeof(fakeStr), "%u",
-                                 static_cast<uint32>(kOnlineFixAppId));
-        (void)fakeLen;
-
-        static const char* kPatch[] = { "SteamOverlayGameId=", "SteamAppId=" };
-
-        // First pass: check if anything needs patching.
-        bool needsPatch = false;
-        const char* scan = *ppEnvBlock;
-        while (*scan) {
-            for (const char* pfx : kPatch) {
-                size_t pl = strlen(pfx);
-                if (strncmp(scan, pfx, pl) == 0 && strcmp(scan + pl, fakeStr) == 0) {
-                    needsPatch = true;
-                    break;
-                }
-            }
-            if (needsPatch) break;
-            scan += strlen(scan) + 1;
+        AppId_t realAppId = g_OnlineFixRealAppId.load(std::memory_order_acquire);
+        if (realAppId && pOverlayCGameID
+            && (static_cast<AppId_t>(*pOverlayCGameID & 0xFFFFFF) == kOnlineFixAppId)) {
+            uint64_t prev = *pOverlayCGameID;
+            *pOverlayCGameID = (prev & ~static_cast<uint64_t>(0xFFFFFF))
+                             | static_cast<uint64_t>(realAppId);
+            LOG_MISC_INFO("BuildSpawnEnvBlock: overlay CGameID {:#x} -> {:#x}", prev, *pOverlayCGameID);
         }
-        if (!needsPatch) return result;
+        return oBuildSpawnEnvBlock(pThis, pCGameID, a3, env,
+                                    pOverlayCGameID, a6, a7, a8, a9, a10, a11);
+    }
 
-        // Second pass: rebuild with patched entries.
-        // +64 bytes headroom covers the difference between "480" (3 chars) and
-        // any realistic appid (up to 10 chars), multiplied by the 2 target keys.
-        uint32 cbNew = *pcbEnvBlock + 64;
-        char*  newEnv = static_cast<char*>(VirtualAlloc(nullptr, cbNew,
-                            MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
-        if (!newEnv) return result;
-
-        char* src = *ppEnvBlock;
-        char* dst = newEnv;
-        while (*src) {
-            size_t entryLen = strlen(src);
-            bool replaced = false;
-            for (const char* pfx : kPatch) {
-                size_t pl = strlen(pfx);
-                if (strncmp(src, pfx, pl) == 0 && strcmp(src + pl, fakeStr) == 0) {
-                    memcpy(dst, pfx, pl);
-                    dst += pl;
-                    memcpy(dst, realStr, realLen + 1);
-                    dst += realLen + 1;
-                    replaced = true;
-                    break;
-                }
-            }
-            if (!replaced) {
-                memcpy(dst, src, entryLen + 1);
-                dst += entryLen + 1;
-            }
-            src += entryLen + 1;
+    // ── OptedInMask Detours hook ──────────────────────────────────────────────
+    // CSteamController::OptedInMask(appid) returns the Steam Input opt-in mask
+    // and sets SDL_GAMECONTROLLER_* env vars for the spawned process.
+    // When -onlinefix rewrites the game's CGameID to 480 (Spacewar), this function
+    // gets called with appid=480 and returns Spacewar's empty mask — no controller,
+    // no SDL env vars. We redirect to the real appid so controllers work correctly.
+    LC_HOOK_DEF(OptedInMask, __int64, void* pThis, unsigned int appId)
+    {
+        AppId_t realAppId = g_OnlineFixRealAppId.load(std::memory_order_acquire);
+        if (appId == kOnlineFixAppId && realAppId) {
+            LOG_MISC_INFO("OptedInMask: appid {} -> {}", appId, realAppId);
+            return oOptedInMask(pThis, realAppId);
         }
-        *dst = '\0';
-
-        *ppEnvBlock  = newEnv;
-        *pcbEnvBlock = static_cast<uint32>(dst - newEnv + 1);
-        LOG_MISC_INFO("BuildSpawnEnvBlock: patched SteamOverlayGameId/SteamAppId {} -> {}",
-                      kOnlineFixAppId, realId);
-        return result;
+        return oOptedInMask(pThis, appId);
     }
 
     // Returns true when flag appears as a whole word in cmd (space- or end-delimited).
@@ -212,11 +174,14 @@ namespace SteamCapture {
         if (!g_captures.empty() || g_spawnProcessTarget)
             g_vehHandle = AddVectoredExceptionHandler(1, VehHandler);
 
-        // BuildSpawnEnvBlock hook disabled — string XRef resolves to wrong
-        // function on this Steam build, corrupting env block for all launches.
-        // LC_TX_OPEN();
-        // LC_ATTACH_STR_ONLY_D(BuildSpawnEnvBlock, BuildSpawnEnvBlockStrSigs);
-        // LC_TX_COMMIT();
+        // Hook OptedInMask and BuildSpawnEnvBlock for -onlinefix controller + overlay fix.
+        // Both are gated on g_OnlineFixRealAppId so they no-op for normal (non-onlinefix) games.
+        // IMPORTANT: Use byte patterns only (LC_ATTACH_D) — string XRef finds wrong addresses
+        // for these functions on build 1778281814, causing a crash.
+        LC_TX_OPEN();
+        LC_ATTACH_D(OptedInMask);
+        LC_ATTACH_D(BuildSpawnEnvBlock);
+        LC_TX_COMMIT();
     }
 
     void Uninstall() {
@@ -231,11 +196,10 @@ namespace SteamCapture {
             VehUtil::RestoreByte(g_spawnProcessTarget, 0x48);
         g_spawnProcessTarget = nullptr;
 
-        // LC_TX_OPEN();
-        // LC_DETACH(BuildSpawnEnvBlock);
-        // LC_TX_COMMIT();
-
-        VEH_TRACK_LIST(VEH_ZERO_RESOLVE)
+        LC_TX_OPEN();
+        LC_DETACH(OptedInMask);
+        LC_DETACH(BuildSpawnEnvBlock);
+        LC_TX_COMMIT();        VEH_TRACK_LIST(VEH_ZERO_RESOLVE)
         g_OnlineFixRealAppId.store(0, std::memory_order_relaxed);
         g_GameNameCache.clear();
     }

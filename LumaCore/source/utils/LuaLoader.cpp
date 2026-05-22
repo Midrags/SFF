@@ -29,6 +29,27 @@ namespace LuaLoader {
     static std::vector<AppId_t> g_pendingAdditions;
     constexpr uint64_t kDefaultStatSteamId = 76561198028121353ULL;
 
+    // Fallback SteamID pool for achievement schema fetching.
+    // These are accounts that own a wide variety of games.
+    // Used in order when no setStat() is configured for an appId.
+    static constexpr uint64_t kStatSteamIdPool[] = {
+        76561198017975643ULL,
+        76561198001678750ULL,
+        76561198355953202ULL,
+        76561197979911851ULL,
+        76561198040673812ULL,
+        76561198367471798ULL,
+        76561198028125071ULL,
+        76561198012616627ULL,
+        76561197971398453ULL,
+        76561197977849691ULL,
+        76561198019373005ULL,
+        76561198155124847ULL,
+        76561198063534772ULL,
+        76561198072711049ULL,
+        76561198028121353ULL,  // original default kept at end
+    };
+
     // Case-insensitive function registry: lowercase name → C function
     static std::unordered_map<std::string, lua_CFunction> g_func_registry;
 
@@ -374,6 +395,16 @@ namespace LuaLoader {
         return kDefaultStatSteamId;
     }
 
+    const uint64_t* GetStatSteamIdPool(AppId_t AppId, size_t& outCount) {
+        auto it = StatSteamIdSet.find(AppId);
+        if (it != StatSteamIdSet.end()) {
+            outCount = 1;
+            return &it->second;
+        }
+        outCount = sizeof(kStatSteamIdPool) / sizeof(kStatSteamIdPool[0]);
+        return kStatSteamIdPool;
+    }
+
     const std::unordered_map<uint64_t, ManifestOverride>& GetManifestOverrides() {
       return ManifestOverrides;
     }
@@ -417,6 +448,32 @@ namespace LuaLoader {
         g_currentFile = filePath;
 
         std::filesystem::path path(filePath);
+
+        // ── Auto-register app ID from filename ──────────────────
+        // If the filename stem is all digits (e.g. "3764200.lua"),
+        // treat it as the base app ID and register it automatically.
+        // This ensures HasDepot(baseAppId) returns true even when the
+        // Lua content only calls addappid() for depot IDs.
+        {
+            const std::string stem = path.stem().string();
+            if (!stem.empty() && std::all_of(stem.begin(), stem.end(), ::isdigit)) {
+                char* endPtr = nullptr;
+                unsigned long long val = std::strtoull(stem.c_str(), &endPtr, 10);
+                if (endPtr && *endPtr == '\0' && val > 0 && val <= UINT32_MAX) {
+                    AppId_t fileAppId = static_cast<AppId_t>(val);
+                    // Only register if not already present (don't overwrite a key set by addappid)
+                    if (!DepotKeySet.count(fileAppId)) {
+                        DepotKeySet[fileAppId] = "";
+                        if (g_fileDepots[g_currentFile].insert(fileAppId).second) {
+                            if (++g_depotRefCount[fileAppId] == 1)
+                                g_pendingAdditions.push_back(fileAppId);
+                        }
+                        LOG_DEBUG("ParseFile: auto-registered appid={} from filename {}", fileAppId, stem);
+                    }
+                }
+            }
+        }
+
         std::ifstream file(path);
         if (!file) {
             LOG_WARN("ParseFile: failed to open {}", path.filename().string());

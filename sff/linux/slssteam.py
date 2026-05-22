@@ -19,10 +19,14 @@
 import hashlib
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 from colorama import Fore, Style
+
+# Guard: this entire module is Linux-only. All public functions return early on non-Linux.
+_IS_LINUX = sys.platform == "linux"
 
 
 VERSION_FILE = Path.home() / ".local" / "share" / "SteaMidra" / "SLSsteam" / "VERSION"
@@ -194,6 +198,8 @@ def _disable_path_injection(steam_type: str, print_fn=print) -> None:
 
 
 def is_installed() -> bool:
+    if not _IS_LINUX:
+        return False
     steam_type = detect_steam_type()
     return (get_slssteam_install_dir(steam_type) / "SLSsteam.so").exists()
 
@@ -249,6 +255,38 @@ def _setup_config_from_extracted(extract_dir: Path, steam_type: str = "native") 
     return False
 
 
+def patch_slssteam_config(steam_type: str, print_fn=print) -> bool:
+    """Patch SLSsteam config.yaml to enable PlayNotOwnedGames, SafeMode, and notifications.
+    Mirrors h3adcr-b's editconfig() function. Skips if .headcrabd marker exists."""
+    config_dir = get_slssteam_config_dir(steam_type)
+    config_path = config_dir / "config.yaml"
+    marker = config_dir / ".headcrabd"
+
+    if marker.exists():
+        return False  # already patched by headcrab or us
+    if not config_path.exists():
+        return False
+
+    try:
+        import re
+        text = config_path.read_text(encoding="utf-8")
+        patches = {
+            r"^PlayNotOwnedGames:.*": "PlayNotOwnedGames: yes",
+            r"^SafeMode:.*":         "SafeMode: yes",
+            r"^NotifyInit:.*":       "NotifyInit: yes",
+            r"^Notifications:.*":    "Notifications: yes",
+        }
+        for pattern, replacement in patches.items():
+            text = re.sub(pattern, replacement, text, flags=re.MULTILINE)
+        config_path.write_text(text, encoding="utf-8")
+        marker.write_text("patched by SteaMidra\n", encoding="utf-8")
+        print_fn(Fore.GREEN + "SLSsteam config.yaml patched (PlayNotOwnedGames, SafeMode, Notifications enabled)." + Style.RESET_ALL)
+        return True
+    except Exception as e:
+        print_fn(Fore.YELLOW + f"Could not patch SLSsteam config.yaml: {e}" + Style.RESET_ALL)
+        return False
+
+
 
 def get_installed_version() -> str | None:
     """Return the installed SLSsteam version string, or None if not tracked."""
@@ -260,6 +298,8 @@ def get_installed_version() -> str | None:
 def check_update_available(print_fn=print) -> dict:
     """Check GitHub for a newer SLSsteam release.
     Returns dict with keys: installed, latest, update_available."""
+    if not _IS_LINUX:
+        return {"installed": None, "latest": None, "update_available": False}
     installed = get_installed_version()
     result = {"installed": installed, "latest": None, "update_available": False}
     try:
@@ -280,6 +320,8 @@ def check_update_available(print_fn=print) -> dict:
 
 
 def install_from_github(steam_path: Path, print_fn=print) -> bool:
+    if not _IS_LINUX:
+        return False
     try:
         import httpx
     except ImportError:
@@ -382,6 +424,7 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
         return False
 
     _setup_config_from_extracted(extract_dir, steam_type)
+    patch_slssteam_config(steam_type, print_fn)
     patch_steam_sh(steam_path, print_fn)
     create_steam_cfg(steam_path, print_fn)
 
@@ -407,8 +450,11 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
 
 
 def check_and_notify_update(print_fn=print) -> None:
-    """Check for a SLSsteam update silently and print a notice if one is available.
-    Intended to be called on SteaMidra startup on Linux — non-blocking, never raises."""
+    """Check for a SLSsteam update on startup. If an update is available, install it
+    automatically. Intended to be called on SteaMidra startup on Linux — non-blocking,
+    never raises."""
+    if not _IS_LINUX:
+        return
     try:
         info = check_update_available(print_fn=lambda _: None)  # silent fetch
         if info.get("update_available"):
@@ -416,44 +462,23 @@ def check_and_notify_update(print_fn=print) -> None:
             latest = info.get("latest") or "unknown"
             print_fn(
                 Fore.YELLOW
-                + f"SLSsteam update available: {installed} -> {latest}. "
-                + "Run 'Set up Linux tools' to update."
+                + f"SLSsteam update available: {installed} -> {latest}. Installing automatically..."
                 + Style.RESET_ALL
             )
+            # Auto-install: find the Steam path and run the installer
+            steam_type = detect_steam_type()
+            if steam_type == "flatpak":
+                from pathlib import Path as _Path
+                steam_path = _Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam"
+            else:
+                from pathlib import Path as _Path
+                steam_path = _Path.home() / ".steam" / "steam"
+            install_from_github(steam_path, print_fn)
+        elif info.get("installed"):
+            # Already up to date — no output needed on startup
+            pass
+        elif not info.get("installed"):
+            # Not installed yet — skip silent check, user needs to run setup manually
+            pass
     except Exception:
         pass
-    steamclient = Path.home() / ".steam" / "steam" / "ubuntu12_32" / "steamclient.so"
-    result = {"found": False, "hash": None, "mismatch": False}
-    if not steamclient.exists():
-        return result
-
-    try:
-        data = steamclient.read_bytes()
-        sha256 = hashlib.sha256(data).hexdigest()
-        result["found"] = True
-        result["hash"] = sha256
-    except Exception:
-        return result
-
-    try:
-        import httpx
-        import yaml
-        resp = httpx.get(
-            "https://raw.githubusercontent.com/AceSLS/SLSsteam/refs/heads/main/res/updates.yaml",
-            timeout=10, follow_redirects=True,
-        )
-        if resp.status_code == 200:
-            data_yaml = yaml.safe_load(resp.text)
-            hashes = []
-            for entries in data_yaml.get("SafeModeHashes", {}).values():
-                if isinstance(entries, list):
-                    for entry in entries:
-                        parts = str(entry).strip().split()
-                        if parts:
-                            hashes.append(parts[0])
-            if hashes and sha256 not in hashes:
-                result["mismatch"] = True
-    except Exception:
-        pass
-
-    return result

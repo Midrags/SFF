@@ -111,7 +111,56 @@ namespace {
 
         return EXCEPTION_CONTINUE_SEARCH;
     }
-}
+
+    // ── OptedInMask hook ─────────────────────────────────────────────────────
+    // CSteamController::OptedInMask(appid) returns the Steam Input opt-in mask
+    // and sets SDL_GAMECONTROLLER_* env vars for the spawned process.
+    // When -onlinefix rewrites the game's CGameID to 480 (Spacewar), this function
+    // gets called with appid=480 and returns Spacewar's empty mask — no controller,
+    // no SDL env vars.  We redirect to the real appid so controllers work correctly.
+    using OptedInMask_t = __int64(*)(void*, unsigned int);
+    inline OptedInMask_t oOptedInMask = nullptr;
+    __int64 __fastcall hkOptedInMask(void* pThis, unsigned int appId)
+    {
+        AppId_t realAppId = g_OnlineFixRealAppId.load(std::memory_order_acquire);
+        if (appId == kOnlineFixAppId && realAppId) {
+            LOG_MISC_INFO("OptedInMask: appid {} -> {}", appId, realAppId);
+            return oOptedInMask(pThis, realAppId);
+        }
+        return oOptedInMask(pThis, appId);
+    }
+
+    // ── BuildSpawnEnvBlock hook ──────────────────────────────────────────────
+    // CUser::BuildSpawnEnvBlock writes SteamOverlayGameId into the spawned
+    // process's environment block.  When -onlinefix is active, pOverlayCGameID
+    // contains 480 (Spacewar), so the overlay tags screenshots as Spacewar and
+    // "View Community Hub" opens the homepage.
+    // We patch the low 24 bits of *pOverlayCGameID to the real appid before
+    // delegating, so the overlay sees the correct game.
+    // pCGameID is left at 480 so the lobby/matchmaking redirection still holds.
+    using BuildSpawnEnvBlock_t = __int64(*)(void*, uint64_t*, void*, void*,
+                                             uint64_t*, void*, int,
+                                             void*, void*, unsigned int, char);
+    inline BuildSpawnEnvBlock_t oBuildSpawnEnvBlock = nullptr;
+    __int64 __fastcall hkBuildSpawnEnvBlock(void* pThis, uint64_t* pCGameID,
+                                             void* a3, void* env,
+                                             uint64_t* pOverlayCGameID, void* a6,
+                                             int a7, void* a8, void* a9,
+                                             unsigned int a10, char a11)
+    {
+        AppId_t realAppId = g_OnlineFixRealAppId.load(std::memory_order_acquire);
+        if (realAppId && pOverlayCGameID
+            && (static_cast<AppId_t>(*pOverlayCGameID & 0xFFFFFF) == kOnlineFixAppId)) {
+            uint64_t prev = *pOverlayCGameID;
+            *pOverlayCGameID = (prev & ~static_cast<uint64_t>(0xFFFFFF))
+                             | static_cast<uint64_t>(realAppId);
+            LOG_MISC_INFO("BuildSpawnEnvBlock: overlay CGameID {:#x} -> {:#x}", prev, *pOverlayCGameID);
+        }
+        return oBuildSpawnEnvBlock(pThis, pCGameID, a3, env,
+                                    pOverlayCGameID, a6, a7, a8, a9, a10, a11);
+    }
+
+} // anonymous namespace
 
 namespace SteamCapture {
     void Install() {
@@ -141,9 +190,21 @@ namespace SteamCapture {
 
         if (!g_captures.empty() || g_spawnProcessTarget)
             g_vehHandle = AddVectoredExceptionHandler(1, VehHandler);
+
+        // Hook OptedInMask and BuildSpawnEnvBlock for -onlinefix controller + overlay fix.
+        // Both are gated on g_OnlineFixRealAppId so they no-op for normal (non-onlinefix) games.
+        LC_TX_OPEN();
+        LC_ATTACH_STR_D(OptedInMask, OptedInMaskStrSigs, OptedInMaskSigs);
+        LC_ATTACH_STR_D(BuildSpawnEnvBlock, BuildSpawnEnvBlockStrSigs, BuildSpawnEnvBlockSigs);
+        LC_TX_COMMIT();
     }
 
     void Uninstall() {
+        LC_TX_OPEN();
+        LC_DETACH(OptedInMask);
+        LC_DETACH(BuildSpawnEnvBlock);
+        LC_TX_COMMIT();
+
         if (g_vehHandle) {
             RemoveVectoredExceptionHandler(g_vehHandle);
             g_vehHandle = nullptr;

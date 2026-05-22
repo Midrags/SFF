@@ -45,8 +45,9 @@ namespace {
               HSteamUser iClientUser, int iCallback, void* pCallbackData, int cubCallbackData) {
         if (iCallback == AppLicensesChanged_t::k_iCallback) {
             auto* p = static_cast<AppLicensesChanged_t*>(pCallbackData);
-            LOG_PACKAGE_DEBUG("SendCallbackToPipe: AppLicensesChanged m_bReloadAll={}",
+            LOG_PACKAGE_DEBUG("SendCallbackToPipe: AppLicensesChanged m_bReloadAll={} -> true",
                            p->m_bReloadAll);
+            p->m_bReloadAll = true;
         }
 
         return oSendCallbackToPipe(pSteamEngine, hSteamPipe, iClientUser,

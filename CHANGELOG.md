@@ -1,5 +1,24 @@
 # Changelog
 
+## 6.2.2
+
+### LumaCore — Hook System Overhaul
+
+- **Fixed Steam crash on startup** — `OptedInMask` and `BuildSpawnEnvBlock` hooks were previously attached via string cross-reference, which resolved to wrong/mid-function addresses on build `1778281814`, corrupting the call stack. Both hooks now use byte patterns exclusively (matching OST's approach), resolving to correct 16-byte aligned function entry points
+- **Re-enabled `-onlinefix` controller and overlay fix** — `OptedInMask` hook redirects appid 480 (Spacewar) to the real game appid so Steam Input opt-in and SDL controller env vars are set correctly; `BuildSpawnEnvBlock` hook patches `pOverlayCGameID` so the in-game overlay shows the correct game name, screenshots are tagged correctly, and "View Community Hub" opens the right hub
+- **Fixed `AppLicensesChanged` not triggering full library reload** — `SendCallbackToPipe` hook now forces `m_bReloadAll = true` on every `AppLicensesChanged` callback, ensuring Steam does a full library refresh when LumaCore injects app IDs
+- **Added hook logging to all attach macros** — every hook and capture now logs its method (byte-pattern or string-xref), the matched string (if applicable), and the resolved address to `main.log` at debug level; failed hooks log a warning
+- **`PatternDb.h` fully updated** — added `auto` wildcarded fallback patterns for `CUtlMemoryGrow`, `LoadDepotDecryptionKey`, `PchMsgNameFromEMsg`, and all other functions that previously had no fallback; added `OptedInMask` and `BuildSpawnEnvBlock` patterns from OST; `GetPipeClient` now has two string XRef entries for robustness
+- **`RuntimeCapture.cpp` cleaned up** — removed the old broken `BuildSpawnEnvBlock` env-block-string-rebuild approach (which was disabled due to crashes); replaced with the correct OST pOverlayCGameID patch approach
+
+### SteaMidra — Linux SLSteam Auto-Update
+
+- **Auto-install on startup** — `check_and_notify_update` now automatically installs SLSteam updates when a newer version is detected on startup, instead of just printing a notification message
+- **`patch_slssteam_config`** — new function that patches `config.yaml` after install/update to enable `PlayNotOwnedGames: yes`, `SafeMode: yes`, `NotifyInit: yes`, `Notifications: yes` (mirrors h3adcr-b's `editconfig()` behavior); uses a `.headcrabd` marker so it only patches once
+- **Platform guards** — all public functions in `slssteam.py` now return immediately on non-Linux platforms (`_IS_LINUX` guard); the startup call in `Main.py` was already guarded by `if sys.platform == "linux":`
+
+---
+
 ## 6.2.1
 
 ### Bug Fixes

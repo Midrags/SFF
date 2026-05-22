@@ -13,6 +13,10 @@ namespace LuaLoader {
     std::vector<uint8> GetDecryptionKey(AppId_t appId);
     uint64_t GetAccessToken(AppId_t appId);
     uint64_t GetStatSteamId(AppId_t appId);
+    // Returns the full fallback pool of SteamIDs for achievement schema fetching.
+    // If setStat() was configured for appId, outCount=1 and returns pointer to that ID.
+    // Otherwise returns the built-in pool. PacketRouter tries each in order.
+    const uint64_t* GetStatSteamIdPool(AppId_t appId, size_t& outCount);
     bool pinApp(AppId_t appId);
 
     struct ManifestOverride {

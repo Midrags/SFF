@@ -14,7 +14,7 @@ if "%APP_VERSION%"=="" (
 echo Version: %APP_VERSION%
 
 :: Patch installer.nsi fallback version to match strings.py
-powershell -NoProfile -Command "(Get-Content installer.nsi) -replace '(!define VERSION\s+\")[^\"]+\"', ('!define VERSION  \"' + '%APP_VERSION%' + '\"') | Set-Content installer.nsi"
+python -c "import re,sys; c=open('installer.nsi').read(); c=re.sub(r'(!define VERSION\s+\")[^\"]+\"', r'\g<1>%APP_VERSION%\"', c); open('installer.nsi','w').write(c)"
 echo Patched installer.nsi to version %APP_VERSION%
 
 :: Allow NSI-only mode: pass "nsi" as first argument to skip PyInstaller
@@ -33,12 +33,14 @@ if %errorlevel% neq 0 (
 
 :compile_nsi
 echo [2/2] Compiling NSIS installer...
-if not exist "%NSIS%" (
-    echo NSIS not found at %NSIS%
+if not exist "%NSIS%" goto nsis_missing
+goto nsis_found
+:nsis_missing
+    echo NSIS not found at "%NSIS%"
     echo Install NSIS from https://nsis.sourceforge.io/Download
     pause
     exit /b 1
-)
+:nsis_found
 "%NSIS%" /DVERSION=%APP_VERSION% installer.nsi
 if %errorlevel% neq 0 (
     echo NSIS compile failed.

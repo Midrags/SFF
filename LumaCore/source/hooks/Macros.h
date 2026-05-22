@@ -8,6 +8,7 @@
 #include <windows.h>
 #include <detours.h>
 #include "utils/ByteScan.h"
+#include "utils/Logger.h"
 #include "PatternDb.h"
 #include "StringFind.h"
 
@@ -42,9 +43,12 @@
     do {                                                              \
         void* _p_ = FIND_SIG(module, name);                            \
         if (_p_) {                                                    \
+            LOG_DEBUG("Hook: {} attached via byte-pattern @ 0x{:X}", #name, reinterpret_cast<uintptr_t>(_p_)); \
             o##name = (name##_t)_p_;                                  \
             DetourAttach(reinterpret_cast<PVOID*>(&o##name),           \
                          reinterpret_cast<PVOID>(hk##name));           \
+        } else {                                                      \
+            LOG_WARN("Hook: {} FAILED — pattern not found", #name); \
         }                                                             \
     } while (0)
 
@@ -68,15 +72,19 @@
 #define LC_ATTACH_STR_ONLY_D(name, strSigs)                                   \
     do {                                                                       \
         void* _p_ = nullptr;                                                   \
+        const char* _matched_str_ = nullptr;                                   \
         for (const auto& _s_ : (strSigs)) {                                    \
             _p_ = StringFind::FindFunction(diversion_hModule,                  \
                                            _s_.str, _s_.occurrence);            \
-            if (_p_) break;                                                    \
+            if (_p_) { _matched_str_ = _s_.str; break; }                      \
         }                                                                      \
         if (_p_) {                                                             \
+            LOG_DEBUG("Hook: {} attached via string-xref \"{}\" @ 0x{:X}", #name, _matched_str_, reinterpret_cast<uintptr_t>(_p_)); \
             o##name = (name##_t)_p_;                                           \
             DetourAttach(reinterpret_cast<PVOID*>(&o##name),                   \
                          reinterpret_cast<PVOID>(hk##name));                   \
+        } else {                                                               \
+            LOG_WARN("Hook: {} FAILED — string-xref not found", #name);  \
         }                                                                      \
     } while (0)
 
@@ -85,13 +93,23 @@
 #define LC_ATTACH_STR_D(name, strSigs, byteSigs)                              \
     do {                                                                       \
         void* _p_ = nullptr;                                                   \
+        const char* _matched_str_ = nullptr;                                   \
         for (const auto& _s_ : (strSigs)) {                                    \
             _p_ = StringFind::FindFunction(diversion_hModule,                  \
                                            _s_.str, _s_.occurrence);            \
-            if (_p_) break;                                                    \
+            if (_p_) { _matched_str_ = _s_.str; break; }                      \
         }                                                                      \
-        if (!_p_) _p_ = ByteSearch(diversion_hModule, #name,                  \
-                                    (byteSigs), std::size((byteSigs)));         \
+        if (_p_) {                                                             \
+            LOG_DEBUG("Hook: {} attached via string-xref \"{}\" @ 0x{:X}", #name, _matched_str_, reinterpret_cast<uintptr_t>(_p_)); \
+        } else {                                                               \
+            _p_ = ByteSearch(diversion_hModule, #name,                         \
+                             (byteSigs), std::size((byteSigs)));                \
+            if (_p_) {                                                         \
+                LOG_DEBUG("Hook: {} attached via byte-pattern (str-xref missed) @ 0x{:X}", #name, reinterpret_cast<uintptr_t>(_p_)); \
+            } else {                                                           \
+                LOG_WARN("Hook: {} FAILED — both string-xref and byte-pattern missed", #name); \
+            }                                                                  \
+        }                                                                      \
         if (_p_) {                                                             \
             o##name = (name##_t)_p_;                                           \
             DetourAttach(reinterpret_cast<PVOID*>(&o##name),                   \

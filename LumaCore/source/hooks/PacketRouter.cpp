@@ -211,6 +211,10 @@ namespace UserStats {
     using JobEntry = std::pair<AppId_t, std::chrono::steady_clock::time_point>;
     std::unordered_map<uint64, JobEntry> g_JobIdToAppId;
 
+    // Per-appId index into the SteamID pool — advances when a response comes back
+    // with no achievement data, so the next request tries the next account.
+    std::unordered_map<AppId_t, size_t> g_StatSteamIdIdx;
+
     // ── Send: CPlayer_GetUserStats_Request (eMsg 151) ──────────
     bool HandleSend_GetUserStats(const uint8* pBody, uint32 cbBody,
                                  const uint8* pHdr, uint32 cbHdr)
@@ -252,8 +256,12 @@ namespace UserStats {
             LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats request: stored jobid={} -> appid={}", jobId, appId);
         }
 
-        uint64_t newSteamId = LuaLoader::GetStatSteamId(appId);
+        size_t poolCount = 0;
+        const uint64_t* pool = LuaLoader::GetStatSteamIdPool(appId, poolCount);
+        size_t idx = g_StatSteamIdIdx[appId] % poolCount;
+        uint64_t newSteamId = pool[idx];
         req.set_steamid(newSteamId);
+        LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats request: using pool[{}]={} for appid={}", idx, newSteamId, appId);
 
         g_TxBodyLen = static_cast<uint32>(req.ByteSizeLong());
         if (g_TxBodyLen > kMaxBodySize) {
@@ -351,8 +359,14 @@ namespace UserStats {
             return false;
         }
 
-        uint64_t newSteamId = LuaLoader::GetStatSteamId(appId);
-        req.set_steam_id_for_user(newSteamId);
+        {
+            size_t poolCount = 0;
+            const uint64_t* pool = LuaLoader::GetStatSteamIdPool(appId, poolCount);
+            size_t idx = g_StatSteamIdIdx[appId] % poolCount;
+            uint64_t newSteamId = pool[idx];
+            req.set_steam_id_for_user(newSteamId);
+            LOG_ACHIEVEMENT_DEBUG("ClientGetUserStats request: using pool[{}]={} for appid={}", idx, newSteamId, appId);
+        }
 
         g_TxBodyLen = static_cast<uint32>(req.ByteSizeLong());
         if (g_TxBodyLen > kMaxBodySize) {
@@ -384,6 +398,15 @@ namespace UserStats {
         resp.clear_achievement_blocks();
         resp.set_eresult(1);  // k_EResultOK
         LOG_ACHIEVEMENT_DEBUG("ClientGetUserStats response: clear stats and achievement_blocks, set eresult=OK");
+
+        // Advance pool index for next request — try next SteamID if this one had no schema
+        {
+            AppId_t gameId = static_cast<AppId_t>(resp.game_id());
+            size_t poolCount = 0;
+            LuaLoader::GetStatSteamIdPool(gameId, poolCount);
+            if (poolCount > 1)
+                g_StatSteamIdIdx[gameId] = (g_StatSteamIdIdx[gameId] + 1) % poolCount;
+        }
 
         g_RxBodyLen = static_cast<uint32>(resp.ByteSizeLong());
         if (!resp.SerializeToArray(g_RxBody, kMaxBodySize))

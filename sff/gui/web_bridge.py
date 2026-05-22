@@ -2355,8 +2355,18 @@ class WebBridge(QObject):
             if app_id_int is None:
                 return (False, "Invalid App ID")
 
+            # Always remove the stplug-in Lua (both modes)
+            lua_removed = False
+            if self._steam_path:
+                try:
+                    from sff.steam_tools_compat import remove_lua_from_steam
+                    remove_lua_from_steam(self._steam_path, app_id_int)
+                    lua_removed = True
+                except Exception as e:
+                    logger.warning("delete_game: stplug-in Lua removal failed: %s", e)
+
             if mode != "full":
-                return (True, "Removed from library")
+                return (True, "Removed from library" + (" (Lua unregistered)" if lua_removed else ""))
 
             # --- Delete game files (mode='full') ---
             files_deleted = False
@@ -2811,62 +2821,52 @@ def _load_steam_applist():
     except Exception as e:
         logger.debug("all_games.txt load failed (will try HTTP): %s", e)
     # HTTP fallback — only reached when all_games.txt is absent or unreadable
+    # ISteamApps/GetAppList/v2 is confirmed dead (404 even with API key).
+    # Use IStoreService/GetAppList/v1 which supports server-side filtering.
     try:
-        url = "https://api.steampowered.com/ISteamApps/GetAppList/v2/?format=json"
-        req = _req.Request(url, headers={"User-Agent": "SteaMidra/6.1.0"})
-        with _req.urlopen(req, timeout=60, context=_get_ssl_ctx()) as resp:
-            data = _json.loads(resp.read())
-        apps = data.get("applist", {}).get("apps", [])
-        if apps:
-            _STEAM_APPLIST_CACHE = apps
+        from sff.utils import root_folder
+        from sff.strings import STEAM_WEB_API_KEY as _DEFAULT_KEY
+        from sff.storage.settings import get_setting
+        from sff.structs import Settings
+        _all_games_file = root_folder(outside_internal=True) / "all_games.txt"
+        _api_key = get_setting(Settings.STEAM_WEB_API_KEY)
+        if not isinstance(_api_key, str) or not _api_key.strip():
+            _api_key = _DEFAULT_KEY
+        # include_games=1, everything else=0 — server filters out DLC/software/video/hardware
+        _params = {"key": _api_key, "max_results": "50000",
+                   "include_games": "1", "include_dlc": "0",
+                   "include_software": "0", "include_videos": "0", "include_hardware": "0"}
+        _games = []
+        _base = "https://api.steampowered.com/IStoreService/GetAppList/v1/"
+        while True:
+            _qs = "&".join(f"{k}={v}" for k, v in _params.items())
+            _req2 = _req.Request(f"{_base}?{_qs}", headers={"User-Agent": "SteaMidra/6.1.0"})
+            with _req.urlopen(_req2, timeout=30, context=_get_ssl_ctx()) as _resp:
+                _data = _json.loads(_resp.read())
+            _games.extend(_data.get("response", {}).get("apps", []))
+            if not _data.get("response", {}).get("have_more_results"):
+                break
+            _last = _data.get("response", {}).get("last_appid")
+            if _last:
+                _params["last_appid"] = str(_last)
+            else:
+                break
+        if _games:
+            _gs = [
+                x.get("name", "UNKNOWN GAME") + f" [ID={x.get('appid')}]"
+                for x in _games
+                if x.get("appid") and x.get("name", "").strip()
+            ]
+            _all_games_file.parent.mkdir(parents=True, exist_ok=True)
+            with _all_games_file.open("w", encoding="utf-8") as _f:
+                _f.write("\n".join(_gs))
+            logger.debug("Steam applist built via IStoreService/GetAppList/v1: %d games", len(_games))
+            _STEAM_APPLIST_CACHE = _games
             _STEAM_APPLIST_CACHE_TIME = now
-            logger.debug("Steam applist loaded from HTTP: %d apps", len(apps))
-            return apps
-        logger.warning("Steam applist HTTP response was empty")
+            return _games
+        logger.warning("Steam applist IStoreService response was empty")
     except Exception as e:
-        logger.warning("Steam applist HTTP fetch failed: %s — trying paginated fallback", e)
-        try:
-            from sff.utils import root_folder
-            from sff.strings import STEAM_WEB_API_KEY as _DEFAULT_KEY
-            from sff.storage.settings import get_setting
-            from sff.structs import Settings
-            _all_games_file = root_folder(outside_internal=True) / "all_games.txt"
-            _api_key = get_setting(Settings.STEAM_WEB_API_KEY)
-            if not isinstance(_api_key, str) or not _api_key.strip():
-                _api_key = _DEFAULT_KEY
-            _params = {"key": _api_key, "max_results": "50000", "include_games": "1",
-                       "include_dlc": "0", "include_software": "0",
-                       "include_videos": "0", "include_hardware": "0"}
-            _games = []
-            _base = "https://api.steampowered.com/IStoreService/GetAppList/v1/"
-            while True:
-                _qs = "&".join(f"{k}={v}" for k, v in _params.items())
-                _req2 = _req.Request(f"{_base}?{_qs}", headers={"User-Agent": "SteaMidra/6.1.0"})
-                with _req.urlopen(_req2, timeout=30, context=_get_ssl_ctx()) as _resp:
-                    _data = _json.loads(_resp.read())
-                _games.extend(_data.get("response", {}).get("apps", []))
-                if not _data.get("response", {}).get("have_more_results"):
-                    break
-                _last = _data.get("response", {}).get("last_appid")
-                if _last:
-                    _params["last_appid"] = str(_last)
-                else:
-                    break
-            if _games:
-                _gs = [
-                    x.get("name", "UNKNOWN GAME") + f" [ID={x.get('appid')}]"
-                    for x in _games
-                    if x.get("appid") and x.get("name", "").strip()
-                ]
-                _all_games_file.parent.mkdir(parents=True, exist_ok=True)
-                with _all_games_file.open("w", encoding="utf-8") as _f:
-                    _f.write("\n".join(_gs))
-                logger.debug("Steam applist built via paginated fallback: %d games", len(_games))
-                _STEAM_APPLIST_CACHE = _games
-                _STEAM_APPLIST_CACHE_TIME = now
-                return _games
-        except Exception as e2:
-            logger.warning("Steam applist paginated fallback failed: %s", e2)
+        logger.warning("Steam applist HTTP fetch failed: %s", e)
     return _STEAM_APPLIST_CACHE or []
 
 

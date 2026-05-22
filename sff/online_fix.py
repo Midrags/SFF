@@ -291,12 +291,34 @@ def _run_multiplayer_fix_process(game_name, game_folder, username, password, aty
                 logger.debug("httpx bypass attempt: %s", _e)
         if not archives:
             # Browser path: headless Chrome follows loot.raxwars.com redirect natively
-            driver.execute_script("arguments[0].click();", btn)
-            try: wait.until(lambda d: len(d.window_handles) > 1)
-            except Exception: pass
-            for h in driver.window_handles:
-                driver.switch_to.window(h)
-                if "uploads.online-fix.me" in driver.current_url.lower(): break
+            try:
+                driver.execute_script("arguments[0].click();", btn)
+            except Exception as _click_err:
+                logger.debug("btn click failed: %s", _click_err)
+                print(Fore.RED + "✗ Could not click download button." + Style.RESET_ALL)
+                return False
+            # Wait for new window/tab — but don't crash if it doesn't open
+            try:
+                WebDriverWait(driver, 8).until(lambda d: len(d.window_handles) > 1)
+            except Exception:
+                pass  # may open in same tab
+            # Switch to the uploads window if it exists
+            switched = False
+            for h in list(driver.window_handles):
+                try:
+                    driver.switch_to.window(h)
+                    if "uploads.online-fix.me" in driver.current_url.lower():
+                        switched = True
+                        break
+                except Exception:
+                    continue
+            if not switched:
+                # Try current window
+                try:
+                    if "uploads.online-fix.me" not in driver.current_url.lower():
+                        logger.debug("No uploads window found, current URL: %s", driver.current_url)
+                except Exception:
+                    pass
             logger.debug("File server URL: %s", driver.current_url)
             print(Fore.YELLOW + "⚠ Waiting for Cloudflare/server resolution (up to 30s)..." + Style.RESET_ALL)
             start_wait = time.time()

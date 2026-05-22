@@ -293,7 +293,7 @@ def install_lumacore(
     steam_path: Path,
     progress_callback: Optional[Callable[[str], None]] = None,
 ) -> tuple[bool, str]:
-    """Full LumaCore setup: GL cleanup (once), remove old LC files, download latest
+    """Full LumaCore setup: kill Steam, GL cleanup (once), remove old LC files, download latest
     release from GitHub, extract and install DLLs to *steam_path*.
 
     Returns (success, message).
@@ -302,6 +302,27 @@ def install_lumacore(
         msg = f"Steam path not found: {steam_path}"
         logger.error(msg)
         return False, msg
+
+    # ── Kill Steam before touching DLLs ─────────────────────────
+    import sys as _sys
+    import time as _time
+    if _sys.platform == "win32":
+        try:
+            from sff.processes import SteamProcess, is_proc_running
+            steam_proc = SteamProcess(steam_path)
+            if is_proc_running(steam_proc.exe_name):
+                _progress("Closing Steam...", progress_callback)
+                steam_proc.kill()
+                waited = 0
+                while is_proc_running(steam_proc.exe_name) and waited < 15:
+                    _time.sleep(0.5)
+                    waited += 0.5
+                if is_proc_running(steam_proc.exe_name):
+                    _progress("Warning: Steam did not close in time — DLLs may be locked.", progress_callback)
+                else:
+                    _progress("Steam closed.", progress_callback)
+        except Exception as exc:
+            _progress(f"Could not close Steam: {exc}", progress_callback)
 
     marker = _gl_marker_path(steam_path)
     if not marker.exists():

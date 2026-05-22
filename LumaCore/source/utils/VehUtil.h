@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 #include "hooks/StringFind.h"
+#include "utils/Logger.h"
 
 // ── VEH one-shot capture entry ───────────────────────────────────────────────
 struct CaptureEntry {
@@ -28,6 +29,7 @@ struct CaptureEntry {
 #define ARM_CAPTURE_D(name, outVar)                                            \
     do {                                                                        \
         if (auto* _p_ = FIND_SIG(diversion_hModule, name)) {                   \
+            LOG_DEBUG("Capture: {} armed via byte-pattern @ 0x{:X}", #name, reinterpret_cast<uintptr_t>(_p_)); \
             o##name = reinterpret_cast<name##_t>(_p_);                         \
             g_captures.push_back({                                              \
                 reinterpret_cast<void**>(&o##name),                            \
@@ -36,6 +38,8 @@ struct CaptureEntry {
                 #name                                                           \
             });                                                                 \
             VehUtil::ArmInt3(_p_);                                              \
+        } else {                                                                \
+            LOG_WARN("Capture: {} FAILED — pattern not found", #name);    \
         }                                                                       \
     } while (0)
 
@@ -46,12 +50,22 @@ struct CaptureEntry {
 #define ARM_CAPTURE_STR_D(name, outVar, strSigs, byteSigs)                     \
     do {                                                                        \
         void* _p_ = nullptr;                                                    \
+        const char* _matched_str_ = nullptr;                                    \
         for (const auto& _s_ : (strSigs)) {                                     \
             _p_ = StringFind::FindFunction(diversion_hModule,                   \
                                            _s_.str, _s_.occurrence);             \
-            if (_p_) break;                                                     \
+            if (_p_) { _matched_str_ = _s_.str; break; }                       \
         }                                                                       \
-        if (!_p_) _p_ = FIND_SIG(diversion_hModule, name);                     \
+        if (_p_) {                                                              \
+            LOG_DEBUG("Capture: {} armed via string-xref \"{}\" @ 0x{:X}", #name, _matched_str_, reinterpret_cast<uintptr_t>(_p_)); \
+        } else {                                                                \
+            _p_ = FIND_SIG(diversion_hModule, name);                            \
+            if (_p_) {                                                          \
+                LOG_DEBUG("Capture: {} armed via byte-pattern (str-xref missed) @ 0x{:X}", #name, reinterpret_cast<uintptr_t>(_p_)); \
+            } else {                                                            \
+                LOG_WARN("Capture: {} FAILED — both string-xref and byte-pattern missed", #name); \
+            }                                                                   \
+        }                                                                       \
         if (_p_) {                                                              \
             o##name = reinterpret_cast<name##_t>(_p_);                         \
             g_captures.push_back({                                              \
