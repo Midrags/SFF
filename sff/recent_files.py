@@ -39,9 +39,12 @@ class RecentFilesManager:
     def load(self):
         try:
             if RECENT_FILES_PATH.exists():
-                with RECENT_FILES_PATH.open("r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self.recent_files = data.get("files", [])
+                content = RECENT_FILES_PATH.read_text(encoding="utf-8").strip()
+                if not content:
+                    self.recent_files = []
+                    return
+                data = json.loads(content)
+                self.recent_files = data.get("files", [])
                 logger.debug(f"Loaded {len(self.recent_files)} recent files")
         except Exception as e:
             logger.error(f"Failed to load recent files: {e}", exc_info=True)

@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.2.1
+
+### Bug Fixes
+
+- Fixed system tray icon not appearing after reboot or fresh install — tray now retries automatically every 3 seconds if the system tray is not yet available (Windows shell still loading), and the tray object is properly anchored to the window to prevent garbage collection
+- Fixed "Expecting value: line 1 column 1 (char 0)" crash on Update All Manifests and Open Recent .lua file — caused by empty `recent_files.json` or `api_cache.json` files; both now handle empty files gracefully
+- Removed Offline Mode Fix menu entry — this was a GreenLuma-specific feature that no longer applies
+- Added SLSteam update check on Linux startup — SteaMidra now silently checks for a newer SLSteam release on every launch and notifies if one is available
+
+---
+
 ## 6.2
 
 ### LumaCore — Bug Fixes and Improvements

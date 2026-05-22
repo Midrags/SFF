@@ -235,8 +235,6 @@ class SFFMainWindow(QMainWindow):
             "Library & Steam Tools:\n"
             "  - Manage Injection Profiles: Create, switch, save, merge,\n"
             "    delete, or rename app ID injection profiles.\n"
-            "  - Offline mode fix: Patch config.vdf so Steam starts in\n"
-            "    offline mode reliably.\n"
             "  - Mute: Toggle background music on/off.\n"
             "  - Remove game from library: Remove a game's ACF and registered app ID.\n"
             "  - Context menu: Add/remove SteaMidra from Windows Explorer\n"
@@ -401,7 +399,6 @@ class SFFMainWindow(QMainWindow):
         tools_row1 = QHBoxLayout()
         for label, func in [
             (T("Manage Injection Profiles"), lambda: self.ui.injection_menu()),
-            (T("Offline mode fix"), lambda: self.ui.offline_fix_menu()),
         ]:
             btn = QPushButton(label)
             btn.clicked.connect(lambda checked=False, f=func: self._run_tool(f))

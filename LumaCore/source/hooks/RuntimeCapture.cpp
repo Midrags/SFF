@@ -155,6 +155,11 @@ namespace {
                 && ctx->Rip == reinterpret_cast<uint64_t>(g_spawnProcessTarget)) {
                 auto* pGameID = reinterpret_cast<uint64_t*>(
                     *reinterpret_cast<uint64_t*>(ctx->Rsp + 0x28));
+                if (!pGameID) {
+                    *g_spawnProcessTarget = 0x48;
+                    ctx->EFlags |= 0x100;
+                    return EXCEPTION_CONTINUE_EXECUTION;
+                }
                 AppId_t appId = static_cast<AppId_t>(*pGameID & 0xFFFFFF);
 
                 *g_spawnProcessTarget = 0x48;
@@ -199,26 +204,19 @@ namespace SteamCapture {
         ARM_CAPTURE_D(MarkLicenseAsChanged, g_pCUser);
         ARM_CAPTURE_D(GetPackageInfo, g_pCPackageInfo);
 
-        {
-            void* _sp_ = nullptr;
-            for (const auto& _s_ : SpawnProcessStrSigs) {
-                _sp_ = StringFind::FindFunction(diversion_hModule,
-                                               _s_.str, _s_.occurrence);
-                if (_sp_) break;
-            }
-            if (!_sp_) _sp_ = FIND_SIG(diversion_hModule, SpawnProcess);
-            if (_sp_) {
-                g_spawnProcessTarget = static_cast<uint8_t*>(_sp_);
-                VehUtil::ArmInt3(_sp_);
-            }
+        if (auto* _sp_ = FIND_SIG(diversion_hModule, SpawnProcess)) {
+            g_spawnProcessTarget = static_cast<uint8_t*>(_sp_);
+            VehUtil::ArmInt3(_sp_);
         }
 
         if (!g_captures.empty() || g_spawnProcessTarget)
             g_vehHandle = AddVectoredExceptionHandler(1, VehHandler);
 
-        LC_TX_OPEN();
-        LC_ATTACH_STR_ONLY_D(BuildSpawnEnvBlock, BuildSpawnEnvBlockStrSigs);
-        LC_TX_COMMIT();
+        // BuildSpawnEnvBlock hook disabled — string XRef resolves to wrong
+        // function on this Steam build, corrupting env block for all launches.
+        // LC_TX_OPEN();
+        // LC_ATTACH_STR_ONLY_D(BuildSpawnEnvBlock, BuildSpawnEnvBlockStrSigs);
+        // LC_TX_COMMIT();
     }
 
     void Uninstall() {
@@ -233,9 +231,9 @@ namespace SteamCapture {
             VehUtil::RestoreByte(g_spawnProcessTarget, 0x48);
         g_spawnProcessTarget = nullptr;
 
-        LC_TX_OPEN();
-        LC_DETACH(BuildSpawnEnvBlock);
-        LC_TX_COMMIT();
+        // LC_TX_OPEN();
+        // LC_DETACH(BuildSpawnEnvBlock);
+        // LC_TX_COMMIT();
 
         VEH_TRACK_LIST(VEH_ZERO_RESOLVE)
         g_OnlineFixRealAppId.store(0, std::memory_order_relaxed);
@@ -335,7 +333,7 @@ namespace SteamCapture {
                 pPkg->AppIdVec.m_Memory.m_pMemory[oldSize + i] = additions[i];
                 LOG_PACKAGE_DEBUG("NotifyLicenseChanged: inserted AppId {} at [{}]", additions[i], oldSize + i);
             }
-            pPkg->AppIdVec.m_Size = static_cast<uint32>(oldSize + additions.size());
+
         }
 
         if (additions.empty() && removedCount == 0) {

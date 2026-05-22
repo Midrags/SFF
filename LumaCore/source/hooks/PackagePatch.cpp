@@ -18,7 +18,6 @@ namespace {
                 oCUtlMemoryGrow(&pInfo->AppIdVec, numToAdd);
                 for (uint32 i = 0; i < numToAdd; i++)
                     pInfo->AppIdVec.m_Memory.m_pMemory[oldSize + i] = appIds[i];
-                pInfo->AppIdVec.m_Size = oldSize + numToAdd;
             }
         }
 
@@ -27,7 +26,7 @@ namespace {
 
     LC_HOOK_DEF(CheckAppOwnership, bool, void* pObj, AppId_t appId, AppOwnership* pOwn) {
         bool result = oCheckAppOwnership(pObj, appId, pOwn);
-        if (LuaLoader::HasDepot(appId)) {
+        if (pOwn && LuaLoader::HasDepot(appId)) {
             if (result && pOwn->ExistInPackageNums > 1
                 && pOwn->ReleaseState == EAppReleaseState::Released) {
                 // Actually owned — record so HasDepot excludes it going forward
@@ -35,7 +34,7 @@ namespace {
             } else {
                 pOwn->PackageId    = 0;
                 pOwn->ReleaseState = EAppReleaseState::Released;
-                pOwn->GameIDType   = EGameIDType::k_EGameIDTypeApp;
+                pOwn->bFreeLicense = false;
                 return true;
             }
         }
@@ -44,14 +43,10 @@ namespace {
 
     LC_HOOK_DEF(SendCallbackToPipe, bool, void* pSteamEngine, HSteamPipe hSteamPipe,
               HSteamUser iClientUser, int iCallback, void* pCallbackData, int cubCallbackData) {
-        // ── Callback modifier dispatch ─────────────────────────────────────────
-        // Intercept callbacks before they reach the pipe and modify data in-place.
-        // To add a new callback: add an else-if branch here.
         if (iCallback == AppLicensesChanged_t::k_iCallback) {
             auto* p = static_cast<AppLicensesChanged_t*>(pCallbackData);
-            LOG_PACKAGE_DEBUG("SendCallbackToPipe: AppLicensesChanged m_bReloadAll={} -> true",
+            LOG_PACKAGE_DEBUG("SendCallbackToPipe: AppLicensesChanged m_bReloadAll={}",
                            p->m_bReloadAll);
-            p->m_bReloadAll = true;
         }
 
         return oSendCallbackToPipe(pSteamEngine, hSteamPipe, iClientUser,

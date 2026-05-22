@@ -43,8 +43,11 @@ class APICache:
     def load(self):
         try:
             if CACHE_FILE.exists():
-                with CACHE_FILE.open("r", encoding="utf-8") as f:
-                    self.cache = json.load(f)
+                content = CACHE_FILE.read_text(encoding="utf-8").strip()
+                if not content:
+                    self.cache = {}
+                    return
+                self.cache = json.loads(content)
                 logger.debug(f"Loaded cache with {len(self.cache)} entries")
         except Exception as e:
             logger.error(f"Failed to load cache: {e}", exc_info=True)

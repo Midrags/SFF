@@ -19,7 +19,7 @@
 
 import base64 as _b64
 
-VERSION = "6.2"
+VERSION = "6.2.1"
 # NOTE: Public key shared by oureveryday (https://github.com/SteamAutoCracks/Steam-auto-crack/issues/33)
 _swak = b"MUREMDQ1MEE5OUY1NzM2OTNDRDAzMUVCQjE2MDkwN0Q="
 STEAM_WEB_API_KEY = _b64.b64decode(_swak).decode()

@@ -406,7 +406,22 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
     return True
 
 
-def check_steamclient_hash() -> dict:
+def check_and_notify_update(print_fn=print) -> None:
+    """Check for a SLSsteam update silently and print a notice if one is available.
+    Intended to be called on SteaMidra startup on Linux — non-blocking, never raises."""
+    try:
+        info = check_update_available(print_fn=lambda _: None)  # silent fetch
+        if info.get("update_available"):
+            installed = info.get("installed") or "unknown"
+            latest = info.get("latest") or "unknown"
+            print_fn(
+                Fore.YELLOW
+                + f"SLSsteam update available: {installed} -> {latest}. "
+                + "Run 'Set up Linux tools' to update."
+                + Style.RESET_ALL
+            )
+    except Exception:
+        pass
     steamclient = Path.home() / ".steam" / "steam" / "ubuntu12_32" / "steamclient.so"
     result = {"found": False, "hash": None, "mismatch": False}
     if not steamclient.exists():

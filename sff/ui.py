@@ -423,68 +423,6 @@ class UI:
             print(Fore.RED + f"✗ {message}" + Style.RESET_ALL)
 
     @music_toggle_decorator
-    def offline_fix_menu(self):
-        print(
-            Fore.YELLOW
-            + "Steam will fail to launch when you close it while in OFFLINE Mode. "
-            "Set it back to ONLINE to fix it." + Style.RESET_ALL
-        )
-        loginusers_file = self.steam_path / "config/loginusers.vdf"
-        if not loginusers_file.exists():
-            print(
-                "loginusers.vdf file can't be found. "
-                "Have you already logged in once through Steam?"
-            )
-            return MainReturnCode.LOOP_NO_PROMPT
-        vdf_data = vdf_load(loginusers_file, mapper=OrderedDict)
-        vdf_users = vdf_data.get("users")
-        if vdf_users is None:
-            print("There are no users on this Steam installation...")
-            return MainReturnCode.LOOP_NO_PROMPT
-        user_ids = vdf_users.keys()
-        users = []
-        for user_id in user_ids:
-            x = vdf_users[user_id]
-            users.append(
-                LoggedInUser(
-                    user_id,
-                    x.get("PersonaName", "[MISSING]"),
-                    x.get("WantsOfflineMode", "[MISSING]"),
-                )
-            )
-        if len(users) == 0:
-            print("There are no users on this Steam installation")
-            return MainReturnCode.LOOP_NO_PROMPT
-        offline_converter = lambda x: (
-            "ONLINE" if x == "0" else "OFFLINE"
-        )
-        chosen_user = prompt_select(
-            "Select a user: ",
-            [
-                (
-                    f"{x.persona_name} - " + offline_converter(x.wants_offline_mode),
-                    x,
-                )
-                for x in users
-            ],
-            cancellable=True,
-        )
-        if chosen_user is None:
-            return MainReturnCode.LOOP_NO_PROMPT
-        new_value = "0" if chosen_user.wants_offline_mode == "1" else "1"
-        if new_value == "1":
-            if not prompt_confirm(
-                Fore.RED + "WARNING: Setting offline mode will prevent Steam from launching until toggled back.\n"
-                "Are you sure you want to continue?" + Style.RESET_ALL
-            ):
-                print("Cancelled.")
-                return MainReturnCode.LOOP_NO_PROMPT
-        vdf_data["users"][chosen_user.steam64_id]["WantsOfflineMode"] = new_value
-        vdf_dump(loginusers_file, vdf_data)
-        print(f"{chosen_user.persona_name} is now {offline_converter(new_value)}")
-        return MainReturnCode.LOOP
-
-    @music_toggle_decorator
     def injection_menu(self):
         if self.sls_man is not None:
             return self.sls_man.display_menu(self.provider)

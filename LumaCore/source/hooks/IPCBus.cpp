@@ -53,7 +53,7 @@ namespace {
             } else if (cmd == EIPCCommand::InterfaceCall) {
                 // exclude InterfaceCall from steam
                 if (!pipe || (pipe->m_hSteamPipe & 0xFFFF) <= 2) {
-                    LOG_IPC_TRACE("[InterfaceCall] from steam, pipe=0x{:08X} skip handler", pipe->m_hSteamPipe);
+                    if (pipe) LOG_IPC_TRACE("[InterfaceCall] from steam, pipe=0x{:08X} skip handler", pipe->m_hSteamPipe);
                     return oIPCProcessMessage(pServer, hSteamPipe, pRead, pWrite);
                 }
                 const auto iface = static_cast<EIPCInterface>(data[OFFSET_INTERFACE_ID]);
@@ -61,20 +61,20 @@ namespace {
                 entry = FindHandler(iface, funcHash);
                 if (entry) {
                     LOG_IPC_DEBUG("[InterfaceCall] {} {} realAppId={},AppId={}",
-                                  entry->name, pipe->DebugString(),
+                                  entry->name, pipe ? pipe->DebugString() : "pipe=null",
                                   SteamCapture::ResolveAppId(),
                                   SteamCapture::GetAppIDForCurrentPipe()
                                 );
                 } else {
                     LOG_IPC_TRACE("[InterfaceCall(unhandled)]{}::0x{:08X} {} realAppId={},AppId={}",
                                   EIPCInterfaceName(iface), funcHash,
-                                  pipe->DebugString(),
+                                  pipe ? pipe->DebugString() : "pipe=null",
                                   SteamCapture::ResolveAppId(),
                                   SteamCapture::GetAppIDForCurrentPipe()
                                 );
                 }
             } else {
-                LOG_IPC_TRACE("[{}] {}", EIPCCommandName(cmd), pipe->DebugString());
+                if (pipe) LOG_IPC_TRACE("[{}] {}", EIPCCommandName(cmd), pipe->DebugString());
             }
         }
 
@@ -86,7 +86,7 @@ namespace {
         AppId_t appId = SteamCapture::ResolveAppId();
         if (!LuaLoader::HasDepot(appId)) {
             LOG_IPC_TRACE("{}: appId={} has no configured depot, skip handler {}",
-                entry->name, appId, pipe->DebugString());
+                entry->name, appId, pipe ? pipe->DebugString() : "pipe=null");
             return result;
         }
 

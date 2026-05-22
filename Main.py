@@ -48,6 +48,8 @@ import traceback
 
 from pathlib import Path
 
+from typing import TYPE_CHECKING
+
 
 
 from colorama import Fore, Style
@@ -200,8 +202,6 @@ def main(ui, args: argparse.Namespace):
 
             MainMenu.DL_USER_GAME_STATS,
 
-            MainMenu.OFFLINE_FIX,
-
             MainMenu.STEAM_AUTO,
 
             MainMenu.HV_FIX,
@@ -265,12 +265,6 @@ def main(ui, args: argparse.Namespace):
     if menu_choice == MainMenu.ANALYTICS:
 
         return ui.analytics_dashboard_menu()
-
-
-
-    if menu_choice == MainMenu.OFFLINE_FIX:
-
-        return ui.offline_fix_menu()
 
 
 
@@ -551,6 +545,14 @@ if __name__ == "__main__":
         sys.exit()
 
     logger.debug(f"Init finished in {time.time() - start_time}s")
+
+    # On Linux: silently check for SLSsteam updates and notify user
+    if sys.platform == "linux":
+        try:
+            from sff.linux.slssteam import check_and_notify_update
+            check_and_notify_update()
+        except Exception:
+            pass
 
     return_code = None
 

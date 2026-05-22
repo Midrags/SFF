@@ -211,9 +211,11 @@ def main():
     window.show()
 
     from sff.tray_icon import TrayIcon
-    tray = TrayIcon()
+    tray = TrayIcon(parent=window)
     tray.setup(_app_icon if not _app_icon.isNull() else app.windowIcon())
     window.set_tray(tray)
+    # Keep a reference on app to prevent garbage collection
+    app._tray = tray
     tray.show_requested.connect(window.showNormal)
     tray.show_requested.connect(window.activateWindow)
     tray.exit_requested.connect(app.quit)

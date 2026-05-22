@@ -59,7 +59,6 @@ class MainMenu(Enum):
     MULTIPLAYER_FIX = "Apply multiplayer fix (online-fix.me)"
     CRACK_FIX = "Fixes & Bypasses"
     HV_FIX = "HyperVisor bypasses (HVAuto)"
-    OFFLINE_FIX = "Offline Mode Fix"
     if sys.platform == "win32":
         MANAGE_INJECTION = "Manage Injected IDs"
         REMOVE_GAME = "Remove a game from library (stplug-in)"

@@ -86,20 +86,33 @@ struct PackageInfo
 
 struct AppOwnership
 {
-	PackageId_t PackageId;
-	EAppReleaseState ReleaseState; 
-	AccountID_t SteamId32; 
-	AppId_t MasterSubscriptionAppID; 
-	uint32 TrialSeconds; 
-	uint32 ExistInPackageNums; 
-	char PurchaseCountryCode[4];
-	uint32 TimeStamp;
-	uint32 TimeExpire;
-	int32 foo;
-	EGameIDType GameIDType;
-	int32 bar;
-	int32 baz;
-
+        PackageId_t PackageId;
+        EAppReleaseState ReleaseState;
+        AccountID_t SteamId32;
+        AppId_t MasterSubscriptionAppID;
+        uint32 TrialSeconds;
+        uint32 ExistInPackageNums;
+        char PurchaseCountryCode[4];
+        uint32 TimeStamp;
+        uint32 TimeExpire;
+        bool bOwnsLicense;
+        bool bLicenseExpired;
+        bool bIsPermanent;
+        bool bLowViolence;
+        bool bFreeLicense;
+        bool bRegionRestricted;
+        bool bFromFreeWeekend;
+        bool bLicenseLocked;
+        bool bLicensePending;
+        bool bRetailLicense;
+        bool bAutoGrant;
+        bool bLicensePermanent;
+        bool bGuestPass;
+        bool bBorrowed;
+        bool bAnySiteLicense;
+        bool bAllSiteLicenses;
+        bool bAllActivationRequired;
+        bool bFamilyShared;
 };
 
 struct CSteamApp{

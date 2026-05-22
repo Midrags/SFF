@@ -52,11 +52,22 @@ class TrayIcon(QObject):
         self._icon_path = icon_path
         self._minimize_to_tray = True
 
-    def setup(self, app_icon = None):
-        """initialize the tray icon — call this after QApplication is created"""
+    def setup(self, app_icon=None):
+        """Initialize the tray icon — call this after QApplication is created.
+        If the system tray is not yet available (e.g. shell still loading after
+        reboot), schedules a retry via QTimer so the tray appears once ready.
+        """
+        self._pending_icon = app_icon
+        self._setup_attempt(app_icon)
+
+    def _setup_attempt(self, app_icon=None):
+        """Single attempt to create the tray icon."""
         if not QSystemTrayIcon.isSystemTrayAvailable():
-            logger.warning("System tray not available")
+            logger.warning("System tray not available — will retry in 3 s")
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(3000, lambda: self._setup_attempt(self._pending_icon))
             return
+        # Use the window (parent) as the QSystemTrayIcon parent so Qt keeps it alive
         self._tray = QSystemTrayIcon(self.parent())
         if app_icon and not app_icon.isNull():
             self._tray.setIcon(app_icon)
