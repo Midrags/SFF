@@ -117,6 +117,35 @@
         }                                                                      \
     } while (0)
 
+// Two-stage attach targeting an explicit module (not diversion_hModule).
+// String XRef first, byte-pattern fallback. Used for steamui.dll hooks.
+#define LC_ATTACH_STR(module, name, strSigs, byteSigs)                        \
+    do {                                                                       \
+        void* _p_ = nullptr;                                                   \
+        const char* _matched_str_ = nullptr;                                   \
+        for (const auto& _s_ : (strSigs)) {                                    \
+            _p_ = StringFind::FindFunction((module),                           \
+                                           _s_.str, _s_.occurrence);            \
+            if (_p_) { _matched_str_ = _s_.str; break; }                      \
+        }                                                                      \
+        if (_p_) {                                                             \
+            LOG_DEBUG("Hook: {} attached via string-xref \"{}\" @ 0x{:X}", #name, _matched_str_, reinterpret_cast<uintptr_t>(_p_)); \
+        } else {                                                               \
+            _p_ = ByteSearch((module), #name,                                  \
+                             (byteSigs), std::size((byteSigs)));                \
+            if (_p_) {                                                         \
+                LOG_DEBUG("Hook: {} attached via byte-pattern (str-xref missed) @ 0x{:X}", #name, reinterpret_cast<uintptr_t>(_p_)); \
+            } else {                                                           \
+                LOG_WARN("Hook: {} FAILED — both string-xref and byte-pattern missed", #name); \
+            }                                                                  \
+        }                                                                      \
+        if (_p_) {                                                             \
+            o##name = (name##_t)_p_;                                           \
+            DetourAttach(reinterpret_cast<PVOID*>(&o##name),                   \
+                         reinterpret_cast<PVOID>(hk##name));                   \
+        }                                                                      \
+    } while (0)
+
 // Resolve a function address into o<name> without hooking it.
 // Use to call internal Steam functions directly. No Detours transaction needed.
 #define LC_RESOLVE(module, name) \

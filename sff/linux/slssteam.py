@@ -289,9 +289,22 @@ def patch_slssteam_config(steam_type: str, print_fn=print) -> bool:
 
 
 def get_installed_version() -> str | None:
-    """Return the installed SLSsteam version string, or None if not tracked."""
+    """Return the installed SLSsteam version string, or None if not tracked.
+
+    Returns None when neither our VERSION file nor any SLSsteam .so is present.
+    Returns a sentinel `"unknown"` when the .so is found but no VERSION file
+    exists — covers users who installed via pacman, h3adcr-b, or by hand. The
+    sentinel makes the update check trigger and rewrite VERSION on the next
+    install, transitioning ad-hoc setups onto our managed update path.
+    """
     if VERSION_FILE.exists():
-        return VERSION_FILE.read_text(encoding="utf-8").strip() or None
+        text = VERSION_FILE.read_text(encoding="utf-8").strip()
+        if text:
+            return text
+    # No version file. Detect a foreign install via .so presence.
+    for steam_type in ("flatpak", "native"):
+        if (get_slssteam_install_dir(steam_type) / "SLSsteam.so").exists():
+            return "unknown"
     return None
 
 
@@ -312,7 +325,11 @@ def check_update_available(print_fn=print) -> dict:
         resp.raise_for_status()
         latest = resp.json().get("tag_name", "")
         result["latest"] = latest
-        if installed and latest and installed != latest:
+        # update_available when:
+        #  - we have a tracked version and it differs from latest, OR
+        #  - we found a foreign install (installed == "unknown") so we can
+        #    transition it onto our managed path.
+        if latest and installed and installed != latest:
             result["update_available"] = True
     except Exception as e:
         print_fn(Fore.YELLOW + f"Could not check for SLSsteam updates: {e}" + Style.RESET_ALL)
@@ -450,35 +467,54 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
 
 
 def check_and_notify_update(print_fn=print) -> None:
-    """Check for a SLSsteam update on startup. If an update is available, install it
-    automatically. Intended to be called on SteaMidra startup on Linux — non-blocking,
-    never raises."""
+    """Run a background install/upgrade on Linux startup.
+
+    Three branches:
+      1. Already up to date  -> no output.
+      2. Tracked install but newer release available -> install latest.
+      3. Not installed yet (first run, or installed by another tool but no
+         VERSION file)  -> install latest. This is the path that fixes the
+         common "Game injection manager not configured" message: a fresh user
+         had no way to discover the manual setup menu.
+
+    Never raises. Prints what it's doing only when something is actually
+    happening, so silent boots stay silent.
+    """
     if not _IS_LINUX:
         return
     try:
         info = check_update_available(print_fn=lambda _: None)  # silent fetch
+        installed = info.get("installed")
+        latest = info.get("latest")
+
+        if not latest:
+            # GitHub unreachable. Don't spam an error on every boot.
+            return
+
+        from pathlib import Path as _Path
+        if detect_steam_type() == "flatpak":
+            steam_path = _Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam"
+        else:
+            steam_path = _Path.home() / ".steam" / "steam"
+
+        if not installed:
+            print_fn(
+                Fore.CYAN
+                + f"SLSsteam not installed. Auto-installing latest ({latest})..."
+                + Style.RESET_ALL
+            )
+            install_from_github(steam_path, print_fn)
+            return
+
         if info.get("update_available"):
-            installed = info.get("installed") or "unknown"
-            latest = info.get("latest") or "unknown"
             print_fn(
                 Fore.YELLOW
                 + f"SLSsteam update available: {installed} -> {latest}. Installing automatically..."
                 + Style.RESET_ALL
             )
-            # Auto-install: find the Steam path and run the installer
-            steam_type = detect_steam_type()
-            if steam_type == "flatpak":
-                from pathlib import Path as _Path
-                steam_path = _Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam"
-            else:
-                from pathlib import Path as _Path
-                steam_path = _Path.home() / ".steam" / "steam"
             install_from_github(steam_path, print_fn)
-        elif info.get("installed"):
-            # Already up to date — no output needed on startup
-            pass
-        elif not info.get("installed"):
-            # Not installed yet — skip silent check, user needs to run setup manually
-            pass
+            return
+
+        # Already up to date — say nothing.
     except Exception:
         pass

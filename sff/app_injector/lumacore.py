@@ -71,14 +71,25 @@ class LumaCoreManager(AppInjectionManager):
 
         print(Fore.CYAN + f"\nFetching DLC list for App ID {base_id}..." + Style.RESET_ALL)
         try:
-            dlc_list = get_dlc_list_from_store(base_id, provider)
+            result = get_dlc_list_from_store(base_id)
         except Exception as e:
             print(Fore.RED + f"Failed to fetch DLC list: {e}" + Style.RESET_ALL)
             return MainReturnCode.LOOP_NO_PROMPT
 
-        if not dlc_list:
+        if not result:
+            print(Fore.YELLOW + "Could not load DLC list from Steam Store." + Style.RESET_ALL)
+            return MainReturnCode.LOOP_NO_PROMPT
+
+        _base_name, dlc_ids = result
+        if not dlc_ids:
             print(Fore.YELLOW + "No DLCs found for this game." + Style.RESET_ALL)
             return MainReturnCode.LOOP_NO_PROMPT
+
+        # Pull all names in one batch instead of one-by-one inside the table loop.
+        try:
+            names = get_dlc_names_from_store(dlc_ids)
+        except Exception:
+            names = {}
 
         local_ids = self.get_local_ids()
 
@@ -89,17 +100,10 @@ class LumaCoreManager(AppInjectionManager):
             title=f"DLC List — App {base_id}",
         )
         missing = []
-        for dlc in dlc_list:
-            dlc_id = dlc if isinstance(dlc, int) else getattr(dlc, "app_id", dlc)
+        for dlc_id in dlc_ids:
             owned = dlc_id in local_ids
             status = "[green]Unlocked[/green]" if owned else "[red]Missing[/red]"
-            name = ""
-            try:
-                names = get_dlc_names_from_store([dlc_id], provider)
-                name = names.get(dlc_id, "")
-            except Exception:
-                pass
-            table.add_row(status, str(dlc_id), name)
+            table.add_row(status, str(dlc_id), names.get(dlc_id, f"DLC {dlc_id}"))
             if not owned:
                 missing.append(dlc_id)
 

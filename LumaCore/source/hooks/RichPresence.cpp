@@ -17,14 +17,22 @@ namespace RichPresence {
         }
 
         AppId_t realAppId = SteamCapture::ResolveAppId();
-        if (!realAppId || !LuaLoader::HasDepot(realAppId))
+        if (!realAppId) {
+            LOG_MISC_TRACE("RichPresence: no realAppId (no -onlinefix active), skip");
             return false;
+        }
+        if (!LuaLoader::HasDepot(realAppId)) {
+            LOG_MISC_TRACE("RichPresence: realAppId={} not in depot list, skip", realAppId);
+            return false;
+        }
 
         bool patched = false;
+        int seen480 = 0;
         for (int i = 0; i < msg.friends_size(); ++i) {
             auto* f = msg.mutable_friends(i);
             if (static_cast<AppId_t>(f->game_played_app_id()) != kOnlineFixAppId)
                 continue;
+            ++seen480;
 
             std::string name = SteamCapture::GetGameNameByAppID(realAppId);
             f->set_game_played_app_id(realAppId);
@@ -37,7 +45,11 @@ namespace RichPresence {
             patched = true;
         }
 
-        if (!patched) return false;
+        if (!patched) {
+            LOG_MISC_TRACE("RichPresence: realAppId={} active, friends={} seen480={} (nothing to patch)",
+                           realAppId, msg.friends_size(), seen480);
+            return false;
+        }
 
         uint32 sz = static_cast<uint32>(msg.ByteSizeLong());
         if (sz > outBufSize) {

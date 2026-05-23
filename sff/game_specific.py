@@ -355,27 +355,147 @@ class GameHandler:
               f"{Path.home() / 'AppData' / 'Roaming' / 'GSE Saves' / app_id}")
 
     def apply_steamless(self, app_info, exe_path = None):
+        """Run Steamless on a game executable to strip Steam DRM.
+
+        Returns a (success, message) tuple so callers can surface a clear
+        result in the GUI instead of having to scrape stdout.
+        """
         game_exe = exe_path if exe_path is not None else self.select_executable(app_info)
+        if game_exe is None:
+            msg = "Steamless: no executable selected"
+            print(Fore.RED + msg + Style.RESET_ALL)
+            return False, msg
+
+        game_exe = Path(game_exe)
+        if not game_exe.exists():
+            msg = f"Steamless: file not found — {game_exe}"
+            print(Fore.RED + msg + Style.RESET_ALL)
+            return False, msg
+        if game_exe.suffix.lower() != ".exe":
+            msg = (
+                f"Steamless: '{game_exe.name}' is not a .exe file. "
+                "Pick the game's main executable (the one Steam launches)."
+            )
+            print(Fore.RED + msg + Style.RESET_ALL)
+            return False, msg
+        # Quick PE magic check so we fail with a clear message instead of
+        # the cryptic "Invalid input file" Steamless prints for non-PE input.
+        try:
+            with game_exe.open("rb") as f:
+                if f.read(2) != b"MZ":
+                    msg = (
+                        f"Steamless: '{game_exe.name}' is not a Windows PE binary "
+                        "(no MZ header). The file is corrupted or not actually an exe."
+                    )
+                    print(Fore.RED + msg + Style.RESET_ALL)
+                    return False, msg
+        except OSError as e:
+            msg = f"Steamless: cannot read '{game_exe.name}': {e}"
+            print(Fore.RED + msg + Style.RESET_ALL)
+            return False, msg
+
         steamless_exe = root_folder() / "third_party/steamless/Steamless.CLI.exe"
-        output = subprocess.run(
-            [str(steamless_exe.absolute()), str(game_exe.absolute())],
-            encoding="utf-8",
-            capture_output=True,
-        )
-        if "Successfully unpacked file!" in output.stdout:
-            print("Steamless applied!")
-            unpacked = game_exe.parent / (game_exe.name + ".unpacked.exe")
-            game_exe.unlink()
+        if not steamless_exe.exists():
+            # Fall back to the layout the Fix Game pipeline ships with.
+            alt = root_folder() / "third_party/Steamless/Steamless.CLI.exe"
+            if alt.exists():
+                steamless_exe = alt
+            else:
+                msg = f"Steamless not found at {steamless_exe}"
+                print(Fore.RED + msg + Style.RESET_ALL)
+                return False, msg
+
+        # --exp enables the experimental unpackers covering Steam Stub v3.0
+        # and v3.1, which is what current Steam-DRM titles (Teardown,
+        # Doom Eternal, etc.) ship with. Without it Steamless only handles
+        # the older v1/v2 wrappers and fails silently on modern games.
+        # --quiet suppresses Steamless's own banner; we still capture stdout.
+        cmd = [
+            str(steamless_exe.absolute()),
+            "--exp",
+            "--quiet",
+            str(game_exe.absolute()),
+        ]
+        print(Fore.CYAN + f"Steamless: running on {game_exe.name}..." + Style.RESET_ALL)
+        try:
+            output = subprocess.run(
+                cmd,
+                encoding="utf-8",
+                capture_output=True,
+                cwd=str(steamless_exe.parent),
+                timeout=120,
+            )
+        except subprocess.TimeoutExpired:
+            msg = f"Steamless timed out on {game_exe.name}"
+            print(Fore.RED + msg + Style.RESET_ALL)
+            return False, msg
+
+        stdout_text = (output.stdout or "").strip()
+        stderr_text = (output.stderr or "").strip()
+        unpacked = game_exe.parent / (game_exe.name + ".unpacked.exe")
+
+        if unpacked.exists() and "Successfully unpacked file!" in stdout_text:
+            backup = game_exe.with_suffix(game_exe.suffix + ".steamlocked.bak")
+            try:
+                if backup.exists():
+                    backup.unlink()
+                game_exe.rename(backup)
+            except OSError as e:
+                print(Fore.YELLOW + f"Could not back up original: {e}" + Style.RESET_ALL)
             unpacked.rename(game_exe)
+            msg = (
+                f"Steamless: unpacked {game_exe.name}. "
+                f"Original saved as {backup.name}."
+            )
+            print(Fore.GREEN + msg + Style.RESET_ALL)
+            return True, msg
+
+        # Surface what Steamless actually said, then map known failure
+        # signatures to user-friendly messages.
+        if stdout_text:
+            print(stdout_text)
+        if stderr_text:
+            print(Fore.YELLOW + stderr_text + Style.RESET_ALL)
+
+        combined = stdout_text + "\n" + stderr_text
+        if "Invalid input file given" in combined:
+            msg = (
+                f"Steamless rejected '{game_exe.name}' as an invalid input file. "
+                "This usually means the exe is not a Steam-DRM-wrapped binary, "
+                "or it has been packed by something other than SteamStub. "
+                "Pick the game's main launcher exe and try again."
+            )
+        elif "All unpackers failed" in combined:
+            msg = (
+                f"Steamless found Steam-DRM markers in '{game_exe.name}' but "
+                "none of the bundled unpackers can handle this wrapper variant. "
+                "This typically means the game uses a newer SteamStub release "
+                "that atom0s hasn't published a plugin for yet. "
+                "Last-resort options: try SteamAutoCrack from the Library tab, "
+                "or wait for an updated Steamless build."
+            )
         else:
-            print(output.stdout)
-            print("Steamless failed...")
+            msg = (
+                f"Steamless did not produce {unpacked.name}. "
+                f"The exe is either not Steam-DRM-wrapped, or it uses a "
+                f"wrapper variant Steamless cannot unpack yet."
+            )
+        print(Fore.YELLOW + msg + Style.RESET_ALL)
+        return False, msg
 
     def _prompt_manual_exe(self, app_info):
-        subprocess.run(["explorer", app_info.path])
-        game_exe = prompt_file(
-            "Drag the game .exe here and press Enter:",
-        )
+        # Open a single file dialog rooted at the game's install folder.
+        # The classic Library button already does this directly via QFileDialog;
+        # this fallback path covers cases where Steam App Info has no launcher
+        # info (e.g. games not in your library).
+        try:
+            game_exe = prompt_file(
+                "Pick the game .exe:",
+                start_dir=str(app_info.path),
+            )
+        except TypeError:
+            # Older prompt_file signatures had no start_dir kwarg.
+            game_exe = prompt_file("Pick the game .exe:")
         return game_exe
 
     def _get_windows_execs(self, info, app_id):
@@ -767,7 +887,7 @@ class GameHandler:
             else:
                 self.crack_dll(app_info.app_id, dll)
         elif choice == MainMenu.REMOVE_DRM:
-            self.apply_steamless(app_info)
+            return self.apply_steamless(app_info)
         elif choice == MainMenu.DL_USER_GAME_STATS:
             self.run_gen_emu(app_info.app_id, GenEmuMode.USER_GAME_STATS)
         elif choice == MainMenu.DLC_CHECK:

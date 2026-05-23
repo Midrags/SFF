@@ -1,5 +1,6 @@
 #include "entry.h"
 #include "hooks/CoreLoader.h"
+#include "hooks/PackagePatch.h"
 #include "utils/DirWatch.h"
 
 // Prepares the runtime paths and loads the hooked copy of steamclient64.dll.
@@ -89,7 +90,7 @@ static void DetectSteamBuildId() {
 static DWORD WINAPI InitThread(LPVOID param) {
     HMODULE selfModule = static_cast<HMODULE>(param);
     Logger::Init(selfModule);
-    LOG_INFO("LumaCore init thread started");
+    LOG_INFO("LumaCore init thread started (build " __DATE__ " " __TIME__ ")");
 
     DetectSteamBuildId();
 
@@ -101,6 +102,10 @@ static DWORD WINAPI InitThread(LPVOID param) {
     Settings::Load(ConfigPath);
     Logger::InitModules();
 
+    // ── SteamUI::CoreHook() must be early to catch LoadModuleWithPath ────────
+    // But AFTER Logger::InitModules() so module loggers are available.
+    SteamUI::CoreHook();
+
     std::vector<std::string> watchDirs = Settings::luaPaths;
     watchDirs.push_back(std::string(LuaDir));
     for (const auto& dir : watchDirs)
@@ -108,7 +113,7 @@ static DWORD WINAPI InitThread(LPVOID param) {
 
     DirWatch::Start(watchDirs);
 
-    SteamUI::CoreHook();
+    PackagePatch::Install();
     LumaCore::Attach();
     g_HooksInstalled.store(true);
     LOG_INFO("LumaCore init complete");

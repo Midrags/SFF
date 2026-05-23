@@ -69,11 +69,26 @@ def _save_credentials(username, password):
     except Exception: return False
 
 def _detect_archiver():
+    """Find a working archive extractor for the current platform.
+
+    Returns ('winrar'|'7z', path) or (None, None). The 'winrar' label drives the
+    command-line shape used in _extract_archive_with_backup, so 'unrar' on Linux
+    is reported as 'winrar' to share the same flag style.
+    """
     import shutil as sh
-    for p in [sh.which("winrar"), r"C:\Program Files\WinRAR\winrar.exe", r"C:\Program Files (x86)\WinRAR\winrar.exe"]:
-        if p and os.path.exists(p): return ("winrar", p)
-    for p in [sh.which("7z"), r"C:\Program Files\7-Zip\7z.exe", r"C:\Program Files (x86)\7-Zip\7z.exe"]:
-        if p and os.path.exists(p): return ("7z", p)
+    if os.name == "nt":
+        for p in [sh.which("winrar"), r"C:\Program Files\WinRAR\winrar.exe", r"C:\Program Files (x86)\WinRAR\winrar.exe"]:
+            if p and os.path.exists(p): return ("winrar", p)
+        for p in [sh.which("7z"), r"C:\Program Files\7-Zip\7z.exe", r"C:\Program Files (x86)\7-Zip\7z.exe"]:
+            if p and os.path.exists(p): return ("7z", p)
+        return (None, None)
+
+    # Linux / macOS — prefer 7z (handles rar/zip/7z), fall back to unrar.
+    for name in ("7z", "7zz", "7zip"):
+        p = sh.which(name)
+        if p: return ("7z", p)
+    p = sh.which("unrar")
+    if p: return ("winrar", p)
     return (None, None)
 
 def _download_with_session(url, cookies_list, user_agent, save_path):
@@ -105,22 +120,41 @@ def _download_with_session(url, cookies_list, user_agent, save_path):
 
 def _run_extraction_with_timeout(cmd, timeout=300):
     try:
-        startupinfo = subprocess.STARTUPINFO(); startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, startupinfo=startupinfo, creationflags=subprocess.CREATE_NO_WINDOW)
+        popen_kwargs = {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+        }
+        if os.name == "nt":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = subprocess.SW_HIDE
+            popen_kwargs["startupinfo"] = startupinfo
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        process = subprocess.Popen(cmd, **popen_kwargs)
         try:
             stdout, stderr = process.communicate(timeout=timeout)
             return (process.returncode == 0, stdout, stderr, None)
-        except subprocess.TimeoutExpired: process.kill(); return (False, None, None, "Timeout")
-    except Exception as e: return (False, None, None, str(e))
+        except subprocess.TimeoutExpired:
+            process.kill()
+            return (False, None, None, "Timeout")
+    except Exception as e:
+        return (False, None, None, str(e))
 
 def _extract_archive_with_backup(archive, target, atype, apath, game_name, pwd="online-fix.me"):
     backed_up = []
     try:
         temp_dir = tempfile.mkdtemp(prefix='sff_ext_final_')
         cmd = [apath, "x", f"-p{pwd}", "-y", archive, temp_dir + os.sep] if atype == "winrar" else [apath, "x", f"-p{pwd}", "-y", f"-o{temp_dir}", archive]
-        success, _, _, _ = _run_extraction_with_timeout(cmd)
-        if not success: return False
+        success, stdout, stderr, err = _run_extraction_with_timeout(cmd)
+        if not success:
+            detail = err
+            if not detail and stderr:
+                try:
+                    detail = stderr.decode(errors="replace").strip().splitlines()[-1] if stderr else ""
+                except Exception:
+                    detail = "extraction failed"
+            print(f"{Fore.RED}✗ Extraction failed via {atype} ({apath}): {detail or 'unknown error'}{Style.RESET_ALL}")
+            return False
         extracted = {}
         for root, _, files in os.walk(temp_dir):
             for f in files:

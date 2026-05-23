@@ -67,20 +67,21 @@ namespace {
                                       CUtlBuffer*, CUtlBuffer* pWrite)
     {
         AppId_t appId = SteamCapture::ResolveAppId();
+        LOG_IPC_INFO("IClientUser::GetSteamID: ENTER AppId={}", appId);
         uint64 spoofed = Ticket::GetSpoofSteamID(appId);
         if (!spoofed) {
             spoofed = GetDynamicOwnerSteamID(appId);
             if (spoofed)
-                LOG_IPC_DEBUG("IClientUser::GetSteamID: AppId={} using dynamic userdata SteamID 0x{:X}", appId, spoofed);
+                LOG_IPC_INFO("IClientUser::GetSteamID: AppId={} using dynamic userdata SteamID 0x{:X}", appId, spoofed);
         }
         if (!spoofed) {
-            LOG_IPC_WARN("IClientUser::GetSteamID: AppId={} no valid steamid - cannot spoof", appId);
+            LOG_IPC_WARN("IClientUser::GetSteamID: AppId={} no valid steamid - cannot spoof (RETURN no reply)", appId);
             return;
         }
         uint8* base = pWrite->Base();
         base[0] = IPC_REPLY_TAG;
         memcpy(base + 1, &spoofed, sizeof(spoofed));
-        LOG_IPC_DEBUG("IClientUser::GetSteamID: AppId={} -> Spoofed: 0x{:X}({})", appId, spoofed, spoofed);
+        LOG_IPC_INFO("IClientUser::GetSteamID: AppId={} -> Spoofed: 0x{:X}({})", appId, spoofed, spoofed);
     }
 
     // ── Handler: IClientUser::GetAppOwnershipTicketExtendedData ───
@@ -89,22 +90,35 @@ namespace {
     {
         const uint8* reqData = pRead->Base();
         const int32  reqSize = pRead->m_Put;
-        if (reqSize < IPC_ARGS_OFFSET + 8) return;
+        LOG_IPC_INFO("IClientUser::GetAppOwnershipTicketExtendedData: ENTER reqSize={}", reqSize);
+        if (reqSize < IPC_ARGS_OFFSET + 8) {
+            LOG_IPC_WARN("IClientUser::GetAppOwnershipTicketExtendedData: reqSize={} too small (need {}), RETURN no reply",
+                         reqSize, IPC_ARGS_OFFSET + 8);
+            return;
+        }
         const uint8* args = reqData + IPC_ARGS_OFFSET;
         const uint32 reqAppID   = *reinterpret_cast<const uint32*>(args);
         const int32  reqBufSize = *reinterpret_cast<const int32*>(args + 4);
 
-        LOG_IPC_DEBUG("IClientUser::GetAppOwnershipTicketExtendedData: req AppID={} bufSize={}",
+        LOG_IPC_INFO("IClientUser::GetAppOwnershipTicketExtendedData: req AppID={} bufSize={}",
                   reqAppID, reqBufSize);
 
         std::vector<uint8_t> ticket = Ticket::GetAppOwnershipTicketFromRegistry(reqAppID);
-        if (ticket.empty() || ticket.size() < 4) return;
+        if (ticket.empty() || ticket.size() < 4) {
+            LOG_IPC_WARN("IClientUser::GetAppOwnershipTicketExtendedData: AppId={} ticket empty/short ({} bytes), RETURN no reply",
+                         reqAppID, ticket.size());
+            return;
+        }
 
         const uint32 ticketSize = static_cast<uint32>(ticket.size());
         const uint32 sigOffset  = *reinterpret_cast<const uint32*>(ticket.data());
 
         const uint32 totalSize = 1 + 4 + reqBufSize + 16;
-        if (static_cast<uint32>(pWrite->m_Put) < totalSize) return;
+        if (static_cast<uint32>(pWrite->m_Put) < totalSize) {
+            LOG_IPC_WARN("IClientUser::GetAppOwnershipTicketExtendedData: AppId={} pWrite size={} < required {}, RETURN no reply",
+                         reqAppID, pWrite->m_Put, totalSize);
+            return;
+        }
 
         uint8* base = pWrite->Base();
 
@@ -127,20 +141,24 @@ namespace {
         memcpy(base + outOff + 12, &pcbSignature, 4);
 
         AppId_t appId = SteamCapture::ResolveAppId();
-        LOG_IPC_DEBUG("IClientUser::GetAppOwnershipTicketExtendedData: AppId={} -> {} bytes "
-                  "(sigOffset={})", appId, ticketSize, sigOffset);
+        LOG_IPC_INFO("IClientUser::GetAppOwnershipTicketExtendedData: AppId={} -> {} bytes "
+                  "(sigOffset={}) WROTE REPLY", appId, ticketSize, sigOffset);
     }
 
     // ── Handler: IClientUser::RequestEncryptedAppTicket ──────────
     void Cmd_IClientUser_RequestEncryptedAppTicket(
         CSteamPipeClient* pipe, CUtlBuffer*, CUtlBuffer* pWrite)
     {
-        if (pWrite->m_Put < 9) return;
-
         AppId_t appId = SteamCapture::ResolveAppId();
+        LOG_IPC_INFO("RequestEncryptedAppTicket: ENTER AppId={} pWrite.m_Put={}", appId, pWrite->m_Put);
+        if (pWrite->m_Put < 9) {
+            LOG_IPC_WARN("RequestEncryptedAppTicket: AppId={} pWrite size {} < 9, RETURN no reply", appId, pWrite->m_Put);
+            return;
+        }
+
         auto ticket = Ticket::GetEncryptedTicketFromRegistry(appId);
         if (ticket.empty()) {
-            LOG_IPC_DEBUG("RequestEncryptedAppTicket: AppId={} - no cached eticket, skip", appId);
+            LOG_IPC_WARN("RequestEncryptedAppTicket: AppId={} no cached eticket, RETURN no reply", appId);
             return;
         }
 
@@ -149,7 +167,7 @@ namespace {
         memcpy(&hAsyncCall, base + 1, sizeof(hAsyncCall));
 
         g_PendingEtickets[hAsyncCall] = appId;
-        LOG_IPC_DEBUG("RequestEncryptedAppTicket: AppId={} hAsyncCall=0x{:016X} - recorded", appId, hAsyncCall);
+        LOG_IPC_INFO("RequestEncryptedAppTicket: AppId={} hAsyncCall=0x{:016X} RECORDED", appId, hAsyncCall);
     }
 
     // ── Handler: IClientUser::GetEncryptedAppTicket ───────────────
@@ -157,9 +175,10 @@ namespace {
         CSteamPipeClient* pipe, CUtlBuffer*, CUtlBuffer* pWrite)
     {
         AppId_t appId = SteamCapture::ResolveAppId();
+        LOG_IPC_INFO("GetEncryptedAppTicket: ENTER AppId={}", appId);
         auto ticket = Ticket::GetEncryptedTicketFromRegistry(appId);
         if (ticket.empty()) {
-            LOG_IPC_DEBUG("GetEncryptedAppTicket: AppId={} - no cached eticket, skip", appId);
+            LOG_IPC_WARN("GetEncryptedAppTicket: AppId={} no cached eticket, RETURN no reply", appId);
             return;
         }
 
@@ -173,7 +192,7 @@ namespace {
         memcpy(base + 2, &ticketSize, sizeof(ticketSize));
         memcpy(base + 6, ticket.data(), ticketSize);
 
-        LOG_IPC_DEBUG("GetEncryptedAppTicket: AppId={} -> {} bytes", appId, ticketSize);
+        LOG_IPC_INFO("GetEncryptedAppTicket: AppId={} -> {} bytes WROTE REPLY", appId, ticketSize);
     }
 
     const IPCBus::IpcHandlerEntry g_Entries[] = {

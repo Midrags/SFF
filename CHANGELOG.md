@@ -1,15 +1,72 @@
 # Changelog
 
+## 6.2.3
+
+### LumaCore
+
+- Full debug coverage on every IPC, network, hook, registry probe (verbose log mode, defaults on)
+- Steam-DRM appid table — when `CheckAppOwnership` patches a known SteamStub title, log suggests using Remove DRM (Steamless)
+- Auto-fabricate minimal AppTicket from active SteamID on launch when registry is empty (helps older v1.5/early-v2 wrappers; v3 still needs Steamless)
+- Wipe stale tickets when the active Steam account changes
+- Hot-reload crash fix when deleting a `.lua` file from `config/stplug-in/` (card may linger as Purchase until Steam restart — accepted trade-off)
+- Family-share lock-status bypass: clear `k_EMsgClientSharedLibraryLockStatus` (9405) in addition to 9406
+- SteamUI hook hardening: string-xref + byte-pattern fallback for `LoadModuleWithPath`, removed double-attach
+- Multi-account fix: clear `OwnedAppIdSet` on Lua re-parse / `addappid`
+- `-onlinefix` debug logs every SpawnProcess hit with reason for skip
+
+### SteaMidra — UI / actions
+
+- Home tab error-54 hint banner pointing users at Remove DRM (Steamless)
+- Achievement-breakage warning dialog on Crack game (gbe_fork) and SteamAutoCrack; toggle in Settings (default on)
+- Inline action-card subtitles: yellow "Breaks Steam achievements" on crack/SteamAutoCrack, green "Achievements safe" on Remove DRM and Fixes & Bypasses
+- Removed orphaned Offline Fix button (GreenLuma-era leftover)
+- LC Online Fix closes Steam first, picks active SteamID3 from `loginusers.vdf`, navigates VDF case-insensitively
+- Restart Steam from elevated SteaMidra: now bounces through `explorer.exe` (fixes WinError 740)
+
+### SteaMidra — Steamless / DRM Remover
+
+- Picker now opens a single `QFileDialog` at the game folder (was: redundant Explorer window + dialog at workspace root)
+- Passes `--exp` so v3.0/v3.1 wrappers (Teardown, Doom Eternal, etc.) actually get unpacked
+- Backs original up to `<exe>.steamlocked.bak` instead of deleting
+- Pre-validates input: refuses non-`.exe` files and missing `MZ` PE header
+- Maps Steamless failure signatures to user-friendly messages and surfaces them in the GUI (popup + toast), not just stdout
+
+### SteaMidra — Fix Game / SteamStub Unpacker
+
+- `SteamStubUnpacker` no longer recurses into `.steamidra_exe_backups/`, `.steamlocked.bak/`, `saved_lua/`, `manifests/`; skips `*.steamstub.bak` / `*.unpacked.exe` artefacts
+- `GoldbergApplier.find_main_exe` honors the same skip-dir set so backups can't be picked as the main exe
+
+### SteaMidra — Tray / window behavior
+
+- Tray icon retries availability check every 3 s for up to 90 s (cold-boot Win11 fix)
+- Tray now parented to `QApplication` so it survives window destroy/recreate; 30 s heartbeat re-shows on Explorer restart
+- New setting: **Close button hides to tray (off = quit)**, default off
+
+### SteaMidra — Other fixes
+
+- DLC Check on the LumaCore path: fixed `get_dlc_list_from_store() takes 1 positional argument but 2 were given`
+- Fixes & Bypasses correctly described (was wrongly attributed to Ryuu); achievement-safe — no Steam API replacement
+- Lure Fix / Update buttons no longer crash SteaMidra (kwarg collision in `_emit_task_result`)
+- Download Games via DDMod now copies the Lua to `config/stplug-in/` and writes decryption keys so LumaCore picks the game up immediately
+- Stopped writing ACF on Windows (LumaCore handles ownership; Linux still writes ACF for SLSteam)
+- Linux: DDMod manifest path covers both `steamapps/depotcache` and `config/depotcache`; Multiplayer Fix subprocess flags platform-branched; `_detect_archiver` resolves `7z`/`7zz`/`unrar` via `shutil.which`; AppList IDs button routes to `injection_menu()`
+- SLSsteam auto-installs on first Linux run when no version file exists
+- `build_installer.bat` no longer exits immediately (PowerShell quoting + `(x86)` parens fix)
+- Auto LC Setup marker moved out of `<steam>/lumacore/` (was colliding with LumaCore's runtime log dir)
+- Pixeldrain bypass downloader for the Fixes & Bypasses flow
+- 12 new languages: Chinese Simplified/Traditional, French, Italian, Japanese, Korean, Turkish, Ukrainian, Vietnamese, Indonesian, Thai, Czech
+
+---
 ## 6.2.2
 
 ### LumaCore — Hook System Overhaul
 
-- **Fixed Steam crash on startup** — `OptedInMask` and `BuildSpawnEnvBlock` hooks were previously attached via string cross-reference, which resolved to wrong/mid-function addresses on build `1778281814`, corrupting the call stack. Both hooks now use byte patterns exclusively (matching OST's approach), resolving to correct 16-byte aligned function entry points
-- **Re-enabled `-onlinefix` controller and overlay fix** — `OptedInMask` hook redirects appid 480 (Spacewar) to the real game appid so Steam Input opt-in and SDL controller env vars are set correctly; `BuildSpawnEnvBlock` hook patches `pOverlayCGameID` so the in-game overlay shows the correct game name, screenshots are tagged correctly, and "View Community Hub" opens the right hub
-- **Fixed `AppLicensesChanged` not triggering full library reload** — `SendCallbackToPipe` hook now forces `m_bReloadAll = true` on every `AppLicensesChanged` callback, ensuring Steam does a full library refresh when LumaCore injects app IDs
-- **Added hook logging to all attach macros** — every hook and capture now logs its method (byte-pattern or string-xref), the matched string (if applicable), and the resolved address to `main.log` at debug level; failed hooks log a warning
-- **`PatternDb.h` fully updated** — added `auto` wildcarded fallback patterns for `CUtlMemoryGrow`, `LoadDepotDecryptionKey`, `PchMsgNameFromEMsg`, and all other functions that previously had no fallback; added `OptedInMask` and `BuildSpawnEnvBlock` patterns from OST; `GetPipeClient` now has two string XRef entries for robustness
-- **`RuntimeCapture.cpp` cleaned up** — removed the old broken `BuildSpawnEnvBlock` env-block-string-rebuild approach (which was disabled due to crashes); replaced with the correct OST pOverlayCGameID patch approach
+- Fixed Steam crash on startup. `OptedInMask` and `BuildSpawnEnvBlock` were attached via string xref, which on the current Steam build resolved to mid-function addresses and corrupted the call stack. Both now use byte patterns exclusively, landing on the correct 16-byte aligned entry points
+- Re-enabled the `-onlinefix` controller and overlay fix. `OptedInMask` redirects appid 480 (Spacewar) to the real game appid so Steam Input opt-in and SDL controller env vars are correct; `BuildSpawnEnvBlock` patches `pOverlayCGameID` so the overlay shows the right game name, screenshots tag correctly, and "View Community Hub" opens the right hub
+- Fixed `AppLicensesChanged` not triggering a full library reload. `SendCallbackToPipe` now forces `m_bReloadAll = true` on every `AppLicensesChanged` callback
+- Every hook and capture now logs its method (byte-pattern or string-xref), the matched string if any, and the resolved address to `main.log` at debug level. Failed hooks log a warning
+- `PatternDb.h` filled out: added wildcarded fallback patterns for `CUtlMemoryGrow`, `LoadDepotDecryptionKey`, `PchMsgNameFromEMsg`, and other previously fallback-less functions. Added `OptedInMask` and `BuildSpawnEnvBlock` patterns. `GetPipeClient` now has two string-xref entries for robustness
+- `RuntimeCapture.cpp` cleanup: removed the disabled env-block-string-rebuild path for `BuildSpawnEnvBlock` (was the source of the earlier crashes); replaced with the working `pOverlayCGameID` patch
 
 ### SteaMidra — Linux SLSteam Auto-Update
 

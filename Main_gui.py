@@ -211,7 +211,10 @@ def main():
     window.show()
 
     from sff.tray_icon import TrayIcon
-    tray = TrayIcon(parent=window)
+    # Parent the tray to the QApplication, not the window. The tray
+    # must outlive any single window destroy/create cycle. The window
+    # later calls set_tray() so it can use the icon for notifications.
+    tray = TrayIcon(parent=app)
     tray.setup(_app_icon if not _app_icon.isNull() else app.windowIcon())
     window.set_tray(tray)
     # Keep a reference on app to prevent garbage collection

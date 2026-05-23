@@ -78,6 +78,19 @@ window.App = (function() {
             Bridge.on('task_finished', function(json) {
                 try {
                     var result = JSON.parse(json);
+                    // Steamless / Remove DRM: show a proper alert because the
+                    // explanation is too long for a 4s toast and users need
+                    // to read it (e.g. "wrapper variant Steamless cannot
+                    // unpack yet — try SteamAutoCrack").
+                    if (result.task === 'steamstub' && result.message) {
+                        var prefix = result.success ? '' : '[Steamless] ';
+                        window.alert(prefix + result.message);
+                        Components.showToast(
+                            result.success ? 'success' : 'error',
+                            result.success ? 'DRM removed' : 'DRM removal failed (see log)'
+                        );
+                        return;
+                    }
                     if (result.message) {
                         Components.showToast(
                             result.success ? 'success' : 'error',
@@ -1296,7 +1309,7 @@ window.App = (function() {
         // Non-game actions don't need a game selected
         var nonGameActions = [
             'download_games', 'download_manifests', 'recent_lua', 'update_manifests',
-            'mute_toggle', 'remove_game', 'context_menu', 'applist_menu', 'offline_fix',
+            'mute_toggle', 'remove_game', 'context_menu', 'applist_menu',
             'check_updates', 'scan_library', 'analytics', 'auto_lc_setup', 'lc_online_fix'
         ];
         // Outside-Steam game action
@@ -1305,6 +1318,25 @@ window.App = (function() {
             var outsideAppId = (document.getElementById('outside-appid') || {}).value || '0';
             if (!gamePath) {
                 Components.showToast('warning', 'Please select a game folder first.');
+                return;
+            }
+            // Same achievement-breakage gate as the Steam-game path.
+            var outsideBreaking = ['crack', 'steamstub_crack', 'steam_auto'];
+            if (outsideBreaking.indexOf(action) !== -1) {
+                Bridge.callWithCallback('get_setting', 'warn_before_breaking_achievements', function(val) {
+                    var skipWarn = (val === 'False' || val === 'false' || val === '0');
+                    if (skipWarn) {
+                        Bridge.call('run_game_action_outside', gamePath, outsideAppId || '0', action);
+                        return;
+                    }
+                    var msg = 'Heads up — this will break Steam achievements.\n\n'
+                        + 'Replacing the Steam API with an emulator means achievements you earn after this will only save locally. Cloud saves will also stop syncing.\n\n'
+                        + 'Prefer "Remove DRM (Steamless)" if the game uses Steam DRM — it keeps achievements working.\n\n'
+                        + 'Continue anyway?';
+                    if (window.confirm(msg)) {
+                        Bridge.call('run_game_action_outside', gamePath, outsideAppId || '0', action);
+                    }
+                });
                 return;
             }
             Bridge.call('run_game_action_outside', gamePath, outsideAppId || '0', action);
@@ -1317,6 +1349,32 @@ window.App = (function() {
             Components.showToast('warning', 'Please select a game from the dropdown first.');
             return;
         }
+
+        // Achievement-breaking actions: warn before dispatch unless the user
+        // has explicitly opted out via the setting. Default is to warn so a
+        // never-set value still triggers the dialog.
+        var achievementBreaking = ['crack', 'steamstub_crack', 'steam_auto'];
+        if (achievementBreaking.indexOf(action) !== -1) {
+            Bridge.callWithCallback('get_setting', 'warn_before_breaking_achievements', function(val) {
+                // Setting stores the *opt-out* state. Treat unset / non-False as "warn".
+                var skipWarn = (val === 'False' || val === 'false' || val === '0');
+                if (skipWarn) {
+                    Bridge.call('run_game_action', appId || '', action);
+                    return;
+                }
+                var msg = (action === 'crack' || action === 'steam_auto')
+                    ? 'Heads up — this will break Steam achievements.\n\n'
+                      + 'Replacing the Steam API with an emulator means achievements you earn after this will only save locally and will not appear on your Steam profile. Cloud saves will also stop syncing.\n\n'
+                      + 'For Steam-DRM games (Teardown, Doom Eternal, etc.) prefer "Remove DRM (Steamless)" instead — it strips the DRM wrapper without touching the Steam API, so achievements keep working.\n\n'
+                      + 'Continue anyway?'
+                    : 'This action may break Steam achievements. Continue?';
+                if (window.confirm(msg)) {
+                    Bridge.call('run_game_action', appId || '', action);
+                }
+            });
+            return;
+        }
+
         Bridge.call('run_game_action', appId || '', action);
     }
 

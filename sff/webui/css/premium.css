@@ -161,6 +161,18 @@ h3 { font-size: 15px; font-weight: 600; }
   line-height: 1.4;
 }
 
+.action-desc.warn-achievements {
+  opacity: 1;
+  color: #f0c040;
+  font-weight: 600;
+}
+
+.action-desc.safe-achievements {
+  opacity: 1;
+  color: #4caf50;
+  font-weight: 600;
+}
+
 /* ── Action Cards Grid ─────────────────────────── */
 
 .action-grid {

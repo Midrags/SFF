@@ -95,6 +95,16 @@ EXE_SKIP = [
     "battleye", "anticheat", "game_shipping",
 ]
 
+# Directory names we never want to scan into when looking for the main exe.
+# These are SteaMidra's own backup folders — picking a backup as the "main
+# exe" produces stale results after re-runs.
+EXE_SKIP_DIRS = {
+    ".steamidra_exe_backups",
+    ".steamlocked.bak",
+    "saved_lua",
+    "manifests",
+}
+
 
 class GoldbergApplier:
     """
@@ -207,8 +217,14 @@ class GoldbergApplier:
         best_path = None
         best_size = 0
         for exe in game_path.rglob("*.exe"):
+            # Don't pick anything inside our own backup dirs.
+            if any(part in EXE_SKIP_DIRS for part in exe.parts):
+                continue
             name_lower = exe.name.lower()
             if any(skip in name_lower for skip in EXE_SKIP):
+                continue
+            if name_lower.endswith(".unpacked.exe"):
+                # Steamless leftover — never the real game exe.
                 continue
             try:
                 size = exe.stat().st_size

@@ -327,17 +327,17 @@ class SFFMainWindow(QMainWindow):
         ga_layout = QVBoxLayout(game_actions_group)
         ga_layout.setSpacing(6)
         _TOOLTIPS = {
-            T("Crack game (gbe_fork)"): "Replace steam_api DLLs with Goldberg Emulator",
-            T("Remove SteamStub (Steamless)"): "Strip Valve's SteamStub DRM from a game executable",
+            T("Crack game (gbe_fork)"): "Replace steam_api DLLs with Goldberg Emulator. Breaks Steam achievements and cloud saves.",
+            T("Remove SteamStub (Steamless)"): "Strip Valve's SteamStub DRM from a game executable. Achievements stay working.",
             T("UserGameStats"): "Download achievement / stats data for this game",
             T("DLC check"): "See which DLCs exist and which are unlocked",
             T("Workshop item"): "Download a Steam Workshop mod by its ID",
             T("Open Workshop"): "Browse the Steam Workshop for this game",
             T("Check mod updates"): "Check if downloaded Workshop mods have newer versions",
             T("Multiplayer fix"): "Apply online-fix.me multiplayer patches",
-            T("Fixes & Bypasses"): "Apply community-maintained fixes and bypasses",
+            T("Fixes & Bypasses"): "Apply community-maintained fixes and bypasses (CrakFiles repo). Achievement-safe.",
             T("DLC Unlockers"): "Manage CreamAPI / SmokeAPI / other DLC unlocker DLLs",
-            T("SteamAutoCrack"): "Run the SteamAutoCrack CLI tool on this game",
+            T("SteamAutoCrack"): "Run the SteamAutoCrack CLI tool on this game. Breaks Steam achievements and cloud saves.",
         }
         row1 = QHBoxLayout()
         row1.setSpacing(4)
@@ -626,6 +626,93 @@ class SFFMainWindow(QMainWindow):
         from sff.gui.workshop_browser import open_workshop_browser
         open_workshop_browser(app_id, self)
 
+    def _run_steamless_for_acf(self, acf):
+        """Web UI entry point for Remove DRM (Steamless).
+
+        Pops a single QFileDialog rooted at the game folder, runs Steamless
+        on the picked exe, and surfaces the (success, message) tuple as a
+        task_finished signal so the JS handler can show the result.
+
+        Mirrors the classic UI Library-tab flow exactly so behaviour matches
+        regardless of which UI the user clicked from.
+        """
+        import json
+        from sff.gui.gui_prompts import _on_gui_thread
+
+        def _pick_exe():
+            start_dir = str(acf.path) if acf and acf.path else ""
+            exe_path_str, _ = QFileDialog.getOpenFileName(
+                self,
+                "Select game executable",
+                start_dir,
+                "Executables (*.exe)",
+            )
+            return exe_path_str
+
+        # Marshal to GUI thread because web_bridge calls us from a worker thread.
+        exe_path_str = _on_gui_thread(_pick_exe)
+        if not exe_path_str:
+            # User cancelled — emit task_finished with a polite message.
+            if hasattr(self, "_web_bridge") and self._web_bridge is not None:
+                self._web_bridge.task_finished.emit(json.dumps({
+                    "task": "steamstub",
+                    "success": False,
+                    "message": "Cancelled — no executable selected.",
+                }))
+            return
+
+        exe_path = Path(exe_path_str)
+
+        result_box: dict = {}
+        def _runner():
+            result_box["result"] = self.ui.run_steamless_direct(acf, exe_path)
+
+        def _show_result():
+            tup = result_box.get("result")
+            ok, msg = (False, "Steamless: no result returned")
+            if isinstance(tup, tuple) and len(tup) == 2:
+                ok, msg = bool(tup[0]), str(tup[1])
+            if hasattr(self, "_web_bridge") and self._web_bridge is not None:
+                self._web_bridge.task_finished.emit(json.dumps({
+                    "task": "steamstub",
+                    "success": ok,
+                    "message": msg,
+                }))
+
+        self._start_worker(_runner, "Remove SteamStub (Steamless)", on_done=_show_result)
+
+    def _confirm_achievement_break(self, action_label: str) -> bool:
+        """Warn before running an action that breaks Steam achievements.
+
+        Returns True to proceed, False to cancel.
+        Setting `WARN_BEFORE_BREAKING_ACHIEVEMENTS` is treated as opt-OUT:
+        unset / True means warn, False means skip warning.
+        """
+        from sff.storage.settings import get_setting
+        from sff.structs import Settings as _S
+        try:
+            val = get_setting(_S.WARN_BEFORE_BREAKING_ACHIEVEMENTS)
+        except Exception:
+            val = None
+        # Only skip the warning when the user has explicitly opted out.
+        if val is False:
+            return True
+        reply = QMessageBox.warning(
+            self,
+            f"{action_label} — breaks Steam achievements",
+            f"Heads up — {action_label} will break Steam achievements.\n\n"
+            "Replacing Steam's API with an emulator means achievements you earn after this "
+            "will only save locally and will not appear on your Steam profile. Cloud saves "
+            "will also stop syncing.\n\n"
+            "For Steam-DRM games (Teardown, Doom Eternal, etc.) prefer "
+            "Remove SteamStub (Steamless) instead — it strips the DRM wrapper without "
+            "touching the Steam API, so achievements keep working.\n\n"
+            "Continue anyway?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        return reply == QMessageBox.StandardButton.Yes
+
     def _run_game_action(self, choice):
         from sff.structs import MainMenu
         acf = self._get_selected_acf()
@@ -636,6 +723,10 @@ class SFFMainWindow(QMainWindow):
                 "Select a Steam game from the list or set a path for a game outside of Steam.",
             )
             return
+        # Achievement-breakage gate — only for the gbe_fork crack path.
+        if choice == MainMenu.CRACK_GAME:
+            if not self._confirm_achievement_break("Crack game (gbe_fork)"):
+                return
         label = str(getattr(choice, "value", choice))
         # Steamless: ask user to pick the exe directly so we never touch the Steam API
         # on a background thread (that's what causes WinError 2)
@@ -649,9 +740,22 @@ class SFFMainWindow(QMainWindow):
             if not exe_path_str:
                 return
             exe_path = Path(exe_path_str)
-            self._start_worker(
-                lambda: self.ui.run_steamless_direct(acf, exe_path), label
-            )
+            # Capture the (success, message) tuple from apply_steamless via a
+            # closure-stashed dict, then surface the result in a Qt popup so
+            # users don't have to dig through the log panel.
+            result_box: dict = {}
+            def _runner():
+                result_box["result"] = self.ui.run_steamless_direct(acf, exe_path)
+            def _show_result():
+                tup = result_box.get("result")
+                if not tup:
+                    return
+                ok, msg = tup
+                if ok:
+                    QMessageBox.information(self, "Remove SteamStub (Steamless)", msg)
+                else:
+                    QMessageBox.warning(self, "Remove SteamStub (Steamless)", msg)
+            self._start_worker(_runner, label, on_done=_show_result)
             return
         self._start_worker(
             lambda: self.ui.run_game_action_with_selection(choice, acf), label
@@ -675,6 +779,8 @@ class SFFMainWindow(QMainWindow):
                 "Select a Steam game from the list or set a path for a game outside of Steam.",
             )
             return
+        if not self._confirm_achievement_break("SteamAutoCrack"):
+            return
         game_path = acf.path
         app_id = acf.app_id or "0"
         def _job():
@@ -685,6 +791,13 @@ class SFFMainWindow(QMainWindow):
         """Web UI entry point — ACF already resolved, runs on main thread via _start_worker."""
         import json
         from sff.steamauto import run_steamauto
+        # The web UI shows its own confirmation dialog before calling here, so we
+        # set _skip_next_achievement_warn from web_bridge to suppress the Qt prompt
+        # and avoid double-warning. Classic UI calls _run_steam_auto_gui instead.
+        if not getattr(self, '_skip_next_achievement_warn', False):
+            if not self._confirm_achievement_break("SteamAutoCrack"):
+                return
+        self._skip_next_achievement_warn = False
         game_path = acf.path
         app_id = acf.app_id or "0"
         def _job():
@@ -965,7 +1078,22 @@ class SFFMainWindow(QMainWindow):
         self.close()
 
     def closeEvent(self, event):
-        if self._tray is not None and self._tray.minimize_to_tray:
+        # Read live from settings so toggling the option in Settings UI
+        # takes effect without restart. Default OFF — closing actually
+        # quits, matching the behaviour Windows users expect from the
+        # X button. Power users who want close-to-tray can enable it.
+        from sff.storage.settings import get_setting
+        from sff.structs import Settings as _S
+        try:
+            close_to_tray = bool(get_setting(_S.CLOSE_TO_TRAY))
+        except Exception:
+            close_to_tray = False
+
+        if (
+            self._tray is not None
+            and self._tray.minimize_to_tray
+            and close_to_tray
+        ):
             event.ignore()
             self.hide()
             if not self._tray_hide_notified:

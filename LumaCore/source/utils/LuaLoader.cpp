@@ -117,6 +117,13 @@ namespace LuaLoader {
             DepotKeySet[DepotId] = Key;
         }
 
+        // Clear owned status when a depot is explicitly added via Lua.
+        // This ensures that if a game was previously marked as owned (e.g. on
+        // a primary account), it will be re-patched correctly on a secondary account.
+        if (OwnedAppIdSet.count(DepotId)) {
+            OwnedAppIdSet.erase(DepotId);
+        }
+
         if (!g_currentFile.empty()) {
             if (g_fileDepots[g_currentFile].insert(DepotId).second) {
                 if (++g_depotRefCount[DepotId] == 1)
@@ -461,6 +468,15 @@ namespace LuaLoader {
                 unsigned long long val = std::strtoull(stem.c_str(), &endPtr, 10);
                 if (endPtr && *endPtr == '\0' && val > 0 && val <= UINT32_MAX) {
                     AppId_t fileAppId = static_cast<AppId_t>(val);
+                    // Clear owned status when a Lua file is (re-)added for this app.
+                    // This handles the case where a user on a secondary account adds
+                    // a game that was previously marked as owned on the primary account.
+                    // Without this, HasDepot() returns false and CheckAppOwnership
+                    // won't patch the ownership → game shows as "Purchase".
+                    if (OwnedAppIdSet.count(fileAppId)) {
+                        LOG_PACKAGE_INFO("ParseFile: clearing owned status for appid={} (Lua re-added)", fileAppId);
+                        OwnedAppIdSet.erase(fileAppId);
+                    }
                     // Only register if not already present (don't overwrite a key set by addappid)
                     if (!DepotKeySet.count(fileAppId)) {
                         DepotKeySet[fileAppId] = "";
@@ -532,6 +548,19 @@ namespace LuaLoader {
         // Initial parse — discard pending additions so NotifyLicenseChanged
         // only sees changes that happen after startup.
         g_pendingAdditions.clear();
+    }
+
+    // ── startup injection ────────────────────────────────────────
+    // Re-queue all currently loaded depot IDs as pending additions.
+    // Called after hooks are installed but LoadPackage already fired (race at startup).
+    // This allows NotifyLicenseChanged to inject all startup Lua files into
+    // the already-loaded package 0 via the MarkLicenseAsChanged / ProcessPendingLicenseUpdates path.
+    void QueueStartupInjection() {
+        g_pendingAdditions.clear();
+        for (const auto& pair : DepotKeySet) {
+            g_pendingAdditions.push_back(pair.first);
+        }
+        LOG_PACKAGE_INFO("QueueStartupInjection: queued {} depot IDs for injection", g_pendingAdditions.size());
     }
 
 }

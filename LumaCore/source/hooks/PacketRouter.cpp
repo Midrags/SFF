@@ -233,15 +233,22 @@ namespace UserStats {
         LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats request: original body:\n{}", req.DebugString());
         
         AppId_t appId = req.appid();
-        bool hasShaSchema = req.has_sha_schema() && !req.sha_schema().empty();
-
-        if (hasShaSchema) {
-            LOG_ACHIEVEMENT_WARN("Player::GetUserStats request: sha_schema is present, do not spoof");
-            return false;
-        }
         if (!LuaLoader::HasDepot(appId)) {
             LOG_ACHIEVEMENT_WARN("Player::GetUserStats request: appid={} is not in addappid", appId);
             return false;
+        }
+
+        // Drop the cached-schema digest and CRC.  When sha_schema is present
+        // Steam's server short-circuits with eresult=2 (no update / no
+        // license) instead of returning a fresh schema, leaving the
+        // achievement panel blank for fake-owned games.  Clearing both forces
+        // a full schema fetch which we then sanitize in the response handler.
+        if (req.has_sha_schema() && !req.sha_schema().empty()) {
+            LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats request: clearing sha_schema for appid={}", appId);
+            req.clear_sha_schema();
+        }
+        if (req.has_crc_stats() && req.crc_stats() != 0) {
+            req.set_crc_stats(0);
         }
 
         // Save jobid_source -> appid for the response handler
@@ -279,6 +286,12 @@ namespace UserStats {
 
     // ── Recv: CPlayer_GetUserStats_Response (eMsg 147) ─────────
     //     Header: set eresult=OK.  Body: strip stats (field 4).
+    //
+    // The request handler swapped steamid with a pool dummy (in
+    // HandleSend_GetUserStats), so any returned stats belong to the dummy
+    // account.  Always strip them.  Genuinely-owned games never reach this
+    // handler because HasDepot() returns false for them after CheckAppOwnership
+    // marks them owned.
     void HandleRecv_GetUserStatsResponse(const uint8* pHdr, uint32 cbHdr,
                                     const uint8* pBody, uint32 cbBody)
     {
@@ -304,6 +317,20 @@ namespace UserStats {
             }
         }
 
+        // Parse body up front so we can decide whether to short-circuit.
+        CPlayer_GetUserStats_Response resp;
+        if (!resp.ParseFromArray(pBody, cbBody)) {
+            LOG_ACHIEVEMENT_WARN("Player::GetUserStats response: failed to ParseFromArray original response");
+            return;
+        }
+        LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats response: original body:\n{}", resp.DebugString());
+
+        if (!hasAppId || !LuaLoader::HasDepot(appId)) {
+            LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats response: no appid match, skip patches");
+            return;
+        }
+
+        // Force header eresult=OK so the UI accepts the (now empty) reply.
         hdrMsg.set_eresult(static_cast<int32_t>(k_EResultOK));
         g_RxHdrLen = static_cast<uint32>(hdrMsg.ByteSizeLong());
         if (g_RxHdrLen > kMaxHdrSize || !hdrMsg.SerializeToArray(g_RxHdr, kMaxHdrSize))
@@ -311,19 +338,7 @@ namespace UserStats {
         LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats response: modified header:\n{}", hdrMsg.DebugString());
         g_PatchRxHdr = true;
 
-        // Body: strip stats (only if appid was matched and is in our config)
-        CPlayer_GetUserStats_Response resp;
-        if (!resp.ParseFromArray(pBody, cbBody)){
-            LOG_ACHIEVEMENT_WARN("Player::GetUserStats response: failed to ParseFromArray original response");
-            return;
-        }
-        LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats response: original body:\n{}", resp.DebugString());
-
-        if (!hasAppId || !LuaLoader::HasDepot(appId)) {
-            LOG_ACHIEVEMENT_DEBUG("Player::GetUserStats response: no appid match, skip body strip");
-            return;
-        }
-
+        // Body: strip stats so the UI doesn't render dummy-account unlocks.
         resp.clear_stats();
         g_RxBodyLen = static_cast<uint32>(resp.ByteSizeLong());
         if (!resp.SerializeToArray(g_RxBody, kMaxBodySize)) {
@@ -354,9 +369,24 @@ namespace UserStats {
             LOG_ACHIEVEMENT_WARN("ClientGetUserStats request: appid={} is not in addappid", appId);
             return false;
         }
-        if (!req.has_schema_local_version() || req.schema_local_version() != -1) {
-            LOG_ACHIEVEMENT_WARN("ClientGetUserStats request: schema_local_version is not -1");
-            return false;
+
+        // Force a full-schema fetch.  The user's stats DB on disk caches a
+        // schema_local_version per app; if Steam sends that version Steam
+        // servers reply with eresult=2 (no update / no license) and an empty
+        // body, leaving the achievement panel blank for fake-owned games.
+        // Setting it to -1 makes the server treat this as a first fetch and
+        // return the full schema, which we then sanitize in the response
+        // handler (stats wiped, achievement_blocks cleared, eresult forced
+        // to OK).  Skip games already known to be genuinely owned — those
+        // exit earlier via HasDepot=false above.
+        if (req.has_schema_local_version() && req.schema_local_version() != -1) {
+            LOG_ACHIEVEMENT_DEBUG("ClientGetUserStats request: forcing schema_local_version {} -> -1 for appid={}",
+                                  req.schema_local_version(), appId);
+            req.set_schema_local_version(-1);
+        }
+        // Drop crc_stats so the server doesn't short-circuit on cached CRC.
+        if (req.has_crc_stats() && req.crc_stats() != 0) {
+            req.set_crc_stats(0);
         }
 
         {
@@ -384,6 +414,19 @@ namespace UserStats {
 
     // ── Recv: CMsgClientGetUserStatsResponse (eMsg 819) ────────
     //     Strip stats(5) + achievement_blocks(6), patch eresult->OK.
+    //
+    // The request handler swapped steam_id_for_user with a pool dummy
+    // (in HandleSend_ClientGetUserStats), so when we receive a response with
+    // genuine stats they belong to the dummy account, NOT the local user.
+    // We must always strip those stats.
+    //
+    // The only case where we should pass through unmodified is when the
+    // request was NOT spoofed — but at this point we have no way to tell
+    // (we don't carry a per-jobid hint for the 818 path).  Keep stripping
+    // stats here; the duplicate-injection fix in PackagePatch ensures that
+    // genuinely-owned games hit MarkOwned via CheckAppOwnership and never
+    // reach this handler in the first place (HasDepot returns false for
+    // them, so we exit early via "no modification needed").
     bool HandleRecv_ClientGetUserStatsResponse(const uint8* pBody, uint32 cbBody)
     {
         CMsgClientGetUserStatsResponse resp;
@@ -394,6 +437,9 @@ namespace UserStats {
             LOG_ACHIEVEMENT_DEBUG("ClientGetUserStats response: no modification needed");
             return false;
         }
+
+        AppId_t gameId = static_cast<AppId_t>(resp.game_id());
+
         resp.clear_stats();
         resp.clear_achievement_blocks();
         resp.set_eresult(1);  // k_EResultOK
@@ -401,7 +447,6 @@ namespace UserStats {
 
         // Advance pool index for next request — try next SteamID if this one had no schema
         {
-            AppId_t gameId = static_cast<AppId_t>(resp.game_id());
             size_t poolCount = 0;
             LuaLoader::GetStatSteamIdPool(gameId, poolCount);
             if (poolCount > 1)
@@ -468,6 +513,70 @@ namespace ETicket {
 
 
 // ════════════════════════════════════════════════════════════════
+//  AppOwnershipTicketResponse (debug-only inspector for now)
+//
+//  Incoming: CMsgClientGetAppOwnershipTicketResponse  (eMsg 858)
+//  Outgoing: CMsgClientGetAppOwnershipTicket          (eMsg 857)
+//
+//  Steam asks the server for an AppOwnershipTicket via eMsg 857. When
+//  the user does not legitimately own the app, the server returns a
+//  short body (typically 6 bytes) carrying eresult != OK and no ticket
+//  payload. Steam then refuses to launch DRM-wrapped games (error 54).
+//
+//  This handler exists right now only to dump the raw response so we
+//  can see exactly what the server is sending. No patching yet — once
+//  the wire format is confirmed we will build a forged success reply
+//  here using the cached registry blob.
+// ════════════════════════════════════════════════════════════════
+namespace AppOwnershipTicketResp {
+
+    void HandleSend(const uint8* pBody, uint32 cbBody)
+    {
+        // Dump the request body (typically very small protobuf with
+        // only the appid field) so we know which app Steam asked for.
+        std::string hex;
+        const uint32 dumpN = cbBody > 64 ? 64 : cbBody;
+        hex.reserve(dumpN * 3);
+        char buf[4];
+        for (uint32 i = 0; i < dumpN; ++i) {
+            std::snprintf(buf, sizeof(buf), "%02X ", pBody[i]);
+            hex.append(buf);
+        }
+        LOG_NETPACKET_INFO("k_EMsgClientGetAppOwnershipTicket(857) SEND cbBody={} body[hex]={}",
+                           cbBody, hex);
+    }
+
+    void HandleRecv(const uint8* pHdr, uint32 cbHdr,
+                    const uint8* pBody, uint32 cbBody)
+    {
+        // Hex dump up to 256 bytes of body (more than enough for a small reply).
+        std::string hex;
+        const uint32 dumpN = cbBody > 256 ? 256 : cbBody;
+        hex.reserve(dumpN * 3);
+        char buf[4];
+        for (uint32 i = 0; i < dumpN; ++i) {
+            std::snprintf(buf, sizeof(buf), "%02X ", pBody[i]);
+            hex.append(buf);
+        }
+        LOG_NETPACKET_INFO("k_EMsgClientGetAppOwnershipTicketResponse: cbBody={} cbHdr={} body[hex]={}",
+                           cbBody, cbHdr, hex);
+
+        // Try to parse the protobuf header so we can print the eresult.
+        CMsgProtoBufHeader hdr;
+        if (hdr.ParseFromArray(pHdr, cbHdr)) {
+            LOG_NETPACKET_INFO("k_EMsgClientGetAppOwnershipTicketResponse: header eresult={} jobid_target={} jobid_source={}",
+                               hdr.eresult(),
+                               hdr.has_jobid_target() ? hdr.jobid_target() : 0,
+                               hdr.has_jobid_source() ? hdr.jobid_source() : 0);
+        } else {
+            LOG_NETPACKET_WARN("k_EMsgClientGetAppOwnershipTicketResponse: failed to parse CMsgProtoBufHeader");
+        }
+    }
+
+} // namespace AppOwnershipTicketResp
+
+
+// ════════════════════════════════════════════════════════════════
 //  FamilySharing
 // ════════════════════════════════════════════════════════════════
 namespace FamilySharing {
@@ -504,6 +613,8 @@ namespace OnlineFix {
         }
         LOG_ONLINEFIX_DEBUG("OnlineFix: original body:\n{}", msg.DebugString());
 
+        AppId_t storedReal = SteamCapture::ResolveAppId();
+        bool sawAny480 = false;
         bool patched = false;
         for (int i = 0; i < msg.games_played_size(); ++i) {
             auto* game = msg.mutable_games_played(i);
@@ -512,20 +623,39 @@ namespace OnlineFix {
             // SpawnProcess rewrites pGameID to 480, so game_id is already 480.
             // Fill game_extra_info with the real game name.
             if (appid == kOnlineFixAppId) {
+                sawAny480 = true;
                 AppId_t realAppId = SteamCapture::ResolveAppId();
-                if (realAppId && LuaLoader::HasDepot(realAppId)) {
-                    std::string name = SteamCapture::GetGameNameByAppID(realAppId);
-                    if (!name.empty()) {
-                        game->set_game_extra_info(name);
-                        patched = true;
-                        LOG_ONLINEFIX_INFO("OnlineFix: 480 -> name '{}' (real appid {})",
-                            name, realAppId);
-                    }
+                if (!realAppId) {
+                    LOG_ONLINEFIX_WARN("OnlineFix: saw 480 but realAppId=0 (SpawnProcess never set it)");
+                    continue;
                 }
+                if (!LuaLoader::HasDepot(realAppId)) {
+                    LOG_ONLINEFIX_WARN("OnlineFix: realAppId={} has no depot, skip", realAppId);
+                    continue;
+                }
+                std::string name = SteamCapture::GetGameNameByAppID(realAppId);
+                if (name.empty()) {
+                    LOG_ONLINEFIX_WARN("OnlineFix: realAppId={} game name lookup empty, skip", realAppId);
+                    continue;
+                }
+                game->set_game_extra_info(name);
+                patched = true;
+                LOG_ONLINEFIX_INFO("OnlineFix: 480 -> name '{}' (real appid {})",
+                                   name, realAppId);
+            } else if (storedReal && appid == storedReal) {
+                // Real appid leaked through — SpawnProcess rewrite missed.
+                LOG_ONLINEFIX_WARN("OnlineFix: games_played carries real appid {} "
+                                   "(expected 480 — SpawnProcess rewrite did not run)",
+                                   appid);
             }
         }
 
-        if (!patched) return false;
+        if (!patched) {
+            if (sawAny480) {
+                LOG_ONLINEFIX_DEBUG("OnlineFix: saw 480 entry but nothing patched");
+            }
+            return false;
+        }
 
         g_TxBodyLen = static_cast<uint32>(msg.ByteSizeLong());
         if (g_TxBodyLen > kMaxBodySize) {
@@ -595,6 +725,11 @@ namespace {
             g_PatchTx = UserStats::HandleSend_ClientGetUserStats(pBody, cbBody);
             return;
 
+        case k_EMsgClientGetAppOwnershipTicket:       // 857
+            // Inspector only — log which app Steam asks for tickets on.
+            AppOwnershipTicketResp::HandleSend(pBody, cbBody);
+            return;
+
         default:
             return;
         }
@@ -654,6 +789,12 @@ namespace {
                 pBody, cbBody);
             return;
 
+        case k_EMsgClientGetAppOwnershipTicketResponse:     // 858
+            // Inspector only — logs server reply so we can see why the
+            // ticket fetch is failing for Steam-DRM games like Teardown.
+            AppOwnershipTicketResp::HandleRecv(pHdr, cbHdr, pBody, cbBody);
+            return;
+
         case k_EMsgClientPersonaState:     // 766
         {
             uint32 rpSize = 0;
@@ -663,6 +804,15 @@ namespace {
             }
             return;
         }
+
+        case k_EMsgClientSharedLibraryLockStatus:      // 9405
+            // Steam sends this when a family-shared library entry transitions
+            // between locked/unlocked. Clearing means "nothing is locked",
+            // which keeps fake-owned apps playable when the actual owner is
+            // online. Defensive — observed cases where 9406 alone wasn't
+            // enough on the latest Steam client.
+            FamilySharing::ClearBody(pBody, cbBody);
+            return;
 
         case k_EMsgClientSharedLibraryStopPlaying:     // 9406
             FamilySharing::ClearBody(pBody, cbBody);

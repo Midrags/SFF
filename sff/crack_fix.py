@@ -28,6 +28,7 @@ from sff.hv_fix import (
     _extract_file_id_from_url,
     _extract_to_game_folder,
 )
+from sff.pixeldrain import download_pixeldrain
 from sff.prompts import prompt_select
 
 CRACK_JSON_URL = "https://raw.githubusercontent.com/KoriaPolis/CrakFiles/main/crackfiles.json"
@@ -132,6 +133,10 @@ def apply_crack_fix(game_name: str, game_folder) -> bool:
     try:
         if host_type == "buzzheavier":
             archive_path = _download_buzzheavier(file_id, temp_dir)
+            if archive_path is None:
+                return False
+        elif host_type == "pixeldrain":
+            archive_path = download_pixeldrain(file_id, temp_dir)
             if archive_path is None:
                 return False
         else:

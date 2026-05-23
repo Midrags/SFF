@@ -21,14 +21,16 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 
 - Download and use Lua files for games, download manifests, and set up LumaCore.
 - Write Lua and manifest data into Steam's config.
-- Multiplayer fixes: **online-fix.me** integration and **game fixes/bypasses (Ryuu)**.
+- **LC Online Fix** — toggle `-onlinefix` on a chosen App ID in `localconfig.vdf`. Closes Steam first, picks the active SteamID3 from `loginusers.vdf`, navigates the VDF tree case-insensitively. LumaCore handles the appid-480 redirect at launch so the overlay, Steam Input, and screenshots still tag the real game.
+- **Multiplayer Fix** — downloads and applies multiplayer patches from **online-fix.me** straight into the game folder. Requires an online-fix.me account.
+- **Fixes & Bypasses** — searches a curated list from the CrakFiles repo on GitHub and applies the chosen fix to the game folder. No API key, no account. Achievement-safe — only adds bypass DLLs, leaves the Steam API intact.
 - **HyperVisor Cracks (HV Auto)** — download HyperVisor bypasses for Denuvo-protected games. Includes VBS.cmd to prepare your system. See the [HyperVisor Guide](docs/HV_GUIDE.md) before use.
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Koaloader, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
 - **Linux support** — SLSSteam ID management, platform-aware MIDI, and Linux-compatible auto-update.
-- **Main tab "Download Game"** — ⭐ **THIS IS THE MAIN WAY TO DOWNLOAD GAMES.** Downloads the **latest version** of a game directly from Steam (fast, no .NET required for Windows OS). Processes the Lua file, writes decryption keys, registers AppList/SLSsteam IDs, and triggers Steam to download the game files natively. Use this for 99% of games.
 - **Store tab** — browse Hubcap's manifest library to find games and download either using the Steam download function for downloading latest versions very quick or **older or specific versions** of a game via DepotDownloaderMod (.NET 9 required, slower). Use this **only** when you need a specific older version of a game, not the latest.
+- **Main tab "Download Game"** — ⭐ **THIS IS THE MAIN WAY TO DOWNLOAD GAMES.** Downloads the **latest version** of a game directly from Steam (fast, no .NET required for Windows OS). Processes the Lua file, writes decryption keys, copies the Lua to `config/stplug-in/` and the manifests to `depotcache/` so LumaCore picks the game up immediately, then triggers Steam to download the game files natively. Use this for 99% of games.
 
 ---
 
@@ -64,7 +66,7 @@ SteaMidra has a full graphical interface with a **Modern UI (new in 5.5.0, updat
 **What the GUI gives you:**
 - **Tabbed interface** — Main, Store, Downloads, Fix Game, Tools, and Cloud Saves tabs.
 - Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.
-- All actions as buttons: crack, DRM removal, DLC check, workshop items, multiplayer fix, **Fixes/Bypasses (Ryuu)**, DLC unlockers, and more.
+- All actions as buttons: crack, DRM removal, DLC check, workshop items, multiplayer fix, **Fixes & Bypasses**, DLC unlockers, and more.
 - **Store browser** — search and browse the Hubcap Manifest library with pagination. Download button opens a version picker with full depot/manifest history (SteamDB + GitHub mirror sources). **Force Refresh** button bypasses cache to re-scrape all historical manifests.
 - **Fix Game pipeline** — automate emulator application (Goldberg, ColdClient, ColdLoader) with SteamStub unpacking.
 - **GBE Token Generator** — generate full Goldberg emulator configs with achievements, DLCs, stats, and icons.
@@ -98,7 +100,7 @@ Full changelog: [CHANGELOG.md](CHANGELOG.md)
 
 [Multiplayer Fix](docs/MULTIPLAYER_FIX.md) – Using the online-fix.me multiplayer fix.
 
-[Fixes/Bypasses (Ryuu)](docs/RYUU_FIX.md) – Using Ryuu as a free, no-account alternative fix source.
+[Fixes & Bypasses](docs/CRACK_FIX.md) – Searching and applying community-maintained fixes from the CrakFiles repo. No API key, no account.
 
 [CrakFiles — Fixes & Bypasses source](docs/CRACK_FILES.md) – What the CrakFiles repository is, how SteaMidra fetches and uses `crackfiles.json`, and a breakdown of every field in the fix list.
 

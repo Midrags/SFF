@@ -58,7 +58,7 @@ def fetch_hv_games() -> list[dict]:
 
 def _extract_file_id_from_url(href: str) -> tuple[str, str]:
     """Parse a fix href and return (host_type, file_id).
-    host_type is 'buzzheavier' or 'vikingfile'.
+    host_type is 'buzzheavier', 'vikingfile', or 'pixeldrain'.
     """
     parsed = urlparse(href)
     host = parsed.netloc.lower()
@@ -68,6 +68,13 @@ def _extract_file_id_from_url(href: str) -> tuple[str, str]:
     if "vikingfile" in host or "vik1ngfile" in host:
         file_id = parsed.path.lstrip("/f/").lstrip("/")
         return "vikingfile", file_id
+    if "pixeldrain" in host or "pixeldra.in" in host:
+        # Defer parsing to the pixeldrain module — it handles /u/, /api/file/, etc.
+        from sff.pixeldrain import _extract_pixeldrain_id
+        pid = _extract_pixeldrain_id(href)
+        if pid:
+            return "pixeldrain", pid
+        return "unknown", href
     return "unknown", href
 
 

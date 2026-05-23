@@ -44,23 +44,34 @@ def get_ddmod_dll() -> Path:
 
 def _copy_manifests_to_temp(steam_path: Path, manifests: dict) -> None:
     MANIFESTS_TMP.mkdir(parents=True, exist_ok=True)
-    depotcache = steam_path / "steamapps" / "depotcache"
-    if not depotcache.exists():
-        return
-    for depot_id, manifest_id in manifests.items():
-        src = depotcache / f"{depot_id}_{manifest_id}.manifest"
-        if src.exists():
-            dst = MANIFESTS_TMP / src.name
-            shutil.copy2(src, dst)
 
+    # Check both depotcache locations — SteaMidra syncs manifests to config/depotcache
+    # on Linux, while steamapps/depotcache is the standard Windows location.
+    depotcache_candidates = [
+        steam_path / "steamapps" / "depotcache",
+        steam_path / "config" / "depotcache",
+    ]
+
+    for depot_id, manifest_id in manifests.items():
+        filename = f"{depot_id}_{manifest_id}.manifest"
+        dst = MANIFESTS_TMP / filename
+        if dst.exists():
+            continue  # already copied
+        for depotcache in depotcache_candidates:
+            src = depotcache / filename
+            if src.exists():
+                shutil.copy2(src, dst)
+                break
+
+    # Also check the local ./manifests/ staging folder
     staging = Path.cwd() / "manifests"
     if staging.exists():
         for depot_id, manifest_id in manifests.items():
-            src = staging / f"{depot_id}_{manifest_id}.manifest"
-            if src.exists():
-                dst = MANIFESTS_TMP / src.name
-                if not dst.exists():
-                    shutil.copy2(src, dst)
+            filename = f"{depot_id}_{manifest_id}.manifest"
+            src = staging / filename
+            dst = MANIFESTS_TMP / filename
+            if src.exists() and not dst.exists():
+                shutil.copy2(src, dst)
 
 
 def _read_process_output(proc: subprocess.Popen, print_fn) -> None:
@@ -144,6 +155,7 @@ def run_download(
     download_dir = dest_path / "steamapps" / "common" / installdir
     download_dir.mkdir(parents=True, exist_ok=True)
 
+    MANIFESTS_TMP.mkdir(parents=True, exist_ok=True)
     deps_dir = get_deps_dir()
     total_depots = len(selected_depots)
     all_ok = True
@@ -165,10 +177,11 @@ def run_download(
 
         if manifest_id:
             manifest_file = MANIFESTS_TMP / f"{depot_id_str}_{manifest_id}.manifest"
-            if manifest_file.exists():
-                cmd += ["-manifest", str(manifest_id), "-manifestfile", str(manifest_file)]
-            else:
-                cmd += ["-manifest", str(manifest_id)]
+            # Always pass -manifestfile so DDMod writes the manifest there if it
+            # doesn't exist yet — this avoids the "No manifest request code" error
+            # that occurs when DDMod tries to fetch the manifest from Steam CDN
+            # anonymously without a valid session.
+            cmd += ["-manifest", str(manifest_id), "-manifestfile", str(manifest_file)]
 
         print_fn(
             Fore.CYAN

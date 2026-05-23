@@ -22,9 +22,9 @@ SteamStub DRM unpacker.
 Scans game directories for SteamStub-protected executables and
 unpacks them using Steamless (existing in third_party/).
 
-Mirrors Solus SteamStubUnpacker.cs — runs all .exe files through
-Steamless which internally tries 7 unpacker variants:
-V10x86, V20x86, V21x86, V30x86, V30x64, V31x86, V31x64
+Tries Steamless against every .exe in the game directory; the tool
+internally selects the matching unpacker variant for the wrapper
+version (V10x86, V20x86, V21x86, V30x86, V30x64, V31x86, V31x64).
 """
 
 import os
@@ -45,6 +45,17 @@ SKIP_PATTERNS = [
     "dotnet", "directx", "vc_", "crashhandler", "crashreport",
     "update", "patch", "launcher", "UnityCrash",
 ]
+
+# Directory names we never want to recurse into when scanning for
+# executables to unpack. These are SteaMidra's own backup / staging
+# folders — touching them produces noise like "File not Packed/Other
+# Protector" warnings against backup copies of already-processed exes.
+SKIP_DIR_NAMES = {
+    ".steamidra_exe_backups",  # created by sff/steamauto.py
+    ".steamlocked.bak",        # legacy Library-tab Steamless backup
+    "saved_lua",
+    "manifests",
+}
 
 
 class SteamStubUnpacker:
@@ -102,8 +113,17 @@ class SteamStubUnpacker:
         return True
 
     def _should_skip(self, exe_path):
-        """check if an exe should be skipped (installers, redistributables, etc)"""
+        """Skip installers, redistributables, and SteaMidra backup folders."""
+        # Walk up the parent chain and bail if any segment is a known
+        # backup/staging folder. Cheaper than rebuilding the rglob iterator.
+        for part in exe_path.parts:
+            if part in SKIP_DIR_NAMES:
+                return True
+        # Also skip our own *.steamstub.bak / *.unpacked.exe artefacts that
+        # rglob sometimes returns alongside live exes during retries.
         name_lower = exe_path.name.lower()
+        if name_lower.endswith(".steamstub.bak") or name_lower.endswith(".unpacked.exe"):
+            return True
         return any(skip in name_lower for skip in SKIP_PATTERNS)
 
     def unpack_directory(self, directory, log_func=None, use_experimental=True):

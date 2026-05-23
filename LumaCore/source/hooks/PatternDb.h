@@ -139,9 +139,8 @@ inline const Signature LoadDepotDecryptionKeySigs[] = {
 };
 
 inline const Signature LoadPackageSigs[] = {
-    {"1778803745", "44 89 44 24 18 53 55 56 57 41 55"},                                          // beta
-    {"1778281814", "48 89 5C 24 18 48 89 6C 24 20 56 57 41 54 41 55 41 57 48 81 EC 20 01"},     // stable
-    {"auto",       "44 89 4C 24 20 44 89 44 24 18 53"},                                          // future builds
+    {"1778281814", "48 89 5C 24 18 48 89 6C 24 20 56 57 41 54 41 55 41 57 48 81 EC 20 01"},  // stable (verified correct)
+    {"auto",       "48 89 5C 24 18 48 89 6C 24 20 56 57 41 54 41 55 41 57 48"},              // future builds
 };
 
 inline const Signature MarkLicenseAsChangedSigs[] = {
@@ -246,7 +245,50 @@ inline const Signature IsUserSubscribedAppInTicketSigs[] = {
 
 // steamui.dll
 
+// GetAppByID: resolves CSteamUIAppController::GetAppByID for RemoveAppOverview.
+inline const Signature GetAppByIDSigs[] = {
+    {"1779155395", "89 54 24 ?? 53 48 83 EC ?? 48 8B 05 ?? ?? ?? ?? 41 0F B6 D8"},  // beta
+    {"1778281814", "89 54 24 ?? 56 48 83 EC ?? 48 8B 05"},                           // stable
+    {"auto",       "89 54 24 10 56 48 83 EC ?? 48"},                                 // future builds
+};
+
+// TopManagerCall: anchor inside MarkAppChange; rel32 at +10 points to GetTopManager getter.
+inline const Signature TopManagerCallSigs[] = {
+    {"1779155395", "83 FE 07 0F 84 ?? ?? ?? ?? E8 ?? ?? ?? ?? 45 33 C0"},  // beta
+    {"1778281814", "83 FF 07 0F 84 ?? ?? ?? ?? E8 ?? ?? ?? ?? 45 33 C0"},  // stable
+    {"auto",       "83 FF 07 0F 84 ?? ?? ?? ?? E8 ?? ?? ?? ?? 45 33 C0"},  // future builds (same as stable)
+};
+
+// AddProtobufAsBinary: string XRef primary (update-proof), byte pattern fallback.
+// Serializes a protobuf message into the args buffer for subscriber dispatch.
+inline const StringXRefSig AddProtobufAsBinaryStrSigs[] = {
+    {"auto", "CJSMethodArgs::AddProtobufAsBinary", 1},
+};
+
+inline const Signature AddProtobufAsBinarySigs[] = {
+    {"1779155395", "40 53 55 56 57 48 83 EC ?? 48 8B 05 ?? ?? ?? ?? 48 8B F2"},                                                                                                                    // beta
+    {"1778281814", "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC 20 48 8B 05 ?? ?? ?? ?? 48 8B F2 48 8B D9 44 8B 00"},  // stable
+    {"auto",       "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC ?? 48 8B 05 ?? ?? ?? ?? 48 8B F2"},  // future builds
+};
+
+// LoadModuleWithPath: byte pattern only (string XRef is unsafe here).
+// Hooked to redirect steamclient64.dll loads to the diversion copy.
+//
+// IMPORTANT — May 22 2026 Steam build 1779486452 surfaced two functions that look
+// similar.  The JS-callable JSMethod handler at a separate RVA contains the literal
+// "LoadModule" string (it's a dispatch-table key), but Steam NEVER invokes that
+// function to load steamclient64.dll.  The real LoadModuleWithPath uses the
+// MAX_UNICODE_PATH_IN_UTF8 assert string and matches the historical OST 1.4.2
+// prologue.  Hooking the wrong function leaves the diversion DLL unused and games
+// show as "Purchase".
+//
+// We do NOT use string XRef for this hook: the real function spans multiple .pdata
+// unwind sub-regions, and the assert string sits in a non-leading sub-region.
+// StringFind::FindFunction would return that sub-region's BeginAddress instead of
+// the true function start, corrupting the prologue when Detours rewrites it.
+// The byte pattern below is unique within steamui.dll and points at the entry.
 inline const Signature LoadModuleWithPathSigs[] = {
-    {"1778803745", "48 89 5C 24 18 55 56 41 57 48 83 EC 40"},                        // beta
-    {"1778281814", "48 89 5C 24 18 48 89 6C 24 20 56 41 54 41 57 48 83 EC 40"},     // stable
+    {"1778281814", "48 89 5C 24 18 48 89 6C 24 20 56 41 54 41 57 48 83 EC 40"},  // stable (still matches 1779486452)
+    {"1778803745", "48 89 5C 24 18 55 56 41 57 48 83 EC 40"},                    // beta
+    {"auto",       "48 89 5C 24 18 48 89 6C 24 20 56 41 54 41 57 48 83 EC ??"},  // future builds
 };

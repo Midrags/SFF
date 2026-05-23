@@ -253,6 +253,65 @@ a:hover { text-decoration: underline; }
     opacity: 0.6;
 }
 
+.action-desc.warn-achievements {
+    opacity: 1;
+    color: #f0c040;
+    font-weight: 600;
+}
+
+.action-desc.safe-achievements {
+    opacity: 1;
+    color: #4caf50;
+    font-weight: 600;
+}
+
+/* ── Home tab hint banner (error 54 etc.) ──────────── */
+
+.hint-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    margin: 0 0 16px 0;
+    border: 1px solid rgba(240, 192, 64, 0.45);
+    border-left: 3px solid #f0c040;
+    border-radius: 6px;
+    background: rgba(240, 192, 64, 0.08);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.hint-banner .hint-icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: #f0c040;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    margin-top: 2px;
+}
+
+.hint-banner .hint-text {
+    flex: 1;
+    color: var(--fg);
+    opacity: 0.92;
+}
+
+.hint-banner .hint-text strong {
+    display: block;
+    color: #f0c040;
+    margin-bottom: 2px;
+    font-weight: 600;
+}
+
+.hint-banner .hint-text em {
+    font-style: normal;
+    font-weight: 600;
+    color: var(--fg);
+}
+
 /* ── Buttons ────────────────────────────────────────── */
 
 .btn {

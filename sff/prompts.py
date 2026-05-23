@@ -116,9 +116,13 @@ def prompt_dir(
     )
 
 
-def prompt_file(msg, allow_blank = False):
+def prompt_file(msg, allow_blank = False, start_dir = None):
     if _gui_backend:
-        return _gui_backend.prompt_file(msg, allow_blank=allow_blank)
+        # Forward start_dir if the backend supports it; older backends ignore the kwarg.
+        try:
+            return _gui_backend.prompt_file(msg, allow_blank=allow_blank, start_dir=start_dir)
+        except TypeError:
+            return _gui_backend.prompt_file(msg, allow_blank=allow_blank)
     is_file = lambda x: (
         convert_to_path(x).exists() and convert_to_path(x).is_file()
     ) or (True if allow_blank and x == "" else False)

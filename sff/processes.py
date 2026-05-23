@@ -21,6 +21,8 @@ from functools import partial
 
 import logging
 
+import os
+
 import subprocess
 
 import threading
@@ -52,6 +54,77 @@ def is_proc_running(process_name: str):
             pass
 
     return False
+
+
+def is_running_elevated() -> bool:
+    """Return True when the current process has admin/elevated rights on Windows."""
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
+def launch_steam_unelevated(steam_exe: Path, cwd: Path | None = None) -> tuple[bool, str]:
+    """Launch Steam without inheriting our elevation.
+
+    Steam's manifest is `asInvoker`. When SteaMidra runs elevated and tries to
+    spawn steam.exe directly, Windows refuses with WinError 740 because an
+    elevated parent cannot drop integrity for a child. We work around it by
+    asking explorer.exe (always medium integrity) to launch Steam.
+
+    Returns (success, message).
+    """
+    steam_exe = Path(steam_exe)
+    if not steam_exe.exists():
+        return False, f"steam.exe not found at {steam_exe}"
+
+    cwd_str = str(cwd) if cwd else str(steam_exe.parent)
+
+    # Non-elevated path — direct Popen works.
+    if not is_running_elevated():
+        try:
+            subprocess.Popen(
+                [str(steam_exe)],
+                cwd=cwd_str,
+                creationflags=subprocess.CREATE_NO_WINDOW
+                if os.name == "nt" else 0,
+            )
+            return True, "Steam launched"
+        except Exception as exc:
+            logger.warning("direct Popen launch failed: %s", exc)
+            # fall through to the elevated workaround
+
+    # Elevated path — bounce through explorer.exe to drop integrity.
+    explorer = Path(os.environ.get("WINDIR", r"C:\Windows")) / "explorer.exe"
+    if explorer.exists():
+        try:
+            subprocess.Popen(
+                [str(explorer), str(steam_exe)],
+                cwd=cwd_str,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            return True, "Steam launched via explorer"
+        except Exception as exc:
+            logger.warning("explorer.exe launch failed: %s", exc)
+
+    # Last resort — ShellExecute (still inherits elevation, but at least
+    # gives Steam a fighting chance and a clearer error if it refuses).
+    try:
+        import ctypes
+        ret = ctypes.windll.shell32.ShellExecuteW(
+            None, "open", str(steam_exe), None, cwd_str, 1
+        )
+        if int(ret) > 32:
+            return True, "Steam launched via ShellExecute"
+        return False, (
+            f"ShellExecute failed (code {ret}). Close SteaMidra "
+            "and start Steam from the Start Menu."
+        )
+    except Exception as exc:
+        return False, f"All launch strategies failed: {exc}"
 
 
 class SteamProcess:
@@ -145,15 +218,10 @@ class SteamProcess:
             print("Could not find any matching executables. Launch it yourself.")
             return False
         print("Launching Steam...")
-        try:
-            subprocess.Popen(
-                [injector],
-                cwd=str(self.steam_path),
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
+        ok, msg = launch_steam_unelevated(Path(injector), self.steam_path)
+        if ok:
             print("Steam launched successfully!")
             return True
-        except Exception as e:
-            print(f"\nError launching Steam: {e}")
-            print("Please launch Steam manually from your Start Menu or Desktop.")
-            return False
+        print(f"\nError launching Steam: {msg}")
+        print("Please launch Steam manually from your Start Menu or Desktop.")
+        return False

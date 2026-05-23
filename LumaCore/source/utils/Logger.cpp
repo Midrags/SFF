@@ -61,7 +61,12 @@ namespace Logger {
 
         try {
             std::filesystem::create_directories(Settings::logDir);
-            auto lvl = ToSpdlog(Settings::logLevel);
+            // verbose=true forces trace level on every module logger so we
+            // capture everything (IPC, network, hooks, registry probes, etc).
+            // Defaults on so users do not need to edit config to send useful
+            // logs after a launch failure.
+            auto lvl = Settings::verbose ? spdlog::level::trace
+                                         : ToSpdlog(Settings::logLevel);
 
             Main->set_level(lvl);
 
@@ -74,8 +79,9 @@ namespace Logger {
             #include "ModuleLog.h"
             #undef LC_MOD
 
-            LOG_INFO("Module loggers initialised at {} level={}", Settings::logDir,
-                     static_cast<int>(Settings::logLevel));
+            LOG_INFO("Module loggers initialised at {} level={} verbose={}",
+                     Settings::logDir, static_cast<int>(lvl),
+                     Settings::verbose ? "true" : "false");
         } catch (const std::exception& e) {
             LOG_WARN("InitModules failed: {}", e.what());
         }

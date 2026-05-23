@@ -145,6 +145,18 @@ class SupportedLanguages(Enum):
     PL = "pl"
     RU = "ru"
     AR = "ar"
+    ZH_CN = "zh_CN"
+    ZH_TW = "zh_TW"
+    FR = "fr"
+    IT = "it"
+    JA = "ja"
+    KO = "ko"
+    TR = "tr"
+    UK = "uk"
+    VI = "vi"
+    ID = "id"
+    TH = "th"
+    CS = "cs"
     AUTO = "Auto"
 
 SettingType = Union[type, list[Enum], SettingCustomTypes]
@@ -205,6 +217,13 @@ class Settings(Enum):
     CLOUD_PROVIDER = SettingItem("cloud_provider", "Cloud Save Provider", False, str)
     CLOUD_RCLONE_EXE = SettingItem("cloud_rclone_exe", "Cloud Save rclone Executable", False, str)
     CLOUD_RCLONE_REMOTE = SettingItem("cloud_rclone_remote", "Cloud Save rclone Remote", False, str)
+    CLOSE_TO_TRAY = SettingItem("close_to_tray", "Close button hides to tray (off = quit)", False, bool)
+    WARN_BEFORE_BREAKING_ACHIEVEMENTS = SettingItem(
+        "warn_before_breaking_achievements",
+        "Warn before running actions that break Steam achievements",
+        False,
+        bool,
+    )
 
     @property
     def key_name(self):

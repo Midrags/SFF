@@ -101,7 +101,7 @@ After this, Steam shows a **Play** button immediately — no update prompt.
 > **Note:** The actual game files are downloaded using the manifest IDs you selected. The ACF is written with the latest CDN manifest IDs so Steam's update checker is satisfied.
 
 ### Process a .lua file (Manifest downloads only)
-Like the main option but skips AppList, config.vdf, and ACF steps — only does the .lua input, backup, and manifest downloads. Has an extra prompt asking if you want to move the manifest files to a different folder. Hidden by default; enable Advanced Mode in Settings to see it.
+Like the main option but skips `config.vdf` and ACF steps — only does the .lua input, backup, and manifest downloads. Has an extra prompt asking if you want to move the manifest files to a different folder. Hidden by default; enable Advanced Mode in Settings to see it.
 
 ### Process recent .lua file
 Opens a list of the last .lua files you processed so you can run one again quickly without browsing for the file.

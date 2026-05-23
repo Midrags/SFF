@@ -51,6 +51,8 @@ namespace Settings {
             if (auto logTbl = tbl["log"].as_table()) {
                 if (auto lvl = (*logTbl)["level"].value<std::string>())
                     logLevel = ParseLogLevel(*lvl);
+                if (auto v = (*logTbl)["verbose"].value<bool>())
+                    verbose = *v;
             }
 
             // [lua]
@@ -63,8 +65,9 @@ namespace Settings {
                 }
             }
 
-            LOG_INFO("Settings: log.level={} lua.paths_count={}",
-                     LevelName(logLevel), static_cast<uint32_t>(luaPaths.size()));
+            LOG_INFO("Settings: log.level={} log.verbose={} lua.paths_count={}",
+                     LevelName(logLevel), verbose ? "true" : "false",
+                     static_cast<uint32_t>(luaPaths.size()));
 
         } catch (const toml::parse_error& e) {
             LOG_WARN("Settings: TOML parse error: {}", e.what());

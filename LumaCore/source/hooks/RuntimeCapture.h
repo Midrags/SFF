@@ -34,4 +34,8 @@ namespace SteamCapture {
     // Requires pCUser to have been captured (happens on first natural call to
     // MarkLicenseAsChanged, which Steam makes during license load on startup).
     void NotifyLicenseChanged();
+
+    // Returns true when all captures needed by NotifyLicenseChanged are ready.
+    // Used by the startup injection thread to know when it's safe to call NotifyLicenseChanged.
+    bool IsReadyForNotify();
 }

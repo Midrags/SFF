@@ -111,23 +111,31 @@
                 </div>
             </div>
 
+            <div class="hint-banner" data-tooltip="Steam DRM (SteamStub) protects some games like Teardown, Doom Eternal, Resident Evil. LumaCore can fake ownership but the wrapper still does its own local check and the game refuses to launch.">
+                <svg class="hint-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div class="hint-text">
+                    <strong>Hitting Steam error 54 when launching a game?</strong>
+                    The game uses Steam DRM (SteamStub). LumaCore can't bypass the wrapper's local check on its own. Use <em>Remove DRM (Steamless)</em> below to strip the wrapper. Achievement-safe.
+                </div>
+            </div>
+
             <div class="section-group">
                 <h2 class="section-title">Quick Start</h2>
                 <div class="action-grid">
-                    <button class="action-card" data-action="crack" data-tooltip="Replace steam_api DLLs with Goldberg Emulator so the game runs without Steam ownership">
+                    <button class="action-card" data-action="crack" data-tooltip="Replace steam_api DLLs with Goldberg Emulator. Breaks Steam achievements and cloud saves.">
                         <svg class="action-icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="6" y2="12"/><line x1="10" y1="12" x2="10" y2="12"/></svg>
                         <span class="action-title">Apply Goldberg Emu</span>
-                        <span class="action-desc">Apply Steam emulator to a game</span>
+                        <span class="action-desc warn-achievements">Breaks Steam achievements</span>
                     </button>
-                    <button class="action-card" data-action="steamstub" data-tooltip="Strip Valve's SteamStub DRM wrapper from a game executable using Steamless">
+                    <button class="action-card" data-action="steamstub" data-tooltip="Strip Valve's SteamStub DRM wrapper from a game executable using Steamless. Steam achievements stay working.">
                         <svg class="action-icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>
                         <span class="action-title">Remove DRM</span>
-                        <span class="action-desc">Remove SteamStub protection</span>
+                        <span class="action-desc safe-achievements">Achievements safe</span>
                     </button>
-                    <button class="action-card" data-action="steam_auto" data-tooltip="Run SteamAutoCrack CLI — strips SteamStub and applies Goldberg Emu in one step">
+                    <button class="action-card" data-action="steam_auto" data-tooltip="Run SteamAutoCrack CLI — strips SteamStub and applies Goldberg Emu in one step. Breaks Steam achievements and cloud saves.">
                         <svg class="action-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                         <span class="action-title">SteamAutoCrack</span>
-                        <span class="action-desc">Removes SteamStub and applies Goldberg Emu</span>
+                        <span class="action-desc warn-achievements">Breaks Steam achievements</span>
                     </button>
                     <button class="action-card" data-action="dlc_check" data-tooltip="See which DLCs exist for this game and which ones are already in your AppList">
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
@@ -175,11 +183,11 @@
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
                         <span class="action-title">Workshop Item</span>
                     </button>
-                    <button class="action-card compact" data-action="multiplayer" data-tooltip="Apply online-fix.me multiplayer patches to play online">
+                    <button class="action-card compact platform-win" data-action="lc_online_fix" data-tooltip="Toggle the LC Online Fix launch option for a specific app (Windows only)">
                         <svg class="action-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-                        <span class="action-title">Multiplayer Fix</span>
+                        <span class="action-title">LC Online Fix</span>
                     </button>
-                    <button class="action-card compact" data-action="community_fixes" data-tooltip="Apply community-made fixes and bypasses for specific games">
+                    <button class="action-card compact" data-action="community_fixes" data-tooltip="Apply community-made fixes and bypasses from the CrakFiles repo. Achievement-safe — no Steam API replacement.">
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                         <span class="action-title">Bypasses & Fixes</span>
                     </button>
@@ -207,10 +215,6 @@
                         <svg class="action-icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
                         <span class="action-title">Mod Updates</span>
                     </button>
-                    <button class="action-card compact" data-action="offline_fix" data-tooltip="Patch config.vdf so Steam starts in offline mode reliably">
-                        <svg class="action-icon" viewBox="0 0 24 24"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55"/><path d="M5 12.55a10.94 10.94 0 015.17-2.39"/><path d="M10.71 5.05A16 16 0 0122.56 9"/><path d="M1.42 9a15.91 15.91 0 014.7-2.88"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
-                        <span class="action-title">Offline Fix</span>
-                    </button>
                     <button class="action-card compact platform-linux" data-action="applist_menu" data-tooltip="Manage SLS injection IDs (Linux only)">
                         <svg class="action-icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                         <span class="action-title">AppList IDs</span>
@@ -219,9 +223,9 @@
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
                         <span class="action-title">Auto LC Setup</span>
                     </button>
-                    <button class="action-card compact platform-win" data-action="lc_online_fix" data-tooltip="Toggle the LC Online Fix launch option for a specific app (Windows only)">
+                    <button class="action-card compact" data-action="multiplayer" data-tooltip="Apply online-fix.me multiplayer patches to play online">
                         <svg class="action-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
-                        <span class="action-title">LC Online Fix</span>
+                        <span class="action-title">Multiplayer Fix</span>
                     </button>
                 </div>
             </div>

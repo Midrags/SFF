@@ -32,6 +32,12 @@ namespace LuaLoader {
     std::vector<AppId_t> TakePendingAdditions();
     void ParseDirectory(const std::string& directory);
 
+    // Re-queue all currently loaded depot IDs as pending additions.
+    // Called after startup when hooks are ready but LoadPackage already fired.
+    // This allows NotifyLicenseChanged to inject all startup Lua files into
+    // the already-loaded package 0.
+    void QueueStartupInjection();
+
 }
 
 #endif // LUALOADER_H

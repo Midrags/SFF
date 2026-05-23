@@ -551,14 +551,23 @@ class WebBridge(QObject):
             from sff.steamauto import get_steamauto_cli_path
             if get_steamauto_cli_path() is None:
                 self._emit_task_result("steam_auto", False, "SteamAutoCrack CLI not found")
+
                 return
             acf = self._resolve_acf(app_id)
             if acf is None:
                 self._emit_task_result("steam_auto", False, "No game found for the selected App ID")
+
                 return
             parent = self.parent()
             if parent and hasattr(parent, '_run_steam_auto_with_acf'):
+                # Web UI showed its own confirm dialog already — suppress the
+                # Qt-side double-prompt for this single delegate call.
+                if hasattr(parent, '_skip_next_achievement_warn'):
+                    parent._skip_next_achievement_warn = True
+                else:
+                    setattr(parent, '_skip_next_achievement_warn', True)
                 parent._run_steam_auto_with_acf(acf)
+
             return
 
         def _do():
@@ -571,7 +580,7 @@ class WebBridge(QObject):
                 "recent_lua": lambda: self._ui.recent_files_menu(),
                 "update_manifests": lambda: self._ui.update_all_manifests(),
                 "injection_menu": lambda: self._ui.injection_menu(),
-                "offline_fix": lambda: self._ui.offline_fix_menu(),
+                "applist_menu": lambda: self._ui.injection_menu(),
                 "remove_game": lambda: self._ui.remove_game_menu(),
                 "context_menu": lambda: self._ui.manage_context_menu(),
                 "check_updates": lambda: self._ui.check_updates(self._ui.os_type),
@@ -624,8 +633,28 @@ class WebBridge(QObject):
             if acf is None:
                 return f"No game found for App ID: {app_id}"
 
+            # Steamless / Remove DRM: route through the same Qt-side helper
+            # the classic Library button uses, so the user sees a single file
+            # dialog rooted at the game folder and gets the (success, message)
+            # tuple back. Avoids the "explorer window + drag-drop dialog" mess
+            # the menu fallback path used to produce.
+            if action == "steamstub":
+                parent = self.parent()
+                if parent and hasattr(parent, "_run_steamless_for_acf"):
+                    parent._run_steamless_for_acf(acf)
+                    return None
+                # Fall through to default dispatch if the helper is missing
+                # (e.g. running headless / non-GUI tests).
+
             try:
-                self._ui.run_game_action_with_selection(menu_choice, acf)
+                result = self._ui.run_game_action_with_selection(menu_choice, acf)
+                # Steamless / Remove DRM returns a (success, message) tuple.
+                # Surface it to the JS layer so the user sees the actual
+                # outcome instead of a generic "completed" toast.
+                if action == "steamstub" and isinstance(result, tuple) and len(result) == 2:
+                    ok, msg = result
+                    self._emit_task_result("steamstub", bool(ok), str(msg))
+                    return None
                 return None
             except Exception as e:
                 return str(e)
@@ -1236,9 +1265,13 @@ class WebBridge(QObject):
                 msg = f"Updated to build {result.get('cm_buildid', '')}"
             elif result.get("error"):
                 msg = result["error"]
-            self._emit_task_result("update_check", success, msg, **{
-                k: v for k, v in result.items() if k not in ("error",)
-            })
+            # Strip keys that collide with _emit_task_result's positional params,
+            # otherwise we get TypeError: got multiple values for 'success'/'message'/'task'.
+            extras = {
+                k: v for k, v in result.items()
+                if k not in ("error", "success", "message", "task")
+            }
+            self._emit_task_result("update_check", success, msg, **extras)
 
         self._run_async(_do, on_done=_on_done)
 
@@ -1336,9 +1369,16 @@ class WebBridge(QObject):
                 )
             else:
                 msg = result.get("error", "Lure fix failed")
-            self._emit_task_result("lure_fix", bool(result.get("success")), msg, **{
-                k: v for k, v in result.items() if k != "error"
-            })
+            # Strip keys that collide with _emit_task_result's positional params.
+            # The previous code spread the whole `result` dict and crashed on
+            # success because `success` and `message` would arrive twice (once
+            # positional, once keyword) — TypeError, propagated through Qt signal
+            # delivery, which closed the whole window.
+            extras = {
+                k: v for k, v in result.items()
+                if k not in ("error", "success", "message", "task")
+            }
+            self._emit_task_result("lure_fix", bool(result.get("success")), msg, **extras)
 
         self._run_async(_do, on_done=_on_done)
 
@@ -1348,8 +1388,11 @@ class WebBridge(QObject):
         def _do():
             if sys.platform == "win32":
                 import time
-                import subprocess
-                from sff.processes import SteamProcess, is_proc_running
+                from sff.processes import (
+                    SteamProcess,
+                    is_proc_running,
+                    launch_steam_unelevated,
+                )
 
                 if not self._steam_path:
                     return (False, "Steam path not set")
@@ -1370,19 +1413,9 @@ class WebBridge(QObject):
                     print(" Done!")
 
                 injector = self._steam_path / "steam.exe"
-                if not injector.exists():
-                    return (False, "steam.exe not found in Steam folder")
-
                 print("Launching Steam...")
-                try:
-                    subprocess.Popen(
-                        [str(injector)],
-                        cwd=str(self._steam_path),
-                        creationflags=subprocess.CREATE_NO_WINDOW,
-                    )
-                    return (True, "Steam launched successfully")
-                except Exception as e:
-                    return (False, f"Failed to launch: {e}")
+                ok, msg = launch_steam_unelevated(injector, self._steam_path)
+                return (ok, msg)
 
             else:
                 from sff.linux.steam_process import kill_steam, start_steam
@@ -1444,6 +1477,9 @@ class WebBridge(QObject):
                 return
             parent = self.parent()
             if parent and hasattr(parent, '_run_steam_auto_with_acf'):
+                # Web UI showed its own confirm dialog already — suppress the
+                # Qt-side double-prompt for this single delegate call.
+                setattr(parent, '_skip_next_achievement_warn', True)
                 parent._run_steam_auto_with_acf(acf)
             return
 
@@ -1498,12 +1534,31 @@ class WebBridge(QObject):
 
     @pyqtSlot(str)
     def toggle_online_fix(self, app_id):
-        """Toggle the LC Online Fix launch option for app_id in localconfig.vdf."""
+        """Toggle the LC Online Fix launch option for app_id in localconfig.vdf.
+
+        Steam is automatically closed first when running, otherwise it would
+        clobber the localconfig.vdf write on next shutdown.
+        """
         def _do():
-            from sff.launch_options import toggle_online_fix, online_fix_enabled
-            enabled = toggle_online_fix(self._ui.steam_path, app_id)
-            state = "enabled" if enabled else "disabled"
-            return True, f"LC Online Fix {state} for App {app_id}"
+            from sff.launch_options import toggle_online_fix
+            from sff.processes import SteamProcess, is_proc_running
+            import time
+
+            if sys.platform == "win32" and is_proc_running("steam.exe"):
+                print("Closing Steam before toggling LC Online Fix...", flush=True)
+                steam_proc = SteamProcess(self._steam_path) if self._steam_path else None
+                if steam_proc:
+                    steam_proc.kill()
+                    waited = 0.0
+                    while is_proc_running("steam.exe") and waited < 10.0:
+                        time.sleep(0.5)
+                        waited += 0.5
+                    if is_proc_running("steam.exe"):
+                        return False, "Steam did not close in time. Close it manually and try again."
+                    print("Steam closed.", flush=True)
+
+            success, message = toggle_online_fix(self._ui.steam_path, app_id)
+            return success, message
 
         def _on_done(result):
             success, message = result if isinstance(result, tuple) else (False, str(result))
@@ -1795,6 +1850,37 @@ class WebBridge(QObject):
                 parsed = parse_lua_contents(lua_text, lua_file)
                 if not parsed or not parsed.depots:
                     return (False, "Failed to parse Lua — no depot info found")
+
+                # ── LumaCore registration (Windows-only) ──
+                # Without these steps the library card shows "Buy" because LumaCore's
+                # CheckAppOwnership hook only patches appids it knows from a Lua file
+                # in <steam>/config/stplug-in/. The DDMod download alone fetches files
+                # but doesn't tell LumaCore the user "owns" the game. Mirror what
+                # _run_windows_fastest does so both paths leave Steam in the same state.
+                if sys.platform == "win32" and steam_path:
+                    try:
+                        from sff.steam_tools_compat import install_lua_to_steam
+                        install_lua_to_steam(steam_path, app_id, lua_file)
+                    except Exception as _ile:
+                        logger.warning("install_lua_to_steam failed (non-fatal): %s", _ile)
+
+                    try:
+                        from sff.lua.writer import ConfigVDFWriter
+                        ConfigVDFWriter(steam_path).add_decryption_keys_to_config(parsed)
+                    except Exception as _kwe:
+                        logger.warning("add_decryption_keys_to_config failed (non-fatal): %s", _kwe)
+
+                    try:
+                        from sff.registry_access import set_stats_and_achievements
+                        set_stats_and_achievements(app_id)
+                    except Exception as _se:
+                        logger.warning("set_stats_and_achievements failed (non-fatal): %s", _se)
+
+                    try:
+                        if hasattr(self._ui, 'app_list_man') and self._ui.app_list_man:
+                            self._ui.app_list_man.add_ids(parsed)
+                    except Exception as _aie:
+                        logger.warning("app_list_man.add_ids failed (non-fatal): %s", _aie)
 
                 self.download_progress.emit(json.dumps({
                     "app_id": app_id, "status": "Resolving manifests...", "progress": 25

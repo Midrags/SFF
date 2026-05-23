@@ -206,10 +206,14 @@ class GUIPromptBackend:
                 return p
         return _on_gui_thread(_show)
 
-    def prompt_file(self, msg, allow_blank=False):
+    def prompt_file(self, msg, allow_blank=False, start_dir=None):
         parent = self._parent
         def _show():
-            path, _ = QFileDialog.getOpenFileName(parent, msg)
+            path, _ = QFileDialog.getOpenFileName(
+                parent,
+                msg,
+                start_dir or "",
+            )
             if not path:
                 return Path("") if allow_blank else Path(".")
             return Path(path)

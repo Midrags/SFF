@@ -125,7 +125,9 @@ _LUMACORE_RELEASE_API = f"https://api.github.com/repos/{_LUMACORE_GITHUB_REPO}/r
 
 _LC_DLLS = ("dwmapi.dll", "LumaCore.dll")
 
-_GL_MARKER = ".gl_cleaned"
+_GL_MARKER = ".steamidra_gl_cleaned"
+_LEGACY_MARKER_DIR = "lumacore"
+_LEGACY_MARKER_NAME = ".gl_cleaned"
 
 _GL_ROOT_FILES = (
     "GreenLuma_2024_x64.dll",
@@ -163,7 +165,48 @@ def _progress(msg: str, callback: Optional[Callable[[str], None]]) -> None:
 
 
 def _gl_marker_path(steam_path: Path) -> Path:
-    return steam_path / "lumacore" / _GL_MARKER
+    """Return the canonical path of the GL-cleanup marker.
+
+    Lives at the Steam root, NOT inside <steam>/lumacore/ — that folder is
+    LumaCore's runtime log directory. Sharing it with our marker risks the
+    marker file being mistaken for log content (or vice versa) and has caused
+    LumaCore to fail to start on first run.
+    """
+    return steam_path / _GL_MARKER
+
+
+def _legacy_gl_marker_path(steam_path: Path) -> Path:
+    return steam_path / _LEGACY_MARKER_DIR / _LEGACY_MARKER_NAME
+
+
+def _migrate_legacy_marker(steam_path: Path, callback: Optional[Callable[[str], None]]) -> bool:
+    """Move a pre-existing marker out of <steam>/lumacore/ to the new location.
+
+    Returns True if a legacy marker existed and was migrated. The empty lumacore/
+    folder is removed only when no other files (logs, config) are present, so
+    we never destroy LumaCore's runtime data.
+    """
+    legacy = _legacy_gl_marker_path(steam_path)
+    if not legacy.is_file():
+        return False
+
+    new_marker = _gl_marker_path(steam_path)
+    try:
+        new_marker.touch(exist_ok=True)
+        legacy.unlink()
+        _progress("Migrated legacy GL-cleanup marker out of lumacore/.", callback)
+    except OSError as exc:
+        _progress(f"Could not migrate legacy marker: {exc}", callback)
+        return False
+
+    legacy_dir = legacy.parent
+    try:
+        if legacy_dir.is_dir() and not any(legacy_dir.iterdir()):
+            legacy_dir.rmdir()
+            _progress("Removed empty legacy lumacore/ folder.", callback)
+    except OSError:
+        pass
+    return True
 
 
 def _run_gl_cleanup(steam_path: Path, callback: Optional[Callable[[str], None]]) -> None:
@@ -324,11 +367,16 @@ def install_lumacore(
         except Exception as exc:
             _progress(f"Could not close Steam: {exc}", progress_callback)
 
+    # Migrate legacy marker out of <steam>/lumacore/ before we look at it.
+    # Older builds wrote .gl_cleaned into LumaCore's log folder, which on first
+    # install of LumaCore could cause a startup glitch. Pull it out and clean
+    # up the folder if we left it empty.
+    _migrate_legacy_marker(steam_path, progress_callback)
+
     marker = _gl_marker_path(steam_path)
     if not marker.exists():
         _run_gl_cleanup(steam_path, progress_callback)
         try:
-            marker.parent.mkdir(parents=True, exist_ok=True)
             marker.touch()
         except OSError:
             pass
