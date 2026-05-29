@@ -612,10 +612,12 @@ def _resolve_game_name(folder_name, name_map_cache=None):
             except Exception:
                 pass
         game_name = name or f"App {app_id}"
-        label = f"{app_id} - {game_name}"
+        sanitized_game_name = "".join(c if c not in r'\/:*?"<>|' else "_" for c in game_name)
+        label = f"{app_id} - {sanitized_game_name}"
         return app_id, game_name, label
     else:
-        return None, folder_name, folder_name
+        sanitized_folder_name = "".join(c if c not in r'\/:*?"<>|' else "_" for c in folder_name)
+        return None, folder_name, sanitized_folder_name
 
 
 def scan_all_save_locations(steam_path=None, steam32_id=None):
@@ -754,7 +756,8 @@ def scan_all_save_locations(steam_path=None, steam32_id=None):
                                 break
             except Exception:
                 pass
-            label = f"{app_id_int} - {game_name}" if app_id_int else game_name
+            safe_game_name = "".join(c if c not in r'\/:*?"<>|' else "_" for c in game_name)
+            label = f"{app_id_int} - {safe_game_name}" if app_id_int else safe_game_name
             results.append({
                 "location": "Custom Path",
                 "folder_name": src.name,
