@@ -129,8 +129,9 @@ def main():
     if _guard.try_activate_existing():
         sys.exit(0)
 
+    _bundle_root = root_folder(outside_internal=False)
     _app_icon = QIcon()
-    _icon_candidates = list(("SFF.ico", "SFF.png"))
+    _icon_candidates = [str(_bundle_root / "SFF.ico"), str(_bundle_root / "SFF.png"), "SFF.ico", "SFF.png"]
     if sys.platform == "linux":
         _appdir = os.environ.get("APPDIR", "")
         if _appdir:

@@ -63,7 +63,7 @@ def _validate_rich_packaging(hidden_imports, data_entries):
 
 # Get the directory where this spec file is located (where Main.py, sff.ico, etc. live)
 spec_root = os.path.abspath(SPECPATH)
-icon_path = os.path.join(spec_root, 'sff.ico')
+icon_path = os.path.join(spec_root, 'SFF.ico')
 
 # Find win10toast data directory
 def get_win10toast_data():
@@ -104,10 +104,10 @@ if os.path.exists(c_dir):
     datas.append((c_dir, 'c'))
 
 # Add icon assets if they exist
-if os.path.exists(os.path.join(spec_root, 'sff.png')):
-    datas.append(('sff.png', '.'))
-if os.path.exists(os.path.join(spec_root, 'sff.ico')):
-    datas.append(('sff.ico', '.'))
+if os.path.exists(os.path.join(spec_root, 'SFF.png')):
+    datas.append(('SFF.png', '.'))
+if os.path.exists(os.path.join(spec_root, 'SFF.ico')):
+    datas.append(('SFF.ico', '.'))
 
 # Include all_games.txt for offline game name resolution in Cloud Saves
 all_games_txt = os.path.join(spec_root, 'all_games.txt')
