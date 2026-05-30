@@ -203,6 +203,7 @@ a:hover { text-decoration: underline; }
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     padding: 18px 14px;
     background: var(--card-bg);
