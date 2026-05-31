@@ -245,11 +245,14 @@ class GameHandler:
             extra_args.extend(["-skip_con", "-skip_inv"])
         cmds = [str(config_exe.absolute()), "-clean", *extra_args, app_id]
         logger.debug(f"Running {shlex.join(cmds)}")
-        subprocess.run(
-            cmds,
-            env=env,
-            cwd=str(tools_folder.absolute()),
-        )
+        _run_kwargs = {
+            "env": env,
+            "cwd": str(tools_folder.absolute()),
+        }
+        if sys.platform == "win32":
+            _run_kwargs["creationflags"] = 0x08000000
+
+        subprocess.run(cmds, **_run_kwargs)
         backup_folder = tools_folder / f"backup/{app_id}"
         src_steam_settings = tools_folder / f"output/{app_id}/steam_settings"
         steam_stats_folder = self.steam_root / "appcache/stats"

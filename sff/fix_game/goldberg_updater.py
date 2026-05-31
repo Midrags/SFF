@@ -362,9 +362,11 @@ class GoldbergUpdater:
                 continue
             # 7-Zip: safe to run --help (prints to stdout and exits cleanly)
             try:
+                _no_window = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
                 result = subprocess.run(
                     [candidate, "--help"],
                     capture_output=True, timeout=5,
+                    **_no_window,
                 )
                 if result.returncode in (0, 1):
                     return candidate, tool_type
@@ -408,6 +410,7 @@ class GoldbergUpdater:
         try:
             archive_path.write_bytes(archive_data)
             extract_dir.mkdir(exist_ok=True)
+            _no_window = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
             # Linux: use system tar for .tar.bz2
             if linux_native:
                 tar_exe = shutil.which("tar")
@@ -415,7 +418,7 @@ class GoldbergUpdater:
                     log("'tar' not found — install tar (usually pre-installed on Linux)")
                     return False
                 cmd = [tar_exe, "xjf", str(archive_path), "-C", str(extract_dir)]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, **_no_window)
                 if result.returncode != 0:
                     log(f"tar extraction failed: {result.stderr}")
                     return False
@@ -434,7 +437,7 @@ class GoldbergUpdater:
                     cmd = [exe, "x", str(archive_path), f"-o{extract_dir}", "-y"]
                 else:  # winrar
                     cmd = [exe, "x", "-y", str(archive_path), str(extract_dir) + "\\"]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, **_no_window)
                 if result.returncode != 0:
                     log(f"{tool_name} extraction failed: {result.stderr}")
                     return False

@@ -197,14 +197,17 @@ def run_steamauto(
 
     cmd = [str(cli), "crack", str(game_path), "--appid", app_id or "0", *config_arg]
     print_func("Running: " + " ".join(cmd) + "\n")
-    proc = subprocess.Popen(
-        cmd,
-        cwd=str(cli.parent),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        encoding="utf-8",
-        errors="replace",
-    )
+    _popen_kwargs = {
+        "cwd": str(cli.parent),
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+        "encoding": "utf-8",
+        "errors": "replace",
+    }
+    if sys.platform == "win32":
+        _popen_kwargs["creationflags"] = 0x08000000
+
+    proc = subprocess.Popen(cmd, **_popen_kwargs)
     assert proc.stdout is not None
     for line in proc.stdout:
         print_func(line.rstrip())

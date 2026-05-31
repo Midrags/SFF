@@ -61,6 +61,7 @@ def _ensure_defender_exclusion(path):
         return  # already confirmed excluded in a previous run
 
     try:
+        _no_window = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
         result = subprocess.run(
             [
                 "powershell", "-NonInteractive", "-WindowStyle", "Hidden",
@@ -68,6 +69,7 @@ def _ensure_defender_exclusion(path):
                 f"Add-MpPreference -ExclusionPath '{path}' -ErrorAction Stop",
             ],
             capture_output=True, timeout=10,
+            **_no_window,
         )
         if result.returncode == 0:
             try:

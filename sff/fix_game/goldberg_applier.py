@@ -640,11 +640,13 @@ SteamClient={'steamclient64.dll' if is_64 else 'steamclient.dll'}
                 f'$s.IconLocation="{icon_loc},0";'
                 f'$s.Save()'
             )
+            _no_window = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
             subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
                 check=True,
                 capture_output=True,
                 timeout=10,
+                **_no_window,
             )
             log(f"\u2713 Created desktop shortcut: {lnk_path.name}")
         except Exception as e:

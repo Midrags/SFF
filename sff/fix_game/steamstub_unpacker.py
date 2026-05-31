@@ -35,6 +35,7 @@ import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+_CREATE_NO_WINDOW = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
 
 # Steamless binary names. Windows: .NET 9 self-contained .exe shipped
 # under third_party/. Linux: .NET 9 framework-dependent .dll shipped
@@ -285,6 +286,7 @@ class SteamStubUnpacker:
                 timeout=120,
                 cwd=str(Path(self.steamless_path).parent),
                 env=run_env,
+                **_CREATE_NO_WINDOW,
             )
             # Surface Steamless output on failure so users can see which
             # variant tried and why. Without this every failed unpack
