@@ -253,8 +253,25 @@ class SFFMainWindow(QMainWindow):
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
         self._install_web_splash()
-        self._web_ui_active = True
-        self._web_ui_loaded = False
+        
+        # Restore UI preference (Modern or Classic)
+        self._web_ui_active = get_setting(_S.USE_MODERN_UI)
+        if self._web_ui_active is None:
+            self._web_ui_active = True # Default to Modern
+        
+        if self._web_ui_active:
+            self._load_web_ui()
+            self._web_ui_loaded = True
+            self.tabs.setVisible(False)
+            self._web_view.setVisible(True)
+            self.menuBar().setVisible(False)
+            self._web_ui_toggle.setText(T("Switch to Classic UI"))
+        else:
+            self.tabs.setVisible(True)
+            self._web_view.setVisible(False)
+            self.menuBar().setVisible(True)
+            self._web_ui_toggle.setText(T("Switch to New UI"))
+            self._web_ui_loaded = False
 
         # Manifest preservation watcher. The staging dir under
         # <sff_data>/manifests/ already holds every manifest SteaMidra has
@@ -557,10 +574,6 @@ class SFFMainWindow(QMainWindow):
         self._set_theme(self._current_theme, save=_should_save)
         self._on_source_changed()
         self._refresh_game_list()
-        # Start with new web UI by default — hide menu bar
-        menubar.setVisible(False)
-        self._load_web_ui()
-        self._web_ui_loaded = True
         self._tray = None
         self._tray_hide_notified = False
         self._save_watcher_timer = QTimer(self)
@@ -733,6 +746,9 @@ class SFFMainWindow(QMainWindow):
     def _toggle_web_ui(self):
         """Toggle between classic tab UI and new web-based UI."""
         self._web_ui_active = not self._web_ui_active
+        from sff.storage.settings import set_setting
+        from sff.structs import Settings as _S
+        set_setting(_S.USE_MODERN_UI, self._web_ui_active)
 
         if self._web_ui_active:
             # Load web UI on first use

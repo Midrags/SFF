@@ -338,6 +338,12 @@ class Settings(Enum):
         False,
         str,
     )
+    USE_MODERN_UI = SettingItem(
+        "use_modern_ui",
+        "Use Modern Web-based UI",
+        False,
+        bool,
+    )
 
     @property
     def key_name(self):
