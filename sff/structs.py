@@ -332,6 +332,12 @@ class Settings(Enum):
         False,
         str,
     )
+    WINDOW_GEOMETRY = SettingItem(
+        "window_geometry",
+        "Window Geometry (managed automatically)",
+        False,
+        str,
+    )
 
     @property
     def key_name(self):

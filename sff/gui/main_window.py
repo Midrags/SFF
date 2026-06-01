@@ -190,7 +190,16 @@ class SFFMainWindow(QMainWindow):
         self._worker_thread = None
         self.setWindowTitle("SteaMidra")
         self.setMinimumSize(960, 700)
-        self.resize(1020, 780)
+        # Restore previous window geometry
+        geom = get_setting(_S.WINDOW_GEOMETRY)
+        if geom:
+            try:
+                from PyQt6.QtCore import QByteArray
+                self.restoreGeometry(QByteArray.fromHex(geom.encode()))
+            except Exception:
+                self.resize(1020, 780)
+        else:
+            self.resize(1020, 780)
         from sff.gui.gui_prompts import update_parent
         update_parent(self)
         central = QWidget()
@@ -1599,6 +1608,15 @@ class SFFMainWindow(QMainWindow):
         self.close()
 
     def closeEvent(self, event):
+        # Save window geometry
+        from sff.storage.settings import set_setting
+        from sff.structs import Settings as _S
+        try:
+            geom = self.saveGeometry().toHex().data().decode()
+            set_setting(_S.WINDOW_GEOMETRY, geom)
+        except Exception:
+            pass
+
         # Read live so Settings toggles take effect without restart.
         # Default ON: X button hides to tray. The user can flip the
         # CLOSE_TO_TRAY checkbox in Settings to make X quit instead.
