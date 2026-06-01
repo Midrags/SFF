@@ -253,12 +253,12 @@ class SFFMainWindow(QMainWindow):
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
         self._install_web_splash()
-        
+
         # Restore UI preference (Modern or Classic)
         self._web_ui_active = get_setting(_S.USE_MODERN_UI)
         if self._web_ui_active is None:
             self._web_ui_active = True # Default to Modern
-        
+
         if self._web_ui_active:
             self._load_web_ui()
             self._web_ui_loaded = True
