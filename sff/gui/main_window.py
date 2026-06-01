@@ -789,7 +789,9 @@ class SFFMainWindow(QMainWindow):
             pass
         self._web_view.setStyleSheet(f"background-color: {bg_hex};")
 
-        splash = QLabel(self._web_view)
+        # Single full-window label.
+        # Parent to the main window.
+        splash = QLabel(self)
         splash.setObjectName("WebSplashOverlay")
         splash.setAlignment(Qt.AlignmentFlag.AlignCenter)
         splash.setStyleSheet(
@@ -797,14 +799,18 @@ class SFFMainWindow(QMainWindow):
         )
         splash.setAutoFillBackground(True)
 
-        for candidate in ("SFF.png", "SFF.ico"):
-            try:
-                from sff.utils import root_folder as _root_folder
-                logo_path = _root_folder() / candidate
-            except Exception:
-                logo_path = Path(candidate)
-            if logo_path.exists():
-                pix = QPixmap(str(logo_path))
+        # Path resolution. Reuse the app's root_folder logic
+        # which already handles _MEIPASS, app-dir, and cwd.
+        from sff.utils import root_folder
+        try:
+            _root = root_folder(outside_internal=True)
+        except Exception:
+            _root = Path(".")
+
+        for candidate in ("SFF.png", "sff.png", "SFF.ico", "sff.ico"):
+            p = _root / candidate
+            if p.exists():
+                pix = QPixmap(str(p))
                 if not pix.isNull():
                     splash.setPixmap(pix.scaled(
                         256, 256,
@@ -813,7 +819,8 @@ class SFFMainWindow(QMainWindow):
                     ))
                     break
 
-        splash.resize(self._web_view.size())
+        # Match the window's current rect
+        splash.setGeometry(self.rect())
         splash.raise_()
         splash.show()
 
@@ -822,15 +829,14 @@ class SFFMainWindow(QMainWindow):
         self._web_splash_effect = None
 
         # Keep the splash sized to the view across resizes.
-        self._web_view.installEventFilter(self)
+        self.installEventFilter(self)
 
-        self._web_view.loadFinished.connect(self._on_web_view_load_finished)
-
-    def _on_web_view_load_finished(self, ok: bool):
-        if not ok:
-            return
+    def dismiss_splash(self):
+        """Manually dismiss the splash screen with a fade-out.
+        Called from the WebUI via bridge once the JS is fully ready.
+        """
         splash = getattr(self, "_web_splash", None)
-        if splash is None or not splash.isVisible():
+        if splash is None or not splash.isVisible() or getattr(self, "_web_splash_anim", None):
             return
 
         effect = QGraphicsOpacityEffect(splash)
@@ -859,10 +865,10 @@ class SFFMainWindow(QMainWindow):
         anim.start()
 
     def eventFilter(self, obj, event):
-        if obj is getattr(self, "_web_view", None) and event.type() == QEvent.Type.Resize:
+        if obj is self and event.type() == QEvent.Type.Resize:
             splash = getattr(self, "_web_splash", None)
             if splash is not None and splash.isVisible():
-                splash.resize(self._web_view.size())
+                splash.setGeometry(self.rect())
         return super().eventFilter(obj, event)
 
     # ── Worker management ────────────────────────────────────────

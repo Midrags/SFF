@@ -72,6 +72,9 @@ window.App = (function() {
             _populateGameDropdown();
             setInterval(_populateGameDropdown, 10 * 60 * 1000);
 
+            // Signal ready to dismiss splash screen
+            if (py.signal_ready) py.signal_ready();
+
             // Refresh button beside game dropdown
             var homeRefreshBtn = document.getElementById('home-game-refresh');
             if (homeRefreshBtn) homeRefreshBtn.addEventListener('click', _populateGameDropdown);
