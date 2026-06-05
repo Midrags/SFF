@@ -261,7 +261,7 @@ class FixGameTab(QWidget):
         dropdown_row.addWidget(QLabel("Steam Game:"))
         self._game_combo = QComboBox()
         self._game_combo.setMinimumWidth(260)
-        self._game_combo.addItem("— select installed game —", None)
+        self._game_combo.addItem("— Select installed game —", None)
         self._game_combo.currentIndexChanged.connect(self._on_game_selected)
         dropdown_row.addWidget(self._game_combo)
         self._refresh_games_btn = QPushButton("↻")
@@ -457,7 +457,7 @@ class FixGameTab(QWidget):
         """Scan installed Steam games and populate the dropdown."""
         self._game_combo.blockSignals(True)
         self._game_combo.clear()
-        self._game_combo.addItem("— select installed game —", None)
+        self._game_combo.addItem("— Select installed game —", None)
         try:
             self._game_entries = _scan_installed_games(self._steam_path)
             for name, app_id, path in self._game_entries:

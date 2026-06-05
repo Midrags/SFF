@@ -343,37 +343,30 @@ class SFFMainWindow(QMainWindow):
         self.tabs.addTab(self.tools_tab, "Tools")
         self.cloud_saves_tab = CloudSavesTab(steam_path)
         self.tabs.addTab(self.cloud_saves_tab, "Cloud Saves")
+
         # ── Game / path ──────────────────────────────────────────
         path_group = QGroupBox(T("Game / path"))
         path_layout = QVBoxLayout(path_group)
-        path_row = QHBoxLayout()
-        path_row.addWidget(QLabel(T("Path:")))
-        self.path_edit = QLineEdit()
-        self.path_edit.setPlaceholderText(
-            T("Game folder (for outside Steam) or leave empty for Steam games")
-        )
-        path_row.addWidget(self.path_edit)
-        browse_btn = QPushButton("...")
-        browse_btn.setFixedWidth(36)
-        browse_btn.clicked.connect(self._browse_path)
-        path_row.addWidget(browse_btn)
-        path_layout.addLayout(path_row)
         source_row = QHBoxLayout()
-        self.radio_steam = QRadioButton(T("Steam games"))
+        self.radio_steam = QRadioButton(T("Steam Games"))
         self.radio_steam.setChecked(True)
-        self.radio_outside = QRadioButton(T("Games outside of Steam"))
+        self.radio_outside = QRadioButton(T("Non-Steam Games"))
         self.radio_steam.toggled.connect(self._on_source_changed)
-        self.radio_outside.toggled.connect(self._on_source_changed)
         source_row.addWidget(self.radio_steam)
         source_row.addWidget(self.radio_outside)
         source_row.addStretch()
         path_layout.addLayout(source_row)
+
+        # ── Steam section ──
+        self._steam_section = QWidget()
+        _sl = QVBoxLayout(self._steam_section)
+        _sl.setContentsMargins(0, 0, 0, 0)
         game_row = QHBoxLayout()
         game_row.addWidget(QLabel(T("Game:")))
         self.game_combo = GameComboBox()
         self.game_combo.setMinimumWidth(280)
         game_row.addWidget(self.game_combo)
-        refresh_btn = QPushButton(T("Refresh list"))
+        refresh_btn = QPushButton(T("↻"))
         refresh_btn.clicked.connect(self._refresh_game_list)
         game_row.addWidget(refresh_btn)
         quick_cc_btn = QPushButton("Quick ColdClient")
@@ -381,29 +374,35 @@ class SFFMainWindow(QMainWindow):
         quick_cc_btn.clicked.connect(self._quick_coldclient)
         game_row.addWidget(quick_cc_btn)
         game_row.addStretch()
-        path_layout.addLayout(game_row)
-        outside_row = QHBoxLayout()
-        self._outside_name_label = QLabel("Game name:")
-        outside_row.addWidget(self._outside_name_label)
-        self.outside_name_edit = QLineEdit()
-        self.outside_name_edit.setPlaceholderText("For search (e.g. online-fix.me)")
-        outside_row.addWidget(self.outside_name_edit)
-        self._outside_appid_label = QLabel("App ID:")
-        outside_row.addWidget(self._outside_appid_label)
+        _sl.addLayout(game_row)
+        path_layout.addWidget(self._steam_section)
+
+        # ── Non-Steam section ──
+        self._nonsteam_section = QWidget()
+        _nl = QHBoxLayout(self._nonsteam_section)
+        _nl.setContentsMargins(0, 0, 0, 0)
+        _nl.addWidget(QLabel(T("Path:")))
+        self.path_edit = QLineEdit()
+        self.path_edit.setPlaceholderText(T("Non-Steam game folder"))
+        _nl.addWidget(self.path_edit)
+        browse_btn = QPushButton("...")
+        browse_btn.setFixedWidth(36)
+        browse_btn.clicked.connect(self._browse_path)
+        _nl.addWidget(browse_btn)
+        _nl.addWidget(QLabel("App ID:"))
         self.outside_appid_edit = QLineEdit()
         self.outside_appid_edit.setPlaceholderText("Optional")
-        self.outside_appid_edit.setMaximumWidth(80)
-        outside_row.addWidget(self.outside_appid_edit)
-        outside_row.addStretch()
-        path_layout.addLayout(outside_row)
-        for w in (
-            self._outside_name_label,
-            self.outside_name_edit,
-            self._outside_appid_label,
-            self.outside_appid_edit,
-        ):
-            w.setVisible(False)
+        self.outside_appid_edit.setFixedWidth(100)
+        _nl.addWidget(self.outside_appid_edit)
+        ns_cc_btn = QPushButton("Quick ColdClient")
+        ns_cc_btn.setToolTip("Open Fix Game tab with ColdClient mode pre-filled for this game folder")
+        ns_cc_btn.clicked.connect(self._quick_coldclient)
+        _nl.addWidget(ns_cc_btn)
+        path_layout.addWidget(self._nonsteam_section)
+        self._nonsteam_section.setVisible(False)
+
         layout.addWidget(path_group)
+
         # ── Game Actions (need selected game) ────────────────────
         game_actions_group = QGroupBox(T("Game Actions"))
         ga_layout = QVBoxLayout(game_actions_group)
@@ -459,6 +458,7 @@ class SFFMainWindow(QMainWindow):
         row2.addStretch()
         ga_layout.addLayout(row2)
         layout.addWidget(game_actions_group)
+
         # ── Lua / Manifest Processing ────────────────────────────
         lua_group = QGroupBox(T("Lua / Manifest Processing"))
         lua_layout = QVBoxLayout(lua_group)
@@ -502,6 +502,45 @@ class SFFMainWindow(QMainWindow):
             tools_row2.addStretch()
             tools_layout.addLayout(tools_row2)
         layout.addWidget(tools_group)
+
+        # ── LumaCore Setup (Windows only) ───────────────────────
+        if sys.platform == "win32":
+            lc_group = QGroupBox(T("LumaCore Setup"))
+            lc_layout = QVBoxLayout(lc_group)
+            lc_row1 = QHBoxLayout()
+            lc_row1.setSpacing(4)
+            lc_install_btn = QPushButton(T("Install / Update LumaCore"))
+            lc_install_btn.setToolTip(
+                "Download the latest LumaCore release from GitHub and install "
+                "dwmapi.dll + LumaCore.dll into the Steam folder. Steam is closed first."
+            )
+            lc_install_btn.clicked.connect(self._install_lumacore_gui)
+            lc_row1.addWidget(lc_install_btn)
+            lc_deact_btn = QPushButton(T("Deactivate LumaCore"))
+            lc_deact_btn.setToolTip(
+                "Close Steam and remove LumaCore.dll, dwmapi.dll, bin/lcoverlay.dll."
+            )
+            lc_deact_btn.clicked.connect(self._deactivate_lumacore_gui)
+            lc_row1.addWidget(lc_deact_btn)
+            lc_ver_btn = QPushButton(T("Check Version"))
+            lc_ver_btn.setToolTip("Compare the installed LumaCore version against the latest GitHub release.")
+            lc_ver_btn.clicked.connect(self._check_lumacore_version_gui)
+            lc_row1.addWidget(lc_ver_btn)
+            lc_row1.addStretch()
+            lc_layout.addLayout(lc_row1)
+            lc_row2 = QHBoxLayout()
+            lc_row2.setSpacing(4)
+            lc_onlinefix_btn = QPushButton(T("LC Online Fix (selected game)"))
+            lc_onlinefix_btn.setToolTip(
+                "Toggle the -onlinefix launch flag for the selected game in localconfig.vdf. "
+                "Requires LumaCore installed. Steam is closed before writing."
+            )
+            lc_onlinefix_btn.clicked.connect(self._toggle_online_fix_gui)
+            lc_row2.addWidget(lc_onlinefix_btn)
+            lc_row2.addStretch()
+            lc_layout.addLayout(lc_row2)
+            layout.addWidget(lc_group)
+
         # ── Log ──────────────────────────────────────────────────
         log_group = QGroupBox(T("Log"))
         log_layout = QVBoxLayout(log_group)
@@ -514,6 +553,7 @@ class SFFMainWindow(QMainWindow):
         clear_btn.clicked.connect(self.log_text.clear)
         log_layout.addWidget(clear_btn)
         layout.addWidget(log_group)
+
         # ── Menu bar ─────────────────────────────────────────────
         menubar = self.menuBar()
         settings_action = menubar.addAction(T("Settings"))
@@ -653,20 +693,11 @@ class SFFMainWindow(QMainWindow):
         path = QFileDialog.getExistingDirectory(self, "Select game folder")
         if path:
             self.path_edit.setText(path)
-            if self.radio_outside.isChecked() and not self.outside_name_edit.text().strip():
-                self.outside_name_edit.setText(Path(path).name)
 
     def _on_source_changed(self):
         from_steam = self.radio_steam.isChecked()
-        self.game_combo.setEnabled(from_steam)
-        self.path_edit.setEnabled(not from_steam)
-        for w in (
-            self._outside_name_label,
-            self.outside_name_edit,
-            self._outside_appid_label,
-            self.outside_appid_edit,
-        ):
-            w.setVisible(not from_steam)
+        self._steam_section.setVisible(from_steam)
+        self._nonsteam_section.setVisible(not from_steam)
 
     def _refresh_game_list(self):
         from sff.game_specific import GameHandler
@@ -684,6 +715,7 @@ class SFFMainWindow(QMainWindow):
         if not self._game_list:
             self.game_combo.addItem("(No games found)", None)
             return
+        self.game_combo.addItem(T("— Select installed game —"), None)
         for name, acf in self._game_list:
             self.game_combo.addItem(name, acf)
 
@@ -694,7 +726,7 @@ class SFFMainWindow(QMainWindow):
         if acf is None:
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "No Game Selected",
-                                "Please select a game from the dropdown first.")
+                                "Enter a valid Non-Steam game path or select installed Steam game.")
             return
         game_path = str(getattr(acf, "path", "") or "")
         app_id = str(getattr(acf, "app_id", "") or "")
@@ -715,7 +747,6 @@ class SFFMainWindow(QMainWindow):
         path = Path(path_str).resolve()
         if not path.is_dir():
             return None
-        name = self.outside_name_edit.text().strip() or path.name
         app_id = self.outside_appid_edit.text().strip() or "0"
         return ACFInfo(app_id, path)
 
@@ -1942,3 +1973,110 @@ class SFFMainWindow(QMainWindow):
                 T("Dump Achievement Diagnostic"),
                 str(exc),
             )
+          
+    # ── LumaCore Setup helpers ────────────────────────────────────
+
+    def _install_lumacore_gui(self):
+        """Download and install the latest LumaCore release into Steam."""
+        reply = QMessageBox.question(
+            self,
+            T("Install / Update LumaCore"),
+            T(
+                "Steam will be closed and LumaCore will be downloaded from GitHub "
+                "and installed into your Steam folder.\n\nContinue?"
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        steam_path = self.steam_path
+        if not steam_path or not Path(steam_path).is_dir():
+            QMessageBox.warning(self, T("LumaCore Setup"), T("Steam path not found or invalid."))
+            return
+
+        def _job():
+            from sff.lumacore_setup import install_lumacore
+            install_lumacore(Path(steam_path), progress_callback=print)
+
+        self._start_worker(_job, label="Install LumaCore")
+
+    def _deactivate_lumacore_gui(self):
+        """Remove LumaCore DLLs from Steam."""
+        reply = QMessageBox.warning(
+            self,
+            T("Deactivate LumaCore"),
+            T(
+                "Steam will be closed and LumaCore.dll, dwmapi.dll, and "
+                "bin/lcoverlay.dll will be removed.\n\nContinue?"
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        steam_path = self.steam_path
+        if not steam_path or not Path(steam_path).is_dir():
+            QMessageBox.warning(self, T("LumaCore Setup"), T("Steam path not found or invalid."))
+            return
+
+        def _job():
+            from sff.lumacore_setup import deactivate_lumacore
+            deactivate_lumacore(Path(steam_path), progress_callback=print)
+
+        self._start_worker(_job, label="Deactivate LumaCore")
+
+    def _check_lumacore_version_gui(self):
+        """Check installed vs latest LumaCore version and show a popup."""
+        steam_path = self.steam_path
+        if not steam_path or not Path(steam_path).is_dir():
+            QMessageBox.warning(self, T("LumaCore Version"), T("Steam path not found or invalid."))
+            return
+
+        result_box: dict = {}
+
+        def _job():
+            from sff.lumacore_setup import check_for_lumacore_update
+            result_box["result"] = check_for_lumacore_update(Path(steam_path), force=True)
+
+        def _show():
+            result = result_box.get("result")
+            if not isinstance(result, dict):
+                QMessageBox.warning(self, T("LumaCore Version"), T("Version check failed."))
+                return
+            installed = result.get("installed") or T("not installed")
+            latest = result.get("latest") or T("unknown")
+            update_available = result.get("update_available", False)
+            if update_available:
+                msg = T(f"Update available!\n\nInstalled: {installed}\nLatest: {latest}")
+                QMessageBox.information(self, T("LumaCore Version"), msg)
+            else:
+                msg = T(f"LumaCore is up to date.\n\nInstalled: {installed}\nLatest: {latest}")
+                QMessageBox.information(self, T("LumaCore Version"), msg)
+
+        self._start_worker(_job, label="Check LumaCore Version", on_done=_show)
+
+    def _toggle_online_fix_gui(self):
+        """Toggle the LC Online Fix launch flag for the selected game."""
+        acf = self._get_selected_acf()
+        if acf is None:
+            QMessageBox.warning(
+                self,
+                T("LC Online Fix"),
+                T("Select a Steam game from the list first."),
+            )
+            return
+        app_id = acf.app_id
+        if not app_id:
+            QMessageBox.warning(self, T("LC Online Fix"), T("Could not determine the game's App ID."))
+            return
+
+        steam_path = self.steam_path
+
+        def _job():
+            from sff.launch_options import toggle_online_fix
+            return toggle_online_fix(Path(steam_path), app_id)
+
+        self._start_worker(_job, label=f"LC Online Fix ({app_id})")
