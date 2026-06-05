@@ -418,7 +418,7 @@ window.App = (function() {
         var srcOutside = document.getElementById('game-source-outside');
         if (srcSteam) srcSteam.addEventListener('change', function() {
             _outsideMode = false;
-            document.getElementById('steam-mode-row').style.display   = '';
+            document.getElementById('steam-mode-row').style.display   = 'flex';
             document.getElementById('outside-mode-row').style.display  = 'none';
         });
         if (srcOutside) srcOutside.addEventListener('change', function() {
