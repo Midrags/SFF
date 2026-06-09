@@ -39,6 +39,15 @@ from sff.utils import root_folder
 
 logger = logging.getLogger(__name__)
 
+def _normalize_path(path_val) -> Path | None:
+    """Normalize a path by expanding env vars and user tilde. Robust to Path objects."""
+    if not path_val:
+        return None
+    try:
+        return Path(os.path.expandvars(str(path_val))).expanduser()
+    except Exception:
+        return None
+
 # module-level cache for all_games.txt — parsed once per session
 _ALL_GAMES_CACHE = None
 
@@ -747,12 +756,8 @@ def scan_all_save_locations(steam_path=None, steam32_id=None):
         for app_id_str, raw_path in custom_map.items():
             if not raw_path:
                 continue
-            try:
-                expanded = os.path.expandvars(raw_path)
-                src = Path(expanded).expanduser()
-            except Exception:
-                continue
-            if not src.exists() or not src.is_dir():
+            src = _normalize_path(raw_path)
+            if not src or not src.exists() or not src.is_dir():
                 continue
             files = [f for f in src.rglob("*") if f.is_file()]
             if not files:
@@ -814,13 +819,17 @@ def backup_save_location_local(entry, dest_root, log_func=None):
     Returns dest folder path on success, None on failure.
     """
     log = log_func or (lambda m: None)
-    src = Path(os.path.expandvars(entry["source_path"])).expanduser()
-    if not src.exists():
-        log(f"[!] Source not found: {src}")
+    src = _normalize_path(entry.get("source_path"))
+    if not src or not src.exists():
+        log(f"[!] Source not found: {entry.get('source_path')}")
         return None
     label = entry["label"]
     location = entry["location"]
-    dest = Path(os.path.expandvars(dest_root)).expanduser() / "SteaMidraAllSaves" / location / label
+    dest_root_norm = _normalize_path(dest_root)
+    if not dest_root_norm:
+        log(f"[!] Invalid destination root: {dest_root}")
+        return None
+    dest = dest_root_norm / "SteaMidraAllSaves" / location / label
     try:
         dest.mkdir(parents=True, exist_ok=True)
         copied = 0
@@ -1046,10 +1055,10 @@ def restore_save_entry(game_entry, log_func=None):
     Creates a safety backup of the current saves first.
     """
     log = log_func or (lambda m: None)
-    raw_dest = game_entry.get("source_path", "")
-    dest = Path(os.path.expandvars(raw_dest)).expanduser() if raw_dest else None
+    raw_dest = game_entry.get("source_path")
+    dest = _normalize_path(raw_dest) if raw_dest else None
     if not dest:
-        log("[FAIL] No source_path in entry — cannot restore.")
+        log("[FAIL] No valid source_path in entry — cannot restore.")
         return False
 
     rclone_path = game_entry.get("rclone_path")
