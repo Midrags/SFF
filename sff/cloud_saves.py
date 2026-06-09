@@ -748,7 +748,8 @@ def scan_all_save_locations(steam_path=None, steam32_id=None):
             if not raw_path:
                 continue
             try:
-                src = Path(raw_path).expanduser()
+                expanded = os.path.expandvars(raw_path)
+                src = Path(expanded).expanduser()
             except Exception:
                 continue
             if not src.exists() or not src.is_dir():
@@ -813,13 +814,13 @@ def backup_save_location_local(entry, dest_root, log_func=None):
     Returns dest folder path on success, None on failure.
     """
     log = log_func or (lambda m: None)
-    src = Path(entry["source_path"])
+    src = Path(os.path.expandvars(entry["source_path"])).expanduser()
     if not src.exists():
         log(f"[!] Source not found: {src}")
         return None
     label = entry["label"]
     location = entry["location"]
-    dest = Path(dest_root) / "SteaMidraAllSaves" / location / label
+    dest = Path(os.path.expandvars(dest_root)).expanduser() / "SteaMidraAllSaves" / location / label
     try:
         dest.mkdir(parents=True, exist_ok=True)
         copied = 0
@@ -1045,7 +1046,8 @@ def restore_save_entry(game_entry, log_func=None):
     Creates a safety backup of the current saves first.
     """
     log = log_func or (lambda m: None)
-    dest = Path(game_entry.get("source_path", ""))
+    raw_dest = game_entry.get("source_path", "")
+    dest = Path(os.path.expandvars(raw_dest)).expanduser() if raw_dest else None
     if not dest:
         log("[FAIL] No source_path in entry — cannot restore.")
         return False
