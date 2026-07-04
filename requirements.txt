@@ -294,5 +294,7 @@ pyinstaller>=6.6
     # to package SteaMidra into a single EXE for Windows. CI workflows on
     # github (build_installer.bat) need this on the runner; flagging it
     # here so the runner image's pip install -r requirements.txt grabs it
+steam
+    # Without this pypi package, running via .py file wasn't working since it says NoModuleNamed: steam.
     # alongside everything else. Pin >=6.6 so the steam==1.4.4 + selenium
     # urllib3 conflict doesn't drag a too-old PyInstaller in.
