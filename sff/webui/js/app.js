@@ -8,8 +8,10 @@ window.App = (function() {
 
     var _currentPage = 'home';
     var _platform = 'win32';
+    var _platformReady = false;
     var _outsideMode = false;
     var _letUpdatesHelper = null;
+    var _lcHomeNoticeBusy = false;
 
     function init() {
         Components.initModals();
@@ -35,6 +37,7 @@ window.App = (function() {
             // Detect platform
             py.get_platform(function(platform) {
                 _platform = platform || 'win32';
+                _platformReady = true;
                 document.body.classList.add('platform-' + _platform);
                 // Hide Windows-only elements on Linux
                 if (_platform !== 'win32') {
@@ -42,6 +45,7 @@ window.App = (function() {
                         el.style.display = 'none';
                     });
                 }
+                if (_currentPage === 'home') _refreshHomeLumacoreNotice();
             });
 
             // Load theme from backend (overrides localStorage default for fresh installs)
@@ -126,6 +130,7 @@ window.App = (function() {
                         var statusEl = document.getElementById('lc-setup-status');
                         if (statusEl) statusEl.textContent = result.success ? 'LumaCore installed.' : (result.message || 'Setup failed.');
                         if (result.success) _refreshLcVersionInfo();
+                        if (_currentPage === 'home') _refreshHomeLumacoreNotice(true);
                     }
                     if (result.task === 'auto_lc_deactivate') {
                         var deactBtn = document.getElementById('lc-deactivate-run');
@@ -133,6 +138,7 @@ window.App = (function() {
                         var statusElDeact = document.getElementById('lc-setup-status');
                         if (statusElDeact) statusElDeact.textContent = result.message || (result.success ? 'LumaCore deactivated.' : 'Deactivate failed.');
                         if (result.success) _refreshLcVersionInfo();
+                        if (_currentPage === 'home') _refreshHomeLumacoreNotice(true);
                         Components.showToast(
                             result.success ? 'success' : 'error',
                             result.message || (result.success ? 'LumaCore deactivated.' : 'Deactivate failed.')
@@ -241,7 +247,27 @@ window.App = (function() {
         });
     }
 
+    function _getPageModule(pageId) {
+        switch(pageId) {
+            case 'store': return window.Store;
+            case 'library': return window.Library;
+            case 'downloads': return window.Downloads;
+            case 'fixgame': return window.FixGame;
+            case 'tools': return window.Tools;
+            case 'cloudsaves': return window.CloudSaves;
+            case 'settings': return window.Settings;
+            default: return null;
+        }
+    }
+
     function navigateTo(pageId) {
+        if (_currentPage && _currentPage !== pageId) {
+            var oldModule = _getPageModule(_currentPage);
+            if (oldModule && typeof oldModule.onPageLeave === 'function') {
+                try { oldModule.onPageLeave(); } catch(e) {}
+            }
+        }
+
         // Hide all pages
         document.querySelectorAll('.page').forEach(function(page) {
             page.classList.remove('active');
@@ -263,7 +289,10 @@ window.App = (function() {
 
         // Trigger page-specific init if needed
         switch(pageId) {
-            case 'home': _populateGameDropdown(); break;
+            case 'home':
+                _populateGameDropdown();
+                _refreshHomeLumacoreNotice();
+                break;
             case 'store': Store.onPageEnter(); break;
             case 'library': Library.onPageEnter(); break;
             case 'downloads': Downloads.onPageEnter(); break;
@@ -507,6 +536,14 @@ window.App = (function() {
                     Bridge.call('restart_steam');
                     Components.showToast('info', 'Restarting Steam...');
                 }
+            });
+        }
+
+        var lcAlertAction = document.getElementById('home-lumacore-alert-action');
+        if (lcAlertAction) {
+            lcAlertAction.addEventListener('click', function(ev) {
+                ev.preventDefault();
+                _handleHomeAction('auto_lc_setup');
             });
         }
 
@@ -2125,6 +2162,52 @@ window.App = (function() {
         if (!warning) return;
         Bridge.callSync('steam_updates_get_state', function(state) {
             warning.style.display = ((state || '').toString() === 'blocked') ? 'none' : 'flex';
+        });
+    }
+
+    function _refreshHomeLumacoreNotice(force) {
+        var alertEl = document.getElementById('home-lumacore-alert');
+        if (!alertEl) return;
+        if (!_platformReady || _platform !== 'win32') {
+            alertEl.classList.add('hidden');
+            return;
+        }
+        if (_lcHomeNoticeBusy) return;
+        _lcHomeNoticeBusy = true;
+        Bridge.callWithCallback('lumacore_check_update', force ? 'force' : '', function(json) {
+            _lcHomeNoticeBusy = false;
+            var data;
+            try { data = JSON.parse(json); } catch (e) { data = null; }
+            if (!data) {
+                alertEl.classList.add('hidden');
+                return;
+            }
+
+            var titleEl = document.getElementById('home-lumacore-alert-title');
+            var bodyEl = document.getElementById('home-lumacore-alert-body');
+            var actionEl = document.getElementById('home-lumacore-alert-action');
+            var installed = (data.installed || '').toString();
+            var latest = (data.latest || '').toString();
+
+            if (!installed) {
+                if (titleEl) titleEl.textContent = 'LumaCore Installation Required';
+                if (bodyEl) bodyEl.textContent = 'Install LumaCore so Steam can see games added through SteaMidra.';
+                if (actionEl) actionEl.textContent = 'Auto LC Setup';
+                alertEl.classList.remove('hidden');
+                return;
+            }
+
+            if (data.update_available) {
+                if (titleEl) titleEl.textContent = 'LumaCore Update Available!';
+                if (bodyEl) {
+                    bodyEl.textContent = 'Installed ' + installed + ', latest ' + (latest || 'unknown') + '. Update it before adding more games.';
+                }
+                if (actionEl) actionEl.textContent = 'Update LumaCore';
+                alertEl.classList.remove('hidden');
+                return;
+            }
+
+            alertEl.classList.add('hidden');
         });
     }
 

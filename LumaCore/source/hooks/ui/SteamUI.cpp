@@ -81,7 +81,7 @@ namespace {
 
     // ▌ STEAMUI ▌ LoadModuleWithPath hook
     LM_HOOK(LoadModuleWithPath, HMODULE, const char* path, bool flags) {
-        LOG_STEAMUICH_INFO("LoadModuleWithPath called with path: {} , flags: {}", path, flags);
+        LOG_STEAMUICH_INFO("LoadModuleWithPath called with path: {} , flags: {} [tick={}]", path, flags, GetTickCount64());
         // First steamui-mapped callback also primes the pattern fetcher worker
         // when the loader had not mapped steamui.dll at InitThread dispatch.
         DispatchSteamUiPatternFetch();
@@ -90,9 +90,16 @@ namespace {
             LOG_STEAMUICH_DEBUG("LoadModuleWithPath: waiting for hooks... (attempt {}/{})", idx + 1, MAX_RETRY);
             std::this_thread::sleep_for(RETRY_INTERVAL);
         }
+        auto lmwpStart = std::chrono::steady_clock::now();
         HMODULE h = oLoadModuleWithPath(path, flags);
-        if (!strcmp(path, "steamclient64.dll"))
+        auto lmwpElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - lmwpStart).count();
+        LOG_STEAMUICH_INFO("LoadModuleWithPath({}) completed in {}ms", path, lmwpElapsed);
+        if (!strcmp(path, "steamclient64.dll")) {
             h = diversion_hModule;
+            static int scCount = 0;
+            HookStatus::SetSteamUiAttachState("attached", ++scCount, false);
+        }
         return h;
     }
 
@@ -247,6 +254,7 @@ namespace SteamUI {
                 DetourAttach(reinterpret_cast<PVOID*>(&oLoadModuleWithPath),
                              reinterpret_cast<PVOID>(hkLoadModuleWithPath));
                 HookStatus::RecordInstalled();
+                HookStatus::SetSteamUiAttachState("hook_installed", 0, false);
             } else {
                 LOG_STEAMUICH_WARN("Hook: LoadModuleWithPath skipped (TOML entry missing for steamui)");
                 HookStatus::RecordMissed("LoadModuleWithPath");

@@ -17,6 +17,7 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
@@ -43,6 +44,128 @@ FLATPAK_SLSSTEAM_INSTALL_DIR = (
 FLATPAK_SLSSTEAM_CONFIG_DIR = (
     Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / ".config" / "SLSsteam"
 )
+
+_SYSTEM_7Z_NAMES = ("7zz", "7z", "7za")
+_SYSTEM_TOOL_ENV_DROP = (
+    "LD_LIBRARY_PATH",
+    "LD_PRELOAD",
+    "LD_AUDIT",
+    "PYTHONHOME",
+    "PYTHONPATH",
+    "QT_PLUGIN_PATH",
+    "QML2_IMPORT_PATH",
+)
+
+
+def _clean_system_tool_env() -> dict:
+    env = os.environ.copy()
+    for key in _SYSTEM_TOOL_ENV_DROP:
+        env.pop(key, None)
+    return env
+
+
+def _find_7z_tool() -> str | None:
+    for name in _SYSTEM_7Z_NAMES:
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
+def _has_slssteam_payload(extract_dir: Path) -> bool:
+    return extract_dir.exists() and any(extract_dir.rglob("SLSsteam.so"))
+
+
+def _reset_extract_dir(extract_dir: Path) -> None:
+    if extract_dir.exists():
+        shutil.rmtree(extract_dir)
+    extract_dir.mkdir(parents=True, exist_ok=True)
+
+
+def _extract_with_py7zr(archive_path: Path, extract_dir: Path, print_fn=print) -> bool:
+    try:
+        import py7zr
+        with py7zr.SevenZipFile(archive_path, mode="r") as archive:
+            archive.extractall(path=extract_dir)
+        return True
+    except ImportError:
+        print_fn(Fore.YELLOW + "py7zr not available, trying system 7z." + Style.RESET_ALL)
+        return False
+    except Exception as e:
+        print_fn(Fore.YELLOW + f"py7zr extraction failed, trying system 7z: {e}" + Style.RESET_ALL)
+        return False
+
+
+def _extract_with_system_7z(archive_path: Path, extract_dir: Path, print_fn=print) -> bool:
+    seven_zip = _find_7z_tool()
+    if not seven_zip:
+        print_fn(
+            Fore.RED
+            + "7zz/7z/7za not found. Install 7-Zip for your distro "
+              "(Arch/CachyOS: sudo pacman -S 7zip, Debian/Ubuntu: sudo apt install p7zip-full)."
+            + Style.RESET_ALL
+        )
+        return False
+
+    env = _clean_system_tool_env()
+    last_stdout = ""
+    last_stderr = ""
+    last_code = None
+    for attempt in range(2):
+        try:
+            result = subprocess.run(
+                [seven_zip, "x", str(archive_path), f"-o{extract_dir}", "-y"],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env=env,
+            )
+        except Exception as e:
+            print_fn(Fore.YELLOW + f"7z spawn failed: {e}" + Style.RESET_ALL)
+            return False
+
+        last_code = result.returncode
+        last_stdout = result.stdout or ""
+        last_stderr = result.stderr or ""
+        if result.returncode == 0 or _has_slssteam_payload(extract_dir):
+            if result.returncode != 0:
+                print_fn(Fore.YELLOW + "7z exited non-zero but SLSsteam files were extracted, continuing." + Style.RESET_ALL)
+            return True
+
+        stdout_tail = last_stdout[-2048:]
+        stderr_tail = last_stderr[-2048:]
+        print_fn(
+            Fore.YELLOW
+            + f"7z exit={result.returncode} archive={archive_path} dest={extract_dir}\n"
+            + f"stdout(last 2k): {stdout_tail}\nstderr(last 2k): {stderr_tail}"
+            + Style.RESET_ALL
+        )
+        if attempt == 0:
+            import time as _time
+            _time.sleep(0.5)
+
+    if "rl_print_keybinding" in last_stderr or "symbol lookup error" in last_stderr:
+        print_fn(
+            Fore.RED
+            + "System 7z failed with a readline symbol error even after cleaning the launch env. "
+              "Install/repair the distro 7-Zip package and retry."
+            + Style.RESET_ALL
+        )
+    else:
+        print_fn(
+            Fore.RED
+            + f"Extraction failed and SLSsteam files were not found (last 7z exit={last_code})."
+            + Style.RESET_ALL
+        )
+    return False
+
+
+def _extract_slssteam_archive(archive_path: Path, extract_dir: Path, print_fn=print) -> bool:
+    _reset_extract_dir(extract_dir)
+    if _extract_with_py7zr(archive_path, extract_dir, print_fn) and _has_slssteam_payload(extract_dir):
+        return True
+    _reset_extract_dir(extract_dir)
+    return _extract_with_system_7z(archive_path, extract_dir, print_fn)
 
 
 def detect_steam_type() -> str:
@@ -385,61 +508,10 @@ def install_from_github(steam_path: Path, print_fn=print) -> bool:
 
     print_fn("\n[3/4] Extracting SLSsteam...")
     extract_dir = Path(tempfile.gettempdir()) / "slssteam_extract"
-    if extract_dir.exists():
-        shutil.rmtree(extract_dir)
-    extract_dir.mkdir(parents=True, exist_ok=True)
-
-    seven_zip = shutil.which("7z") or shutil.which("7za")
-    if not seven_zip:
-        print_fn(Fore.RED + "7z/7za not found. Install p7zip-full: sudo apt-get install p7zip-full" + Style.RESET_ALL)
-        archive_path.unlink(missing_ok=True)
-        return False
 
     try:
-        result = subprocess.run(
-            [seven_zip, "x", str(archive_path), f"-o{extract_dir}", "-y"],
-            capture_output=True, text=True,
-        )
-        if result.returncode != 0:
-            # Surface the actual 7z output so the user can ship a useful
-            # bug report. Several users hit "Extraction failed" with no
-            # idea why, AV quarantine on .so files turned out to be the
-            # cause for at least one of them. Also retry once after a
-            # short pause in case AV is mid-scan.
-            stdout_tail = (result.stdout or "")[-2048:]
-            stderr_tail = (result.stderr or "")[-2048:]
-            print_fn(
-                Fore.YELLOW
-                + f"7z exit={result.returncode} archive={archive_path} dest={extract_dir}\n"
-                + f"stdout(last 2k): {stdout_tail}\nstderr(last 2k): {stderr_tail}"
-                + Style.RESET_ALL
-            )
-            if not (extract_dir / "bin").exists():
-                # Quick retry: AV scanners sometimes hold open the .so files
-                # for a beat right after extraction. Give them 500ms then run
-                # 7z once more before giving up.
-                import time as _time
-                _time.sleep(0.5)
-                try:
-                    retry = subprocess.run(
-                        [seven_zip, "x", str(archive_path), f"-o{extract_dir}", "-y"],
-                        capture_output=True, text=True,
-                    )
-                except Exception as retry_exc:
-                    retry = None
-                    print_fn(Fore.YELLOW + f"7z retry spawn failed: {retry_exc}" + Style.RESET_ALL)
-                if retry is None or retry.returncode != 0 or not (extract_dir / "bin").exists():
-                    print_fn(
-                        Fore.RED
-                        + "Extraction failed and bin/ dir not found.\n"
-                          "If your AV (ClamAV / Windows Defender on WSL) flagged the .so, "
-                          "whitelist ~/.local/share/SLSsteam/ and retry."
-                        + Style.RESET_ALL
-                    )
-                    return False
-                print_fn(Fore.GREEN + "7z retry succeeded after AV-style stall." + Style.RESET_ALL)
-            else:
-                print_fn(Fore.YELLOW + "7z exited non-zero but bin/ found — continuing." + Style.RESET_ALL)
+        if not _extract_slssteam_archive(archive_path, extract_dir, print_fn):
+            return False
     except Exception as e:
         # Bare exception log used to be one line. Now print the full traceback
         # tail too because users pasted "Extraction error: " with nothing

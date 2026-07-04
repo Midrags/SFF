@@ -330,6 +330,15 @@ window.Settings = (function() {
         var updateLink = document.getElementById('about-update');
         var versionLabel = document.getElementById('settings-version-label');
 
+        function resetUpdateButton() {
+            if (!updateLink) return;
+            updateLink.disabled = false;
+            if (updateLink.dataset.originalHtml) {
+                updateLink.innerHTML = updateLink.dataset.originalHtml;
+                delete updateLink.dataset.originalHtml;
+            }
+        }
+
         if (githubLink) {
             githubLink.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -348,7 +357,22 @@ window.Settings = (function() {
                 }
                 updateLink.innerHTML = '<svg class="spinner" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="42 16" stroke-linecap="round"></circle></svg>';
                 updateLink.disabled = true;
-                Bridge.call('run_game_action', '', 'check_updates');
+                Bridge.callWithCallback('app_update_check', '', function(json) {
+                    var data;
+                    try { data = JSON.parse(json || '{}'); } catch(err) { data = null; }
+                    if (!data || !data.ok) {
+                        resetUpdateButton();
+                        Components.showToast('error', (data && data.message) || 'Could not check for updates.');
+                        return;
+                    }
+                    if (!data.update_available) {
+                        resetUpdateButton();
+                        Components.showToast('success', 'SteaMidra is already up to date.');
+                        return;
+                    }
+                    Components.showToast('info', 'Update available: ' + (data.latest || 'new release'));
+                    Bridge.call('run_game_action', '', 'check_updates');
+                });
             });
         }
 

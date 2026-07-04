@@ -5,9 +5,11 @@
 
 #include "hooks/capture/RuntimeCapture.h"
 #include "hooks/Macros.h"
+#include "hooks/client/SteamStubAuto.h"
 #include "hooks/client/PackagePatch.h"
 #include "hooks/ui/SteamUI.h"
 #include "runtime/VehUtil.h"
+#include "runtime/HookStatus.h"
 #include "runtime/Ticket.h"
 #include "hooks/client/OnlineFixInject.h"
 #include "core/entry.h"
@@ -55,6 +57,7 @@ namespace {
     uint8_t*              g_spawnProcessTarget = nullptr;
     PVOID                 g_vehHandle          = nullptr;
     std::atomic<AppId_t>  g_OnlineFixRealAppId{0};
+    std::atomic<uint32>   g_OnlineFixRouteMode{static_cast<uint32>(SteamCapture::OnlineFixRouteMode::None)};
     // Pipe-scoped fine gate that pairs with the thread-local depth counter
     // below. Stamped by EnterStatsScope on entry to an IClientUserStats IPC,
     // cleared by LeaveStatsScope on exit. The achievement-callback rewrite
@@ -71,6 +74,22 @@ namespace {
     std::unordered_map<AppId_t, std::string> g_GameNameCache;
     static std::vector<CaptureEntry> g_captures;
 
+    SteamCapture::OnlineFixRouteMode CurrentOnlineFixMode() {
+        return static_cast<SteamCapture::OnlineFixRouteMode>(
+            g_OnlineFixRouteMode.load(std::memory_order_acquire));
+    }
+
+    void SetOnlineFixRoute(AppId_t realAppId, SteamCapture::OnlineFixRouteMode mode) {
+        g_OnlineFixRealAppId.store(realAppId, std::memory_order_release);
+        g_OnlineFixRouteMode.store(static_cast<uint32>(mode), std::memory_order_release);
+    }
+
+    AppId_t ActiveRouteRealAppIdInternal() {
+        if (SteamStubAuto::IsActive())
+            return SteamStubAuto::RealAppId();
+        return g_OnlineFixRealAppId.load(std::memory_order_acquire);
+    }
+
     // ── GetAppIDForCurrentPipe Detours hook ───────────────────────────────────
     // Captures g_steamEngine (RCX = this) on first call and applies the scoped
     // real-appid override for IClientUserStats traffic.
@@ -78,7 +97,7 @@ namespace {
     // The override returns the real appid only when ALL of:
     //   1. SetUserStatsContext(true) is currently on the stack on this thread
     //      (g_userStatsAppIdOverrideDepth > 0)
-    //   2. OnlineFix is active for this session (g_OnlineFixRealAppId != 0)
+    //   2. A route is active for this session (manual OnlineFix or SteamStub)
     //   3. The engine itself reports the Spacewar masquerade (appid == 480)
     //
     // Every other call path returns the engine's value untouched. That keeps
@@ -93,9 +112,9 @@ namespace {
         }
         AppId_t appid = oGetAppIDForCurrentPipe(pEngine);
         if (g_userStatsAppIdOverrideDepth > 0
-            && g_OnlineFixRealAppId.load(std::memory_order_acquire) != 0
+            && ActiveRouteRealAppIdInternal() != 0
             && appid == kOnlineFixAppId) {
-            AppId_t real = g_OnlineFixRealAppId.load(std::memory_order_acquire);
+            AppId_t real = ActiveRouteRealAppIdInternal();
             LOG_MISC_TRACE("GetAppIDForCurrentPipe: stats-scope override {} -> {}",
                            appid, real);
             return real;
@@ -104,30 +123,64 @@ namespace {
     }
 
     // ── BuildSpawnEnvBlock Detours hook ──────────────────────────────────────
-    // Patches pOverlayCGameID from 480 to the real appid before delegating.
-    // This fixes the overlay identity (screenshots, community hub) for -onlinefix games.
-    // pCGameID is left at 480 so the lobby/matchmaking redirection still holds.
-    // Approach: patch the overlay CGameID argument, not the env block string.
+    // Manual -onlinefix keeps the old overlay trick. Dedicated SteamStub auto
+    // keeps CGameID as 480 for Steam tracking, and exposes only overlay identity
+    // to the real app.
     LM_HOOK(BuildSpawnEnvBlock, __int64,
             void* pThis, uint64_t* pCGameID, void* a3, void* env,
             uint64_t* pOverlayCGameID, void* a6, int a7,
             void* a8, void* a9, unsigned int a10, char a11)
     {
-        AppId_t realAppId = g_OnlineFixRealAppId.load(std::memory_order_acquire);
+        SteamCapture::OnlineFixRouteMode mode = CurrentOnlineFixMode();
+        AppId_t onlineFixRealAppId = g_OnlineFixRealAppId.load(std::memory_order_acquire);
+        AppId_t steamStubRealAppId = SteamStubAuto::RealAppId();
+        AppId_t realAppId = steamStubRealAppId ? steamStubRealAppId : onlineFixRealAppId;
         AppId_t overlayAppId = pOverlayCGameID
             ? static_cast<AppId_t>(*pOverlayCGameID & 0xFFFFFF) : 0;
         AppId_t cgameAppId = pCGameID
             ? static_cast<AppId_t>(*pCGameID & 0xFFFFFF) : 0;
 
-        if (realAppId && pOverlayCGameID && overlayAppId == kOnlineFixAppId) {
-            uint64_t prev = *pOverlayCGameID;
-            *pOverlayCGameID = (prev & ~static_cast<uint64_t>(0xFFFFFF))
+        uint64_t prevCGame = pCGameID ? *pCGameID : 0;
+        uint64_t prevOverlay = pOverlayCGameID ? *pOverlayCGameID : 0;
+        bool patchedOverlay = false;
+
+        LOG_MISC_INFO("BuildSpawnEnvBlock: input routeMode={} pThis=0x{:X} env=0x{:X} pCGameID=0x{:X} rawCGame={:#x} pOverlay=0x{:X} rawOverlay={:#x} realAppId={}",
+                      SteamCapture::OnlineFixRouteModeName(mode),
+                      reinterpret_cast<uint64_t>(pThis),
+                      reinterpret_cast<uint64_t>(env),
+                      reinterpret_cast<uint64_t>(pCGameID),
+                      prevCGame,
+                      reinterpret_cast<uint64_t>(pOverlayCGameID),
+                      prevOverlay,
+                      realAppId);
+
+        if (realAppId
+            && (mode != SteamCapture::OnlineFixRouteMode::None || SteamStubAuto::IsActive())
+            && pOverlayCGameID
+            && overlayAppId == kOnlineFixAppId) {
+            *pOverlayCGameID = (prevOverlay & ~static_cast<uint64_t>(0xFFFFFF))
                              | static_cast<uint64_t>(realAppId);
-            LOG_MISC_INFO("BuildSpawnEnvBlock: overlay CGameID {:#x} -> {:#x} (realAppId={}, cgame={})",
-                          prev, *pOverlayCGameID, realAppId, cgameAppId);
+            patchedOverlay = true;
+        }
+
+        if (SteamStubAuto::IsActive() && steamStubRealAppId) {
+            LOG_MISC_INFO("BuildSpawnEnvBlock: steamstub-auto dedicated cgame kept {:#x}->{:#x} overlay {:#x}->{:#x} realAppId={} env=0x{:X}",
+                          prevCGame, pCGameID ? *pCGameID : 0,
+                          prevOverlay, pOverlayCGameID ? *pOverlayCGameID : 0,
+                          steamStubRealAppId,
+                          reinterpret_cast<uint64_t>(env));
+        } else if (patchedOverlay) {
+            LOG_MISC_INFO("BuildSpawnEnvBlock: routeMode={} cgame kept {:#x}->{:#x} overlay {:#x}->{:#x} realAppId={} env=0x{:X}",
+                          SteamCapture::OnlineFixRouteModeName(mode),
+                          prevCGame, pCGameID ? *pCGameID : 0,
+                          prevOverlay, pOverlayCGameID ? *pOverlayCGameID : 0,
+                          realAppId,
+                          reinterpret_cast<uint64_t>(env));
         } else {
-            LOG_MISC_TRACE("BuildSpawnEnvBlock: cgame={} overlay={} realAppId={} (no patch)",
-                           cgameAppId, overlayAppId, realAppId);
+            LOG_MISC_TRACE("BuildSpawnEnvBlock: routeMode={} cgame={} overlay={} realAppId={} env=0x{:X} (no patch)",
+                           SteamCapture::OnlineFixRouteModeName(mode),
+                           cgameAppId, overlayAppId, realAppId,
+                           reinterpret_cast<uint64_t>(env));
         }
         return oBuildSpawnEnvBlock(pThis, pCGameID, a3, env,
                                     pOverlayCGameID, a6, a7, a8, a9, a10, a11);
@@ -135,7 +188,7 @@ namespace {
 
     // ── MarkLicenseAsChanged Detours hook ────────────────────────────────────
     // Captures pCUser (RCX = this) on first call, then triggers startup injection.
-    // This replaces the old VEH int3 capture — Detours fires on every call
+    // This replaces the old VEH int3 capture. Detours fires on every call
     // regardless of when the hook was installed, so we always get pCUser.
     LM_HOOK(MarkLicenseAsChanged, int64, void* pThis, uint32 packageId, bool bReloadAll) {
         if (!g_pCUser) {
@@ -178,6 +231,7 @@ namespace {
             return;
         }
         LOG_PACKAGE_INFO("DoStartupInjection: done, injected {} apps", additions.size());
+        HookStatus::SetPackageState(false, false, true, false);
     }
     // Prevents substring matches like "-onlinefixpatch" triggering the -onlinefix path.
     static bool HasExactFlag(const char* cmd, const char* flag) {
@@ -235,40 +289,76 @@ namespace {
                 ctx->EFlags |= 0x100;
 
                 bool hasDepot = LuaLoader::HasDepot(appId);
-                bool hasFlag  = (cmdLine != nullptr) && HasExactFlag(cmdLine, "-onlinefix");
+                bool owned = LuaLoader::IsOwned(appId);
+                bool hasFlag = (cmdLine != nullptr) && HasExactFlag(cmdLine, "-onlinefix");
+                bool knownSteamStub = Ticket::IsKnownSteamDrmApp(appId);
+                bool autoSteamStubCandidate = hasDepot && !owned && !hasFlag && knownSteamStub;
 
-                LOG_MISC_INFO("SpawnProcess: hit appid={} hasDepot={} hasFlag={} exe=\"{}\" cmd=\"{}\"",
-                              appId, hasDepot, hasFlag,
+                LOG_MISC_INFO("SpawnProcess: hit appid={} hasDepot={} owned={} hasFlag={} autoSteamStubCandidate={} exe=\"{}\" cmd=\"{}\"",
+                              appId, hasDepot, owned, hasFlag, autoSteamStubCandidate,
                               exePath ? exePath : "(null)",
                               cmdLine ? cmdLine : "(null)");
 
-                // Ensure the registry has tickets baked with the active user's
-                // SteamID before the game's DRM wrapper reads them. Wipes any
-                // stale ticket from a previous account, and writes a minimal
-                // unsigned blob if nothing is cached. For Steam-DRM (Steam
-                // Stub) v2.2+ titles like Teardown the unsigned blob still
-                // fails the wrapper signature check — the fix there is
-                // Steamless from SteaMidra. For older v1.5 / early-v2
-                // wrappers and tools that only read the SteamID/AppID
-                // fields this is enough on its own.
+                Ticket::TicketPreflightResult ticketPreflight{};
                 if (hasDepot) {
-                    Ticket::EnsureRegistryTicketsForApp(appId);
+                    ticketPreflight = Ticket::EnsureRegistryTicketsForApp(appId);
+                    LOG_MISC_INFO("SpawnProcess: ticketPreflight={} ticketStatus={} ticketSource={} sourceAppId={} changed={} knownSteamStub={}",
+                                  Ticket::TicketPreflightActionName(ticketPreflight.action),
+                                  Ticket::AppTicketStatusName(ticketPreflight.ticketStatus),
+                                  Ticket::TicketPreflightSourceName(ticketPreflight.ticketSource),
+                                  ticketPreflight.sourceAppId,
+                                  ticketPreflight.changed,
+                                  ticketPreflight.knownSteamStub);
                 }
 
-                if (hasDepot && hasFlag) {
-                    g_OnlineFixRealAppId.store(appId, std::memory_order_release);
+                bool steamStubAuto = SteamStubAuto::ShouldActivate(appId, hasDepot, owned, hasFlag);
+                bool missingSteamStubTicket =
+                    autoSteamStubCandidate
+                    && ticketPreflight.ticketSource == Ticket::TicketPreflightSource::Missing;
+                bool routeThrough480 = hasDepot && hasFlag;
+                const char* routeReason = hasFlag ? "manual-flag" :
+                                          (steamStubAuto ? "steamstub-auto" :
+                                           (missingSteamStubTicket ? "steamstub-ticket-missing" : "none"));
+                auto routeMode = hasFlag ? SteamCapture::OnlineFixRouteMode::ManualFlag
+                                          : SteamCapture::OnlineFixRouteMode::None;
+
+                if (routeThrough480) {
+                    SetOnlineFixRoute(appId, routeMode);
                     *pGameID = kOnlineFixAppId;
-                    LOG_MISC_INFO("SpawnProcess: ONLINEFIX ACTIVE — appid {} -> {}, real stored",
+                    LOG_MISC_INFO("SpawnProcess: 480 route active reason={} routeMode={} appid {} -> {}, real stored",
+                                  routeReason, SteamCapture::OnlineFixRouteModeName(routeMode),
                                   appId, kOnlineFixAppId);
+                    SteamStubAuto::Clear();
                     OnlineFixInject::QueueInjection(exePath, appId);
+                } else if (steamStubAuto) {
+                    SetOnlineFixRoute(0, SteamCapture::OnlineFixRouteMode::None);
+                    SteamStubAuto::Arm(appId, exePath);
+                    *pGameID = kOnlineFixAppId;
+                    LOG_MISC_INFO("SpawnProcess: SteamStubAuto active reason={} appid {} -> {}, CGameID stays 480, overlay resolves real ticketSource={} sourceAppId={}",
+                                  routeReason, appId, kOnlineFixAppId,
+                                  Ticket::TicketPreflightSourceName(ticketPreflight.ticketSource),
+                                  ticketPreflight.sourceAppId);
+                    if (missingSteamStubTicket) {
+                        LOG_MISC_WARN("SpawnProcess: SteamStubAuto ticket source missing for appid={}, route still active",
+                                      appId);
+                    }
                 } else {
-                    g_OnlineFixRealAppId.store(0, std::memory_order_release);
-                    LOG_MISC_DEBUG("SpawnProcess: onlinefix NOT activated for appid={} "
-                                   "(reason: {}{}{})",
+                    SetOnlineFixRoute(0, SteamCapture::OnlineFixRouteMode::None);
+                    SteamStubAuto::Clear();
+                    if (missingSteamStubTicket) {
+                        LOG_MISC_WARN("SpawnProcess: steamstub-ticket-missing appid={} ticketPreflight={} ticketStatus={} ticketSource={}",
+                                      appId,
+                                      Ticket::TicketPreflightActionName(ticketPreflight.action),
+                                      Ticket::AppTicketStatusName(ticketPreflight.ticketStatus),
+                                      Ticket::TicketPreflightSourceName(ticketPreflight.ticketSource));
+                    }
+                    LOG_MISC_DEBUG("SpawnProcess: 480 route not activated for appid={} "
+                                   "(reason: {}{}{}{})",
                                    appId,
                                    !hasDepot ? "no-depot " : "",
-                                   !hasFlag  ? "no-flag "  : "",
-                                   (hasDepot && hasFlag) ? "(internal)" : "");
+                                   owned ? "owned " : "",
+                                   !hasFlag && !autoSteamStubCandidate ? "no-flag " : "",
+                                   routeThrough480 ? "(internal)" : "");
                 }
                 return EXCEPTION_CONTINUE_EXECUTION;
             }
@@ -347,7 +437,8 @@ namespace SteamCapture {
         LM_TX_COMMIT();
 
         VEH_TRACK_LIST(VEH_ZERO_RESOLVE)
-        g_OnlineFixRealAppId.store(0, std::memory_order_relaxed);
+        SetOnlineFixRoute(0, OnlineFixRouteMode::None);
+        SteamStubAuto::Clear();
         g_StatsScopePipe.store(0, std::memory_order_relaxed);
         g_userStatsAppIdOverrideDepth = 0;
         g_steamEngine   = nullptr;
@@ -366,19 +457,39 @@ namespace SteamCapture {
         if (!appid) {
             LOG_MISC_TRACE("GetAppIDForCurrentPipe: AppId=0(Not GamePipe)");
         } else {
-            LOG_MISC_DEBUG("GetAppIDForCurrentPipe: AppId={}", appid);
+            LOG_MISC_TRACE("GetAppIDForCurrentPipe: AppId={}", appid);
         }
         return appid;
     }
 
     AppId_t ResolveAppId() {
-        AppId_t onlineFix = g_OnlineFixRealAppId.load(std::memory_order_acquire);
-        if (onlineFix) return onlineFix;
+        AppId_t routed = ActiveRouteRealAppIdInternal();
+        if (routed) return routed;
         return GetAppIDForCurrentPipe();
+    }
+
+    AppId_t ActiveRouteRealAppId() {
+        return ActiveRouteRealAppIdInternal();
     }
 
     AppId_t OnlineFixRealAppId() {
         return g_OnlineFixRealAppId.load(std::memory_order_acquire);
+    }
+
+    OnlineFixRouteMode OnlineFixMode() {
+        return CurrentOnlineFixMode();
+    }
+
+    bool OnlineFixRouteIsSteamStubAuto() {
+        return SteamStubAuto::IsActive();
+    }
+
+    const char* OnlineFixRouteModeName(OnlineFixRouteMode mode) {
+        switch (mode) {
+        case OnlineFixRouteMode::None:          return "none";
+        case OnlineFixRouteMode::ManualFlag:    return "manual-flag";
+        }
+        return "unknown";
     }
 
     void SetUserStatsContext(bool active) {
@@ -500,6 +611,7 @@ namespace SteamCapture {
         // ── Phase 2: license refresh (Steam re-evaluates package state) ──
         oMarkLicenseAsChanged(g_pCUser, 0, true);
         oProcessPendingLicenseUpdates(g_pCUser);
+        HookStatus::SetPackageState(false, false, false, true);
         LOG_PACKAGE_INFO("NotifyLicenseChanged: {} added, {} removed ({} from vector)",
                          additions.size(), removals.size(), removedCount);
 

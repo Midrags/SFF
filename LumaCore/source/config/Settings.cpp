@@ -51,6 +51,7 @@ namespace Settings {
             processExtensionEnabled = false;
             processExtensionX86.clear();
             processExtensionX64.clear();
+            onlineFixInjectEnabled = true;
         }
 
         void RememberStamp(const std::filesystem::path& cfgPath)
@@ -213,7 +214,8 @@ namespace Settings {
             LOG_INFO("Settings: log.level={} log.verbose={} lua.paths_count={} "
                      "pattern_fetch.mirror={} manifest_fetch.urls=[{}] "
                      "manifest_fetch.timeout_sec={} manifest_fetch.trusted_hosts=[{}] "
-                     "stats.enable_api={} process_extension.enabled={}",
+                     "stats.enable_api={} process_extension.enabled={} "
+                     "onlinefix.inject_enabled={}",
                      LevelName(logLevel), verbose ? "true" : "false",
                      static_cast<uint32_t>(luaPaths.size()),
                      patternMirror.empty() ? "<none>" : patternMirror,
@@ -221,7 +223,8 @@ namespace Settings {
                      manifestFetchTimeoutSec,
                      trustedLog,
                      statsEnableApi ? "true" : "false",
-                     processExtensionEnabled ? "true" : "false");
+                     processExtensionEnabled ? "true" : "false",
+                     onlineFixInjectEnabled ? "true" : "false");
             RememberStamp(cfgPath);
 
         } catch (const toml::parse_error& e) {

@@ -26,6 +26,7 @@ namespace AppTicket {
     std::vector<uint8_t> ReadETicketFromStore(AppId_t appId);
     bool GetTicket(AppId_t appId, OwnershipTicket& out, Source src);
     std::vector<uint8_t> ForgeFromApp7(AppId_t appId);
+    std::vector<uint8_t> ForgeFromBestSource(AppId_t appId, AppId_t& sourceAppId);
     uint64_t GetSpoofSteamID(AppId_t appId);
     bool WriteTicket(AppId_t appId, const std::vector<uint8_t>& data);
     bool WriteETicket(AppId_t appId, const std::vector<uint8_t>& data);

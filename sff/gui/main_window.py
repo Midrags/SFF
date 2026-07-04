@@ -1992,14 +1992,6 @@ class SFFMainWindow(QMainWindow):
                     rclone_exe = str(_bundled)
             if not rclone_exe or not remote_dest:
                 return
-            unique_locs = list({e['location'] for e in entries})
-            _no_window = {'creationflags': 0x08000000} if _sys.platform == 'win32' else {}
-            for loc in unique_locs:
-                subprocess.run(
-                    [rclone_exe, 'mkdir',
-                     remote_dest.rstrip('/') + f'/SteaMidraAllSaves/{loc}'],
-                    capture_output=True, stdin=subprocess.DEVNULL, timeout=30, **_no_window,
-                )
             with ThreadPoolExecutor(max_workers=10) as ex:
                 futures = {ex.submit(backup_save_location_rclone, e, rclone_exe, remote_dest): e for e in entries}
                 for fut in as_completed(futures):
@@ -2009,7 +2001,7 @@ class SFFMainWindow(QMainWindow):
                     except Exception:
                         pass
         elif provider == 'gdrive_api':
-            from sff.google_drive import get_service, get_backup_root, is_authenticated, get_or_create_folder
+            from sff.google_drive import get_service, get_backup_root, is_authenticated
             from concurrent.futures import ThreadPoolExecutor, as_completed
             if not is_authenticated():
                 return
@@ -2020,10 +2012,6 @@ class SFFMainWindow(QMainWindow):
             if not root_id:
                 return
             folder_cache = {}
-            for loc in {e['location'] for e in entries}:
-                loc_id = get_or_create_folder(svc, loc, root_id)
-                if loc_id:
-                    folder_cache[(loc, root_id)] = loc_id
             with ThreadPoolExecutor(max_workers=10) as ex:
                 futures = {ex.submit(backup_save_location_gdrive, e, get_service(), root_id,
                                      None, dict(folder_cache)): e for e in entries}

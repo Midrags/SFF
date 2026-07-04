@@ -10,6 +10,7 @@
 #include "hooks/client/NetPacket_Manifest.h"
 #include "hooks/client/NetPacket_FamilySharing.h"
 #include "hooks/client/NetPacket_OnlineFix.h"
+#include "hooks/client/NetPacket_SteamStub.h"
 #include "hooks/client/RichPresence.h"
 #include "hooks/client/PacketRouter.h"
 #include "runtime/Logger.h"
@@ -97,7 +98,9 @@ static void RouteOutboundDispatch(EMsg eMsg, const uint8_t* pBody, uint32_t cbBo
     case k_EMsgClientGamesPlayed:
     case k_EMsgClientGamesPlayedWithDataBlob:
         RichPresence::TrackGamesPlayed(pBody, cbBody, pHdr, cbHdr);
-        NetPacket::s_tx.PatchBody = NetPacket::Handlers::OnlineFix::HandleSend(pBody, cbBody);
+        NetPacket::s_tx.PatchBody = NetPacket::Handlers::SteamStub::HandleSend(pBody, cbBody);
+        if (!NetPacket::s_tx.PatchBody)
+            NetPacket::s_tx.PatchBody = NetPacket::Handlers::OnlineFix::HandleSend(pBody, cbBody);
         return;
     case k_EMsgClientRichPresenceUpload:
         RichPresence::TrackUpload(pBody, cbBody);

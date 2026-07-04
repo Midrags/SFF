@@ -30,7 +30,8 @@ namespace RuntimeHttp {
     // Single-shot HTTP/HTTPS GET. Body is capped at 8 MiB. The total
     // resolve+connect+send+recv budget is 12 seconds; longer transfers
     // get cut off and return networkError=true.
-    Response Get(std::string_view url);
+    Response Get(std::string_view url,
+                 std::wstring_view userAgent = L"LumaCore-RuntimeHttp/1.0");
 
     // Single-shot HTTP/HTTPS POST. Same caps as GET.
     // extraHeaders are raw "Header: value" strings appended to the request.

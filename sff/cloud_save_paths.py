@@ -25,10 +25,15 @@ real paths on the user's machine.
 
 Only save-tagged paths matching the current platform are returned.
 Registry, config-only, and non-matching OS/store entries are skipped.
+
+The manifest is lazily indexed by scanning raw text for Steam id blocks
+instead of loading the full ~18 MB YAML into memory at once.
 """
 
+import glob as glob_module
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -36,51 +41,89 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-_MANIFEST: dict | None = None
-_STEAM_INDEX: dict[str, dict] | None = None
+_MANIFEST_TEXT: str | None = None
+_STEAM_BLOCKS: list[int] | None = None
+_STEAM_INDEX: dict[str, int] | None = None
+
+_STEAM_ID_RE = re.compile(r"^  steam:\s*?\n    id:\s*(\d+)", re.MULTILINE)
 
 
 def _manifest_path() -> Path:
     return Path(__file__).resolve().parent / "data" / "manifest.yaml"
 
 
-def _load_manifest() -> dict:
-    global _MANIFEST, _STEAM_INDEX
-    if _MANIFEST is not None:
-        return _MANIFEST
+def _load_manifest_index() -> None:
+    global _MANIFEST_TEXT, _STEAM_BLOCKS, _STEAM_INDEX
+    if _MANIFEST_TEXT is not None:
+        return
     p = _manifest_path()
     if not p.is_file():
         logger.debug("manifest.yaml not found at %s", p)
-        _MANIFEST = {}
+        _MANIFEST_TEXT = ""
+        _STEAM_BLOCKS = []
         _STEAM_INDEX = {}
-        return _MANIFEST
+        return
     try:
-        with p.open("r", encoding="utf-8") as f:
-            _MANIFEST = yaml.safe_load(f) or {}
-        _STEAM_INDEX = {}
-        for name, entry in _MANIFEST.items():
-            if not isinstance(entry, dict):
-                continue
-            steam = entry.get("steam") or {}
-            sid = str(steam.get("id", "")) if isinstance(steam, dict) else ""
-            if sid:
-                _STEAM_INDEX[sid] = entry
-        logger.debug("Loaded save-path manifest: %d games, %d with steam ids",
-                     len(_MANIFEST), len(_STEAM_INDEX))
+        text = p.read_text(encoding="utf-8")
     except Exception:
-        logger.warning("Failed to load manifest.yaml", exc_info=True)
-        _MANIFEST = {}
+        logger.warning("Failed to read manifest.yaml", exc_info=True)
+        _MANIFEST_TEXT = ""
+        _STEAM_BLOCKS = []
         _STEAM_INDEX = {}
-    return _MANIFEST
+        return
+    _MANIFEST_TEXT = text
+    lines = text.splitlines(keepends=True)
+    n = len(lines)
+
+    root_keys = []
+    for i, line in enumerate(lines):
+        if line and line[0] not in (' ', '\t', '\n', '\r', '#'):
+            if ':' in line:
+                root_keys.append(i)
+
+    _STEAM_BLOCKS = root_keys
+    _STEAM_INDEX = {}
+
+    for idx, start in enumerate(root_keys):
+        end = root_keys[idx + 1] if idx + 1 < len(root_keys) else n
+        block_text = "".join(lines[start:end])
+        m = _STEAM_ID_RE.search(block_text)
+        if m:
+            _STEAM_INDEX[m.group(1)] = start
+
+    logger.debug("Indexed %d steam-id blocks from manifest", len(_STEAM_INDEX))
 
 
 def _game_by_steam_id(app_id: int) -> dict | None:
-    _load_manifest()
-    return (_STEAM_INDEX or {}).get(str(app_id))
+    _load_manifest_index()
+    start = _STEAM_INDEX.get(str(app_id))
+    if start is None:
+        return None
+    lines = _MANIFEST_TEXT.splitlines(keepends=True)
+    n = len(lines)
+    end = n
+    for s in _STEAM_BLOCKS:
+        if s > start:
+            end = s
+            break
+    block_text = "".join(lines[start:end])
+    try:
+        parsed = yaml.safe_load(block_text)
+    except Exception:
+        logger.warning("Failed to parse block for app_id=%d", app_id, exc_info=True)
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    for val in parsed.values():
+        if isinstance(val, dict):
+            return val
+    return None
 
 
 def _matches_when(meta: dict) -> bool:
     conditions = meta.get("when") or []
+    if isinstance(conditions, dict):
+        conditions = [conditions]
     if not conditions:
         return True
     is_win = sys.platform == "win32"
@@ -112,6 +155,9 @@ def _resolve_placeholder(path: str, base: str, root: str) -> list[str]:
     p = p.replace("<storeUserId>", "*")
     p = p.replace("<storeGameId>", "*")
     p = p.replace("<osUserName>", os.environ.get("USERNAME", os.environ.get("USER", "")))
+    if glob_module.has_magic(p):
+        matches = sorted(glob_module.glob(p))
+        return matches if matches else [p]
     return [p]
 
 

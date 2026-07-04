@@ -385,6 +385,7 @@ def download_folder(service, folder_id, local_dest, log_func=None):
 
 _BACKUP_ROOT_NAME = "SteaMidra Backups"
 _META_ROOT_NAME = "_steamidra_meta"
+_INTERNAL_BACKUP_FOLDERS = frozenset({_META_ROOT_NAME, "_restore_safety"})
 
 
 def get_backup_root(service):
@@ -439,34 +440,62 @@ def _fetch_meta_from_index(service, backup_root_id, location, folder_name):
         return {}
 
 
+def _source_path_from_meta(meta):
+    try:
+        if int(meta.get("schema_version", 1)) == 2:
+            sources = meta.get("sources") or []
+            if sources and isinstance(sources[0], dict):
+                return sources[0].get("source_path", "")
+    except Exception:
+        pass
+    return meta.get("source_path", "")
+
+
+def _drive_backup_entry(folder_item, meta, legacy=False):
+    return {
+        "folder_id": folder_item["id"],
+        "folder_name": folder_item["name"],
+        "app_id": meta.get("app_id"),
+        "game_name": meta.get("game_name", folder_item["name"]),
+        "source_path": _source_path_from_meta(meta),
+        "backed_up_at": meta.get("backed_up_at", ""),
+        "sources": meta.get("sources", []),
+        "schema_version": meta.get("schema_version", 1),
+        "legacy_layout": bool(legacy),
+    }
+
+
 def list_backup_locations(service):
     root_id = find_folder(service, _BACKUP_ROOT_NAME, "root")
     if not root_id:
         return {}
-    result = {}
-    for loc_item in list_folder(service, root_id):
-        if loc_item["mimeType"] != "application/vnd.google-apps.folder":
+    games = []
+    for item in list_folder(service, root_id):
+        if item["mimeType"] != "application/vnd.google-apps.folder":
             continue
-        loc_name = loc_item["name"]
-        if loc_name == _META_ROOT_NAME:
+        name = item["name"]
+        if name in _INTERNAL_BACKUP_FOLDERS:
             continue
-        games = []
-        for game_item in list_folder(service, loc_item["id"]):
-            if game_item["mimeType"] != "application/vnd.google-apps.folder":
-                continue
-            meta = _fetch_meta_from_index(service, root_id, loc_name, game_item["name"])
-            if not meta:
+        if name == "Games":
+            for game_item in list_folder(service, item["id"]):
+                if game_item["mimeType"] != "application/vnd.google-apps.folder":
+                    continue
                 meta = _fetch_meta_from_folder(service, game_item["id"])
-            games.append({
-                "folder_id": game_item["id"],
-                "folder_name": game_item["name"],
-                "app_id": meta.get("app_id"),
-                "game_name": meta.get("game_name", game_item["name"]),
-                "source_path": meta.get("source_path", ""),
-                "backed_up_at": meta.get("backed_up_at", ""),
-            })
-        result[loc_name] = {"folder_id": loc_item["id"], "games": games}
-    return result
+                if not meta:
+                    meta = _fetch_meta_from_index(service, root_id, "Games", game_item["name"])
+                if meta:
+                    games.append(_drive_backup_entry(game_item, meta, legacy=True))
+            continue
+        meta = _fetch_meta_from_folder(service, item["id"])
+        if not meta:
+            meta = _fetch_meta_from_index(service, root_id, "Games", item["name"])
+        if not meta:
+            meta = _fetch_meta_from_index(service, root_id, "unknown", item["name"])
+        if meta:
+            games.append(_drive_backup_entry(item, meta, legacy=False))
+    if not games:
+        return {}
+    return {"All Backups": {"folder_id": root_id, "games": games}}
 
 
 def _fetch_meta_from_folder(service, folder_id):

@@ -95,6 +95,7 @@ add_library(LumaCore SHARED
     hooks/client/NetPacket_Manifest.cpp
     hooks/client/NetPacket_FamilySharing.cpp
     hooks/client/NetPacket_OnlineFix.cpp
+    hooks/client/NetPacket_SteamStub.cpp
     hooks/client/PackagePatch.cpp
     hooks/client/RichPresence.cpp
     hooks/client/LicenseHooks.cpp
@@ -107,6 +108,8 @@ add_library(LumaCore SHARED
     hooks/client/PendingCallMap.cpp
     hooks/client/OnlineFixInject.cpp
     hooks/client/ProcessExtension.cpp
+    hooks/client/SteamStubAuto.cpp
+    hooks/client/SteamStubTicket.cpp
     hooks/client/IpcMethodLoader.cpp
     hooks/client/IpcDispatch.cpp
     hooks/client/IpcHooks.cpp

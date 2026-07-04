@@ -1,4 +1,4 @@
-// LumaCore — Steam client hook layer for SteaMidra.
+// LumaCore - Steam client hook layer for SteaMidra.
 // Copyright (c) 2025-2026 Midrag (https://github.com/Midrags).
 // Distributed under the GNU General Public License v3 or later.
 // See <https://www.gnu.org/licenses/> for the full license text.
@@ -6,11 +6,14 @@
 #include "hooks/client/OnlineFixInject.h"
 #include "hooks/Macros.h"
 #include "config/Settings.h"
+#include "runtime/RemoteTools.h"
 
 #include <algorithm>
 #include <cwctype>
 #include <filesystem>
 #include <mutex>
+#include <string>
+#include <string_view>
 #include <unordered_map>
 
 namespace {
@@ -38,16 +41,74 @@ namespace {
         return out;
     }
 
+    std::string NarrowPath(std::wstring_view text) {
+        if (text.empty()) return {};
+        int needed = WideCharToMultiByte(CP_UTF8, 0, text.data(),
+                                         static_cast<int>(text.size()),
+                                         nullptr, 0, nullptr, nullptr);
+        if (needed <= 0) return {};
+        std::string out(static_cast<size_t>(needed), '\0');
+        WideCharToMultiByte(CP_UTF8, 0, text.data(),
+                            static_cast<int>(text.size()),
+                            out.data(), needed, nullptr, nullptr);
+        return out;
+    }
+
+    std::wstring WideFromUtf8(std::string_view text) {
+        if (text.empty()) return {};
+        int needed = MultiByteToWideChar(CP_UTF8, 0, text.data(),
+                                         static_cast<int>(text.size()),
+                                         nullptr, 0);
+        if (needed <= 0) return {};
+        std::wstring out(static_cast<size_t>(needed), L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, text.data(),
+                            static_cast<int>(text.size()),
+                            out.data(), needed);
+        return out;
+    }
+
     AppId_t ClaimPending(LPCWSTR app, LPCWSTR cmd) {
         std::wstring key = LowerBasename(app);
         if (key.empty()) key = LowerBasename(ExeFromCmd(cmd).c_str());
-        if (key.empty()) return 0;
+        if (key.empty()) {
+            LOG_ONLINEFIX_DEBUG("claim miss exe=(empty)");
+            return 0;
+        }
 
         std::lock_guard lk(g_queueLock);
         auto it = g_queue.find(key);
-        if (it == g_queue.end()) return 0;
+        if (it == g_queue.end()) {
+            LOG_ONLINEFIX_DEBUG("claim miss exe={}", NarrowPath(key));
+            return 0;
+        }
         AppId_t id = it->second;
         g_queue.erase(it);
+        LOG_ONLINEFIX_INFO("claim hit appid={} exe={}", id, NarrowPath(key));
+        return id;
+    }
+
+    AppId_t ClaimQueuedImage(std::string_view imageName, AppId_t expectedAppId) {
+        std::wstring wide = WideFromUtf8(imageName);
+        std::wstring key = LowerBasename(wide.c_str());
+        if (key.empty()) {
+            LOG_ONLINEFIX_DEBUG("fallback claim miss exe=(empty)");
+            return 0;
+        }
+
+        std::lock_guard lk(g_queueLock);
+        auto it = g_queue.find(key);
+        if (it == g_queue.end()) {
+            LOG_ONLINEFIX_DEBUG("fallback claim miss exe={}", NarrowPath(key));
+            return 0;
+        }
+        AppId_t id = it->second;
+        if (expectedAppId && id != expectedAppId) {
+            LOG_ONLINEFIX_WARN("fallback claim mismatch queued={} expected={} exe={}",
+                               id, expectedAppId, NarrowPath(key));
+            return 0;
+        }
+        g_queue.erase(it);
+        LOG_ONLINEFIX_INFO("fallback claim hit appid={} exe={}", id, NarrowPath(key));
         return id;
     }
 
@@ -61,7 +122,7 @@ namespace {
     CreateProcessW_t       oCreateProcessW       = nullptr;
     CreateProcessAsUserW_t oCreateProcessAsUserW = nullptr;
 
-    // Inline injection matching RemoteInject::LoadDll — VirtualAllocEx +
+    // Inline injection matching RemoteInject::LoadDll - VirtualAllocEx +
     // CreateRemoteThread(LoadLibraryW). Uses the process HANDLE from
     // CreateProcess directly (no extra OpenProcess).
     static bool InjectPayload(HANDLE hProcess, LPCWSTR dllPath) {
@@ -99,7 +160,11 @@ namespace {
         };
 
         AppId_t appId = ClaimPending(app, cmd);
-        if (!appId || PayloadPath[0] == 0) return fwd(flags);
+        if (!appId) return fwd(flags);
+        if (PayloadPath[0] == 0) {
+            LOG_ONLINEFIX_WARN("appid={} payload path empty, forwarding without injection", appId);
+            return fwd(flags);
+        }
 
         BOOL ok = fwd(flags | CREATE_SUSPENDED);
         if (!ok) {
@@ -201,10 +266,47 @@ namespace OnlineFixInject {
         wchar_t wexe[MAX_PATH] = {};
         MultiByteToWideChar(CP_UTF8, 0, exePath, -1, wexe, MAX_PATH);
         std::wstring key = LowerBasename(wexe);
-        if (key.empty()) return;
+        if (key.empty()) {
+            LOG_ONLINEFIX_WARN("queue skipped appid={} exe=\"{}\"", realAppId, exePath);
+            return;
+        }
 
         std::lock_guard lk(g_queueLock);
         g_queue[key] = realAppId;
+        LOG_ONLINEFIX_INFO("queued appid={} exe={}", realAppId, NarrowPath(key));
+    }
+
+    bool TryFallbackInject(uint32_t pid, const std::string& imageName, AppId_t realAppId) {
+        if (!pid || !realAppId) return false;
+        AppId_t queuedAppId = ClaimQueuedImage(imageName, realAppId);
+        if (!queuedAppId) return false;
+
+        if (PayloadPath[0] == 0) {
+            LOG_ONLINEFIX_WARN("fallback appid={} pid={} payload path empty", queuedAppId, pid);
+            return false;
+        }
+        if (!Settings::onlineFixInjectEnabled) {
+            LOG_ONLINEFIX_INFO("fallback appid={} pid={} injection disabled by config", queuedAppId, pid);
+            return false;
+        }
+        if (GetFileAttributesA(PayloadPath) == INVALID_FILE_ATTRIBUTES) {
+            LOG_ONLINEFIX_WARN("fallback appid={} pid={} payload DLL missing path=\"{}\"",
+                               queuedAppId, pid, PayloadPath);
+            return false;
+        }
+
+        RemoteTools::LoadResult loaded =
+            RemoteTools::LoadLibraryInto(pid, std::filesystem::path(PayloadPath));
+        if (loaded.ok) {
+            LOG_ONLINEFIX_INFO("fallback appid={} pid={} payload {}",
+                               queuedAppId, pid,
+                               loaded.alreadyLoaded ? "already-loaded" : "loaded");
+            return true;
+        }
+
+        LOG_ONLINEFIX_WARN("fallback appid={} pid={} payload FAILED err={}",
+                           queuedAppId, pid, loaded.error);
+        return false;
     }
 
 }

@@ -29,7 +29,12 @@ from colorama import Fore, Style
 from steam.client.cdn import CDNClient, ContentServer  # type: ignore
 from tqdm import tqdm  # type: ignore
 
-from sff.http_utils import get_gmrc, get_request_raw
+from sff.http_utils import (
+    MANIFEST_REQUEST_CODE_HEADERS,
+    get_gmrc,
+    get_request_raw,
+    parse_manifest_request_code,
+)
 from sff.manifest.manifesthub_key import get_manifesthub_api_key
 from sff.manifest.crypto import decrypt_and_save_manifest
 from sff.manifest.id_resolver import (
@@ -355,15 +360,23 @@ class ManifestDownloader:
         HTTP last. No Steam CDN client needed, the code works directly.
         """
         _MIRROR_URLS = (
-            (f"https://manifest.opensteamtool.com/{manifest_id}", "opensteamtool"),
+            (f"https://manifest.opensteamtool.com/{manifest_id}", "manifest.opensteamtool.com"),
             (f"https://manifest.steam.run/api/manifest/{manifest_id}", "steam.run"),
             (f"http://gmrc.wudrm.com/manifest/{manifest_id}", "wudrm"),
         )
         for url, label in _MIRROR_URLS:
             try:
-                resp = httpx.get(url, timeout=12, follow_redirects=True)
-                if resp.status_code == 200 and resp.text.strip().isdigit():
-                    req_code = resp.text.strip()
+                resp = httpx.get(
+                    url,
+                    headers=MANIFEST_REQUEST_CODE_HEADERS,
+                    timeout=12,
+                    follow_redirects=True,
+                )
+                if resp.status_code == 200:
+                    req_code = parse_manifest_request_code(resp.text)
+                else:
+                    req_code = None
+                if req_code is not None:
                     logger.debug(f"Mirror {label} returned request code for manifest {manifest_id}")
                     cdn_url = f"http://steampipe.akamaized.net/depot/{depot_id}/manifest/{manifest_id}/5/{req_code}"
                     result = get_request_raw(cdn_url)
@@ -373,8 +386,12 @@ class ManifestDownloader:
                     if result is not None:
                         logger.debug(f"Mirror {label} download succeeded for depot {depot_id}")
                         return result
-            except Exception:
-                continue
+                logger.debug(
+                    f"Mirror {label} had no usable request code "
+                    f"(HTTP {getattr(resp, 'status_code', 'unknown')})"
+                )
+            except Exception as e:
+                logger.debug(f"Mirror {label} request failed: {e}")
         return None
 
     def _try_manifesthub(self, depot_id, manifest_id):
@@ -432,13 +449,13 @@ class ManifestDownloader:
             logger.debug(f"Hubcap path for depot {depot_id}: all sources failed")
             return None
         # oureveryday path ─────────────────────────────────────────────────────
-        # Step 1: Try the 3 GMRC mirrors (opensteamtool, steam.run, wudrm)
+        # Step 1: Try the 3 GMRC mirrors
         #          directly. Each returns a request code; we pull the manifest
         #          from Steam CDN with it. HTTPS before HTTP.
         # Step 2: Fall back to the 3 GitHub raw mirror repos.
         # Step 3: ManifestHub API (auto-prompts for key if none cached).
         # Step 4: Encrypted GMRC endpoint + CDN (last resort).
-        # Step 1: Hit the 3 mirror endpoints (opensteamtool, steam.run, wudrm)
+        # Step 1: Hit the 3 mirror endpoints
         #          to get a request code and download from steampipe CDN.
         mirror_result = self._try_mirror_endpoints(depot_id, manifest_id)
         if mirror_result is not None:
@@ -568,28 +585,6 @@ class ManifestDownloader:
                 if written:
                     manifest_paths.append(written)
                 continue
-            if not self.use_hubcap:
-                # Last resort: ask user for request code interactively
-                print(
-                    Fore.YELLOW
-                    + f"\nAll automated sources failed for depot {depot_id}. Trying interactive CDN..."
-                    + Style.RESET_ALL
-                )
-                req_code = self.resolve_gmrc(manifest_id)
-                if req_code is not None:
-                    cdn_server = cast(ContentServer, cdn.get_content_server())
-                    cdn_server_name = f"http{'s' if cdn_server.https else ''}://{cdn_server.host}"
-                    manifest_url = urljoin(
-                        cdn_server_name,
-                        f"depot/{depot_id}/manifest/{manifest_id}/5/{req_code}",
-                    )
-                    last_resort = get_request_raw(manifest_url)
-                    if last_resort:
-                        written = self._write_manifest_to_depotcache(
-                            last_resort, depot_id, manifest_id, decrypt, dec_key
-                        )
-                        if written:
-                            manifest_paths.append(written)
         return manifest_paths
 
     def download_manifests_parallel(

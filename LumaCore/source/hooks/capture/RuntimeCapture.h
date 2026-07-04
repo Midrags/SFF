@@ -1,4 +1,4 @@
-// LumaCore — Steam client hook layer for SteaMidra.
+// LumaCore - Steam client hook layer for SteaMidra.
 // Copyright (c) 2025-2026 Midrag (https://github.com/Midrags).
 // Distributed under the GNU General Public License v3 or later.
 // See <https://www.gnu.org/licenses/> for the full license text.
@@ -13,12 +13,17 @@
 //                                pointer on first call and applies the
 //                                scoped real-appid override for IClientUserStats
 //                                traffic (see SetUserStatsContext)
-//   * SpawnProcess            -> OnlineFix detection + 480 rewrite
+//   * SpawnProcess            -> online-fix / SteamStub launch routing
 //   * GetAppDataFromAppInfo   -> int3 trap; captures the CAppInfoCache pointer
 //   * MarkLicenseAsChanged    -> captures pCUser; resolved for NotifyLicenseChanged
 //   * GetPackageInfo          -> captures pCPackageInfo; used by NotifyLicenseChanged to append AppIds
 //   * ProcessPendingLicenseUpdates -> resolved for NotifyLicenseChanged
 namespace SteamCapture {
+    enum class OnlineFixRouteMode : uint32 {
+        None = 0,
+        ManualFlag = 1,
+    };
+
     void Install();
     void Uninstall();
 
@@ -31,14 +36,22 @@ namespace SteamCapture {
     // Uses CUtlBuffer::EnsureCapacity from steamclient, resolved on first call.
     void EnsureBufferSize(CUtlBuffer* pWrite, int32 size);
 
-    // Resolve the real appid: if OnlineFix is active return real appid,
-    // otherwise fall back to GetAppIDForCurrentPipe().
+    // Resolve the real appid: if a manual OnlineFix or dedicated SteamStub
+    // route is active return its real appid, otherwise fall back to
+    // GetAppIDForCurrentPipe().
     AppId_t ResolveAppId();
+
+    // Returns the active route real appid for either manual OnlineFix or the
+    // dedicated SteamStub route. Returns 0 when neither route is active.
+    AppId_t ActiveRouteRealAppId();
 
     // Returns the captured OnlineFix real appid (0 when no OnlineFix session
     // is active). The callback rewrite path keys on the raw value because the
     // pipe-fallback semantics of ResolveAppId would mask a non-active session.
     AppId_t OnlineFixRealAppId();
+    OnlineFixRouteMode OnlineFixMode();
+    bool OnlineFixRouteIsSteamStubAuto();
+    const char* OnlineFixRouteModeName(OnlineFixRouteMode mode);
 
     // Scoped real-appid override for IClientUserStats traffic. Increments
     // a thread-local depth counter on active=true and decrements on

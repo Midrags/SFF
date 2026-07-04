@@ -30,6 +30,8 @@ namespace LuaLoader::Internal {
     lua_State* g_lua_state = nullptr;
 
     std::unordered_map<AppId_t, std::string> DepotKeySet{};
+    std::unordered_set<AppId_t>              LibraryAppIdSet{};
+    std::unordered_set<AppId_t>              StatsAppIdSet{};
     std::unordered_map<AppId_t, uint64_t>    AccessTokenSet{};
     std::unordered_set<AppId_t>              PinnedApps{};
     std::unordered_map<uint64_t, ManifestOverride> ManifestOverrides{};
@@ -38,7 +40,12 @@ namespace LuaLoader::Internal {
     std::unordered_map<AppId_t, int64_t>     LuaMtimeMap{};
 
     std::unordered_map<std::string, std::unordered_set<AppId_t>> g_fileDepots;
+    std::unordered_map<std::string, std::unordered_set<AppId_t>> g_fileLibraryApps;
+    std::unordered_map<std::string, std::unordered_set<AppId_t>> g_fileStatsApps;
+    std::unordered_map<std::string, std::unordered_map<AppId_t, uint64_t>> g_fileStatSteamIds;
     std::unordered_map<AppId_t, uint32_t> g_depotRefCount;
+    std::unordered_map<AppId_t, uint32_t> g_libraryRefCount;
+    std::unordered_map<AppId_t, uint32_t> g_statsRefCount;
     std::vector<AppId_t> g_pendingRemovals;
     std::vector<AppId_t> g_pendingAdditions;
     ParseSession* g_activeSession = nullptr;
@@ -75,6 +82,27 @@ namespace LuaLoader::Internal {
         if (++g_depotRefCount[id] == 1) {
             g_pendingAdditions.push_back(id);
         }
+    }
+
+    void ParseSession::recordLibraryApp(AppId_t id) {
+        if (currentFile.empty()) return;
+        if (!g_fileLibraryApps[currentFile].insert(id).second) return;
+        if (++g_libraryRefCount[id] == 1) {
+            LibraryAppIdSet.insert(id);
+        }
+    }
+
+    void ParseSession::recordStatsApp(AppId_t id) {
+        if (currentFile.empty()) return;
+        if (!g_fileStatsApps[currentFile].insert(id).second) return;
+        if (++g_statsRefCount[id] == 1) {
+            StatsAppIdSet.insert(id);
+        }
+    }
+
+    void ParseSession::recordStatSteamId(AppId_t id, uint64_t steamId) {
+        if (currentFile.empty()) return;
+        g_fileStatSteamIds[currentFile][id] = steamId;
     }
 
     namespace {

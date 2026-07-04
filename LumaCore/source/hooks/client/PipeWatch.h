@@ -30,6 +30,9 @@ namespace PipeWatch {
         std::string imageName;
         AppId_t appId = k_uAppIdInvalid;
         AppId_t envAppId = k_uAppIdInvalid;
+        AppId_t envSteamAppId = k_uAppIdInvalid;
+        AppId_t envSteamGameId = k_uAppIdInvalid;
+        AppId_t envSteamOverlayGameId = k_uAppIdInvalid;
         std::string appIdSource;
         bool steamProcess = false;
         bool likelyGame = false;

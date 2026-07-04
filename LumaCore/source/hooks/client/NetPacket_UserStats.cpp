@@ -15,11 +15,119 @@
 
 namespace NetPacket::Handlers::UserStats {
 
-using JobEntry = std::pair<AppId_t, std::chrono::steady_clock::time_point>;
-std::unordered_map<uint64_t, JobEntry> g_JobIdToAppId;
+using Clock = std::chrono::steady_clock;
 
-std::unordered_map<AppId_t, std::chrono::steady_clock::time_point> g_PendingClientStatsSpoof;
+struct StatAttempt {
+    AppId_t appId = 0;
+    size_t poolIndex = 0;
+    size_t poolCount = 0;
+    Clock::time_point seen{};
+};
+
+std::unordered_map<uint64_t, StatAttempt> g_JobIdToAppId;
+std::unordered_map<AppId_t, StatAttempt> g_PendingClientStatsSpoof;
 std::mutex g_PendingClientStatsSpoofMutex;
+std::mutex g_StatsPoolMutex;
+std::unordered_map<AppId_t, size_t> g_NextPoolIndexByApp;
+std::unordered_map<AppId_t, size_t> g_PreferredPoolIndexByApp;
+
+static bool IsOK(int32_t eresult) {
+    return eresult == static_cast<int32_t>(k_EResultOK);
+}
+
+static bool HasStatsPayload(const CPlayer_GetUserStats_Response& resp) {
+    return (resp.has_schema() && !resp.schema().empty()) || resp.stats_size() > 0;
+}
+
+static bool HasStatsPayload(const CMsgClientGetUserStatsResponse& resp) {
+    return (resp.has_schema() && !resp.schema().empty())
+        || resp.stats_size() > 0
+        || resp.achievement_blocks_size() > 0;
+}
+
+static size_t DefaultPoolIndex(AppId_t appId, const uint64_t* pool, size_t poolCount) {
+    uint64_t oldDefault = LuaLoader::GetStatSteamId(appId);
+    for (size_t i = 0; i < poolCount; ++i) {
+        if (pool[i] == oldDefault) return i;
+    }
+    return 0;
+}
+
+static uint64_t PickStatsSteamId(AppId_t appId, size_t& poolIndex, size_t& poolCount) {
+    const uint64_t* pool = LuaLoader::GetStatSteamIdPool(appId, poolCount);
+    if (!pool || poolCount == 0) {
+        poolIndex = 0;
+        poolCount = 1;
+        return LuaLoader::GetStatSteamId(appId);
+    }
+
+    std::lock_guard<std::mutex> guard(g_StatsPoolMutex);
+    auto preferred = g_PreferredPoolIndexByApp.find(appId);
+    if (preferred != g_PreferredPoolIndexByApp.end() && preferred->second < poolCount) {
+        poolIndex = preferred->second;
+        return pool[poolIndex];
+    }
+
+    auto next = g_NextPoolIndexByApp.find(appId);
+    poolIndex = (next != g_NextPoolIndexByApp.end() && next->second < poolCount)
+        ? next->second : DefaultPoolIndex(appId, pool, poolCount);
+    return pool[poolIndex];
+}
+
+static StatAttempt MakeAttempt(AppId_t appId) {
+    StatAttempt attempt;
+    attempt.appId = appId;
+    attempt.seen = Clock::now();
+    return attempt;
+}
+
+static uint64_t FillAttemptSteamId(StatAttempt& attempt) {
+    return PickStatsSteamId(attempt.appId, attempt.poolIndex, attempt.poolCount);
+}
+
+static void NoteAttemptResult(const StatAttempt& attempt, bool okWithData) {
+    if (!attempt.appId || attempt.poolCount <= 1) return;
+
+    std::lock_guard<std::mutex> guard(g_StatsPoolMutex);
+    if (okWithData) {
+        g_PreferredPoolIndexByApp[attempt.appId] = attempt.poolIndex;
+        g_NextPoolIndexByApp[attempt.appId] = attempt.poolIndex;
+        LOG_PKTRT_INFO("{{\"evt\":\"UserStats\",\"act\":\"pool\",\"result\":\"preferred\",\"appId\":{},\"index\":{},\"count\":{}}}",
+                       attempt.appId, attempt.poolIndex, attempt.poolCount);
+        return;
+    }
+
+    auto preferred = g_PreferredPoolIndexByApp.find(attempt.appId);
+    if (preferred != g_PreferredPoolIndexByApp.end() && preferred->second == attempt.poolIndex) {
+        g_PreferredPoolIndexByApp.erase(preferred);
+    }
+    g_NextPoolIndexByApp[attempt.appId] = (attempt.poolIndex + 1) % attempt.poolCount;
+    LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"pool\",\"result\":\"advance\",\"appId\":{},\"from\":{},\"next\":{},\"count\":{}}}",
+                    attempt.appId, attempt.poolIndex, g_NextPoolIndexByApp[attempt.appId], attempt.poolCount);
+}
+
+static bool WriteClientStatsOk(CMsgClientGetUserStatsResponse& resp,
+                               AppId_t appId,
+                               const char* reason) {
+    resp.clear_stats();
+    resp.clear_achievement_blocks();
+    resp.clear_crc_stats();
+    resp.set_eresult(static_cast<int32_t>(k_EResultOK));
+
+    size_t newLen819 = resp.ByteSizeLong();
+    if (newLen819 > kBodyCap) {
+        LOG_PKTRT_WARN(
+            "{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"err\":\"overflow\",\"appId\":{},\"size\":{}}}",
+            appId, newLen819);
+        return false;
+    }
+    s_rx.BodyLen = static_cast<uint32_t>(newLen819);
+    if (!resp.SerializeToArray(s_rx.Body, kBodyCap))
+        return false;
+    LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"normalized\":\"{}\",\"appId\":{},\"body\":{}}}",
+                    reason, appId, resp.DebugString());
+    return true;
+}
 
 bool HandleSend_GetUserStats(const uint8_t* pBody, uint32_t cbBody,
                              const uint8_t* pHdr, uint32_t cbHdr) {
@@ -45,27 +153,29 @@ bool HandleSend_GetUserStats(const uint8_t* pBody, uint32_t cbBody,
         appId = realAppId;
         req.set_appid(realAppId);
     }
-    if (!LuaLoader::HasDepot(appId)) {
-        LOG_PKTRT_WARN("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"GetUserStats\",\"err\":\"no-depot\",\"appId\":{}}}", appId);
+    if (!LuaLoader::IsStatsManagedApp(appId)) {
+        LOG_PKTRT_WARN("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"GetUserStats\",\"err\":\"no-stats-root\",\"appId\":{}}}", appId);
         return false;
     }
 
     req.clear_sha_schema();
+    StatAttempt attempt = MakeAttempt(appId);
+    uint64_t newSteamId = FillAttemptSteamId(attempt);
 
     CMsgProtoBufHeader hdr;
     if (hdr.ParseFromArray(pHdr, cbHdr) && hdr.has_jobid_source()) {
         uint64_t jobId = hdr.jobid_source();
-        auto now = std::chrono::steady_clock::now();
+        auto now = Clock::now();
         std::erase_if(g_JobIdToAppId, [&now](const auto& e) {
-            return now - e.second.second > std::chrono::seconds(30);
+            return now - e.second.seen > std::chrono::seconds(30);
         });
-        g_JobIdToAppId[jobId] = {appId, now};
+        g_JobIdToAppId[jobId] = attempt;
         LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"GetUserStats\",\"job\":{},\"appId\":{}}}", jobId, appId);
     }
 
-    uint64_t newSteamId = LuaLoader::GetStatSteamId(appId);
     req.set_steamid(newSteamId);
-    LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"GetUserStats\",\"spoof\":{},\"appId\":{}}}", newSteamId, appId);
+    LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"GetUserStats\",\"spoof\":{},\"appId\":{},\"poolIndex\":{},\"poolCount\":{}}}",
+                    newSteamId, appId, attempt.poolIndex, attempt.poolCount);
 
     s_tx.BodyLen = static_cast<uint32_t>(req.ByteSizeLong());
     if (s_tx.BodyLen > kBodyCap) {
@@ -92,11 +202,13 @@ void HandleRecv_GetUserStatsResponse(const uint8_t* pHdr, uint32_t cbHdr,
 
     AppId_t appId = 0;
     bool hasAppId = false;
+    StatAttempt attempt;
     if (hdrMsg.has_jobid_target()) {
         uint64_t jobId = hdrMsg.jobid_target();
         auto it = g_JobIdToAppId.find(jobId);
         if (it != g_JobIdToAppId.end()) {
-            appId = it->second.first;
+            attempt = it->second;
+            appId = attempt.appId;
             hasAppId = true;
             LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"GetUserStatsResp\",\"job-match\":{},\"appId\":{}}}", jobId, appId);
             g_JobIdToAppId.erase(it);
@@ -110,10 +222,12 @@ void HandleRecv_GetUserStatsResponse(const uint8_t* pHdr, uint32_t cbHdr,
     }
     LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"GetUserStatsResp\",\"original-body\":{}}}", resp.DebugString());
 
-    if (!hasAppId || !LuaLoader::HasDepot(appId)) {
+    if (!hasAppId || !LuaLoader::IsStatsManagedApp(appId)) {
         LOG_PKTRT_DEBUG("{{{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"GetUserStatsResp\",\"skip\":\"no-match\"}}}}");
         return;
     }
+
+    NoteAttemptResult(attempt, IsOK(hdrMsg.eresult()) && HasStatsPayload(resp));
 
     hdrMsg.set_eresult(static_cast<int32_t>(k_EResultOK));
     s_rx.HdrLen = static_cast<uint32_t>(hdrMsg.ByteSizeLong());
@@ -163,24 +277,26 @@ bool HandleSend_ClientGetUserStats(const uint8_t* pBody, uint32_t cbBody) {
         appId = realAppId;
         req.set_game_id(realAppId);
     }
-    if (!LuaLoader::HasDepot(appId)) {
-        LOG_PKTRT_WARN("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientGetUserStats\",\"err\":\"no-depot\",\"appId\":{}}}", appId);
+    if (!LuaLoader::IsStatsManagedApp(appId)) {
+        LOG_PKTRT_WARN("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientGetUserStats\",\"err\":\"no-stats-root\",\"appId\":{}}}", appId);
         return false;
     }
     req.clear_crc_stats();
     req.set_schema_local_version(-1);
 
-    uint64_t newSteamId = LuaLoader::GetStatSteamId(appId);
+    StatAttempt attempt = MakeAttempt(appId);
+    uint64_t newSteamId = FillAttemptSteamId(attempt);
     req.set_steam_id_for_user(newSteamId);
-    LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientGetUserStats\",\"spoof\":{},\"appId\":{}}}", newSteamId, appId);
+    LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientGetUserStats\",\"spoof\":{},\"appId\":{},\"poolIndex\":{},\"poolCount\":{}}}",
+                    newSteamId, appId, attempt.poolIndex, attempt.poolCount);
 
     {
         std::lock_guard<std::mutex> guard(g_PendingClientStatsSpoofMutex);
-        auto now = std::chrono::steady_clock::now();
+        auto now = Clock::now();
         std::erase_if(g_PendingClientStatsSpoof, [&now](const auto& e) {
-            return now - e.second > std::chrono::seconds(30);
+            return now - e.second.seen > std::chrono::seconds(30);
         });
-        g_PendingClientStatsSpoof[appId] = now;
+        g_PendingClientStatsSpoof[appId] = attempt;
     }
 
     s_tx.BodyLen = static_cast<uint32_t>(req.ByteSizeLong());
@@ -216,45 +332,38 @@ bool HandleRecv_ClientGetUserStatsResponse(const uint8_t* pBody, uint32_t cbBody
             gameId, realAppId);
         gameId = realAppId;
     }
-    if (!LuaLoader::HasDepot(gameId)) {
-        LOG_PKTRT_DEBUG("{{{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"skip\":\"no-depot\"}}}}");
+    if (!LuaLoader::IsStatsManagedApp(gameId)) {
+        LOG_PKTRT_DEBUG("{{{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"skip\":\"no-stats-root\"}}}}");
         return false;
     }
 
     bool wasSpoofed = false;
+    StatAttempt attempt;
     {
         std::lock_guard<std::mutex> guard(g_PendingClientStatsSpoofMutex);
         auto it = g_PendingClientStatsSpoof.find(gameId);
         if (it != g_PendingClientStatsSpoof.end()) {
             wasSpoofed = true;
+            attempt = it->second;
             g_PendingClientStatsSpoof.erase(it);
         }
     }
     if (!wasSpoofed) {
-        LOG_PKTRT_DEBUG(
-            "{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"skip\":\"not-spoofed\",\"appId\":{}}}",
-            gameId);
-        return false;
+        if (IsOK(resp.eresult())) {
+            LOG_PKTRT_DEBUG(
+                "{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"skip\":\"not-spoofed-ok\",\"appId\":{}}}",
+                gameId);
+            return false;
+        }
+        LOG_PKTRT_INFO(
+            "{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"fix\":\"not-spoofed-failure\",\"appId\":{},\"eresult\":{}}}",
+            gameId, resp.eresult());
+        return WriteClientStatsOk(resp, gameId, "not-spoofed-failure-normalized");
     }
 
-    resp.clear_stats();
-    resp.clear_achievement_blocks();
-    resp.clear_crc_stats();
-    resp.set_eresult(1);
+    NoteAttemptResult(attempt, IsOK(resp.eresult()) && HasStatsPayload(resp));
     LOG_PKTRT_DEBUG("{{{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"stripped\":1}}}}");
-
-    size_t newLen819 = resp.ByteSizeLong();
-    if (newLen819 > kBodyCap) {
-        LOG_PKTRT_WARN(
-            "{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"err\":\"overflow\",\"appId\":{},\"size\":{}}}",
-            gameId, newLen819);
-        return false;
-    }
-    s_rx.BodyLen = static_cast<uint32_t>(newLen819);
-    if (!resp.SerializeToArray(s_rx.Body, kBodyCap))
-        return false;
-    LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"modified\":{}}}", resp.DebugString());
-    return true;
+    return WriteClientStatsOk(resp, gameId, "spoofed");
 }
 
 } // namespace NetPacket::Handlers::UserStats

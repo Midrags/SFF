@@ -10,8 +10,8 @@
 // with a "where: what" message so script authors actually see what went
 // wrong, rather than the empty-string error the older code threw.
 //
-// Bind_setStat stays achievement-ringfenced: same signature, same semantics,
-// any change here risks the wire-level spoof gate that lives in PacketRouter.
+// Bind_setStat stays achievement-ringfenced. setStat(appid) marks a stats
+// root; the optional SteamID arg is the old override path.
 
 #include "LuaLoaderInternal.h"
 #include "runtime/Logger.h"
@@ -421,24 +421,42 @@ int Bind_fetchManifestCodeEx(lua_State* L) {
         return 0;
     }
 
-    // ── setStat(appId, "steamid") ────────────────────────────────────────
-    // Achievement ringfence: behaviour identical to prior implementation.
+    // ── setStat(appId [, "steamid"]) ─────────────────────────────────────
     int Bind_setStat(lua_State* L) {
-        if (lua_gettop(L) < 2) {
-            return luaL_error(L, "setStat: need appId and steamId string");
+        const int argc = lua_gettop(L);
+        if (argc < 1) {
+            return luaL_error(L, "setStat: need appId");
         }
 
         AppId_t appId = CheckAppId(L, 1, "setStat");
+        if (g_activeSession) {
+            g_activeSession->recordStatsApp(appId);
+        }
+
+        if (argc < 2 || lua_isnil(L, 2)) {
+            LOG_LUA_DEBUG("setStat: app {} marked for auto stats pool", appId);
+            return 0;
+        }
+
+        if (!lua_isstring(L, 2)) {
+            LOG_LUA_WARN("setStat: ignored SteamID override for app {} (arg #2 must be a decimal string)",
+                         appId);
+            return 0;
+        }
+
         std::string_view sid = CheckString(L, 2, "setStat");
 
         uint64_t parsedSid = 0;
         if (!TryParseUInt64Decimal(sid, parsedSid)) {
-            LOG_LUA_WARN("setStat: rejected steamId '{}' (must be decimal uint64)",
-                         TruncForLog(sid));
-            return luaL_error(L, "setStat: steamId must be a decimal uint64");
+            LOG_LUA_WARN("setStat: ignored SteamID override '{}' for app {}",
+                         TruncForLog(sid), appId);
+            return 0;
         }
 
         StatSteamIdSet[appId] = parsedSid;
+        if (g_activeSession) {
+            g_activeSession->recordStatSteamId(appId, parsedSid);
+        }
         return 0;
     }
 

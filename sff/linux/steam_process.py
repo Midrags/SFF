@@ -52,6 +52,35 @@ _DEFAULT_LIBRARY_INJECT_PATHS = [
 ]
 
 
+def _manual_steam_roots(steam_path: str | Path | None = None) -> list[Path]:
+    roots: list[Path] = []
+    if steam_path:
+        roots.append(Path(steam_path))
+    roots.extend([
+        Path.home() / ".steam" / "steam",
+        Path.home() / ".local" / "share" / "Steam",
+        Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam",
+    ])
+    seen = set()
+    unique = []
+    for root in roots:
+        key = str(root)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(root)
+    return unique
+
+
+def _find_manual_steam_so(filename: str, steam_path: str | Path | None = None) -> str | None:
+    for root in _manual_steam_roots(steam_path):
+        candidate = root / filename
+        if candidate.exists():
+            logger.info(f"Found {filename} beside Steam install: {candidate}")
+            return str(candidate)
+    return None
+
+
 def kill_steam(print_fn=print) -> bool:
     """Kill the running Steam process.
 
@@ -117,12 +146,13 @@ def kill_steam(print_fn=print) -> bool:
         return False
 
 
-def start_steam(print_fn=print) -> str:
+def start_steam(print_fn=print, steam_path: str | Path | None = None) -> str:
     """Start Steam on Linux, injecting SLSteam if available.
 
     Lookup order for SLSteam.so / library-inject.so:
       1. Paths cached by kill_steam() from /proc/maps (most reliable)
       2. Default installation paths (~/.local/share/SLSteam/, Flatpak)
+      3. Manual Steam install folder fallback
 
     Returns one of:
       "SUCCESS"        — Steam launched successfully
@@ -143,6 +173,8 @@ def start_steam(print_fn=print) -> str:
                 slssteam_path = candidate
                 logger.info(f"Found SLSteam.so at default path: {slssteam_path}")
                 break
+    if not slssteam_path or not os.path.exists(slssteam_path):
+        slssteam_path = _find_manual_steam_so("SLSteam.so", steam_path)
 
     # Resolve library-inject.so path
     library_inject_path = _library_inject_so_path_cache
@@ -152,6 +184,8 @@ def start_steam(print_fn=print) -> str:
                 library_inject_path = candidate
                 logger.info(f"Found library-inject.so at default path: {library_inject_path}")
                 break
+    if not library_inject_path or not os.path.exists(library_inject_path):
+        library_inject_path = _find_manual_steam_so("library-inject.so", steam_path)
 
     if slssteam_path and library_inject_path:
         result = start_steam_with_slssteam(slssteam_path, library_inject_path, print_fn)

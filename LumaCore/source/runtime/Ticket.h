@@ -1,4 +1,4 @@
-// LumaCore — Steam client hook layer for SteaMidra.
+// LumaCore - Steam client hook layer for SteaMidra.
 // Copyright (c) 2025-2026 Midrag (https://github.com/Midrags).
 // Distributed under the GNU General Public License v3 or later.
 // See <https://www.gnu.org/licenses/> for the full license text.
@@ -8,6 +8,61 @@
 #include "core/entry.h"
 
 namespace Ticket {
+    enum class AppTicketStatus {
+        Empty,
+        TooSmall,
+        SteamIdMismatch,
+        AppIdMismatch,
+        OkStandard,
+        OkForged,
+    };
+
+    struct AppTicketInspection {
+        AppTicketStatus status = AppTicketStatus::Empty;
+        uint64_t steamId = 0;
+        AppId_t standardAppId = 0;
+        AppId_t forgedAppId = 0;
+        uint32 signatureOffset = 0;
+        uint32 standardAppIdOffset = 16;
+        uint32 forgedAppIdOffset = 0;
+    };
+
+    enum class TicketPreflightAction {
+        Skipped,
+        Kept,
+        Replaced,
+        Deleted,
+        ForgeFailed,
+        WroteMinimal,
+        MinimalFailed,
+    };
+
+    enum class TicketPreflightSource {
+        None,
+        Standard,
+        App7Forged,
+        LocalSignedSource,
+        TargetForgedFallback,
+        Missing,
+    };
+
+    struct TicketPreflightResult {
+        TicketPreflightAction action = TicketPreflightAction::Skipped;
+        AppTicketStatus ticketStatus = AppTicketStatus::Empty;
+        TicketPreflightSource ticketSource = TicketPreflightSource::None;
+        AppId_t sourceAppId = 0;
+        bool changed = false;
+        bool knownSteamStub = false;
+    };
+
+    const char* AppTicketStatusName(AppTicketStatus status);
+    const char* TicketPreflightActionName(TicketPreflightAction action);
+    const char* TicketPreflightSourceName(TicketPreflightSource source);
+    bool IsAppTicketStatusOk(AppTicketStatus status);
+    AppTicketInspection InspectAppTicket(const std::vector<uint8_t>& data,
+                                         AppId_t appId,
+                                         uint64_t expectedSteamId);
+
     // Reads the app ownership ticket cached by Steam under
     //   HKCU\Software\Valve\Steam\Apps\<AppId>\AppTicket  (REG_BINARY)
     // Returns an empty vector when no ticket is available.
@@ -50,12 +105,9 @@ namespace Ticket {
     // accept it. Empty vector when no active user is logged in.
     std::vector<uint8_t> BuildMinimalAppTicket(AppId_t appId);
 
-    // High-level helper called from SpawnProcess: if no AppTicket is cached
-    // in the registry for appId, write a fabricated one. Wipes any existing
-    // blob whose embedded SteamID doesn't match the active user (covers the
-    // "switched accounts" case where a stale ticket would otherwise fail
-    // the wrapper's ID compare). Returns true if any write happened.
-    bool EnsureRegistryTicketsForApp(AppId_t appId);
+    // SpawnProcess preflight. Validates cached AppTicket identity and fixes
+    // stale registry blobs before the game wrapper reads them.
+    TicketPreflightResult EnsureRegistryTicketsForApp(AppId_t appId);
 
     // Ticket layout offsets (for manual inspection/manipulation by IPC handlers).
     constexpr uint32 kAppTicketSteamIdOffset = 8;
@@ -81,6 +133,7 @@ namespace Ticket {
     // signature, producing a valid-looking ticket for the target. Returns
     // empty vector when no source ticket is available.
     std::vector<uint8_t> ForgeAppTicket(AppId_t sourceAppId, AppId_t targetAppId);
+    std::vector<uint8_t> ForgeAppTicketFromBestSource(AppId_t targetAppId, AppId_t& sourceAppId);
 }
 
 

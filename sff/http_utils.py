@@ -17,6 +17,7 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -41,6 +42,10 @@ else:
 
 
 logger = logging.getLogger(__name__)
+
+MANIFEST_REQUEST_CODE_HEADERS = {
+    "User-Agent": "OpenSteamTool/1.0",
+}
 
 
 # httpx supports http/https + socks5 (with httpx-socks). socks4 is NOT
@@ -183,11 +188,34 @@ def get_base_domain(url):
     return scheme + "://" + domain
 
 
-def _request_code_body(body) -> bool:
+def parse_manifest_request_code(body) -> str | None:
     if body is None:
-        return False
-    text = str(body).strip()
-    return bool(text) and len(text) <= 64 and text.isdigit()
+        return None
+    if isinstance(body, bytes):
+        text = body.decode("utf-8", errors="ignore").strip()
+    else:
+        text = str(body).strip()
+    if text and len(text) <= 64 and text.isdigit():
+        return text
+    if not text or len(text) > 4096:
+        return None
+    try:
+        data = json.loads(text)
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    content = data.get("content")
+    if content is None:
+        return None
+    code = str(content).strip()
+    if code and len(code) <= 64 and code.isdigit():
+        return code
+    return None
+
+
+def _request_code_body(body) -> bool:
+    return parse_manifest_request_code(body) is not None
 
 
 # Lowkey don't remember why i wrote it like this.
@@ -223,6 +251,7 @@ async def get_gmrc(manifest_id: Union[str, int], silent: bool = False):
 
     headers = {
         "Referer": get_base_domain(url),
+        **MANIFEST_REQUEST_CODE_HEADERS,
     }
 
     # Sanity check on returned bodies. Real responses are an all-digit
@@ -260,8 +289,9 @@ async def get_gmrc(manifest_id: Union[str, int], silent: bool = False):
         except asyncio.CancelledError:
             print("✅")
 
-    if _request_code_body(result):
-        return result
+    parsed_result = parse_manifest_request_code(result)
+    if parsed_result is not None:
+        return parsed_result
     if result is not None:
         # gmrc returned something but it's not a valid request code.
         # Treat as failure and let the https fallbacks try.
@@ -274,16 +304,17 @@ async def get_gmrc(manifest_id: Union[str, int], silent: bool = False):
     # cascade. fast-fail to the next on any failure.
     _PER_HOST = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=5.0)
     for fb_url in fallback_urls:
-        fb_headers = {"Referer": get_base_domain(fb_url)}
+        fb_headers = {"Referer": get_base_domain(fb_url), **MANIFEST_REQUEST_CODE_HEADERS}
         try:
             fb_result = await get_request(
                 fb_url, headers=fb_headers, redact_url=True, timeout=_PER_HOST,
             )
         except Exception:
             fb_result = None
-        if _request_code_body(fb_result):
+        parsed_fb_result = parse_manifest_request_code(fb_result)
+        if parsed_fb_result is not None:
             print("✓ Got request code from HTTPS fallback")
-            return fb_result
+            return parsed_fb_result
 
     if silent:
         return None
@@ -293,7 +324,6 @@ async def get_gmrc(manifest_id: Union[str, int], silent: bool = False):
     print("  • ManifestHub API key → set in SFF Settings → downloads manifests automatically")
     print("  • ManifestHub site:   https://manifesthub1.filegear-sg.me")
     print("  • ManifestAutoUpdate: search GitHub for 'ManifestAutoUpdate'")
-    print("  • youxiou.com         (community manifests & depot keys)")
     print("  • Drop your own .manifest + depot key file if you have them.")
     code = prompt_text("Paste the manifest request code (leave blank to skip): ").strip()
     return code or None

@@ -140,6 +140,8 @@ window.Bridge = (function() {
             dlc_check_get_list: function() {},
             enqueue_dropped_blobs: function() {},
             get_platform: function(cb) { if (cb) cb('win32'); },
+            app_update_check: function(arg, cb) { if (cb) cb('{"ok":true,"update_available":false,"current":"dev","latest":"dev"}'); },
+            lumacore_check_update: function(arg, cb) { if (cb) cb('{"installed":"dev","latest":"dev","update_available":false}'); },
             connect_store: function() {},
             get_stored_api_key: function(cb) { if (cb) cb(''); },
             list_profiles: function(cb) { if (cb) cb('[]'); },

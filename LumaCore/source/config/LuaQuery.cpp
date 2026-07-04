@@ -44,6 +44,11 @@ namespace LuaLoader {
         return OwnedAppIdSet.count(appId) > 0;
     }
 
+    bool IsStatsManagedApp(AppId_t appId) {
+        using namespace Internal;
+        return StatsAppIdSet.count(appId) > 0;
+    }
+
     int64_t GetLuaMtime(AppId_t appId) {
         using namespace Internal;
         auto it = LuaMtimeMap.find(appId);
@@ -62,6 +67,15 @@ namespace LuaLoader {
         std::vector<AppId_t> ids;
         ids.reserve(DepotKeySet.size());
         for (const auto& [id, _] : DepotKeySet) ids.push_back(id);
+        return ids;
+    }
+
+    std::vector<AppId_t> GetLibraryAppIds() {
+        using namespace Internal;
+        std::vector<AppId_t> ids;
+        ids.reserve(LibraryAppIdSet.size());
+        for (AppId_t id : LibraryAppIdSet) ids.push_back(id);
+        std::sort(ids.begin(), ids.end());
         return ids;
     }
 
@@ -134,24 +148,89 @@ namespace LuaLoader {
         return Internal::ManifestOverrides;
     }
 
+    namespace {
+        bool RestoreStatSteamIdOverride(AppId_t appId, const std::string& removedFile) {
+            for (const auto& [filePath, overrides] : Internal::g_fileStatSteamIds) {
+                if (filePath == removedFile) continue;
+                auto it = overrides.find(appId);
+                if (it != overrides.end()) {
+                    Internal::StatSteamIdSet[appId] = it->second;
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
     // ── per-file unload ───────────────────────────────────────────────────
     void UnloadFile(const std::string& filePath) {
         using namespace Internal;
         auto it = g_fileDepots.find(filePath);
-        if (it == g_fileDepots.end()) return;
+        auto libraryIt = g_fileLibraryApps.find(filePath);
+        auto statsIt = g_fileStatsApps.find(filePath);
+        auto statIdIt = g_fileStatSteamIds.find(filePath);
+        if (it == g_fileDepots.end()
+            && libraryIt == g_fileLibraryApps.end()
+            && statsIt == g_fileStatsApps.end()
+            && statIdIt == g_fileStatSteamIds.end()) return;
 
-        for (AppId_t id : it->second) {
-            LOG_PACKAGE_DEBUG("UnloadFile:Ref count for AppId {} is {}", id, g_depotRefCount[id]);
-            auto refIt = g_depotRefCount.find(id);
-            if (refIt != g_depotRefCount.end() && --refIt->second == 0) {
-                g_depotRefCount.erase(refIt);
-                DepotKeySet.erase(id);
-                g_pendingRemovals.push_back(id);
+        size_t removedDepots = 0;
+        if (it != g_fileDepots.end()) {
+            removedDepots = it->second.size();
+            for (AppId_t id : it->second) {
+                LOG_PACKAGE_DEBUG("UnloadFile:Ref count for AppId {} is {}", id, g_depotRefCount[id]);
+                auto refIt = g_depotRefCount.find(id);
+                if (refIt != g_depotRefCount.end() && --refIt->second == 0) {
+                    g_depotRefCount.erase(refIt);
+                    DepotKeySet.erase(id);
+                    g_pendingRemovals.push_back(id);
+                }
             }
+            g_fileDepots.erase(it);
         }
 
-        LOG_PACKAGE_INFO("UnloadFile: removed {} depots from {}", it->second.size(), filePath);
-        g_fileDepots.erase(it);
+        size_t removedLibraryApps = 0;
+        if (libraryIt != g_fileLibraryApps.end()) {
+            removedLibraryApps = libraryIt->second.size();
+            for (AppId_t id : libraryIt->second) {
+                auto refIt = g_libraryRefCount.find(id);
+                if (refIt != g_libraryRefCount.end() && --refIt->second == 0) {
+                    g_libraryRefCount.erase(refIt);
+                    LibraryAppIdSet.erase(id);
+                    LuaMtimeMap.erase(id);
+                }
+            }
+            g_fileLibraryApps.erase(libraryIt);
+        }
+
+        size_t removedStatsApps = 0;
+        if (statsIt != g_fileStatsApps.end()) {
+            removedStatsApps = statsIt->second.size();
+            for (AppId_t id : statsIt->second) {
+                auto refIt = g_statsRefCount.find(id);
+                if (refIt != g_statsRefCount.end() && --refIt->second == 0) {
+                    g_statsRefCount.erase(refIt);
+                    StatsAppIdSet.erase(id);
+                    StatSteamIdSet.erase(id);
+                }
+            }
+            g_fileStatsApps.erase(statsIt);
+        }
+
+        if (statIdIt != g_fileStatSteamIds.end()) {
+            for (const auto& [id, steamId] : statIdIt->second) {
+                auto active = StatSteamIdSet.find(id);
+                if (active != StatSteamIdSet.end() && active->second == steamId) {
+                    if (!RestoreStatSteamIdOverride(id, filePath)) {
+                        StatSteamIdSet.erase(active);
+                    }
+                }
+            }
+            g_fileStatSteamIds.erase(statIdIt);
+        }
+
+        LOG_PACKAGE_INFO("UnloadFile: removed {} depots, {} library roots, and {} stats roots from {}",
+                         removedDepots, removedLibraryApps, removedStatsApps, filePath);
     }
 
     std::vector<AppId_t> TakePendingRemovals() {
@@ -221,9 +300,11 @@ namespace LuaLoader {
                     }
                     if (!DepotKeySet.count(fileAppId)) {
                         DepotKeySet[fileAppId] = "";
-                        session.recordDepot(fileAppId);
                         LOG_DEBUG("ParseFile: auto-registered appid={} from filename {}", fileAppId, stem);
                     }
+                    session.recordDepot(fileAppId);
+                    session.recordLibraryApp(fileAppId);
+                    session.recordStatsApp(fileAppId);
                     if (lua_mtime_secs > 0) {
                         LuaMtimeMap[fileAppId] = lua_mtime_secs;
                     }

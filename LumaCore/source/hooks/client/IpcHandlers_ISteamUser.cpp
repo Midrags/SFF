@@ -8,6 +8,7 @@
 #include "runtime/TicketProvider.h"
 #include "runtime/EticketFetcher.h"
 #include "runtime/CredentialStore.h"
+#include "hooks/client/SteamStubTicket.h"
 #include "hooks/capture/SteamCapture.h"
 #include "core/entry.h"
 #include "config/LuaLoader.h"
@@ -42,17 +43,27 @@ namespace {
         AppId_t appId = ResolveAppId();
         if (!LuaLoader::HasDepot(appId)) return;
 
-        if (pRead->m_Put < 16) return;
-        const uint8_t* args = pRead->m_Memory.m_pMemory + 10;
+        constexpr int32 kArgsOffset = 10;
+        if (pRead->m_Put < kArgsOffset + 8) return;
+        const uint8_t* args = pRead->m_Memory.m_pMemory + kArgsOffset;
+        AppId_t requestedAppId = *reinterpret_cast<const AppId_t*>(args);
         uint32_t cbMax = *reinterpret_cast<const uint32_t*>(args + 4);
         if (cbMax == 0) return;
 
+        AppId_t ticketAppId = appId;
+        bool steamStubTicket = SteamStubTicket::ResolveRequest(pipe, requestedAppId, ticketAppId);
+
         AppTicket::OwnershipTicket ticket;
-        if (!AppTicket::GetTicket(appId, ticket, AppTicket::Source::CredentialThenForge)) return;
+        bool gotTicket = steamStubTicket
+            ? SteamStubTicket::GetForRoute(ticketAppId, ticket)
+            : AppTicket::GetTicket(ticketAppId, ticket, AppTicket::Source::CredentialThenForge);
+        if (!gotTicket) return;
 
         if (ticket.data.size() > cbMax) {
-            LOG_IPC_WARN("IClientUser::GetAppOwnershipTicketExtendedData: AppId={} ticket too large ({} > {})",
-                          appId, ticket.data.size(), cbMax);
+            LOG_IPC_WARN("IClientUser::GetAppOwnershipTicketExtendedData: AppId={} ticketAppId={} source={} ticket too large ({} > {})",
+                          appId, ticketAppId,
+                          steamStubTicket ? "steamstub-forge-only" : "credential-then-forge",
+                          ticket.data.size(), cbMax);
             return;
         }
 
@@ -73,8 +84,10 @@ namespace {
 
         pWrite->m_Put = pos;
 
-        LOG_IPC_DEBUG("IClientUser::GetAppOwnershipTicketExtendedData: AppId={} ticket={} bytes",
-                       appId, ticket.data.size());
+        LOG_IPC_DEBUG("IClientUser::GetAppOwnershipTicketExtendedData: AppId={} requested={} ticketAppId={} source={} ticket={} bytes",
+                       appId, requestedAppId, ticketAppId,
+                       steamStubTicket ? "steamstub-forge-only" : "credential-then-forge",
+                       ticket.data.size());
     }
 
     void Post_RequestEncryptedAppTicket(CSteamPipeClient* pipe, CUtlBuffer* pRead, CUtlBuffer* pWrite) {

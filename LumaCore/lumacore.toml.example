@@ -16,6 +16,7 @@ paths = []
 [manifest_fetch]
 # URL chain for depot manifest downloads, tried in order until one returns 200.
 # {gid} is replaced with the manifest GID at request time.
+# The first built-in provider needs a compatibility User-Agent; LumaCore adds it internally.
 urls = [
     "https://manifest.opensteamtool.com/{gid}",
     "https://manifest.steam.run/api/manifest/{gid}",

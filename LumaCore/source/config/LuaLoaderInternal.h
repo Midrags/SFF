@@ -33,6 +33,8 @@ namespace LuaLoader::Internal {
     extern lua_State* g_lua_state;
 
     extern std::unordered_map<AppId_t, std::string> DepotKeySet;
+    extern std::unordered_set<AppId_t>              LibraryAppIdSet;
+    extern std::unordered_set<AppId_t>              StatsAppIdSet;
     extern std::unordered_map<AppId_t, uint64_t>    AccessTokenSet;
     extern std::unordered_set<AppId_t>              PinnedApps;
     extern std::unordered_map<uint64_t, ManifestOverride> ManifestOverrides;
@@ -51,6 +53,9 @@ namespace LuaLoader::Internal {
         // Records that `id` was contributed by `currentFile`. Bumps the
         // ref-count and flags it as a pending addition the first time.
         void recordDepot(AppId_t id);
+        void recordLibraryApp(AppId_t id);
+        void recordStatsApp(AppId_t id);
+        void recordStatSteamId(AppId_t id, uint64_t steamId);
     };
 
     // Active session pointer, set by ParseFile, cleared at end-of-scope.
@@ -59,7 +64,12 @@ namespace LuaLoader::Internal {
 
     // ── Shared cross-file state ───────────────────────────────────────────
     extern std::unordered_map<std::string, std::unordered_set<AppId_t>> g_fileDepots;
+    extern std::unordered_map<std::string, std::unordered_set<AppId_t>> g_fileLibraryApps;
+    extern std::unordered_map<std::string, std::unordered_set<AppId_t>> g_fileStatsApps;
+    extern std::unordered_map<std::string, std::unordered_map<AppId_t, uint64_t>> g_fileStatSteamIds;
     extern std::unordered_map<AppId_t, uint32_t> g_depotRefCount;
+    extern std::unordered_map<AppId_t, uint32_t> g_libraryRefCount;
+    extern std::unordered_map<AppId_t, uint32_t> g_statsRefCount;
     extern std::vector<AppId_t> g_pendingRemovals;
     extern std::vector<AppId_t> g_pendingAdditions;
     extern std::string g_eticketUrl;  // set via seteticketurl() Lua binding

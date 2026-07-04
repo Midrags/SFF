@@ -101,7 +101,7 @@ Hooks `IPCProcessMessage` and resolves `GetPipeClient` — both via pure byte-pa
 Steam uses an internal IPC bus to route messages between its client service and the UI process.  The hook intercepts `IPCProcessMessage`, inspects the command code, and dispatches it to any registered LumaCore handlers.  Currently the following handlers are active:
 
 - `GetSteamID` — returns a spoofed SteamID (see CmdUser below)
-- `GetAppOwnershipTicketExtendedData` — produces a synthetic AppTicket for apps in the Lua config
+- `GetAppOwnershipTicketExtendedData` — returns a validated ownership ticket for apps in the Lua config
 
 All other messages pass through unmodified.
 
@@ -115,7 +115,7 @@ Handles the `GetSteamID` and `GetAppOwnershipTicketExtendedData` IPC commands.
 
 **GetSteamID**: returns the SteamID configured in `lumacore.toml` under `[user] steam_id`.  For Denuvo-protected titles, which embed the owning SteamID in the AppTicket and validate it at runtime, LumaCore uses `GetDynamicOwnerSteamID`.  That function searches `Steam\userdata\` directories for an account that has local app data for the requested game and returns that account's ID.  This avoids hardcoding a single SteamID for users who run multiple accounts.
 
-**GetAppOwnershipTicketExtendedData**: builds a synthetic AppTicket and ETicket for apps listed in the active `.lua` config.  The ticket includes the SteamID resolved above, the app's package ID read from the Lua script, and a minimal set of ownership flags.
+**GetAppOwnershipTicketExtendedData**: serves a cached or forged AppTicket for apps listed in the active `.lua` config. LumaCore rejects stale tickets when the embedded app ID does not match the requested app. Steam Stub auto routes prefer an app-7 forged target ticket and log non-app-7 target tickets as fallback-only so they cannot look like the working path. `CmdUser` is the single owner for `IClientUser` ticket replies and writes Steam's fixed reply shape: reply tag, signed ticket total-size return value, fixed `pTicket(cbMaxTicket)` slot, `piAppId`, `piSteamId`, `piSignature`, and `pcbSignature`.
 
 ---
 
@@ -131,7 +131,7 @@ Hooks `ConfigStoreGetBinary` to intercept Steam's license decryption config read
 
 When Steam needs a decryption key for an app license, it calls `ConfigStoreGetBinary` to fetch the encrypted blob. The hook checks the Lua config for a matching app and, if a key is available, writes it to the output buffer. Falls through to the original when no key is known.
 
-Caches app tickets read from the Windows registry under `HKEY_CURRENT_USER\Software\Valve\Steam\Apps\` for use by the AppTicket forge pipeline.
+Caches app tickets read from Steam's config store or the Windows registry under `HKEY_CURRENT_USER\Software\Valve\Steam\Apps\` for use by the AppTicket forge pipeline. Source tickets are validated against the active SteamID and their own standard app ID before they can be used for a target app.
 
 ---
 
@@ -171,7 +171,7 @@ Registers runtime ticket-spoofing IPC handlers through IPCBus's existing dispatc
 
 Instead of installing its own `IPCProcessMessage` hook (which would collide with IPCBus), IpcDispatch converts a pre/post handler model into `IpcHandlerEntry` slots that IPCBus dispatches from its own hook. Handlers are registered at startup from per-interface registration functions and keyed on the same `funcHash` values resolved by `IpcLoader`.
 
-The dispatch layer handles response buffer modification for `GetSteamID`, `GetAppOwnershipTicketExtendedData`, `RequestEncryptedAppTicket`, `GetEncryptedAppTicket`, `GetAppID`, and `GetAPICallResult`. All other messages pass through unmodified.
+The dispatch layer handles small utility post-processing such as `GetAppID`. Fixed-layout `IClientUser` replies (`GetSteamID`, `GetAppOwnershipTicketExtendedData`, `RequestEncryptedAppTicket`, `GetEncryptedAppTicket`) and `GetAPICallResult` callback rewrites are owned by `CmdUser` so duplicate pre/post adapters cannot shadow the validated response writers.
 
 ---
 
@@ -185,9 +185,9 @@ When the Lua config calls `setEticket()` or `seteticketurl()`, the fetcher issue
 
 ### OnlineFixInject (`hooks/client/OnlineFixInject.cpp`)
 
-Detours `CreateProcessW` and `CreateProcessAsUserW` to inject `LumaCorePayload.dll` into game processes launched with `-onlinefix`.
+Detours `CreateProcessW` and `CreateProcessAsUserW` to inject `LumaCorePayload.dll` into game processes launched through the 480 route.
 
-When Steam spawns a game process, the hook checks the command line for the `-onlinefix` flag. If present, it creates the process suspended, allocates remote memory for the payload DLL path, queues an APC to call `LoadLibraryW`, and resumes the thread. LumaCorePayload then handles EOS bridge / lobby redirection for online-fix multiplayer.
+When Steam spawns a manual `-onlinefix` game process, the CreateProcess hook claims the queued executable, creates the process suspended, loads the payload DLL, and resumes the thread. LumaCorePayload then handles EOS bridge / lobby redirection for online-fix multiplayer. Steam Stub auto launches do not use this payload path.
 
 ---
 
@@ -201,6 +201,8 @@ Default URL chain (HTTPS first, HTTP as last resort):
 1. `https://manifest.opensteamtool.com/{gid}`
 2. `https://manifest.steam.run/api/manifest/{gid}`
 3. `http://gmrc.wudrm.com/manifest/{gid}`
+
+The first built-in provider is fetched with its required compatibility User-Agent internally. Custom URLs and the other fallback providers keep LumaCore's normal runtime HTTP User-Agent.
 
 ---
 
@@ -238,27 +240,31 @@ Hooks `BBuildAndAsyncSendFrame` and `RecvPkt`.
 Steam communicates with the Steam Network (CM servers) using a protobuf-over-TCP framing.  PacketRouter intercepts outgoing and incoming packet frames and replaces the content of specific message types:
 
 - `FamilyGroupsClient.NotifyRunningApps` — replaces the running-app list so family-sharing session checks on the CM side see the correct owner rather than the borrower account.
-- `Player.GetUserStats` — rewrites the SteamID in the stats request so achievements are loaded from the account configured in the Lua `setStat` call.
+- `Player.GetUserStats` and `ClientGetUserStats` — rewrite stats requests for Lua stats roots so achievements can load from LumaCore's stats SteamID pool.
 
 Packet replacement uses a fixed-size ring-buffer pool to avoid heap allocation on the hot path.
 
 Lua interface:
 
 ```lua
-setStat(1234567, "76561198028121353")  -- load stats from this SteamID for app 1234567
+setStat(1234567)  -- manually mark app 1234567 as stats-managed
+setStat(1234567, "76561198028121353")  -- optional advanced override
 ```
 
-If no `setStat` is provided for an app, the fallback SteamID defined in `entry.h` (`ONLINE_FIX_APP_ID`) is used.
+Numeric Lua filenames already mark that app as a stats root, so `Steam\config\stplug-in\1234567.lua` enables stats and achievements for app 1234567 without any `setStat` line. Body `addappid(...)` entries stay on the package, depot-key, ownership, and manifest paths only.
+
+When no SteamID override is provided, LumaCore tries the built-in stats SteamID pool and remembers the first response that returns useful schema, stat, or achievement data.
 
 ---
 
 ### PackagePatch (`hooks/PackagePatch.cpp`)
 
-Hooks `LoadPackage`, `CheckAppOwnership`, and `SendCallbackToPipe`.
+Hooks `LoadPackage`, `CheckAppOwnership`, `GetSubscribedApps`, and `SendCallbackToPipe`.
 
-- **`LoadPackage`** — intercepts the call for Package 0 (the free-to-play base package) and appends all app IDs from the active Lua config to its `AppIdVec`, so Steam considers them part of the base license.
-- **`CheckAppOwnership`** — patches the returned `CAppOwnershipInfo` struct for apps present in the Lua config so they show as owned, released, and playable.  If the app is genuinely owned it is marked as such and excluded from future patching.
-- **`SendCallbackToPipe`** — intercepts `AppLicensesChanged` callbacks and forces `m_bReloadAll = true` so Steam fully refreshes its license state after an ownership injection.
+- **`LoadPackage`**: intercepts the call for Package 0 (the free-to-play base package) and appends all app IDs from the active Lua config to its `AppIdVec`, so Steam considers them part of the base license.
+- **`CheckAppOwnership`**: patches the returned `CAppOwnershipInfo` struct for apps present in the Lua config so they show as owned, released, and playable.  If the app is genuinely owned it is marked as such and excluded from future patching. This hook only answers ownership now; license refresh is handled by the normal package-change path.
+- **`GetSubscribedApps`**: publishes only numeric Lua filename app IDs to Steam's library subscription query. Body `addappid(...)` IDs stay in the package, ownership, depot-key, and manifest paths so Steam doesn't try to build library cards for DLC or depot-only IDs.
+- **`SendCallbackToPipe`**: intercepts `AppLicensesChanged` callbacks and forces `m_bReloadAll = true` so Steam fully refreshes its license state after package changes.
 
 ---
 
@@ -266,19 +272,22 @@ Hooks `LoadPackage`, `CheckAppOwnership`, and `SendCallbackToPipe`.
 
 Detours `OptedInMask` and `RequiresLegacyCDKey` against `steamclient64.dll`.
 
-- **`OptedInMask`** — when the OnlineFix CGameID rewrite is in flight, the controller layer asks for appid 480 (Spacewar) and gets the empty mask back. The detour swaps the query back to the real appid so controllers stay live under `-onlinefix`.
+- **`OptedInMask`**: manual 480 route launches and dedicated Steam Stub auto launches swap controller-mask requests from 480 to the real appid. SteamStub auto keeps Steam's process tracking on 480 while game-facing controller identity resolves to the target app.
 - **`RequiresLegacyCDKey`** — Steam asks the wrapper for a CD key on a small set of pre-2010 titles when ownership crosses certain code paths. For Lua-tracked appids the user has no real key, so the detour answers `false` and the prompt never fires. Without this hook those games refuse to launch.
 
-DLC ownership / install / cloud / license-update / subscribed-app / ownership-ticket queries (`BIsDlcEnabled`, `IsAppDlcInstalled`, `IsCloudEnabledForApp`, `BUpdateLicenses`, `GetSubscribedApps`, `BUpdateAppOwnershipTicket`) are intentionally not detoured here. Steam already returns the right answer for Lua-tracked appids through the existing `CheckAppOwnership` patch, so detouring those is redundant and risks stack corruption on x64 fastcall when an argument count or type is even slightly off. The patterns for those six still ride in the per-build TOML, so future code that needs their addresses can resolve them without changing the publisher or the cache layout.
+DLC ownership / install / cloud / license-update / ownership-ticket queries (`BIsDlcEnabled`, `IsAppDlcInstalled`, `IsCloudEnabledForApp`, `BUpdateLicenses`, `BUpdateAppOwnershipTicket`) are intentionally not detoured here. Steam already returns the right answer for Lua-tracked appids through the existing `CheckAppOwnership` patch, so detouring those is redundant and risks stack corruption on x64 fastcall when an argument count or type is even slightly off. The patterns for those still ride in the per-build TOML, so future code that needs their addresses can resolve them without changing the publisher or the cache layout.
 
 ---
 
 ### RuntimeCapture (`hooks/capture/RuntimeCapture.cpp`)
 
-VEH-based captures and hooks used by the `-onlinefix` game-launch path.
+VEH-based captures and hooks used by game-launch routing.
 
-- Arms a one-shot int3 on `CUser_SpawnProcess`.  When Steam is about to launch a game, the VEH fires, checks whether `-onlinefix` is present in the launch command, and if so records the real app ID for the session.  The original byte is restored and execution continues.
-- Hooks `BuildSpawnEnvBlock` (via string XRef, since this function is only called at launch — not at startup — making string-based resolution safe here) to patch `SteamOverlayGameId` and `SteamAppId` environment variables so overlays and stats bind to the correct app.
+- Arms a one-shot int3 on `CUser_SpawnProcess`.  When Steam is about to launch a game, the VEH fires and checks whether the launch should use a route. Manual `-onlinefix` still opts into the 480 route.
+- Before selecting a route, validates the registry `AppTicket` against the active SteamID and target app ID. Known Steam Stub apps try to replace fallback target tickets with an app-7 forged target ticket before launch. If app 7 is missing, LumaCore keeps an existing target-valid fallback instead of deleting it, but it logs that fallback clearly and does not write the unsigned minimal ticket for those known wrappers.
+- Known Steam Stub apps with an OK ticket preflight use the dedicated `steamstub-auto` route: LumaCore rewrites only the launch `pGameID` from the real appid to 480, keeps CGameID/`SteamGameId` on 480 for Steam process tracking, patches only `SteamOverlayGameId` to the real appid, and resolves the real app internally for tickets/stats/achievements. If the ticket preflight fails, LumaCore logs `steamstub-ticket-failed`.
+- Hooks `BuildSpawnEnvBlock` (via string XRef, since this function is only called at launch and not startup). Manual `-onlinefix` keeps the old overlay patch. Dedicated SteamStub auto keeps CGameID on 480 and patches only the overlay appid to the real app.
+- SteamStub auto launch identity must not change again until logs verify the ownership-ticket reply shape: `IPC_REPLY_TAG`, fixed `pTicket` slot, signed total-size return value, and `piSignature = piAppId + 4` for forged tickets.
 - Uses `GetAppDataFromAppInfo` captures from `SteamCapture` to resolve game names for rich-presence labelling.
 
 ---
@@ -287,7 +296,7 @@ VEH-based captures and hooks used by the `-onlinefix` game-launch path.
 
 Patches `CMsgClientPersonaState` protobuf messages intercepted by PacketRouter.
 
-When an online-fix game is running, Steam's presence broadcasts the SpaceWar app ID (480) rather than the real game ID.  `RichPresence::HandleRecv` rewrites the `game_played_app_id` field to the real app ID resolved by RuntimeCapture, so friends see the correct game name in their friend list.
+Manual online-fix sessions can rewrite the local presence from 480 to the real app so friends see the intended game name. Dedicated SteamStub auto suppresses real-app rich presence and `GamesPlayed` names so Steam process tracking remains 480-only.
 
 ---
 
@@ -361,10 +370,11 @@ Maps a process name to an appId for match-by-exe when the process environment bl
 ### Stats and achievements
 
 ```lua
-setStat(1234567, "76561198028121353")
+setStat(1234567)
+setStat(1234567, "76561198028121353")  -- optional advanced override
 ```
 
-Instructs PacketRouter to load achievement and stats data from the given SteamID for app 1234567.
+Numeric Lua filenames auto-enable stats and achievements for the filename app ID, so `1234567.lua` normally needs no stats line at all. Use `setStat(appId)` only for manual or non-filename cases. The two-argument form stays supported for old configs that need a specific SteamID, but normal configs should let LumaCore use its built-in stats SteamID pool.
 
 ### Manifest and key fetching
 
@@ -455,3 +465,18 @@ When enabled, logs are written to `Steam\lumacore\` alongside `LumaCore.dll`.  E
 The `pattern\` subdirectory next to these logs holds the cached `<sha>.toml` files the runtime fetcher uses. Files there are safe to delete; they get re-fetched on next launch.
 
 Log level is controlled by `lumacore.toml` under `[log] level = "debug"` (default: `info`).
+
+### Known-good SteamStub markers
+
+Use these markers when reviewing a collected log folder. Match the route first, then check only the markers for that route.
+
+For a healthy dedicated Steam Stub auto launch, the log set should show:
+
+- `decryptionkey.log` / `main.log`: either user-local `apptickets\7` was read fresh, or a kept app-7 forged registry ticket is already present.
+- `main.log`: `ticketSource=app7-forged sourceAppId=7`, with a forged physical size of `182` for the target app.
+- `usrcmd.log`: the ownership-ticket reply uses `returnValue=178`, `piAppId=50`, and `piSignature=54` for the forged ticket.
+- `ipc.log`: the game pipe resolves to the real app internally while raw env stays `SteamAppId=480`, `SteamGameId=480`, and `SteamOverlayGameId=<real appid>`.
+- `pktrt.log`: SteamStub `GamesPlayed` stays on `480`, with no real-app leak or real game name.
+- `gameprocess_log.txt`: Steam tracks the game PID under `480`; the latest run should not contain early `exit code 54` or `exit code 86`.
+
+Manual `-onlinefix` is intentionally separate. It uses the older full online-fix route with payload injection and real game name exposure, so the log set should show `routeMode=manual-flag`, raw env `480/480/<real appid>`, GetAppID/packet rewrite proof, the manual packet patch, and a clean latest exit instead of SteamStub-only GamesPlayed hiding.

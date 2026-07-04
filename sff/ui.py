@@ -1368,6 +1368,10 @@ class UI:
         if applist_ids is None:
             print("This OS is not supported for this action.")
             return MainReturnCode.LOOP_NO_PROMPT
+        from sff.lua.update_pins import discover_games
+        _auto_update_blocked = {
+            g["app_id"] for g in discover_games(self.steam_path) if not g["allow_update"]
+        }
         steam_libs = get_steam_libs(self.steam_path)
         lua_manager = LuaManager(self.os_type)
         provider = self._steam_provider()
@@ -1409,6 +1413,9 @@ class UI:
                 in_backup = str(acf.id) in lua_manager.named_ids
                 if not in_backup:
                     print(Fore.YELLOW + f"Skipping {acf.name} — no saved .lua (run Download Games first)" + Style.RESET_ALL)
+                    continue
+                if str(acf.id) in _auto_update_blocked:
+                    print(Fore.LIGHTBLACK_EX + f"Skipping {acf.name} (auto-update disabled)" + Style.RESET_ALL)
                     continue
                 print(
                     Fore.YELLOW + f"\nUpdating manifests for {acf.name}...\n" + Style.RESET_ALL
@@ -1488,6 +1495,8 @@ class UI:
                     continue
                 if stem in excluded_set:
                     print(Fore.LIGHTBLACK_EX + f"Skipping {stem}.lua (excluded from updates)" + Style.RESET_ALL)
+                    continue
+                if stem in _auto_update_blocked:
                     continue
                 if int(stem) in explored_ids:
                     continue

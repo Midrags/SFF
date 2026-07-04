@@ -1304,8 +1304,8 @@ class WebBridge(QObject):
 
         Flow:
           1. Resolve parent app info from Steam, pull every depot whose
-             `dlcappid` matches the DLC appid. That gives us the depot
-             list and per-depot public manifest GID.
+             `dlcappid` matches the DLC appid. If Steam exposes the DLC as
+             appid-only, append the appid line and stop there.
           2. For each depot, fetch the depot key from the bundled key
              database (same one oureveryday uses for the full game flow).
              Skip any depot whose key isn't on file.
@@ -1388,59 +1388,66 @@ class WebBridge(QObject):
                         gid = str(pub.get("gid") or "")
                 dlc_depots.append((depot_id, gid))
 
-            if not dlc_depots:
-                return (False, f"No depots tagged with dlcappid={dlc_appid} on the parent")
-
-            # Step 2: bundled depot keys
-            self.download_progress.emit(_json.dumps({
-                "app_id": dlc_appid, "status": "Loading depot keys", "progress": 25
-            }))
             keys_dict = {}
-            try:
-                local_db = _Path(__file__).parent.parent / "lua" / "fallback_depotkeys.json"
-                if local_db.exists():
-                    keys_dict = _json.loads(local_db.read_text(encoding="utf-8"))
-            except Exception as e:
-                logger.debug("download_dlc_oureveryday: key db load failed: %s", e)
+            if dlc_depots:
+                # Step 2: bundled depot keys
+                self.download_progress.emit(_json.dumps({
+                    "app_id": dlc_appid, "status": "Loading depot keys", "progress": 25
+                }))
+                try:
+                    local_db = _Path(__file__).parent.parent / "lua" / "fallback_depotkeys.json"
+                    if local_db.exists():
+                        keys_dict = _json.loads(local_db.read_text(encoding="utf-8"))
+                except Exception as e:
+                    logger.debug("download_dlc_oureveryday: key db load failed: %s", e)
 
-            # Step 3: fetch manifests through the standard cascade
-            self.download_progress.emit(_json.dumps({
-                "app_id": dlc_appid, "status": "Downloading DLC manifests", "progress": 50
-            }))
-            downloader = ManifestDownloader(provider, _Path(steam_path))
             cdn = None
-            try:
-                cdn = downloader.get_cdn_client()
-            except Exception as e:
-                logger.debug("download_dlc_oureveryday: cdn client failed: %s", e)
-
+            downloader = None
             saved = 0
             new_lines = []
-            for depot_id, gid in dlc_depots:
-                key = keys_dict.get(depot_id)
-                if not key:
-                    logger.debug("download_dlc_oureveryday: no bundled key for depot %s", depot_id)
-                    continue
-                if not gid:
-                    # No public manifest GID listed. Still add the key line
-                    # so LumaCore can decrypt anything Steam later resolves
-                    # for that depot.
-                    new_lines.append(f'addappid({depot_id}, 1, "{key}")')
-                    continue
+            if dlc_depots:
+                # Step 3: fetch manifests through the standard cascade
+                self.download_progress.emit(_json.dumps({
+                    "app_id": dlc_appid, "status": "Downloading DLC manifests", "progress": 50
+                }))
+                downloader = ManifestDownloader(provider, _Path(steam_path))
                 try:
-                    raw = downloader.download_single_manifest(
-                        depot_id, gid, cdn_client=cdn, app_id=str(parent_appid),
-                    )
+                    cdn = downloader.get_cdn_client()
                 except Exception as e:
-                    logger.debug("download_dlc_oureveryday: depot %s fetch raised: %s", depot_id, e)
-                    raw = None
-                if raw:
+                    logger.debug("download_dlc_oureveryday: cdn client failed: %s", e)
+
+                for depot_id, gid in dlc_depots:
+                    key = keys_dict.get(depot_id)
+                    if not key:
+                        logger.debug("download_dlc_oureveryday: no bundled key for depot %s", depot_id)
+                        continue
+                    if not gid:
+                        # No public manifest GID listed. Still add the key line
+                        # so LumaCore can decrypt anything Steam later resolves
+                        # for that depot.
+                        new_lines.append(f'addappid({depot_id}, 1, "{key}")')
+                        continue
                     try:
-                        if downloader._write_manifest_to_depotcache(raw, depot_id, gid, decrypt=False, dec_key=key):
-                            saved += 1
+                        raw = downloader.download_single_manifest(
+                            depot_id, gid, cdn_client=cdn, app_id=str(parent_appid),
+                        )
                     except Exception as e:
-                        logger.debug("download_dlc_oureveryday: write %s_%s failed: %s", depot_id, gid, e)
-                new_lines.append(f'addappid({depot_id}, 1, "{key}")')
+                        logger.debug("download_dlc_oureveryday: depot %s fetch raised: %s", depot_id, e)
+                        raw = None
+                    if raw:
+                        try:
+                            if downloader._write_manifest_to_depotcache(raw, depot_id, gid, decrypt=False, dec_key=key):
+                                saved += 1
+                        except Exception as e:
+                            logger.debug("download_dlc_oureveryday: write %s_%s failed: %s", depot_id, gid, e)
+                    new_lines.append(f'addappid({depot_id}, 1, "{key}")')
+            else:
+                self.download_progress.emit(_json.dumps({
+                    "app_id": dlc_appid,
+                    "status": "DLC is appid-only; updating parent lua",
+                    "progress": 70,
+                    "info": True,
+                }))
 
             # Always announce the DLC appid as owned even if no depots had
             # keys — the appid alone is enough for LumaCore to mark the
@@ -1536,11 +1543,15 @@ class WebBridge(QObject):
             self.download_progress.emit(_json.dumps({
                 "app_id": dlc_appid, "status": "Complete", "progress": 100
             }))
-            msg = (
-                f"DLC {dlc_appid} added to {parent_appid}.lua "
-                f"({saved} manifest(s) saved, {appended} key line(s) appended, "
-                f"ACF patched with {len(dlc_depots)} DLC depot(s))"
-            )
+            if dlc_depots:
+                msg = (
+                    f"DLC {dlc_appid} added to {parent_appid}.lua "
+                    f"({saved} manifest(s) saved, {appended} key line(s) appended, "
+                    f"ACF patched with {len(dlc_depots)} DLC depot(s))"
+                )
+            else:
+                state = "already present" if appended == 0 else "appid line appended"
+                msg = f"DLC {dlc_appid} added to {parent_appid}.lua ({state}; no separate depots)"
             return (True, msg)
 
         def _on_done(result):
@@ -2088,6 +2099,8 @@ class WebBridge(QObject):
                     result = non_game_actions[action]()
                     if result is MainReturnCode.EXIT:
                         return f"Action '{action}' is not supported on this platform or configuration."
+                    if action == "check_updates":
+                        return "__check_updates_done__"
                     return None
                 except Exception as e:
                     return str(e)
@@ -2143,6 +2156,9 @@ class WebBridge(QObject):
 
         def _on_done(error_msg):
             if error_msg == "__handled_no_toast__":
+                return
+            if error_msg == "__check_updates_done__":
+                self._emit_task_result("check_updates", True, "Update check finished.")
                 return
             if error_msg:
                 self._emit_task_result(action, False, str(error_msg))
@@ -3331,7 +3347,7 @@ class WebBridge(QObject):
             else:
                 from sff.linux.steam_process import kill_steam, start_steam
                 kill_steam()
-                result = start_steam()
+                result = start_steam(steam_path=self._steam_path)
                 if result == "SUCCESS":
                     return (True, "Steam restarted")
                 return (False, f"Steam start failed: {result}")
@@ -3704,6 +3720,39 @@ class WebBridge(QObject):
         """Returns the current SteaMidra version string."""
         from sff.strings import VERSION
         return VERSION
+
+    @pyqtSlot(str, result=str)
+    def app_update_check(self, _arg=""):
+        """Return the current GitHub update status for the Settings button."""
+        try:
+            from sff.strings import VERSION
+            from sff.updater import Updater
+            is_newer, release = Updater.update_available()
+            if release is None:
+                return json.dumps({
+                    "ok": False,
+                    "update_available": False,
+                    "current": VERSION,
+                    "latest": "",
+                    "message": "Could not fetch the latest release.",
+                })
+            latest = (release.get("tag_name") or "").strip()
+            return json.dumps({
+                "ok": True,
+                "update_available": bool(is_newer),
+                "current": VERSION,
+                "latest": latest,
+                "release_url": release.get("html_url") or "",
+            })
+        except Exception as exc:
+            logger.warning("app_update_check failed: %s", exc)
+            return json.dumps({
+                "ok": False,
+                "update_available": False,
+                "current": "",
+                "latest": "",
+                "message": str(exc),
+            })
 
     @pyqtSlot(str, result=str)
     def get_disk_usage(self, path):
@@ -5769,14 +5818,6 @@ class WebBridge(QObject):
 
                 import sys as _sys
                 _no_window = {"creationflags": 0x08000000} if _sys.platform == "win32" else {}
-                unique_locations = list({e["location"] for e in entries})
-                for _loc in unique_locations:
-                    subprocess.run(
-                        [_rclone_exe, "mkdir",
-                         _remote_dest.rstrip("/") + f"/SteaMidraAllSaves/{_loc}"],
-                        capture_output=True, stdin=subprocess.DEVNULL, timeout=30, **_no_window,
-                    )
-
                 def _backup_one_rclone(entry):
                     thread_log = []
                     ok = backup_save_location_rclone(
@@ -5814,7 +5855,7 @@ class WebBridge(QObject):
                 import threading
                 from concurrent.futures import ThreadPoolExecutor, as_completed
                 from sff.google_drive import (
-                    get_service, get_backup_root, is_authenticated, get_or_create_folder,
+                    get_service, get_backup_root, is_authenticated,
                 )
                 if not is_authenticated():
                     return (False, "Google Drive not connected. Use Connect button first.", [])
@@ -5827,7 +5868,9 @@ class WebBridge(QObject):
                 from pathlib import Path as _Path
                 valid_entries = []
                 for e in entries:
-                    if _Path(e["source_path"]).exists():
+                    sources = e.get("sources") if isinstance(e.get("sources"), list) else []
+                    paths = [s.get("source_path") for s in sources if isinstance(s, dict)] or [e.get("source_path")]
+                    if any(p and _Path(p).exists() for p in paths):
                         valid_entries.append(e)
                     else:
                         failed += 1
@@ -5836,10 +5879,6 @@ class WebBridge(QObject):
                         )
 
                 folder_cache = {}
-                for loc in {e["location"] for e in valid_entries}:
-                    loc_id = get_or_create_folder(svc, loc, root_id)
-                    if loc_id:
-                        folder_cache[(loc, root_id)] = loc_id
                 lock = threading.Lock()
 
                 def _backup_one_gdrive(entry):
@@ -5960,14 +5999,20 @@ class WebBridge(QObject):
             game_entry = json.loads(game_entry_json)
             log_lines = []
             from sff.cloud_saves import restore_save_entry
-            ok = restore_save_entry(game_entry, log_func=log_lines.append)
-            msg = "Restore complete" if ok else "Restore failed — check log"
-            return (ok, msg, log_lines)
+            result = restore_save_entry(game_entry, log_func=log_lines.append)
+            if isinstance(result, dict):
+                ok = bool(result.get("ok"))
+                msg = result.get("message") or ("Restore complete" if ok else "Restore failed")
+                return (ok, msg, log_lines, result.get("results", []))
+            ok = bool(result)
+            msg = "Restore complete" if ok else "Restore failed - check log"
+            return (ok, msg, log_lines, [])
 
         def _on_done(result):
             if isinstance(result, tuple):
-                ok, msg, log_lines = result
-                self._emit_task_result("restore_save_location", ok, msg, log="\n".join(log_lines))
+                ok, msg, log_lines = result[0], result[1], result[2]
+                results = result[3] if len(result) > 3 else []
+                self._emit_task_result("restore_save_location", ok, msg, log="\n".join(log_lines), results=results)
             else:
                 self._emit_task_result("restore_save_location", False, "Restore failed")
 

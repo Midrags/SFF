@@ -10,6 +10,7 @@
 #include "config/LuaLoader.h"
 
 #include <charconv>
+#include <cctype>
 #include <chrono>
 #include <map>
 #include <mutex>
@@ -86,6 +87,35 @@ namespace {
         return out;
     }
 
+    bool EqualsIgnoreCase(std::string_view a, std::string_view b) {
+        if (a.size() != b.size()) return false;
+        for (size_t i = 0; i < a.size(); ++i) {
+            unsigned char ac = static_cast<unsigned char>(a[i]);
+            unsigned char bc = static_cast<unsigned char>(b[i]);
+            if (std::tolower(ac) != std::tolower(bc)) return false;
+        }
+        return true;
+    }
+
+    std::string_view ExtractHost(std::string_view url) {
+        size_t begin = 0;
+        size_t scheme = url.find("://");
+        if (scheme != std::string_view::npos) begin = scheme + 3;
+        size_t end = url.find_first_of("/?#", begin);
+        std::string_view host = end == std::string_view::npos
+            ? url.substr(begin)
+            : url.substr(begin, end - begin);
+        size_t at = host.rfind('@');
+        if (at != std::string_view::npos) host.remove_prefix(at + 1);
+        size_t port = host.find(':');
+        if (port != std::string_view::npos) host = host.substr(0, port);
+        return host;
+    }
+
+    bool UsesProviderCompatAgent(std::string_view url) {
+        return EqualsIgnoreCase(ExtractHost(url), "manifest.opensteamtool.com");
+    }
+
     std::optional<uint64_t> RunOnce(uint64_t gid, uint32_t appId, uint32_t depotId) {
         // try the Lua fetch_manifest_code functions first since they
         // let the plugin serve codes without any network at all
@@ -124,7 +154,9 @@ namespace {
             LOG_MANIFESTCH_INFO("ManifestFetch: gid={} provider {}/{} GET {}",
                                 gid, i + 1, chain.size(), url);
 
-            auto resp = RuntimeHttp::Get(url);
+            auto resp = UsesProviderCompatAgent(url)
+                ? RuntimeHttp::Get(url, L"OpenSteamTool/1.0")
+                : RuntimeHttp::Get(url);
             if (resp.networkError) {
                 LOG_MANIFESTCH_WARN("ManifestFetch: gid={} provider {} net err '{}', "
                                     "trying next", gid, i + 1, resp.diagnostic);

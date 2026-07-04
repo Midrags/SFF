@@ -20,6 +20,8 @@ window.Store = (function() {
     var _activeGenre = '';
     var _blockNsfw = true;
     var _nsfwNameRe = /(hentai|futanari|furry|sex)/i;
+    var _active = false;
+    var _lastGames = [];
 
     function init() {
         if (_initialized) return;
@@ -146,6 +148,7 @@ window.Store = (function() {
 
         // Listen for search results
         Bridge.on('search_results', function(json) {
+            if (!_active) return;
             _hideLoading();
             try {
                 var data = JSON.parse(json);
@@ -183,6 +186,7 @@ window.Store = (function() {
 
     function onPageEnter() {
         init();
+        _active = true;
         _page = 1;
         Bridge.call('warm_store_metadata');
         Bridge.callWithCallback('get_setting', 'hide_store_images', function(val) {
@@ -197,6 +201,26 @@ window.Store = (function() {
             if (btn) btn.classList.toggle('active', _blockNsfw);
         });
         _fetchGames();
+    }
+
+    function onPageLeave() {
+        _active = false;
+        clearTimeout(_debounceTimer);
+        _debounceTimer = null;
+        _lastGames = [];
+        _releaseStoreImages();
+        var grid = document.getElementById('store-grid');
+        var list = document.getElementById('store-list');
+        var loading = document.getElementById('store-loading');
+        if (grid) {
+            grid.innerHTML = '';
+            grid.classList.add('hidden');
+        }
+        if (list) {
+            list.innerHTML = '';
+            list.classList.add('hidden');
+        }
+        if (loading) loading.classList.add('hidden');
     }
 
     function _fetchGames() {
@@ -219,26 +243,55 @@ window.Store = (function() {
         return _nsfwNameRe.test(name);
     }
 
+    function _releaseStoreImages() {
+        document.querySelectorAll('#store-grid img, #store-list img').forEach(function(img) {
+            img.onload = null;
+            img.onerror = null;
+            img.removeAttribute('src');
+        });
+    }
+
     function _renderGames(games) {
+        games = games || [];
         var grid = document.getElementById('store-grid');
         var list = document.getElementById('store-list');
         var pagination = document.getElementById('store-pagination');
 
+        _releaseStoreImages();
+        _lastGames = (games || []).slice(0);
         if (grid) grid.innerHTML = '';
         if (list) list.innerHTML = '';
 
         if (games.length === 0) {
-            if (grid) grid.innerHTML = '<div class="empty-state"><p>No games found. Try a different search.</p></div>';
+            var empty = '<div class="empty-state"><p>No games found. Try a different search.</p></div>';
+            if (_viewMode === 'list') {
+                if (list) list.innerHTML = empty;
+            } else {
+                if (grid) grid.innerHTML = empty;
+            }
             if (pagination) pagination.classList.add('hidden');
             return;
         }
 
-        games.forEach(function(game, index) {
-            if (grid) grid.appendChild(Components.createGameCard(game, { index: index }));
-            if (list) list.appendChild(Components.createGameListItem(game));
-        });
+        _renderCurrentView();
 
         if (pagination) pagination.classList.remove('hidden');
+    }
+
+    function _renderCurrentView() {
+        var grid = document.getElementById('store-grid');
+        var list = document.getElementById('store-list');
+        if (_viewMode === 'list') {
+            if (!list || list.children.length) return;
+            _lastGames.forEach(function(game) {
+                list.appendChild(Components.createGameListItem(game));
+            });
+            return;
+        }
+        if (!grid || grid.children.length) return;
+        _lastGames.forEach(function(game, index) {
+            grid.appendChild(Components.createGameCard(game, { index: index }));
+        });
     }
 
     function _updatePagination() {
@@ -258,6 +311,10 @@ window.Store = (function() {
         var viewGrid = document.getElementById('view-grid');
         var viewList = document.getElementById('view-list');
 
+        _releaseStoreImages();
+        if (grid) grid.innerHTML = '';
+        if (list) list.innerHTML = '';
+
         if (mode === 'grid') {
             if (grid) grid.classList.remove('hidden');
             if (list) list.classList.add('hidden');
@@ -269,12 +326,17 @@ window.Store = (function() {
             if (viewGrid) viewGrid.classList.remove('active');
             if (viewList) viewList.classList.add('active');
         }
+        _renderCurrentView();
     }
 
     function _showLoading() {
         var loading = document.getElementById('store-loading');
         var grid = document.getElementById('store-grid');
         var list = document.getElementById('store-list');
+        _lastGames = [];
+        _releaseStoreImages();
+        if (grid) grid.innerHTML = '';
+        if (list) list.innerHTML = '';
         if (loading) loading.classList.remove('hidden');
         if (grid) grid.classList.add('hidden');
         if (list) list.classList.add('hidden');
@@ -305,6 +367,7 @@ window.Store = (function() {
     return {
         init: init,
         onPageEnter: onPageEnter,
+        onPageLeave: onPageLeave,
         refresh: _fetchGames,
         onApiKeyAvailable: onApiKeyAvailable
     };

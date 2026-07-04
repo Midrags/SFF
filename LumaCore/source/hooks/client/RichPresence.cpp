@@ -4,6 +4,7 @@
 // See <https://www.gnu.org/licenses/> for the full license text.
 
 #include "hooks/client/RichPresence.h"
+#include "hooks/client/SteamStubAuto.h"
 #include "hooks/capture/RuntimeCapture.h"
 #include "config/LuaLoader.h"
 #include "runtime/Logger.h"
@@ -188,7 +189,8 @@ namespace RichPresence {
                 g_selfBodyLen = cbBody;
                 g_hasSelfTemplate = g_selfHdrLen != 0;
 
-                if (g_visibleApp != 0) {
+                if (!SteamStubAuto::IsActive()
+                    && g_visibleApp != 0) {
                     ApplyPresence(msg, self, g_visibleApp);
                     const uint32 sz = static_cast<uint32>(msg.ByteSizeLong());
                     if (sz <= outBufSize && msg.SerializeToArray(pOutBuf, static_cast<int>(outBufSize))) {
@@ -207,6 +209,10 @@ namespace RichPresence {
         }
         if (!LuaLoader::HasDepot(realAppId)) {
             LOG_MISCCH_TRACE("RichPresence: realAppId={} not in depot list, skip", realAppId);
+            return false;
+        }
+        if (SteamStubAuto::IsActive()) {
+            LOG_MISCCH_TRACE("RichPresence: steamstub-auto keeps persona on 480, skip");
             return false;
         }
 
@@ -278,6 +284,13 @@ namespace RichPresence {
                 msg.games_played(msg.games_played_size() - 1).game_id() & UINT32_MAX);
         }
 
+        if (SteamStubAuto::IsActive()) {
+            if (tailApp != 0 && tailApp != kOnlineFixAppId) {
+                LOG_MISCCH_INFO("RichPresence: steamstub-auto suppressed local persona appid={}", tailApp);
+            }
+            return;
+        }
+
         AppId_t next = 0;
         if (tailApp != 0 && tailApp != kOnlineFixAppId && LuaLoader::HasDepot(tailApp))
             next = tailApp;
@@ -301,6 +314,10 @@ namespace RichPresence {
             return;
 
         std::lock_guard<std::mutex> guard(g_lock);
+        if (SteamStubAuto::IsActive()) {
+            LOG_MISCCH_TRACE("RichPresence: steamstub-auto skipped rich presence upload");
+            return;
+        }
         if (g_visibleApp == 0)
             return;
 

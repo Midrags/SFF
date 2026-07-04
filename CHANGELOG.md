@@ -1,5 +1,52 @@
 # Changelog
 
+## 6.3.8
+
+### Bug fixes
+
+- Update All Games no longer prompts for a request code when automated sources fail. The manual CDN prompt is gone, the full automated cascade runs and reports failure silently, matching the parallel download path.
+- Update All Games now respects the Auto Update toggle. Games you unchecked in the Auto Update modal are skipped entirely, so their manifests stay at whatever version you pinned.
+- Removed the youxiou.com link from the fallback sources list.
+- Check for Updates in Settings now tells you when SteaMidra is already current instead of leaving the button spinning forever.
+- DLC Check can now add appid-only DLCs from the Oureveryday button. New DLCs without separate depot tags get written into the parent lua instead of throwing the old "no depots tagged" error.
+
+### Home page
+
+- The LumaCore notice checks the Steam folder before showing up. Missing installs and available updates get a clear callout, and current installs keep the Home tab clean.
+
+### Oureveryday / manifest download
+
+- The main request-code mirror now gets the tool user-agent it expects, and SteamRun JSON replies are parsed too. Oureveryday downloads and Update All Games stop skipping a working mirror because Cloudflare disliked the default HTTP client.
+
+### LumaCore library / login
+
+- Steam library refresh now publishes only numeric lua filename roots. Depot, DLC, and shared body IDs still unlock packages and manifests, but Steam no longer tries to render them as full library apps and hangs on login.
+- License refresh is back on the launch-safe path. Ownership checks answer ownership only, AppLicensesChanged asks Steam for a full reload, and the package-0 refresh loop is gone.
+
+### LumaCore achievements
+
+- Numeric lua filenames now auto-enable stats and achievements for that app. `setStat(appid)` is only needed for manual cases, and the old two-argument form still works when you need a specific SteamID.
+- Achievement fetching now tries LumaCore's SteamID pool and keeps the first useful schema or stat response. If every remote reply fails for a Lua-root app, Steam keeps the local schema instead of blanking the achievement page.
+
+### LumaCore manifest fetch
+
+- LumaCore's in-Steam manifest resolver now uses the primary provider's required compatibility user-agent for request codes. Steam downloads stop falling through to "no internet connection" when the provider has a valid code.
+
+### Linux
+
+- CachyOS setup no longer lets AppImage library paths break 7z with the readline symbol error. SLSsteam extraction tries the bundled Python extractor first, then retries system 7-Zip with a clean env.
+- Restart Steam also checks the Steam folder for manually copied SLSsteam libraries after the managed install paths, so manual recovery attempts are not ignored.
+
+### LumaCore launch fixes
+
+- Known Steam Stub games now use a dedicated 480 tracking route instead of borrowing the manual online-fix path. Steam sees 480, the game-facing overlay, ticket, and stats identity resolve to the real app, and manual `-onlinefix` keeps its full online-fix behavior.
+- SteamStub ownership tickets now prefer the app-7 source from Steam's user-local config store and keep the IPC reply layout Steam expects. Teardown no longer bounces between error 54 and 86 during launch.
+- LumaCore validates AppTicket SteamID and appid before serving it, so stale cross-app tickets get rejected instead of poisoning the next launch. Target-valid fallbacks stay in place until a better app-7 ticket is available.
+
+### Store / search
+
+- Store results only render the visible grid or list view, and cover images get cleared when you leave the tab. Visiting multiple pages in one session should stop ballooning RAM from hidden cover art.
+
 ## 6.3.7
 
 ### Bug fixes
@@ -17,6 +64,7 @@
 ### Cloud saves
 
 - Custom save paths from the Ludusavi manifest database (22k+ games) are now backed up alongside Steam userdata. Games like Lies of P that save outside the Steam remote folder are included.
+- All Save Locations now groups every save path for the same game into one backup and restores each recorded path together. Old Games-folder backups still show up, so older saves don't vanish after updating.
 
 ### Settings
 

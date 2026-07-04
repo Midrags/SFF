@@ -76,12 +76,12 @@
                 <p class="page-subtitle">Steam game setup and manifest tool</p>
             </div>
 
-            <div class="hint-banner platform-win" style="border-left-color:#5fa8ff;" data-tooltip="LumaCore is the LumaCore.dll + dwmapi.dll pair installed in your Steam folder. It is what makes Steam see your downloaded games and accept fake ownership for them.">
+            <div id="home-lumacore-alert" class="hint-banner platform-win hidden" style="border-left-color:#5fa8ff;" data-tooltip="SteaMidra checks your Steam folder and only shows this when LumaCore is missing or outdated.">
                 <svg class="hint-icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                 <div class="hint-text">
-                    <strong>LumaCore is required to add games and download them through SteaMidra.</strong>
-                    Run <em>Auto LC Setup</em> below if you have not already. Without LumaCore installed in your Steam folder, downloads and library entries silently fail.
-                    If <em>LC Online Fix</em> doesn't work for a game, try <em>Multiplayer Fix</em> instead.
+                    <strong id="home-lumacore-alert-title">LumaCore Installation Required</strong>
+                    <span id="home-lumacore-alert-body">Install LumaCore so Steam can see games added through SteaMidra.</span>
+                    <button id="home-lumacore-alert-action" class="hint-inline-btn" type="button">Auto LC Setup</button>
                 </div>
             </div>
 

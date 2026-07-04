@@ -1,4 +1,4 @@
-// LumaCore — Steam client hook layer for SteaMidra.
+// LumaCore - Steam client hook layer for SteaMidra.
 // Copyright (c) 2025-2026 Midrag (https://github.com/Midrags).
 // Distributed under the GNU General Public License v3 or later.
 // See <https://www.gnu.org/licenses/> for the full license text.
@@ -10,6 +10,8 @@
 #include "runtime/Logger.h"
 #include "hooks/capture/SteamCapture.h"
 #include "hooks/capture/RuntimeCapture.h"
+#include "hooks/client/SteamStubAuto.h"
+#include "hooks/client/SteamStubTicket.h"
 #include "PipeWatch.h"
 #include "AuthWindow.h"
 #include "AsyncTicketMap.h"
@@ -37,13 +39,11 @@ namespace {
 
     // File-local twin of the PackagePatch.cpp helper. Two copies live
     // file-local in the call sites (per project §13 small-surface rule)
-    // rather than sharing a header. Both translation units gate the rewrite
-    // on the same quad: OnlineFix session, pipe-scoped fine gate, payload
-    // size, and low-24 m_nGameID equal to the real appid.
+    // rather than sharing a header. Hidden-480 routes need this rewrite.
     static bool RewriteGameIdInCallback(int iCallback, void* pCallbackData,
                                         int cbCallbackData)
     {
-        AppId_t real = SteamCapture::OnlineFixRealAppId();
+        AppId_t real = SteamCapture::ActiveRouteRealAppId();
         if (real == 0 || real == kOnlineFixAppId) return false;
         if (cbCallbackData < static_cast<int>(sizeof(uint64_t))) return false;
         if (pCallbackData == nullptr) return false;
@@ -174,6 +174,40 @@ namespace CmdUser::SteamID {
 
 namespace CmdUser::Tickets {
 
+    static const char* OwnershipTicketSourceName(
+        bool steamStubTicket,
+        const Ticket::AppTicketInspection& inspection,
+        AppId_t ticketAppId)
+    {
+        if (steamStubTicket) {
+            if (SteamStubTicket::IsApp7ForgeForTarget(inspection, ticketAppId))
+                return "app7-forged";
+            if (inspection.status == Ticket::AppTicketStatus::OkForged
+                && inspection.forgedAppId == ticketAppId
+                && inspection.standardAppId != 0)
+                return "local-signed-source";
+            return "steamstub";
+        }
+
+        if (inspection.status == Ticket::AppTicketStatus::OkStandard)
+            return "registry-standard";
+        if (inspection.status == Ticket::AppTicketStatus::OkForged)
+            return "registry-forged";
+        return "registry-or-forge";
+    }
+
+    static AppId_t OwnershipTicketSourceAppId(
+        const Ticket::AppTicketInspection& inspection,
+        AppId_t ticketAppId)
+    {
+        if (inspection.status == Ticket::AppTicketStatus::OkForged
+            && inspection.standardAppId != 0)
+            return inspection.standardAppId;
+        if (inspection.status == Ticket::AppTicketStatus::OkStandard)
+            return ticketAppId;
+        return 0;
+    }
+
     // ▌ IPC-USER ▌ Handler: IClientUser::GetAppOwnershipTicketExtendedData
     void OnGetOwnershipTicketExtended(CSteamPipeClient* pipe, CUtlBuffer* pRead, CUtlBuffer* pWrite)
     {
@@ -187,49 +221,66 @@ namespace CmdUser::Tickets {
         const uint8_t* args = reqData + IPC_ARGS_OFFSET;
         const uint32 reqAppID   = *reinterpret_cast<const uint32*>(args);
         const int32  reqBufSize = *reinterpret_cast<const int32*>(args + 4);
-
-        LOG_USRCMD_INFO("\"handler\" \"GetAppOwnershipTicketExtendedData\" \"appId\" {} \"bufSize\" {}",
-                  reqAppID, reqBufSize);
-
-        std::vector<uint8_t> ticket = Ticket::GetAppOwnershipTicketFromRegistry(reqAppID);
-        if (ticket.empty() || ticket.size() < 4) {
-            LOG_USRCMD_WARN("\"handler\" \"GetAppOwnershipTicketExtendedData\" \"appId\" {} \"ticket-empty\" 1", reqAppID);
+        if (reqBufSize <= 0) {
+            LOG_USRCMD_WARN("\"handler\" \"GetAppOwnershipTicketExtendedData\" \"appId\" {} \"bufSize\" {} \"invalid-buffer\" 1",
+                            reqAppID, reqBufSize);
             return;
         }
 
+        AppId_t ticketAppID = reqAppID;
+        bool steamStubTicket = SteamStubTicket::ResolveRequest(pipe, reqAppID, ticketAppID);
+
+        LOG_USRCMD_INFO("\"handler\" \"GetAppOwnershipTicketExtendedData\" \"appId\" {} \"ticketAppId\" {} \"bufSize\" {} \"source\" \"{}\"",
+                  reqAppID, ticketAppID, reqBufSize,
+                  steamStubTicket ? "steamstub-forge-only" : "registry-or-forge");
+
+        Ticket::AppOwnershipTicket ownership{};
+        bool gotTicket = steamStubTicket
+            ? SteamStubTicket::GetForRoute(ticketAppID, ownership)
+            : Ticket::GetAppOwnershipTicket(ticketAppID, ownership);
+        if (!gotTicket || ownership.data.empty() || ownership.data.size() < 4) {
+            LOG_USRCMD_WARN("\"handler\" \"GetAppOwnershipTicketExtendedData\" \"appId\" {} \"ticketAppId\" {} \"ticket-empty\" 1",
+                            reqAppID, ticketAppID);
+            return;
+        }
+
+        const std::vector<uint8_t>& ticket = ownership.data;
         const uint32 ticketSize = static_cast<uint32>(ticket.size());
-        const uint32 sigOffset  = *reinterpret_cast<const uint32*>(ticket.data());
-
-        const uint32 totalSize = 1 + 4 + reqBufSize + 16;
-        if (static_cast<uint32>(pWrite->m_Put) < totalSize) {
-            LOG_USRCMD_WARN("\"handler\" \"GetAppOwnershipTicketExtendedData\" \"appId\" {} \"write-size\" {} < {}",
-                         reqAppID, pWrite->m_Put, totalSize);
-            return;
-        }
+        const uint32 returnValue = ownership.totalSize ? ownership.totalSize : ticketSize;
+        const uint32 totalSize = 1 + 4 + static_cast<uint32>(reqBufSize) + 16;
+        SteamCapture::EnsureBufferSize(pWrite, static_cast<int32>(totalSize));
 
         uint8_t* base = pWrite->Base();
 
         base[0] = IPC_REPLY_TAG;
-        memcpy(base + 1, &ticketSize, 4);
+        memcpy(base + 1, &returnValue, 4);
         const uint32 copySize = (ticketSize < static_cast<uint32>(reqBufSize))
                               ? ticketSize : static_cast<uint32>(reqBufSize);
         memcpy(base + 5, ticket.data(), copySize);
         if (copySize < static_cast<uint32>(reqBufSize))
             memset(base + 5 + copySize, 0, reqBufSize - copySize);
 
-        const uint32 piAppId      = 16;
-        const uint32 piSteamId    = 8;
-        const uint32 piSignature  = sigOffset;
-        const uint32 pcbSignature = 128;
+        const uint32 piAppId      = ownership.appIdOffset;
+        const uint32 piSteamId    = ownership.steamIdOffset;
+        const uint32 piSignature  = ownership.signatureOffset;
+        const uint32 pcbSignature = ownership.signatureSize;
         const uint32 outOff = 5 + reqBufSize;
         memcpy(base + outOff,      &piAppId,      4);
         memcpy(base + outOff + 4,  &piSteamId,    4);
         memcpy(base + outOff + 8,  &piSignature,  4);
         memcpy(base + outOff + 12, &pcbSignature, 4);
 
+        const Ticket::AppTicketInspection inspection =
+            Ticket::InspectAppTicket(ticket, ticketAppID, Ticket::GetActiveSteamID64());
+        const char* ticketSource =
+            OwnershipTicketSourceName(steamStubTicket, inspection, ticketAppID);
+        const AppId_t sourceAppId =
+            OwnershipTicketSourceAppId(inspection, ticketAppID);
         AppId_t appId = PipeWatch::ResolveAppId(pipe);
-        LOG_USRCMD_INFO("\"handler\" \"GetAppOwnershipTicketExtendedData\" \"appId\" {} \"size\" {} \"sigOffset\" {}",
-                  appId, ticketSize, sigOffset);
+        LOG_USRCMD_INFO("\"handler\" \"GetAppOwnershipTicketExtendedData\" \"appId\" {} \"requestAppId\" {} \"ticketAppId\" {} \"ticketSource\" \"{}\" \"sourceAppId\" {} \"physicalBytes\" {} \"returnValue\" {} \"cbMaxTicket\" {} \"piAppId\" {} \"piSteamId\" {} \"piSignature\" {} \"pcbSignature\" {} \"resolvedAppId\" {}",
+                  appId, reqAppID, ticketAppID, ticketSource, sourceAppId,
+                  ticketSize, returnValue, reqBufSize, piAppId, piSteamId,
+                  piSignature, pcbSignature, appId);
     }
 
     // ▌ IPC-USER ▌ Handler: IClientUser::RequestEncryptedAppTicket
@@ -289,18 +340,40 @@ namespace CmdUser::Tickets {
 namespace CmdUser::Utils {
 
     // ▌ IPC-UTILS ▌ Handler: IClientUtils::GetAppID
-    //  SpawnProcess rewrites pGameID to 480 for OnlineFix games,
-    //  so steamclient returns 480.  Restore the real app_id.
+    //  The game needs the real appid here. SteamStub auto hides from Steam in
+    //  the launch tracking path, not in this game-facing reply.
     void OnGetAppID(CSteamPipeClient* pipe, CUtlBuffer*, CUtlBuffer* pWrite)
     {
-        AppId_t realAppId = SteamCapture::ResolveAppId();
-        if (!realAppId || pWrite->m_Put < 5) return;
+        SteamCapture::OnlineFixRouteMode mode = SteamCapture::OnlineFixMode();
+        const uint32 pipeId = pipe ? pipe->m_hSteamPipe : 0;
+        const uint32 pid = pipe ? pipe->m_clientPID : 0;
 
+        if (!pWrite || pWrite->m_Put < 5) {
+            LOG_IPCRTR_WARN("IClientUtils::GetAppID legacy routeMode={} pipe=0x{:08X} pid={} writeSize={} action=skip-too-small",
+                            SteamStubAuto::IsActive() ? "steamstub-auto" : SteamCapture::OnlineFixRouteModeName(mode),
+                            pipeId, pid, pWrite ? pWrite->m_Put : 0);
+            return;
+        }
+
+        AppId_t realAppId = SteamStubAuto::IsActive()
+            ? SteamStubAuto::RealAppId()
+            : SteamCapture::ResolveAppId();
         AppId_t current = *reinterpret_cast<const AppId_t*>(pWrite->Base() + 1);
-        if (current == realAppId) return;
+        AppId_t finalAppId = current;
+        bool changed = false;
 
-        *reinterpret_cast<AppId_t*>(pWrite->Base() + 1) = realAppId;
-        LOG_USRCMD_INFO("\"handler\" \"GetAppID\" \"was\" {} \"now\" {}", current, realAppId);
+        if (realAppId
+            && current != realAppId) {
+            finalAppId = realAppId;
+            *reinterpret_cast<AppId_t*>(pWrite->Base() + 1) = finalAppId;
+            changed = true;
+        }
+
+        LOG_IPCRTR_INFO("IClientUtils::GetAppID legacy routeMode={} pipe=0x{:08X} pid={} current={} real={} final={} changed={}",
+                        SteamStubAuto::IsActive() ? "steamstub-auto" : SteamCapture::OnlineFixRouteModeName(mode),
+                        pipeId, pid, current, realAppId, finalAppId, changed);
+        if (changed)
+            LOG_USRCMD_INFO("\"handler\" \"GetAppID\" \"was\" {} \"now\" {}", current, finalAppId);
     }
 
     // ════════════════════════════════════════════════════════
@@ -330,7 +403,7 @@ namespace CmdUser::Utils {
     static bool OnAchievementStatsResult(
         HSteamPipe pipe, CUtlBuffer* pWrite, int iCallback, uint32_t cubCallback)
     {
-        if (SteamCapture::OnlineFixRealAppId() == 0) return false;
+        if (SteamCapture::ActiveRouteRealAppId() == 0) return false;
         if (SteamCapture::StatsScopePipe() != pipe) return false;
         if (cubCallback < sizeof(uint64_t)) return false;
         const int32 minTotal = static_cast<int32>(2 + sizeof(uint64_t));
@@ -458,5 +531,3 @@ namespace CmdUser {
         IPCBus::RegisterHandlers(g_UtilsEntries, std::size(g_UtilsEntries));
     }
 }
-
-

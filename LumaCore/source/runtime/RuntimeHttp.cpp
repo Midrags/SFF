@@ -21,6 +21,7 @@ namespace {
 
     constexpr std::size_t kBodyCap   = 8u * 1024u * 1024u;
     constexpr DWORD       kTimeoutMs = 12'000;
+    constexpr std::wstring_view kDefaultUserAgent = L"LumaCore-RuntimeHttp/1.0";
 
     std::wstring Utf8ToWide(std::string_view s) {
         if (s.empty()) return {};
@@ -88,7 +89,7 @@ namespace {
 
 namespace RuntimeHttp {
 
-Response Get(std::string_view url) {
+Response Get(std::string_view url, std::wstring_view userAgent) {
     Response r;
     Url parsed;
     if (!Parse(url, parsed)) {
@@ -96,7 +97,8 @@ Response Get(std::string_view url) {
         return r;
     }
 
-    WinHandle session(WinHttpOpen(L"LumaCore-RuntimeHttp/1.0",
+    std::wstring sessionUserAgent(userAgent.empty() ? kDefaultUserAgent : userAgent);
+    WinHandle session(WinHttpOpen(sessionUserAgent.c_str(),
                                   WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                   WINHTTP_NO_PROXY_NAME,
                                   WINHTTP_NO_PROXY_BYPASS, 0));

@@ -145,6 +145,7 @@ namespace CoreInit {
                 }
             }
             LOG_COREIN_INFO("\"stage\" \"Diversion\" \"act\" \"loaded\" \"path\" \"{}\"", DiversionPath);
+            HookStatus::SetDiversionState(true, "loaded");
             return true;
         }
 
@@ -196,6 +197,7 @@ namespace CoreInit {
             Logger::InitModules();
 
             LOG_COREIN_INFO("\"stage\" \"Bootstrap\" \"act\" \"start\" \"build\" \"{} {}\"", __DATE__, __TIME__);
+            HookStatus::SetStartupPhase("start");
 
             // Build id first so HookStatus has a value to surface even if the
             // diversion copy below fails.
@@ -255,9 +257,11 @@ namespace CoreInit {
             HookStatus::SetShas(pcResult.sha, puResult.sha);
             HookStatus::SetTomlAvailability("steamclient", pcResult.ok);
             HookStatus::SetTomlAvailability("steamui",     puResult.ok);
+            HookStatus::SetStartupPhase("patterns_loaded");
             HookStatus::WriteToDisk();
 
             // ── SteamUI::CoreHook() must be early to catch LoadModuleWithPath ──
+            HookStatus::SetStartupPhase("installing_hooks");
             SteamUI::CoreHook();
 
             std::vector<std::string> watchDirs = Settings::luaPaths;
@@ -277,6 +281,7 @@ namespace CoreInit {
 
             LumaCore::Attach();
             g_HooksInstalled.store(true);
+            HookStatus::SetStartupPhase("hooks_complete");
             HookStatus::WriteToDisk();
             LOG_COREIN_INFO("\"stage\" \"Bootstrap\" \"act\" \"complete\"");
             return 0;

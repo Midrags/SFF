@@ -5,14 +5,29 @@
 
 #include "TicketProvider.h"
 #include "CredentialStore.h"
+#include "Ticket.h"
 #include "config/LuaLoader.h"
-#include "hooks/client/DecryptionKeyHook.h"
 #include "Logger.h"
 
 namespace AppTicket {
 
     constexpr AppId_t kForgeSourceAppId = 7;
-    constexpr size_t kMinTicketSize = 16;
+
+    static void FillTicketMetadata(OwnershipTicket& out,
+                                   const Ticket::AppTicketInspection& inspection) {
+        out.steamIdOffset = Ticket::kAppTicketSteamIdOffset;
+        out.signatureSize = Ticket::kAppTicketSignatureSize;
+        if (inspection.status == Ticket::AppTicketStatus::OkForged) {
+            out.totalSize = static_cast<uint32>(out.data.size() - sizeof(AppId_t));
+            out.appIdOffset = inspection.forgedAppIdOffset;
+            out.signatureOffset = out.appIdOffset + sizeof(AppId_t);
+            return;
+        }
+
+        out.totalSize = static_cast<uint32>(out.data.size());
+        out.appIdOffset = Ticket::kAppTicketAppIdOffset;
+        out.signatureOffset = inspection.signatureOffset;
+    }
 
     std::vector<uint8_t> ReadTicketFromStore(AppId_t appId) {
         if (!LuaLoader::HasDepot(appId)) {
@@ -44,86 +59,53 @@ namespace AppTicket {
         return out;
     }
 
-    // Exploit steamdrmp's off-by-four ticket parsing vulnerability: locate any
-    // signed AppTicket in the Windows registry, clone the signed portion,
-    // inject the target AppId before the signature block, and append the
-    // original signature. steamdrmp reads the AppId from the cloned ticket
-    // by overflowing its four-byte parse buffer.
     static std::vector<uint8_t> ForgeFromSource(AppId_t sourceAppId, AppId_t targetAppId) {
-        (void)sourceAppId;
-
-        std::vector<uint8_t> source;
-        {
-            HKEY hApps = nullptr;
-            if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\Apps", 0,
-                              KEY_READ, &hApps) == ERROR_SUCCESS) {
-                char subName[32];
-                DWORD idx = 0;
-                while (true) {
-                    DWORD nameLen = sizeof(subName);
-                    if (RegEnumKeyExA(hApps, idx++, subName, &nameLen,
-                                      nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
-                        break;
-                    char* end = nullptr;
-                    unsigned long sid = strtoul(subName, &end, 10);
-                    if (!end || *end != '\0' || sid == 0) continue;
-                    if (static_cast<AppId_t>(sid) == targetAppId) continue;
-                    source = DecryptionKeyHook::GetCachedAppTicket(static_cast<AppId_t>(sid));
-                    if (!source.empty() && source.size() > 128) break;
-                    source.clear();
-                }
-                RegCloseKey(hApps);
-            }
-        }
-        if (source.size() <= 128) {
-            LOG_DEBUG("AppTicket::ForgeFromSource: target={} no signed source in registry", targetAppId);
-            return {};
-        }
-
-        // clone the signed portion, inject target app id before the sig
-        const size_t bodyLen = source.size() - 128;
-        std::vector<uint8_t> ticket;
-        ticket.reserve(source.size() + sizeof(AppId_t));
-        std::copy_n(source.begin(), bodyLen, std::back_inserter(ticket));
-        const uint8_t* idBytes = reinterpret_cast<const uint8_t*>(&targetAppId);
-        std::copy_n(idBytes, sizeof(AppId_t), std::back_inserter(ticket));
-        std::copy(source.begin() + bodyLen, source.end(), std::back_inserter(ticket));
-
-        LOG_INFO("AppTicket::ForgeFromSource: target={} source_app=7 physical={} signed_part={}",
-                 targetAppId, ticket.size(), source.size());
-        return ticket;
+        return Ticket::ForgeAppTicket(sourceAppId, targetAppId);
     }
 
     std::vector<uint8_t> ForgeFromApp7(AppId_t appId) {
         return ForgeFromSource(kForgeSourceAppId, appId);
     }
 
+    std::vector<uint8_t> ForgeFromBestSource(AppId_t appId, AppId_t& sourceAppId) {
+        return Ticket::ForgeAppTicketFromBestSource(appId, sourceAppId);
+    }
+
     bool GetTicket(AppId_t appId, OwnershipTicket& out, Source src) {
         out = {};
+        const uint64_t activeID = Ticket::GetActiveSteamID64();
 
         if (src == Source::CredentialOnly || src == Source::CredentialThenForge) {
             out.data = ReadTicketFromStore(appId);
-            if (!out.data.empty() && out.data.size() >= sizeof(uint32_t)) {
-                out.totalSize      = static_cast<uint32>(out.data.size());
-                out.appIdOffset    = 16;
-                out.steamIdOffset  = 8;
-                out.signatureOffset = *reinterpret_cast<const uint32*>(out.data.data());
-                out.signatureSize  = 128;
+            Ticket::AppTicketInspection inspection = Ticket::InspectAppTicket(out.data, appId, activeID);
+            if (Ticket::IsAppTicketStatusOk(inspection.status)) {
+                FillTicketMetadata(out, inspection);
                 return true;
+            }
+            if (!out.data.empty()) {
+                LOG_WARN("AppTicket::GetTicket: AppId={} rejecting cached ticket status={} bytes={} steamId=0x{:X} standardAppId={} forgedAppId={}",
+                         appId, Ticket::AppTicketStatusName(inspection.status),
+                         out.data.size(), inspection.steamId,
+                         inspection.standardAppId, inspection.forgedAppId);
             }
         }
 
         if (src == Source::CredentialOnly) return false;
 
-        out.data = ForgeFromApp7(appId);
+        AppId_t sourceAppId = 0;
+        out.data = ForgeFromBestSource(appId, sourceAppId);
         if (out.data.empty()) return false;
 
-        // set offsets in reverse — signature first, then appid, then total
-        out.signatureSize  = 128;
-        out.signatureOffset = (static_cast<uint32>(out.data.size()) - sizeof(AppId_t)) - 128 + sizeof(AppId_t);
-        out.appIdOffset    = out.signatureOffset - sizeof(AppId_t);
-        out.steamIdOffset  = 8;
-        out.totalSize      = static_cast<uint32>(out.data.size()) - sizeof(AppId_t);
+        Ticket::AppTicketInspection forgedInspection = Ticket::InspectAppTicket(out.data, appId, activeID);
+        if (!Ticket::IsAppTicketStatusOk(forgedInspection.status)) {
+            LOG_WARN("AppTicket::GetTicket: AppId={} rejecting forged ticket status={} bytes={} steamId=0x{:X} standardAppId={} forgedAppId={}",
+                     appId, Ticket::AppTicketStatusName(forgedInspection.status),
+                     out.data.size(), forgedInspection.steamId,
+                     forgedInspection.standardAppId, forgedInspection.forgedAppId);
+            out = {};
+            return false;
+        }
+        FillTicketMetadata(out, forgedInspection);
         return true;
     }
 
@@ -142,10 +124,16 @@ namespace AppTicket {
 
         // fall back to parsing the SteamID from the cached ticket
         std::vector<uint8_t> ticket = ReadTicketFromStore(appId);
-        if (ticket.size() >= kMinTicketSize) {
-            const uint64_t parsed = reinterpret_cast<const uint64_t*>(ticket.data())[1];
-            LOG_DEBUG("AppTicket::GetSpoofSteamID: AppId={} ticket-parse -> 0x{:X}", appId, parsed);
-            return parsed;
+        Ticket::AppTicketInspection inspection = Ticket::InspectAppTicket(ticket, appId, 0);
+        if (Ticket::IsAppTicketStatusOk(inspection.status)) {
+            LOG_DEBUG("AppTicket::GetSpoofSteamID: AppId={} ticket-parse -> 0x{:X}",
+                      appId, inspection.steamId);
+            return inspection.steamId;
+        }
+        if (!ticket.empty()) {
+            LOG_WARN("AppTicket::GetSpoofSteamID: AppId={} rejecting cached ticket status={} bytes={} standardAppId={} forgedAppId={}",
+                     appId, Ticket::AppTicketStatusName(inspection.status),
+                     ticket.size(), inspection.standardAppId, inspection.forgedAppId);
         }
         return 0;
     }

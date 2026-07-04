@@ -12,6 +12,11 @@
 namespace NetPacket::Handlers::OnlineFix {
 
 bool HandleSend(const uint8_t* pBody, uint32_t cbBody) {
+    AppId_t storedReal = SteamCapture::OnlineFixRealAppId();
+    SteamCapture::OnlineFixRouteMode routeMode = SteamCapture::OnlineFixMode();
+    if (routeMode == SteamCapture::OnlineFixRouteMode::None || storedReal == 0)
+        return false;
+
     CMsgClientGamesPlayed msg;
     if (!msg.ParseFromArray(pBody, cbBody)) {
         LOG_PKTRT_WARN("{{{{\"evt\":\"OnlineFix\",\"act\":\"send\",\"err\":\"parse-fail\"}}}}");
@@ -19,7 +24,6 @@ bool HandleSend(const uint8_t* pBody, uint32_t cbBody) {
     }
     LOG_PKTRT_DEBUG("{{\"evt\":\"OnlineFix\",\"act\":\"send\",\"original\":{}}}", msg.DebugString());
 
-    AppId_t storedReal = SteamCapture::ResolveAppId();
     bool sawAny480 = false;
     bool patched = false;
     for (int i = 0; i < msg.games_played_size(); ++i) {
@@ -28,7 +32,7 @@ bool HandleSend(const uint8_t* pBody, uint32_t cbBody) {
 
         if (appid == kOnlineFixAppId) {
             sawAny480 = true;
-            AppId_t realAppId = SteamCapture::ResolveAppId();
+            AppId_t realAppId = storedReal;
             if (!realAppId) {
                 LOG_PKTRT_WARN("{{{{\"evt\":\"OnlineFix\",\"act\":\"send\",\"err\":\"no-realid\"}}}}");
                 continue;
@@ -47,7 +51,8 @@ bool HandleSend(const uint8_t* pBody, uint32_t cbBody) {
             LOG_PKTRT_INFO("{{\"evt\":\"OnlineFix\",\"act\":\"patch\",\"was\":480,\"name\":\"{}\",\"appId\":{}}}",
                        name, realAppId);
         } else if (storedReal && appid == storedReal) {
-            LOG_PKTRT_WARN("{{\"evt\":\"OnlineFix\",\"act\":\"send\",\"warn\":\"leaked\",\"appId\":{}}}", appid);
+            LOG_PKTRT_WARN("{{\"evt\":\"OnlineFix\",\"act\":\"send\",\"warn\":\"leaked\",\"routeMode\":\"{}\",\"appId\":{}}}",
+                           SteamCapture::OnlineFixRouteModeName(routeMode), appid);
         }
     }
 

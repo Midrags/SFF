@@ -1,4 +1,4 @@
-// LumaCore — Steam client hook layer for SteaMidra.
+// LumaCore - Steam client hook layer for SteaMidra.
 // Copyright (c) 2025-2026 Midrag (https://github.com/Midrags).
 // Distributed under the GNU General Public License v3 or later.
 // See <https://www.gnu.org/licenses/> for the full license text.
@@ -13,8 +13,12 @@ namespace {
     void* g_configStoreObj = nullptr;
 
     static void CaptureStoreObj(void* pObject, EConfigStore storeType) {
-        if (pObject && !g_configStoreObj && storeType == k_EConfigStoreUserLocal)
+        if (pObject && !g_configStoreObj && storeType == k_EConfigStoreUserLocal) {
             g_configStoreObj = pObject;
+            LOG_DECRYPTIONKEYCH_INFO("captured user-local ConfigStore store={} object=0x{:X}",
+                                     static_cast<int32>(storeType),
+                                     reinterpret_cast<uint64_t>(pObject));
+        }
     }
 
     // intercept depot decryption key fetches. if steam asks for a key we
@@ -22,6 +26,9 @@ namespace {
     LM_HOOK(ConfigStoreGetBinary, int32, void* pObject, EConfigStore eConfigStore, const char* KeyName, char* Key, uint32 KeySize)
     {
         CaptureStoreObj(pObject, eConfigStore);
+
+        if (!KeyName)
+            return oConfigStoreGetBinary(pObject, eConfigStore, KeyName, Key, KeySize);
 
         const char* marker = strstr(KeyName, "\\DecryptionKey");
         if (!marker)
@@ -100,9 +107,8 @@ namespace DecryptionKeyHook {
             return ticket;
         }
 
-        // ConfigStore not available — fall back to raw registry read.
-        // this mirrors the original ForgeLocalAppOwnershipTicket source path
-        // (Spacewar app 7) but works for any appid cached by Steam's own stub.
+        // ConfigStore can miss early in boot. Registry is the backup for
+        // tickets Steam already wrote under the user.
         HKEY hKey;
         std::string regPath = "Software\\Valve\\Steam\\Apps\\" + std::to_string(appId);
         if (RegOpenKeyExA(HKEY_CURRENT_USER, regPath.c_str(), 0, KEY_READ, &hKey) == ERROR_SUCCESS) {

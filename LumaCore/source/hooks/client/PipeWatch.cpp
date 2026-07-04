@@ -7,6 +7,7 @@
 
 #include "AuthWindow.h"
 #include "ProcessExtension.h"
+#include "hooks/client/SteamStubAuto.h"
 #include "hooks/capture/SteamCapture.h"
 #include "runtime/Logger.h"
 #include "runtime/RemoteTools.h"
@@ -126,6 +127,14 @@ namespace {
         std::string steamClientPath;
         std::string steamApiPath;
         std::string eosSdkPath;
+    };
+
+    struct SteamEnvIds {
+        AppId_t steamAppId = k_uAppIdInvalid;
+        AppId_t steamGameId = k_uAppIdInvalid;
+        AppId_t steamOverlayGameId = k_uAppIdInvalid;
+        AppId_t selected = k_uAppIdInvalid;
+        std::string source;
     };
 
     PipeKey MakePipeKey(const CSteamPipeClient* pipe) {
@@ -372,7 +381,7 @@ namespace {
         return appId;
     }
 
-    std::optional<AppId_t> ReadSteamEnvAppId(uint32 pid) {
+    std::optional<SteamEnvIds> ReadSteamEnvAppIds(uint32 pid) {
         HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, FALSE, pid);
         if (!process) return std::nullopt;
 
@@ -380,9 +389,28 @@ namespace {
         CloseHandle(process);
         if (!env) return std::nullopt;
 
-        if (auto appId = AppIdFromEnvValue(*env, L"SteamOverlayGameId", true)) return appId;
-        if (auto appId = AppIdFromEnvValue(*env, L"SteamGameId", true)) return appId;
-        return AppIdFromEnvValue(*env, L"SteamAppId", false);
+        SteamEnvIds ids{};
+        if (auto appId = AppIdFromEnvValue(*env, L"SteamAppId", false))
+            ids.steamAppId = *appId;
+        if (auto appId = AppIdFromEnvValue(*env, L"SteamGameId", true))
+            ids.steamGameId = *appId;
+        if (auto appId = AppIdFromEnvValue(*env, L"SteamOverlayGameId", true))
+            ids.steamOverlayGameId = *appId;
+
+        if (ids.steamOverlayGameId != k_uAppIdInvalid) {
+            ids.selected = ids.steamOverlayGameId;
+            ids.source = "SteamOverlayGameId";
+        } else if (ids.steamGameId != k_uAppIdInvalid) {
+            ids.selected = ids.steamGameId;
+            ids.source = "SteamGameId";
+        } else if (ids.steamAppId != k_uAppIdInvalid) {
+            ids.selected = ids.steamAppId;
+            ids.source = "SteamAppId";
+        } else {
+            return std::nullopt;
+        }
+
+        return ids;
     }
 
     uint32 ReadHandshakePid(CUtlBuffer* read) {
@@ -410,10 +438,17 @@ namespace {
             snap.imageName = "steam.exe";
         }
         snap.steamProcess = IsSteamProcessName(snap.imageName);
-        if (auto envAppId = ReadSteamEnvAppId(pid)) {
-            snap.envAppId = *envAppId;
-            snap.appId = *envAppId;
-            snap.appIdSource = "env";
+        if (auto envIds = ReadSteamEnvAppIds(pid)) {
+            snap.envAppId = envIds->selected;
+            snap.envSteamAppId = envIds->steamAppId;
+            snap.envSteamGameId = envIds->steamGameId;
+            snap.envSteamOverlayGameId = envIds->steamOverlayGameId;
+            snap.appId = envIds->selected;
+            snap.appIdSource = envIds->source;
+            if (AppId_t routeAppId = SteamStubAuto::ResolveForImage(snap.imageName, snap.appId)) {
+                snap.appId = routeAppId;
+                snap.appIdSource = "steamstub-auto";
+            }
         } else {
             snap.appId = CurrentAppId();
             snap.appIdSource = "pipe";
@@ -452,12 +487,13 @@ namespace {
 namespace PipeWatch {
 
     std::string ProcessSnapshot::DebugString() const {
-        return std::format("pid={} created={} image={} appid={} source={} env={} steam={} game={} managed={} owned={} modules={} steamclient={} steamapi={} eos={} steamclient_path={} steamapi_path={} eos_path={}",
+        return std::format("pid={} created={} image={} appid={} source={} env={} rawSteamAppId={} rawSteamGameId={} rawSteamOverlayGameId={} steam={} game={} managed={} owned={} modules={} steamclient={} steamapi={} eos={} steamclient_path={} steamapi_path={} eos_path={}",
                            key.pid, key.creation,
                            imageName.empty() ? "-" : imageName,
                            appId,
                            appIdSource.empty() ? "-" : appIdSource,
                            envAppId,
+                           envSteamAppId, envSteamGameId, envSteamOverlayGameId,
                            steamProcess, likelyGame, luaManaged, ownedByAccount,
                            moduleCount, steamClientModule, steamApiModule, eosSdkModule,
                            steamClientPath.empty() ? "-" : steamClientPath,

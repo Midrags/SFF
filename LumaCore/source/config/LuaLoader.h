@@ -1,4 +1,4 @@
-// LumaCore — Steam client hook layer for SteaMidra.
+// LumaCore - Steam client hook layer for SteaMidra.
 // Copyright (c) 2025-2026 Midrag (https://github.com/Midrags).
 // Distributed under the GNU General Public License v3 or later.
 // See <https://www.gnu.org/licenses/> for the full license text.
@@ -6,6 +6,7 @@
 #ifndef LUALOADER_H
 #define LUALOADER_H
 
+#include <cstddef>
 #include <cstdint>
 #include "Steam/Types.h"
 #include <unordered_map>
@@ -15,13 +16,15 @@
 namespace LuaLoader {
     bool HasDepot(AppId_t appId);
     bool IsOwned(AppId_t appId);
+    bool IsStatsManagedApp(AppId_t appId);
     void MarkOwned(AppId_t appId);
     std::vector<AppId_t> GetAllDepotIds();
+    std::vector<AppId_t> GetLibraryAppIds();
     std::vector<uint8> GetDecryptionKey(AppId_t appId);
     uint64_t GetAccessToken(AppId_t appId);
     uint64_t GetStatSteamId(AppId_t appId);
     // Backend URL for on-demand eticket minting, set via seteticketurl() in Lua.
-    // Empty string means disabled — callers fall back to credential store.
+    // Empty string means disabled, callers fall back to credential store.
     const std::string& GetEticketUrl();
     void SetEticketUrl(std::string url);
 
@@ -32,7 +35,7 @@ namespace LuaLoader {
     // Check if an appid was force-marked as Denuvo via forcedenuvo() in Lua.
     bool IsForcedDenuvo(AppId_t appId);
     // Returns the full fallback pool of SteamIDs for achievement schema fetching.
-    // If setStat() was configured for appId, outCount=1 and returns pointer to that ID.
+    // If setStat(appId, steamId) override exists, outCount=1 and returns that ID.
     // Otherwise returns the built-in pool. PacketRouter tries each in order.
     const uint64_t* GetStatSteamIdPool(AppId_t appId, size_t& outCount);
     bool pinApp(AppId_t appId);

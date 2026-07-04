@@ -551,10 +551,19 @@ window.CloudSaves = (function() {
                 if (data.task === 'restore_save_location') {
                     var logEl2 = document.getElementById('all-saves-log-content');
                     var logDiv2 = document.getElementById('all-saves-log');
-                    if (logEl2 && data.log) { logEl2.textContent = data.log; }
+                    if (logEl2) {
+                        var restoreLog = data.log || '';
+                        if (data.results && data.results.length) {
+                            var detailLines = data.results.map(function(r) {
+                                return (r.ok ? '[OK] ' : '[FAIL] ') + (r.kind || r.location || 'save') + ': ' + (r.source_path || '') + ' - ' + (r.message || '');
+                            });
+                            restoreLog = restoreLog ? restoreLog + '\n' + detailLines.join('\n') : detailLines.join('\n');
+                        }
+                        if (restoreLog) logEl2.textContent = restoreLog;
+                    }
                     if (logDiv2) logDiv2.classList.remove('hidden');
                     if (data.success) {
-                        Components.showToast('success', 'Restore complete');
+                        Components.showToast('success', data.message || 'Restore complete');
                     } else {
                         Components.showToast('error', data.message || 'Restore failed');
                     }
@@ -732,6 +741,21 @@ window.CloudSaves = (function() {
 
     // ── All Save Locations helpers ────────────────────────────────
 
+    function _sourceKindLabel(source) {
+        var kind = (source && source.kind) || '';
+        var location = (source && source.location) || '';
+        if (kind === 'steam_userdata') return 'Steam userdata';
+        if (kind === 'ludusavi') return 'Ludusavi path';
+        if (kind === 'custom') return 'Custom path';
+        if (kind === 'emulator') return location || 'Emulator path';
+        return location || kind || 'Save path';
+    }
+
+    function _entrySources(entry) {
+        if (entry.sources && entry.sources.length) return entry.sources;
+        return [{ source_path: entry.source_path || '', kind: 'legacy', location: entry.location || '' }];
+    }
+
     function _scanAllSaveLocations() {
         var steamPath = document.getElementById('cloud-steam-path');
         var steam32 = document.getElementById('cloud-steam32');
@@ -750,9 +774,11 @@ window.CloudSaves = (function() {
         tbody.innerHTML = '';
         entries.forEach(function(entry, idx) {
             var tr = document.createElement('tr');
+            var sources = _entrySources(entry);
+            var locationText = sources.length > 1 ? (sources.length + ' locations') : _sourceKindLabel(sources[0]);
             tr.innerHTML =
                 '<td><input type="checkbox" class="all-saves-row-check" data-idx="' + idx + '" checked></td>' +
-                '<td>' + Components.escapeHtml(entry.location) + '</td>' +
+                '<td>' + Components.escapeHtml(locationText) + '</td>' +
                 '<td>' + Components.escapeHtml(entry.label) + '</td>' +
                 '<td>' + (entry.file_count || 0) + '</td>';
             tbody.appendChild(tr);
@@ -900,11 +926,15 @@ window.CloudSaves = (function() {
             return;
         }
         var entry = loc.games[gameIdx];
-        if (!entry.source_path) {
+        if (!entry.source_path && !(entry.sources && entry.sources.length)) {
             Components.showToast('warning', 'No source path in backup metadata — cannot restore');
             return;
         }
-        if (!confirm('Restore "' + (entry.game_name || entry.folder_name) + '" to:\n' + entry.source_path + '\n\nA safety backup will be created automatically.')) {
+        var restoreSources = _entrySources(entry);
+        var restorePaths = restoreSources.map(function(s) {
+            return '- ' + _sourceKindLabel(s) + ': ' + (s.source_path || '');
+        }).join('\n');
+        if (!confirm('Restore "' + (entry.game_name || entry.folder_name) + '" to:\n' + restorePaths + '\n\nA safety backup will be created automatically for every location.')) {
             return;
         }
         var restoreEntry = Object.assign({}, entry);

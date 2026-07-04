@@ -12,12 +12,9 @@
 
 // LicenseHooks owns two steamclient surfaces:
 //
-//   * OptedInMask         -> CSteamController opt-in mask. With the OnlineFix
-//                            CGameID rewrite in flight, the controller layer
-//                            asks for appid 480 and gets Spacewar's empty
-//                            mask back. The detour swaps the query back to
-//                            the real appid so controllers stay live under
-//                            -onlinefix.
+//   * OptedInMask         -> CSteamController opt-in mask. The game asks
+//                            through 480 on route launches, but controller
+//                            setup still belongs to the real app.
 //
 //   * RequiresLegacyCDKey -> Steam asks the wrapper for a CD key on a small
 //                            set of pre-2010 titles when ownership crosses
@@ -25,10 +22,10 @@
 //                            owner doesn't have a real key, so returning
 //                            false short-circuits the legacy-key prompt.
 //
-// DLC ownership / install / cloud / license-update / subscribed-app /
-// ownership-ticket queries (BIsDlcEnabled, IsAppDlcInstalled,
-// IsCloudEnabledForApp, BUpdateLicenses, GetSubscribedApps,
-// BUpdateAppOwnershipTicket) were intentionally NOT hooked here. Steam
+// DLC ownership / install / cloud / license-update / ownership-ticket
+// queries (BIsDlcEnabled, IsAppDlcInstalled, IsCloudEnabledForApp,
+// BUpdateLicenses, BUpdateAppOwnershipTicket) were intentionally NOT
+// hooked here. Steam
 // already returns the right answer for Lua-tracked appids through the
 // existing CheckAppOwnership patch, so installing detours on top of those
 // surfaces is redundant. Detouring them with hand-rolled signatures also
@@ -37,7 +34,7 @@
 // few minutes into a session and as cloud-save toggles flipping on for
 // every tracked game.
 //
-// The patterns for those six functions still ride in the per-build TOML
+// The patterns for those five functions still ride in the per-build TOML
 // (the analyzer keeps detecting them) so any future hook code that needs
 // them can resolve their addresses without changing the pattern publisher
 // or the cache layout.
@@ -45,13 +42,17 @@
 namespace {
 
     LM_HOOK(OptedInMask, __int64, void* pThis, unsigned int appId) {
-        AppId_t realAppId = SteamCapture::OnlineFixRealAppId();
+        AppId_t realAppId = SteamCapture::ActiveRouteRealAppId();
+        const char* routeName = SteamCapture::OnlineFixRouteIsSteamStubAuto()
+            ? "steamstub-auto"
+            : SteamCapture::OnlineFixRouteModeName(SteamCapture::OnlineFixMode());
         if (appId == kOnlineFixAppId && realAppId) {
-            LOG_MISC_INFO("OptedInMask: appid {} -> {}", appId, realAppId);
+            LOG_MISC_INFO("OptedInMask: routeMode={} appid {} -> {}",
+                          routeName, appId, realAppId);
             return oOptedInMask(pThis, realAppId);
         }
-        LOG_MISC_TRACE("OptedInMask: appid {} (realAppId={}, no redirect)",
-                       appId, realAppId);
+        LOG_MISC_TRACE("OptedInMask: routeMode={} appid {} (realAppId={}, no redirect)",
+                       routeName, appId, realAppId);
         return oOptedInMask(pThis, appId);
     }
 

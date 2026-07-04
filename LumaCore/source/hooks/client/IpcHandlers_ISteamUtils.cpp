@@ -5,35 +5,58 @@
 
 #include "hooks/client/IpcDispatch.h"
 #include "hooks/client/IpcMethodLoader.h"
+#include "hooks/client/SteamStubAuto.h"
 #include "hooks/capture/SteamCapture.h"
 #include "core/entry.h"
 #include "config/LuaLoader.h"
 #include "runtime/Logger.h"
+#include "Steam/Structs.h"
 
 namespace {
 
     using namespace SteamCapture;
 
     // ▌▌ IClientUtils::GetAppID
-    //  Returns the appid of the current game. For OnlineFix sessions where
-    //  SpawnProcess rewrote CGameID to 480 we redirect the reported appid
-    //  back to the real one so the game sees its own identity. For Lua-
-    //  tracked apps we leave the pipe-reported appid alone (the pipe always
-    //  reports correctly for first-party sessions).
+    //  Manual online-fix and SteamStub auto report the real app to the game.
+    //  SteamStub still keeps Steam-facing process tracking on 480 elsewhere.
     //  pRead: unused (no args).
-    //  pWrite: [0..3] = AppId_t return value.
+    //  pWrite: [0]=reply tag, [1..4]=AppId_t return value.
     void Post_GetAppID(CSteamPipeClient* pipe, CUtlBuffer* pRead, CUtlBuffer* pWrite) {
-        if (!pWrite || pWrite->m_Put < 4) return;
+        OnlineFixRouteMode mode = OnlineFixMode();
+        const bool steamStubRoute = SteamStubAuto::IsActive();
+        const char* routeName = steamStubRoute ? "steamstub-auto" : OnlineFixRouteModeName(mode);
+        const uint32 pipeId = pipe ? pipe->m_hSteamPipe : 0;
+        const uint32 pid = pipe ? pipe->m_clientPID : 0;
 
-        AppId_t reported = *reinterpret_cast<const AppId_t*>(pWrite->m_Memory.m_pMemory);
-        AppId_t real = OnlineFixRealAppId();
+        if (!pWrite || pWrite->m_Put < 5 || !pWrite->m_Memory.m_pMemory) {
+            LOG_IPCRTR_WARN("IClientUtils::GetAppID dispatch routeMode={} pipe=0x{:08X} pid={} writeSize={} action=skip-too-small",
+                            routeName,
+                            pipeId, pid, pWrite ? pWrite->m_Put : 0);
+            return;
+        }
 
-        if (reported == kOnlineFixAppId && real != 0 && real != kOnlineFixAppId) {
-            *reinterpret_cast<AppId_t*>(pWrite->m_Memory.m_pMemory) = real;
-            LOG_USRCMD_DEBUG("IClientUtils::GetAppID: {} -> {} (onlinefix)", reported, real);
+        uint8_t* base = pWrite->m_Memory.m_pMemory;
+        AppId_t reported = *reinterpret_cast<const AppId_t*>(base + 1);
+        AppId_t real = steamStubRoute ? SteamStubAuto::RealAppId() : OnlineFixRealAppId();
+        AppId_t finalAppId = reported;
+        bool changed = false;
+
+        if ((mode != OnlineFixRouteMode::None || steamStubRoute)
+            && reported == kOnlineFixAppId
+            && real != 0
+            && real != kOnlineFixAppId) {
+            finalAppId = real;
+            *reinterpret_cast<AppId_t*>(base + 1) = finalAppId;
+            changed = true;
+            LOG_USRCMD_INFO("IClientUtils::GetAppID: {} -> {} routeMode={}",
+                            reported, finalAppId, routeName);
         } else if (LuaLoader::HasDepot(reported)) {
             LOG_USRCMD_TRACE("IClientUtils::GetAppID: {} (Lua-tracked, passthrough)", reported);
         }
+
+        LOG_IPCRTR_INFO("IClientUtils::GetAppID dispatch routeMode={} pipe=0x{:08X} pid={} current={} real={} final={} changed={}",
+                        routeName,
+                        pipeId, pid, reported, real, finalAppId, changed);
     }
 
     // ▌▌ IClientUtils::GetAPICallResult
@@ -88,7 +111,8 @@ namespace IpcHandlers_ISteamUtils {
 
     void Register() {
         IpcDispatch::Register("IClientUtils", "GetAppID", nullptr, Post_GetAppID);
-        IpcDispatch::Register("IClientUtils", "GetAPICallResult", nullptr, Post_GetAPICallResult);
+        // CmdUser owns GetAPICallResult so encrypted-ticket and stats callback
+        // rewrites are not shadowed by this observability-only adapter.
     }
 
 }

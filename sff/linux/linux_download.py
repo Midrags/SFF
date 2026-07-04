@@ -347,7 +347,7 @@ def handle_linux_setup(steam_path: Path) -> None:
             steam_process.kill_steam()
             time.sleep(2)
             print("Starting Steam with SLSteam injection...")
-            result = steam_process.start_steam()
+            result = steam_process.start_steam(steam_path=steam_path)
             if result == "NEEDS_USER_PATH":
                 print(
                     Fore.YELLOW
