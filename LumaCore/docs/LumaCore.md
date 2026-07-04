@@ -61,20 +61,11 @@ The hook installer macros call `ByteSearch(module, "FunctionName")`, which consu
 
 There are no compiled-in `*Sigs[]` arrays anymore. The runtime pattern map is the single source of truth; the legacy `hooks/PatternDb.h` header is gone.
 
-### Pattern refresh and the analyzer
+### Pattern refresh
 
-`cleintcheck/steamclient_analyzer.py` is the maintainer-side tool that produces `<sha>.toml` files for the runtime fetcher.
+If Steam updates and LumaCore stops resolving hooks for the new client, downgrade Steam if possible and report the Steam update to the maintainer with the collected LumaCore logs.
 
-```
-cd cleintcheck
-python steamclient_analyzer.py "C:\Program Files (x86)\Steam\steamclient64.dll" \
-       --steamui "C:\Program Files (x86)\Steam\steamui.dll" \
-       --emit toml --out-dir PatternsUpdate
-```
-
-The script computes the SHA-256 of each DLL, locates every target function via a hybrid of string-XRef and byte-pattern matching, and writes `PatternsUpdate/steamclient/<sha>.toml` and `PatternsUpdate/steamui/<sha>.toml` ready for upload to the pattern repo. Pass `--no-canonical-overlay` to skip the merge pass.
-
-The runtime fetcher's own logs (`<Steam>\lumacore\misc.log`) note every overlay, cache, and network step so it's straightforward to triage a build that doesn't resolve cleanly.
+The runtime fetcher's own logs (`<Steam>\lumacore\misc.log`) note every overlay, cache, and network step so failed pattern resolution can be triaged from user logs.
 
 ---
 
@@ -413,25 +404,6 @@ steam_id = "76561198028121353"  # SteamID64 to spoof in GetSteamID responses
 ```
 
 All other settings use built-in defaults.
-
----
-
-## Pattern maintenance
-
-When a Steam client update lands and the new SHA-256 isn't in the pattern repo yet, generate a fresh `<sha>.toml` with the analyzer:
-
-```
-cd cleintcheck
-python steamclient_analyzer.py "C:\Program Files (x86)\Steam\steamclient64.dll" \
-       --steamui "C:\Program Files (x86)\Steam\steamui.dll" \
-       --emit toml --out-dir PatternsUpdate
-```
-
-Two files land under `PatternsUpdate\steamclient\` and `PatternsUpdate\steamui\` — upload both to the pattern repo, and LumaCore picks them up on the next launch (or immediately if the user drops the files into `<Steam>\lumacore\pattern\` themselves).
-
-See the **Pattern resolution** section above for the full details on the canonical-overlay merge, the FNV-1a section keys, and the source-priority chain.
-
----
 
 ## Logging
 
