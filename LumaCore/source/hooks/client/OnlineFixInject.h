@@ -15,5 +15,6 @@ namespace OnlineFixInject {
     void Uninstall();
 
     void QueueInjection(const char* exePath, AppId_t realAppId);
+    void RecordNoEos(uint32_t pid, const std::string& imageName, AppId_t realAppId);
     bool TryFallbackInject(uint32_t pid, const std::string& imageName, AppId_t realAppId);
 }

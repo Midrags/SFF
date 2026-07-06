@@ -733,9 +733,9 @@ namespace Ticket {
 
     // SpawnProcess preflight. Steam Stub wrappers read the registry early,
     // before IPC ticket hooks can help, so stale AppTicket blobs get fixed here.
-    TicketPreflightResult EnsureRegistryTicketsForApp(AppId_t appId) {
+    TicketPreflightResult EnsureRegistryTicketsForApp(AppId_t appId, bool forceSteamStub) {
         TicketPreflightResult result{};
-        result.knownSteamStub = IsKnownSteamDrmApp(appId);
+        result.knownSteamStub = IsKnownSteamDrmApp(appId) || forceSteamStub;
 
         const uint64_t activeID = GetActiveSteamID64();
         if (activeID == 0) {

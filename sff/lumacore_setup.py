@@ -20,6 +20,8 @@
 
 import logging
 import os
+import hashlib
+import json
 import shutil
 import subprocess
 import tempfile
@@ -158,6 +160,10 @@ _LC_RESET_FILES = (
     ("bin", "lcoverlay.dll"),
 )
 
+_PATTERN_REPO_RAW = "https://raw.githubusercontent.com/KoriaPolis/Steam-Auto-PT/pattern"
+_PATTERN_REPO_CDN = "https://cdn.jsdelivr.net/gh/KoriaPolis/Steam-Auto-PT@pattern"
+_PATTERN_REPO_GITFLIC = "https://gitflic.ru/api/project/midrags/steam-auto-pt/blob"
+
 
 def _progress(msg: str, callback: Optional[Callable[[str], None]]) -> None:
     logger.info(msg)
@@ -255,6 +261,123 @@ def _reset_lumacore_files(steam_path: Path, callback: Optional[Callable[[str], N
             except OSError as exc:
                 path_label = f"{subdir}/{name}" if subdir else name
                 _progress(f"Could not remove {path_label}: {exc}", callback)
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _stitch_gitflic_body(resp: httpx.Response) -> str:
+    try:
+        data = resp.json()
+    except (ValueError, json.JSONDecodeError):
+        return ""
+    lines = data.get("blobLines")
+    if not isinstance(lines, list):
+        return ""
+    body: list[str] = []
+    for item in lines:
+        if isinstance(item, dict):
+            line = item.get("body", "")
+            body.append(line if isinstance(line, str) else "")
+    return "\n".join(body)
+
+
+def _looks_like_pattern_toml(body: str, subdir: str) -> bool:
+    if len(body) < 16 or len(body) > 1024 * 1024:
+        return False
+    if subdir == "steamclientipc":
+        return "interface_id" in body and "funcHash" in body
+    return "rva" in body and "sig" in body
+
+
+def _download_pattern_body(subdir: str, sha: str) -> Optional[str]:
+    rel = f"{subdir}/{sha}.toml" if subdir else f"{sha}.toml"
+    urls = (
+        f"{_PATTERN_REPO_RAW}/{rel}",
+        f"{_PATTERN_REPO_CDN}/{rel}",
+    )
+    primary_not_found = False
+    headers = {"Cache-Control": "no-cache", "Accept": "text/plain,*/*"}
+    for url in urls:
+        if primary_not_found:
+            break
+        try:
+            resp = httpx.get(url, headers=headers, timeout=10, follow_redirects=True)
+            if resp.status_code == 200 and _looks_like_pattern_toml(resp.text, subdir):
+                return resp.text
+            if resp.status_code == 404:
+                primary_not_found = True
+        except httpx.HTTPError:
+            continue
+
+    if primary_not_found:
+        return None
+
+    try:
+        resp = httpx.get(
+            _PATTERN_REPO_GITFLIC,
+            params={"branch": "pattern", "file": rel},
+            headers={"Accept": "application/json"},
+            timeout=10,
+            follow_redirects=True,
+        )
+        if resp.status_code == 200:
+            body = _stitch_gitflic_body(resp)
+            if _looks_like_pattern_toml(body, subdir):
+                return body
+    except httpx.HTTPError:
+        return None
+    return None
+
+
+def _write_pattern_cache(target: Path, body: str) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(target.name + ".tmp")
+    tmp.write_text(body, encoding="utf-8", newline="\n")
+    tmp.replace(target)
+
+
+def _prewarm_lumacore_patterns(
+    steam_path: Path,
+    callback: Optional[Callable[[str], None]],
+) -> None:
+    """Best-effort cache fill for offline Steam launches after install."""
+    jobs = (
+        ("steamclient", steam_path / "steamclient64.dll", ""),
+        ("steamui", steam_path / "steamui.dll", ""),
+        ("steamclient IPC", steam_path / "steamclient64.dll", "steamclientipc"),
+    )
+    cache_root = steam_path / "lumacore" / "pattern"
+    for label, binary_path, subdir in jobs:
+        if not binary_path.is_file():
+            _progress(f"Pattern cache skipped for {label}: Steam DLL not found.", callback)
+            continue
+        try:
+            sha = _sha256_file(binary_path)
+        except OSError as exc:
+            _progress(f"Pattern cache skipped for {label}: {exc}", callback)
+            continue
+
+        target_dir = cache_root / subdir if subdir else cache_root
+        target = target_dir / f"{sha}.toml"
+        if target.is_file() and target.stat().st_size > 0:
+            _progress(f"Pattern cache ready for {label}.", callback)
+            continue
+
+        body = _download_pattern_body(subdir, sha)
+        if body is None:
+            _progress(f"Pattern cache prewarm missed for {label}.", callback)
+            continue
+        try:
+            _write_pattern_cache(target, body)
+            _progress(f"Pattern cache prewarmed for {label}.", callback)
+        except OSError as exc:
+            _progress(f"Pattern cache write failed for {label}: {exc}", callback)
 
 
 def _fetch_release_asset(variant: str = "release") -> Optional[tuple[str, str]]:
@@ -457,6 +580,13 @@ def install_lumacore(
             msg = f"DLL missing after install: {dll}"
             logger.error(msg)
             return False, msg
+
+    _progress("Checking LumaCore pattern cache...", progress_callback)
+    try:
+        _prewarm_lumacore_patterns(steam_path, progress_callback)
+    except Exception as exc:
+        logger.warning("LumaCore pattern cache prewarm failed: %s", exc)
+        _progress(f"Pattern cache prewarm failed: {exc}", progress_callback)
 
     msg = "LumaCore installed."
     _progress(msg, progress_callback)

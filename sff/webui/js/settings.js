@@ -407,12 +407,16 @@ window.Settings = (function() {
         var numbers = {
             'setting-parallel-workers': 'parallel_downloads',
             'setting-backup-retention': 'backup_retention',
+            'setting-live-log-lines': 'live_log_max_lines',
         };
         Object.keys(numbers).forEach(function(id) {
             var el = document.getElementById(id);
             if (el) {
                 el.addEventListener('change', function() {
                     Bridge.call('set_setting', numbers[id], this.value);
+                    if (id === 'setting-live-log-lines') {
+                        window.dispatchEvent(new CustomEvent('live-log-limit-changed', { detail: this.value }));
+                    }
                 });
             }
         });
@@ -522,6 +526,7 @@ window.Settings = (function() {
                 // Number inputs
                 _setInputVal('setting-parallel-workers', settings.parallel_downloads || '5');
                 _setInputVal('setting-backup-retention', settings.backup_retention || '4');
+                _setInputVal('setting-live-log-lines', settings.live_log_max_lines || '100');
                 _setInputVal('setting-manifest-excludes', settings.manifest_update_excludes || '');
                 // Auto Backup
                 _setInputVal('setting-autobackup-interval', settings.save_watcher_interval || '10');

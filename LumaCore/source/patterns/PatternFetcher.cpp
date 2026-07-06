@@ -1,4 +1,4 @@
-// LumaCore — Steam client hook layer for SteaMidra.
+// LumaCore - Steam client hook layer for SteaMidra.
 // Copyright (c) 2025-2026 Midrag (https://github.com/Midrags).
 // Distributed under the GNU General Public License v3 or later.
 // See <https://www.gnu.org/licenses/> for the full license text.
@@ -7,6 +7,7 @@
 
 #include "core/entry.h"
 #include "runtime/Logger.h"
+#include "runtime/HookStatus.h"
 #include "patterns/PatternSig.h"
 #include "config/Settings.h"
 
@@ -416,6 +417,63 @@ namespace PatternFetcher {
             } catch (...) {
                 err = "toml parse: unknown";
                 return false;
+            }
+            return !out.empty();
+        }
+
+        bool FillBuiltInSteamclientCurrent(std::string_view sha, EntryMap& out) {
+            if (sha != "3f864358fcf50e49e0a8c6bb8e1bf175e381f5628e4cd4997a59ca5e3976afe5") {
+                return false;
+            }
+
+            struct BuiltInEntry {
+                const char* name;
+                uint32_t rva;
+                const char* sig;
+            };
+            static constexpr BuiltInEntry kEntries[] = {
+                {"BBuildAndAsyncSendFrame", 0xD1DE90, "48 8B C4 55 48 8D 68 A1 48 81 EC C0 00 00 00 48 89 70 18"},
+                {"BIsDlcEnabled", 0x71C050, "40 55 53 56 57 41 56 48 8B EC 48 83 EC ?? 4D 8B"},
+                {"BUpdateAppOwnershipTicket", 0x725130, "48 89 5C 24 20 55 56 57 48 8B EC 48 83 EC ?? 41 0F B6 F8 8B"},
+                {"BUpdateLicenses", 0xCEB00, "40 53 48 83 EC ?? 48 8B 05 ?? ?? ?? ?? 48 8B D9 C7 44 24 38"},
+                {"BuildDepotDependency", 0x4B13A0, "48 8B C4 4C 89 48 20 89 50 10 48 89 48 08 55 57"},
+                {"BuildSpawnEnvBlock", 0x9D4660, "4C 89 4C 24 20 4C 89 44 24 18 48 89 54 24 10 48 89 4C 24 08 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 B8 FE FF FF"},
+                {"CUtlBufferEnsureCapacity", 0xCD2480, "48 89 5C 24 08 57 48 83 EC 30 48 8B D9 8D 7A 01"},
+                {"CUtlMemoryGrow", 0xE8280, "48 89 5C 24 10 57 48 83 EC 30 8B FA 48 8B D9 8B 51 08 8B 49 10 8D 04 39"},
+                {"CheckAppOwnership", 0x9BBA20, "48 8B C4 89 50 10 48 89 48 08 55 53"},
+                {"CloseAppCloud", 0xA1E450, "48 89 5C 24 10 57 48 83 EC 30 8B FA 48 8B D9 85 D2"},
+                {"ConfigStoreGetBinary", 0x5B3870, "40 53 55 56 57 48 83 EC 38 48 63 FA 49 8B E9"},
+                {"GetAppDataFromAppInfo", 0x4A2D70, "40 53 55 56 57 41 56 41 57 48 81 EC 78 01 00 00"},
+                {"GetAppIDForCurrentPipe", 0x967600, "8B 81 30 0D 00 00 83 F8 FF 74 ??"},
+                {"GetDecryptionKey", 0x9BEBC0, "40 53 55 56 57 48 81 EC 48 01 00 00 8B FA 48 8B"},
+                {"GetOrAddAppData", 0x4A40B0, "48 83 EC 58 48 8B 05 ?? ?? ?? ?? 48 89 5C 24 68 48 89 6C 24 70"},
+                {"GetPackageInfo", 0x4A4350, "48 89 5C 24 18 89 54 24 10 55 56 57 48 83 EC 20 44 8B 49 20"},
+                {"GetPipeClient", 0x878500, "85 D2 74 ?? 44 0F B7 CA 44 3B 49 60"},
+                {"GetSubscribedApps", 0x77CBA0, "48 89 5C 24 10 55 56 57 41 56 41 57 48 8B EC 48 83 EC ?? 41 0F B6 D9 41"},
+                {"IPCProcessMessage", 0x877B10, "48 89 5C 24 18 48 89 6C 24 20 57 41 54 41 55 41 56 41 57 48 83 EC 30"},
+                {"IsAppDlcInstalled", 0x820B40, "48 89 5C 24 20 55 56 57 48 8B EC 48 83 EC ?? 41 8B F8 8B DA 48 8B F1 BA 40 00 00 00 41 B8 20 00 00 00 48 8D 4D D0 45 33 C9 E8 ?? ?? ?? ?? B2 01 48 8D 4D D0 E8 ?? ?? ?? ?? B2 11 48 8D 4D D0 E8 ?? ?? ?? ?? 8B 46 08 48 8D 55 20 41 B8 04 00 00 00 89 45 20 48 8D 4D D0 E8 ?? ?? ?? ?? 41 B8 04 00 00 00 C7 45 20 71 8C"},
+                {"IsCloudEnabledForApp", 0x8217E0, "40 53 56 57 48 83 EC ?? 8B DA 48 8B F9 BA 40 00 00 00 48 8D 4C 24 30 45 33 C9 41 B8 20 00 00 00 E8 ?? ?? ?? ?? B2 01 48 8D 4C 24 30 E8 ?? ?? ?? ?? B2 0D 48 8D 4C 24 30 E8 ?? ?? ?? ?? 8B 47 08 48 8D 94 24 90 00 00 00 41 B8 04 00 00 00 89 84 24 90 00 00 00 48 8D 4C 24 30 E8 ?? ?? ?? ?? 41 B8 04 00 00 00 C7 84 24 90 00 00 00 90 27 A7 88"},
+                {"IsUserSubscribedAppInTicket", 0x825400, "40 53 56 57 48 83 EC ?? 41 8B F8 48 8B DA 48 8B F1 BA 40 00 00 00 41 B8 20 00 00 00 48 8D 4C 24 30 45 33 C9 E8 ?? ?? ?? ?? B2 01 48 8D 4C 24 30 E8 ?? ?? ?? ?? B2 01 48 8D 4C 24 30 E8 ?? ?? ?? ?? 8B 46 08 48 8D 94 24 80 00 00 00 41 B8 04 00 00 00 89 84 24 80 00 00 00 48 8D 4C 24 30 E8 ?? ?? ?? ?? 41 B8 04 00 00 00 C7 84 24 80 00 00 00 78 18 45 93"},
+                {"KeyValues_FindOrCreateKey", 0xD01190, "48 8B C4 57 48 81 EC 50 04 00 00"},
+                {"KeyValues_ReadAsBinary", 0xD03F40, "48 8B C4 44 88 48 20 55 48 8D 68 A9"},
+                {"LoadDepotDecryptionKey", 0x5B3870, "40 53 55 56 57 48 83 EC 38 48 63 FA 49 8B E9"},
+                {"LoadPackage", 0x49F5C0, "44 89 44 24 18 53 55 56 57 41 55"},
+                {"MarkLicenseAsChanged", 0x9C8510, "48 89 5C 24 20 89 54 24 10 55 56 57 48 83 EC 20"},
+                {"OptedInMask", 0x5DD630, "89 54 24 10 55 53 56 57 41 54 41 55 48 8D AC 24 38 FF FF FF"},
+                {"PchMsgNameFromEMsg", 0xCFF050, "48 89 5C 24 08 57 48 83 EC 20 8B D9 E8 ?? ?? ?? ??"},
+                {"ProcessPendingLicenseUpdates", 0x9B2010, "41 56 41 57 48 83 EC 38 83 B9 98 24 00 00 00"},
+                {"RecvPkt", 0x596500, "48 8B C4 55 48 8D A8 98 F6 FF FF"},
+                {"RequiresLegacyCDKey", 0x83C490, "48 89 5C 24 18 55 56 57 48 83 EC ?? 49 8B E8 ?? ?? ?? ?? F1 BA 40 00 00 00 41 B8 20 00 00 00 48 8D 4C 24 30 45 33 C9 E8 ?? ?? ?? ?? B2 01 48 8D 4C 24 30 E8 ?? ?? ?? ?? B2 01 48 8D"},
+                {"SendCallbackToPipe", 0x96CB50, "48 89 5C 24 08 57 48 83 EC 30 41 8B D9 41 8B F8"},
+                {"SpawnProcess", 0x9D5CA0, "48 89 5C 24 18 4C 89 4C 24 20 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 30 FF FF FF"},
+            };
+
+            out.clear();
+            for (const auto& builtIn : kEntries) {
+                Entry e{};
+                e.rva = builtIn.rva;
+                e.sig = builtIn.sig;
+                out.emplace(builtIn.name, std::move(e));
             }
             return !out.empty();
         }
@@ -1007,11 +1065,16 @@ namespace PatternFetcher {
 
     PatternResult LoadFor(HMODULE moduleHandle, const char* subdir) {
         PatternResult r{};
+        r.source = "none";
+        r.networkResult = "not-run";
         if (!moduleHandle || !subdir) return r;
 
         std::wstring diskPathW = ResolveModuleDiskPathW(moduleHandle);
         if (diskPathW.empty()) {
             LOG_MISC_DEBUG("PatternFetcher::LoadFor {}: GetModuleFileName failed", subdir);
+            r.error = "module-path-failed";
+            HookStatus::RecordPatternStatus(subdir, r.source, r.cacheHit,
+                                            r.networkResult, r.error);
             return r;
         }
 
@@ -1019,6 +1082,9 @@ namespace PatternFetcher {
         if (r.sha.size() != 64) {
             LOG_MISC_DEBUG("PatternFetcher::LoadFor {}: sha256 failed", subdir);
             r.sha.clear();
+            r.error = "sha256-failed";
+            HookStatus::RecordPatternStatus(subdir, r.source, r.cacheHit,
+                                            r.networkResult, r.error);
             return r;
         }
 
@@ -1032,15 +1098,40 @@ namespace PatternFetcher {
             if (ReadCache(r.sha, cmap, cerr)) {
                 r.entries = ToPublicEntries(cmap);
                 r.ok      = true;
+                r.source  = "cache";
+                r.cacheHit = true;
+                r.networkResult = "skipped-cache";
                 InstallEntries(subdir, std::move(cmap));
                 StoreResult(moduleHandle, r);
+                HookStatus::RecordPatternStatus(subdir, r.source, r.cacheHit,
+                                                r.networkResult, r.error);
                 LOG_MISC_DEBUG("PatternFetcher: {} cache hit sha={} entries={}",
                                subdir, r.sha, static_cast<unsigned>(r.entries.size()));
                 return r;
             }
+            r.error = cerr;
             LOG_MISC_DEBUG("PatternFetcher: {} cache miss/open-failed ({}); "
                            "falling through to network",
                            subdir, cerr);
+        }
+
+        {
+            EntryMap builtIn;
+            if (IEquals(subdir, "steamclient")
+             && FillBuiltInSteamclientCurrent(r.sha, builtIn))
+            {
+                r.entries = ToPublicEntries(builtIn);
+                r.ok      = true;
+                r.source  = "built-in";
+                r.networkResult = "skipped-built-in";
+                InstallEntries(subdir, std::move(builtIn));
+                StoreResult(moduleHandle, r);
+                HookStatus::RecordPatternStatus(subdir, r.source, r.cacheHit,
+                                                r.networkResult, r.error);
+                LOG_MISC_WARN("PatternFetcher: {} built-in fallback sha={} entries={}",
+                              subdir, r.sha, static_cast<unsigned>(r.entries.size()));
+                return r;
+            }
         }
 
         // ── Network fallback per requirements 2.2, 2.5, 2.6 ───────────────
@@ -1049,9 +1140,14 @@ namespace PatternFetcher {
         Source      src   = Source::None;
         std::string fetchErr;
         if (!FetchFromNetwork(subdir, r.sha, body, map, src, fetchErr)) {
+            r.networkResult = "failed";
+            if (!r.error.empty()) r.error += "; ";
+            r.error += fetchErr;
             LOG_MISC_DEBUG("PatternFetcher::LoadFor {}: {} (sha={})",
                            subdir, fetchErr, r.sha);
             StoreResult(moduleHandle, r);  // ok=false, sha set
+            HookStatus::RecordPatternStatus(subdir, r.source, r.cacheHit,
+                                            r.networkResult, r.error);
             return r;
         }
 
@@ -1069,8 +1165,13 @@ namespace PatternFetcher {
 
         r.entries = ToPublicEntries(map);
         r.ok      = true;
+        r.source  = SourceToStr(src);
+        r.networkResult = "hit";
+        r.error.clear();
         InstallEntries(subdir, std::move(map));
         StoreResult(moduleHandle, r);
+        HookStatus::RecordPatternStatus(subdir, r.source, r.cacheHit,
+                                        r.networkResult, r.error);
 
         LOG_MISC_DEBUG("PatternFetcher: {} network hit sha={} source={} entries={}",
                        subdir, r.sha, SourceToStr(src),
@@ -1107,11 +1208,21 @@ namespace PatternFetcher {
         if (ReadCache(r.sha, cmap, cerr)) {
             r.entries = ToPublicEntries(cmap);
             r.ok      = true;
+            r.source  = "cache";
+            r.cacheHit = true;
+            r.networkResult = "cache-only";
             InstallEntries(subdir, std::move(cmap));
             StoreResult(moduleHandle, r);
+            HookStatus::RecordPatternStatus(subdir, r.source, r.cacheHit,
+                                            r.networkResult, r.error);
             return r;
         }
+        r.source = "none";
+        r.networkResult = "cache-only";
+        r.error = cerr;
         StoreResult(moduleHandle, r);  // cache miss: ok=false, sha set
+        HookStatus::RecordPatternStatus(subdir, r.source, r.cacheHit,
+                                        r.networkResult, r.error);
         return r;
     }
 

@@ -6,6 +6,7 @@
 #include "hooks/client/PipeWatch.h"
 
 #include "AuthWindow.h"
+#include "OnlineFixInject.h"
 #include "ProcessExtension.h"
 #include "hooks/client/SteamStubAuto.h"
 #include "hooks/capture/SteamCapture.h"
@@ -482,6 +483,24 @@ namespace {
         g_pipes[MakePipeKey(pipe)] = snap.key;
     }
 
+    void MaybeInjectManualOnlineFixPayload(const PipeWatch::ProcessSnapshot& snap) {
+        if (!snap.likelyGame || !snap.luaManaged || snap.steamProcess)
+            return;
+        if (SteamCapture::OnlineFixMode() != SteamCapture::OnlineFixRouteMode::ManualFlag)
+            return;
+
+        const AppId_t realAppId = SteamCapture::OnlineFixRealAppId();
+        if (!realAppId || snap.appId != realAppId)
+            return;
+
+        if (!snap.eosSdkModule) {
+            OnlineFixInject::RecordNoEos(snap.key.pid, snap.imageName, realAppId);
+            return;
+        }
+
+        (void)OnlineFixInject::TryFallbackInject(snap.key.pid, snap.imageName, realAppId);
+    }
+
 } // namespace
 
 namespace PipeWatch {
@@ -521,6 +540,7 @@ namespace PipeWatch {
         auto snap = Inspect(pid);
         CachePipe(pipe, snap);
         LOG_IPCCH_INFO("PipeWatch: handshake {} {}", pipe->DebugString(), snap.DebugString());
+        MaybeInjectManualOnlineFixPayload(snap);
         if (snap.likelyGame && snap.luaManaged)
             AuthWindow::OnGamePipe(snap, pipe);
         ProcessExtension::OnGamePipe(snap);
@@ -534,6 +554,7 @@ namespace PipeWatch {
         auto snap = Inspect(pipe->m_clientPID);
         CachePipe(pipe, snap);
         LOG_IPCCH_DEBUG("PipeWatch: late snapshot {} {}", pipe->DebugString(), snap.DebugString());
+        MaybeInjectManualOnlineFixPayload(snap);
         if (snap.likelyGame && snap.luaManaged)
             AuthWindow::OnGamePipe(snap, pipe);
         ProcessExtension::OnGamePipe(snap);

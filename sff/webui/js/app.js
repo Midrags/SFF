@@ -12,6 +12,7 @@ window.App = (function() {
     var _outsideMode = false;
     var _letUpdatesHelper = null;
     var _lcHomeNoticeBusy = false;
+    var _liveLogMaxLines = 100;
 
     function init() {
         Components.initModals();
@@ -29,6 +30,9 @@ window.App = (function() {
         _initHintToggle();
         _initGlobalListeners();
         if (window.DlcCheck) DlcCheck.init();
+        window.addEventListener('live-log-limit-changed', function(ev) {
+            _setLiveLogMaxLines(ev.detail);
+        });
 
         Bridge.onReady(function(py) {
             if (py && py.signal_ready) {
@@ -71,6 +75,10 @@ window.App = (function() {
             // Apply saved language for live i18n
             py.get_setting('language', function(lang) {
                 if (window.I18n) I18n.applyLanguage(lang || 'en');
+            });
+
+            py.get_setting('live_log_max_lines', function(limit) {
+                _setLiveLogMaxLines(limit || '100');
             });
 
             // Check for stored API key
@@ -389,6 +397,27 @@ window.App = (function() {
     var _scrollLogPanelRAF = false;
     var _scrollHomeLogRAF = false;
 
+    function _parseLiveLogMaxLines(value) {
+        var parsed = parseInt(value, 10);
+        if (!isFinite(parsed)) parsed = 100;
+        if (parsed < 50) parsed = 50;
+        if (parsed > 5000) parsed = 5000;
+        return parsed;
+    }
+
+    function _trimLogContainer(content) {
+        if (!content) return;
+        while (content.children.length > _liveLogMaxLines) {
+            content.removeChild(content.firstChild);
+        }
+    }
+
+    function _setLiveLogMaxLines(value) {
+        _liveLogMaxLines = _parseLiveLogMaxLines(value);
+        _trimLogContainer(document.getElementById('log-panel-content'));
+        _trimLogContainer(document.getElementById('home-log-content'));
+    }
+
     function _scheduleScrollLogPanel(content) {
         if (_scrollLogPanelRAF) return;
         _scrollLogPanelRAF = true;
@@ -432,10 +461,7 @@ window.App = (function() {
         }
 
         content.appendChild(line);
-        // Cap at 1000 lines so the DOM doesn't blow up.
-        while (content.children.length > 1000) {
-            content.removeChild(content.firstChild);
-        }
+        _trimLogContainer(content);
         _scheduleScrollLogPanel(content);
     }
 
@@ -457,10 +483,7 @@ window.App = (function() {
         line.innerHTML = '<span class="log-ts">' + ts + '</span> ' + _escapeLogHtml(msg);
 
         content.appendChild(line);
-        // Cap at 200 lines on the home mini-log.
-        while (content.children.length > 200) {
-            content.removeChild(content.firstChild);
-        }
+        _trimLogContainer(content);
         _scheduleScrollHomeLog(content);
     }
 

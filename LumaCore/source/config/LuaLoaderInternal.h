@@ -40,6 +40,7 @@ namespace LuaLoader::Internal {
     extern std::unordered_map<uint64_t, ManifestOverride> ManifestOverrides;
     extern std::unordered_map<AppId_t, uint64_t>    StatSteamIdSet;
     extern std::unordered_set<AppId_t>              OwnedAppIdSet;
+    extern std::unordered_set<AppId_t>              FamilySharedAppIdSet;
     // Per-app .lua mtime stamp, populated when ParseFile runs successfully.
     // Keyed by appid (whatever the .lua's stem encodes); seconds since epoch.
     extern std::unordered_map<AppId_t, int64_t>     LuaMtimeMap;

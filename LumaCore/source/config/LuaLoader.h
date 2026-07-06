@@ -16,8 +16,12 @@
 namespace LuaLoader {
     bool HasDepot(AppId_t appId);
     bool IsOwned(AppId_t appId);
+    bool IsFamilySharedApp(AppId_t appId);
+    bool IsSteamProvidedApp(AppId_t appId);
+    bool IsLuaTrackedApp(AppId_t appId);
     bool IsStatsManagedApp(AppId_t appId);
     void MarkOwned(AppId_t appId);
+    void MarkFamilyShared(AppId_t appId);
     std::vector<AppId_t> GetAllDepotIds();
     std::vector<AppId_t> GetLibraryAppIds();
     std::vector<uint8> GetDecryptionKey(AppId_t appId);

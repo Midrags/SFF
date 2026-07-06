@@ -252,7 +252,7 @@ When no SteamID override is provided, LumaCore tries the built-in stats SteamID 
 
 Hooks `LoadPackage`, `CheckAppOwnership`, `GetSubscribedApps`, and `SendCallbackToPipe`.
 
-- **`LoadPackage`**: intercepts the call for Package 0 (the free-to-play base package) and appends all app IDs from the active Lua config to its `AppIdVec`, so Steam considers them part of the base license.
+- **`LoadPackage`**: intercepts the call for Package 0 (the free-to-play base package), checks the package vector by membership, and appends only Lua IDs that are missing. This avoids the old size-only proof that could leave a large Package 0 vector missing Lua apps and showing Purchase/Install.
 - **`CheckAppOwnership`**: patches the returned `CAppOwnershipInfo` struct for apps present in the Lua config so they show as owned, released, and playable.  If the app is genuinely owned it is marked as such and excluded from future patching. This hook only answers ownership now; license refresh is handled by the normal package-change path.
 - **`GetSubscribedApps`**: publishes only numeric Lua filename app IDs to Steam's library subscription query. Body `addappid(...)` IDs stay in the package, ownership, depot-key, and manifest paths so Steam doesn't try to build library cards for DLC or depot-only IDs.
 - **`SendCallbackToPipe`**: intercepts `AppLicensesChanged` callbacks and forces `m_bReloadAll = true` so Steam fully refreshes its license state after package changes.
@@ -261,12 +261,15 @@ Hooks `LoadPackage`, `CheckAppOwnership`, `GetSubscribedApps`, and `SendCallback
 
 ### LicenseHooks (`hooks/LicenseHooks.cpp`)
 
-Detours `OptedInMask` and `RequiresLegacyCDKey` against `steamclient64.dll`.
+Detours `OptedInMask`, `IsCloudEnabledForApp`, and `RequiresLegacyCDKey` against `steamclient64.dll`.
 
 - **`OptedInMask`**: manual 480 route launches and dedicated Steam Stub auto launches swap controller-mask requests from 480 to the real appid. SteamStub auto keeps Steam's process tracking on 480 while game-facing controller identity resolves to the target app.
+- **`IsCloudEnabledForApp`**: Lua-managed apps that are not owned by the active account return `false` so Steam's native cloud sync cannot delete or overwrite local story saves. Owned games, family-shared games, and unmanaged games still use Steam's original answer.
 - **`RequiresLegacyCDKey`** — Steam asks the wrapper for a CD key on a small set of pre-2010 titles when ownership crosses certain code paths. For Lua-tracked appids the user has no real key, so the detour answers `false` and the prompt never fires. Without this hook those games refuse to launch.
 
-DLC ownership / install / cloud / license-update / ownership-ticket queries (`BIsDlcEnabled`, `IsAppDlcInstalled`, `IsCloudEnabledForApp`, `BUpdateLicenses`, `BUpdateAppOwnershipTicket`) are intentionally not detoured here. Steam already returns the right answer for Lua-tracked appids through the existing `CheckAppOwnership` patch, so detouring those is redundant and risks stack corruption on x64 fastcall when an argument count or type is even slightly off. The patterns for those still ride in the per-build TOML, so future code that needs their addresses can resolve them without changing the publisher or the cache layout.
+DLC ownership / install / license-update / ownership-ticket queries (`BIsDlcEnabled`, `IsAppDlcInstalled`, `BUpdateLicenses`, `BUpdateAppOwnershipTicket`) are intentionally not detoured here. Steam already returns the right answer for Lua-tracked appids through the existing `CheckAppOwnership` patch, so detouring those is redundant and risks stack corruption on x64 fastcall when an argument count or type is even slightly off.
+
+LumaCore does not redirect Steam Cloud files or touch save folders on disk. If a user already has saves split between account folders like `0` and their Steam account ID, back up both folders before launching the game again and move the wanted save manually.
 
 ---
 
@@ -275,10 +278,13 @@ DLC ownership / install / cloud / license-update / ownership-ticket queries (`BI
 VEH-based captures and hooks used by game-launch routing.
 
 - Arms a one-shot int3 on `CUser_SpawnProcess`.  When Steam is about to launch a game, the VEH fires and checks whether the launch should use a route. Manual `-onlinefix` still opts into the 480 route.
-- Before selecting a route, validates the registry `AppTicket` against the active SteamID and target app ID. Known Steam Stub apps try to replace fallback target tickets with an app-7 forged target ticket before launch. If app 7 is missing, LumaCore keeps an existing target-valid fallback instead of deleting it, but it logs that fallback clearly and does not write the unsigned minimal ticket for those known wrappers.
-- Known Steam Stub apps with an OK ticket preflight use the dedicated `steamstub-auto` route: LumaCore rewrites only the launch `pGameID` from the real appid to 480, keeps CGameID/`SteamGameId` on 480 for Steam process tracking, patches only `SteamOverlayGameId` to the real appid, and resolves the real app internally for tickets/stats/achievements. If the ticket preflight fails, LumaCore logs `steamstub-ticket-failed`.
+- Before selecting a route, validates the registry `AppTicket` against the active SteamID and target app ID. Known Steam Stub apps and route-accepted pre-spawn detections try to replace fallback target tickets with an app-7 forged target ticket before launch. If app 7 is missing, LumaCore keeps an existing target-valid fallback instead of deleting it, but it logs that fallback clearly and does not write the unsigned minimal ticket for those wrappers.
+- SteamStub auto only activates from the known list or a high-confidence pre-spawn route signal such as `entry_bind_section`. Broad protection markers like `legacy_section`, `.xdata`, `.xpdata`, `.srdata`, `.arch`, OEP text, or generic wrapper text stay diagnostic-only and cannot route a game to 480 by themselves.
+- Route-accepted Steam Stub launches use the dedicated `steamstub-auto` path: LumaCore rewrites only the launch `pGameID` from the real appid to 480, keeps CGameID/`SteamGameId` on 480 for Steam process tracking, patches only `SteamOverlayGameId` to the real appid, and resolves the real app internally for tickets/stats/achievements. If the ticket preflight fails, LumaCore logs `steamstub-ticket-failed`.
 - Hooks `BuildSpawnEnvBlock` (via string XRef, since this function is only called at launch and not startup). Manual `-onlinefix` keeps the old overlay patch. Dedicated SteamStub auto keeps CGameID on 480 and patches only the overlay appid to the real app.
 - SteamStub auto launch identity must not change again until logs verify the ownership-ticket reply shape: `IPC_REPLY_TAG`, fixed `pTicket` slot, signed total-size return value, and `piSignature = piAppId + 4` for forged tickets.
+- Retries startup Package 0 injection after package-info capture, user capture, a longer post-hook retry window, and throttled SteamUI run-frame retries. Offline startup can still update the local package vector when Package 0 and vector growth are ready, even if Steam never reaches the user-license refresh path.
+- Lua hot reload mutates Package 0 first, refreshes licenses only when the user object exists, then queues library UI touches/removals for SteamUI's run-frame hook. It does not dispatch app-overview changes from the package thread.
 - Uses `GetAppDataFromAppInfo` captures from `SteamCapture` to resolve game names for rich-presence labelling.
 
 ---
@@ -419,7 +425,7 @@ When enabled, logs are written to `Steam\lumacore\` alongside `LumaCore.dll`.  E
 | `ipcrtr.log` | IPC router internal trace — per-packet command/pipe/interface logging |
 | `usrcmd.log` | CmdUser — GetSteamID, ticket, and achievement callback handling |
 | `package.log` | PackagePatch — CheckAppOwnership, LoadPackage, NotifyLicenseChanged |
-| `license.log` | LicenseHooks — OptedInMask, RequiresLegacyCDKey, ConfigStoreGetBinary |
+| `license.log` | LicenseHooks - OptedInMask, IsCloudEnabledForApp, RequiresLegacyCDKey, ConfigStoreGetBinary |
 | `decryptionkey.log` | DecryptionKeyHook — license decryption config interception |
 | `auth.log` | DenuvoAuth — authorization window state, SteamID persistence |
 | `eticket.log` | EticketFetcher — HTTP eticket minting calls |
@@ -429,10 +435,10 @@ When enabled, logs are written to `Steam\lumacore\` alongside `LumaCore.dll`.  E
 | `netpacket.log` | PacketRouter + handlers — protobuf frame interception and rewrite |
 | `pktrt.log` | PacketRouter internal trace |
 | `keyvalue.log` | KVHooks — ReadAsBinary / FindOrCreateKey hook events |
-| `steamui.log` | SteamUI — MarkAppChange, RunFrame drain, library removal batching |
+| `steamui.log` | SteamUI — MarkAppChange, RunFrame drain, queued library touch/removal |
 | `achievement.log` | Achievement callback diagnostics |
 | `misc.log` | Miscellaneous — pattern fetcher cache/network steps, VEH captures |
-| `status.json` | Machine-readable snapshot: build id, per-DLL TOML status, hooks installed / missed |
+| `status.json` | Machine-readable snapshot: build id, package containment counts, hot-reload queue counts, hooks installed / missed |
 
 The `pattern\` subdirectory next to these logs holds the cached `<sha>.toml` files the runtime fetcher uses. Files there are safe to delete; they get re-fetched on next launch.
 
@@ -444,6 +450,7 @@ Use these markers when reviewing a collected log folder. Match the route first, 
 
 For a healthy dedicated Steam Stub auto launch, the log set should show:
 
+- `misc.log`: `steamStubRouteAccepted=true`. A diagnostic-only probe should show `routeAccepted=false` / `routeReason=diagnostic-only` and must not activate `SteamStubAuto`.
 - `decryptionkey.log` / `main.log`: either user-local `apptickets\7` was read fresh, or a kept app-7 forged registry ticket is already present.
 - `main.log`: `ticketSource=app7-forged sourceAppId=7`, with a forged physical size of `182` for the target app.
 - `usrcmd.log`: the ownership-ticket reply uses `returnValue=178`, `piAppId=50`, and `piSignature=54` for the forged ticket.

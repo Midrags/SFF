@@ -37,6 +37,7 @@ namespace LuaLoader::Internal {
     std::unordered_map<uint64_t, ManifestOverride> ManifestOverrides{};
     std::unordered_map<AppId_t, uint64_t>    StatSteamIdSet{};
     std::unordered_set<AppId_t>              OwnedAppIdSet{};
+    std::unordered_set<AppId_t>              FamilySharedAppIdSet{};
     std::unordered_map<AppId_t, int64_t>     LuaMtimeMap{};
 
     std::unordered_map<std::string, std::unordered_set<AppId_t>> g_fileDepots;

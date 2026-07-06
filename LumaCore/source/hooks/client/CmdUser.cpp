@@ -18,8 +18,11 @@
 #include "Steam/Callback.h"
 #include "Steam/Structs.h"
 #include "core/entry.h"
+#include "config/LuaLoader.h"
 
 #include <shlwapi.h>
+#include <mutex>
+#include <unordered_set>
 #pragma comment(lib, "shlwapi.lib")
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -84,6 +87,20 @@ namespace {
 
 namespace CmdUser::SteamID {
 
+    struct SteamIdDecision {
+        uint64 steamId = 0;
+        const char* source = "none";
+        bool stable = false;
+        bool wrote = false;
+    };
+
+    std::mutex g_identityLogLock;
+    std::unordered_set<uint32> g_onlineIdentityLogged;
+
+    static uint32 AccountIdFromSteamId(uint64 steamId) {
+        return static_cast<uint32>(steamId & 0xFFFFFFFFULL);
+    }
+
     // Walks Steam's userdata directory looking for a folder named after
     // an account ID that contains a sub-folder for appId.  This covers
     // the case where no AppTicket is cached in the registry but the user
@@ -133,37 +150,76 @@ namespace CmdUser::SteamID {
         return outcome;
     }
 
+    static SteamIdDecision ResolveSteamId(AppId_t appId, bool managed, bool authSelected)
+    {
+        if (!managed || appId == 0 || appId == k_uAppIdInvalid)
+            return {};
+
+        if (uint64 steamId = Ticket::GetSpoofSteamID(appId))
+            return { steamId, "registry-ticket", true, false };
+
+        if (uint64 steamId = ResolveViaUserdata(appId))
+            return { steamId, "userdata", true, false };
+
+        if (uint64 steamId = Ticket::GetActiveSteamID64()) {
+            const bool wrote = Ticket::WriteSteamID(appId, steamId);
+            return { steamId, authSelected ? "auth-fallback" : "active-fallback", false, wrote };
+        }
+
+        return {};
+    }
+
+    static void LogOnlineIdentityMarker(CSteamPipeClient* pipe, AppId_t appId,
+                                        const SteamIdDecision& decision)
+    {
+        if (!pipe) return;
+        auto snap = PipeWatch::SnapshotForPipe(pipe);
+        if (!snap || !snap->eosSdkModule) return;
+
+        {
+            std::scoped_lock lock(g_identityLogLock);
+            if (!g_onlineIdentityLogged.insert(snap->key.pid).second)
+                return;
+        }
+
+        LOG_USRCMD_INFO("\"event\" \"SaveIdentityOnlineModule\" \"pid\" {} \"appId\" {} \"source\" \"{}\" \"steamid\" \"0x{:X}\" \"account\" {} \"image\" \"{}\"",
+                        snap->key.pid, appId, decision.source, decision.steamId,
+                        AccountIdFromSteamId(decision.steamId),
+                        snap->imageName.empty() ? "-" : snap->imageName);
+    }
+
     // ▌ IPC-USER ▌ Handler: IClientUser::GetSteamID
     //  Request:  no args
     //  Response: [uint8 prefix=0x0B][uint64 SteamID]   (9 bytes)
     void OnGetSteamID(CSteamPipeClient* pipe, CUtlBuffer*, CUtlBuffer* pWrite)
     {
         AppId_t appId = PipeWatch::ResolveAppId(pipe);
-        LOG_USRCMD_INFO("\"handler\" \"GetSteamID\" \"appId\" {} \"enter\" 1", appId);
-        uint64 spoofed = 0;
-        if (AuthWindow::IsSelectedPipe(pipe)) {
-            spoofed = Ticket::GetActiveSteamID64();
-            if (spoofed) {
-                Ticket::WriteSteamID(appId, spoofed);
-                LOG_USRCMD_INFO("\"handler\" \"GetSteamID\" \"appId\" {} \"source\" \"auth\" \"steamid\" \"0x{:X}\"",
-                               appId, spoofed);
-            }
-        }
-        if (!spoofed)
-            spoofed = Ticket::GetSpoofSteamID(appId);
-        if (!spoofed) {
-            spoofed = ResolveViaUserdata(appId);
-            if (spoofed)
-                LOG_USRCMD_INFO("\"handler\" \"GetSteamID\" \"appId\" {} \"source\" \"userdata\" \"steamid\" \"0x{:X}\"", appId, spoofed);
-        }
-        if (!spoofed) {
-            LOG_USRCMD_WARN("\"handler\" \"GetSteamID\" \"appId\" {} \"no-spoof\" 1", appId);
+        const bool tracked = LuaLoader::IsLuaTrackedApp(appId);
+        const bool managed = LuaLoader::HasDepot(appId);
+        const bool owned = LuaLoader::IsOwned(appId);
+        const bool familyShared = LuaLoader::IsFamilySharedApp(appId);
+        const bool authSelected = AuthWindow::IsSelectedPipe(pipe);
+
+        SteamIdDecision decision = ResolveSteamId(appId, managed, authSelected);
+        if (!decision.steamId) {
+            LOG_USRCMD_WARN("\"handler\" \"GetSteamID\" \"appId\" {} \"tracked\" {} \"managed\" {} \"owned\" {} \"family\" {} \"authSelected\" {} \"source\" \"none\" \"no-spoof\" 1",
+                            appId, tracked, managed, owned, familyShared, authSelected);
             return;
         }
+        if (pWrite->m_Put < static_cast<int32>(1 + sizeof(decision.steamId))) {
+            LOG_USRCMD_WARN("\"handler\" \"GetSteamID\" \"appId\" {} \"write-too-small\" {}",
+                            appId, pWrite->m_Put);
+            return;
+        }
+
         uint8_t* base = pWrite->Base();
         base[0] = IPC_REPLY_TAG;
-        memcpy(base + 1, &spoofed, sizeof(spoofed));
-        LOG_USRCMD_INFO("\"handler\" \"GetSteamID\" \"appId\" {} \"steamid\" \"0x{:X}({})\"", appId, spoofed, spoofed);
+        memcpy(base + 1, &decision.steamId, sizeof(decision.steamId));
+        LOG_USRCMD_INFO("\"handler\" \"GetSteamID\" \"appId\" {} \"tracked\" {} \"managed\" {} \"owned\" {} \"family\" {} \"authSelected\" {} \"source\" \"{}\" \"stable\" {} \"wrote\" {} \"steamid\" \"0x{:X}\" \"account\" {}",
+                        appId, tracked, managed, owned, familyShared, authSelected,
+                        decision.source, decision.stable, decision.wrote,
+                        decision.steamId, AccountIdFromSteamId(decision.steamId));
+        LogOnlineIdentityMarker(pipe, appId, decision);
     }
 
 } // namespace CmdUser::SteamID

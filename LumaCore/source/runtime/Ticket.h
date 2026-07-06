@@ -107,7 +107,7 @@ namespace Ticket {
 
     // SpawnProcess preflight. Validates cached AppTicket identity and fixes
     // stale registry blobs before the game wrapper reads them.
-    TicketPreflightResult EnsureRegistryTicketsForApp(AppId_t appId);
+    TicketPreflightResult EnsureRegistryTicketsForApp(AppId_t appId, bool forceSteamStub = false);
 
     // Ticket layout offsets (for manual inspection/manipulation by IPC handlers).
     constexpr uint32 kAppTicketSteamIdOffset = 8;

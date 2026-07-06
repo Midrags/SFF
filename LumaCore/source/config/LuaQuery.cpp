@@ -13,6 +13,7 @@
 // available through luaL_loadbuffer's chunk name.
 
 #include "config/LuaLoaderInternal.h"
+#include "runtime/HookStatus.h"
 #include "runtime/Logger.h"
 
 #include <lua.hpp>
@@ -36,12 +37,32 @@ namespace LuaLoader {
     // ── public query surface ──────────────────────────────────────────────
     bool HasDepot(AppId_t depotId) {
         using namespace Internal;
-        return DepotKeySet.count(depotId) && !OwnedAppIdSet.count(depotId);
+        return DepotKeySet.count(depotId)
+            && !OwnedAppIdSet.count(depotId)
+            && !FamilySharedAppIdSet.count(depotId);
     }
 
     bool IsOwned(AppId_t appId) {
         using namespace Internal;
         return OwnedAppIdSet.count(appId) > 0;
+    }
+
+    bool IsFamilySharedApp(AppId_t appId) {
+        using namespace Internal;
+        return FamilySharedAppIdSet.count(appId) > 0;
+    }
+
+    bool IsSteamProvidedApp(AppId_t appId) {
+        using namespace Internal;
+        return OwnedAppIdSet.count(appId) > 0
+            || FamilySharedAppIdSet.count(appId) > 0;
+    }
+
+    bool IsLuaTrackedApp(AppId_t appId) {
+        using namespace Internal;
+        return DepotKeySet.count(appId) > 0
+            || LibraryAppIdSet.count(appId) > 0
+            || StatsAppIdSet.count(appId) > 0;
     }
 
     bool IsStatsManagedApp(AppId_t appId) {
@@ -57,8 +78,17 @@ namespace LuaLoader {
 
     void MarkOwned(AppId_t appId) {
         using namespace Internal;
+        FamilySharedAppIdSet.erase(appId);
         if (OwnedAppIdSet.insert(appId).second) {
             LOG_PACKAGE_INFO("Marking app {} as owned", appId);
+        }
+    }
+
+    void MarkFamilyShared(AppId_t appId) {
+        using namespace Internal;
+        OwnedAppIdSet.erase(appId);
+        if (FamilySharedAppIdSet.insert(appId).second) {
+            LOG_PACKAGE_INFO("Marking app {} as family-shared", appId);
         }
     }
 
@@ -149,6 +179,13 @@ namespace LuaLoader {
     }
 
     namespace {
+        void PublishLuaCounts() {
+            HookStatus::SetLuaCounts(Internal::g_fileDepots.size(),
+                                     Internal::DepotKeySet.size(),
+                                     Internal::LibraryAppIdSet.size(),
+                                     Internal::StatsAppIdSet.size());
+        }
+
         bool RestoreStatSteamIdOverride(AppId_t appId, const std::string& removedFile) {
             for (const auto& [filePath, overrides] : Internal::g_fileStatSteamIds) {
                 if (filePath == removedFile) continue;
@@ -231,6 +268,7 @@ namespace LuaLoader {
 
         LOG_PACKAGE_INFO("UnloadFile: removed {} depots, {} library roots, and {} stats roots from {}",
                          removedDepots, removedLibraryApps, removedStatsApps, filePath);
+        PublishLuaCounts();
     }
 
     std::vector<AppId_t> TakePendingRemovals() {
@@ -284,8 +322,8 @@ namespace LuaLoader {
         // Auto-register the appid that the filename stem encodes (e.g. a
         // file named "3764200.lua" registers depot 3764200 even if the
         // .lua body only calls addappid() on auxiliary depots). Also
-        // re-clears OwnedAppIdSet for that appid so multi-account swaps
-        // don't keep showing "Purchase".
+        // re-clears Steam-provided ownership for that appid so multi-account
+        // swaps don't keep showing "Purchase".
         {
             const std::string stem = path.stem().string();
             if (!stem.empty()
@@ -297,6 +335,9 @@ namespace LuaLoader {
 
                     if (OwnedAppIdSet.erase(fileAppId)) {
                         LOG_PACKAGE_INFO("ParseFile: clearing owned status for appid={} (Lua re-added)", fileAppId);
+                    }
+                    if (FamilySharedAppIdSet.erase(fileAppId)) {
+                        LOG_PACKAGE_INFO("ParseFile: clearing family-shared status for appid={} (Lua re-added)", fileAppId);
                     }
                     if (!DepotKeySet.count(fileAppId)) {
                         DepotKeySet[fileAppId] = "";
@@ -338,6 +379,7 @@ namespace LuaLoader {
             LOG_WARN("{}: {}", chunkName, err ? err : "unknown");
             lua_pop(g_lua_state, 1);
         }
+        PublishLuaCounts();
     }
 
     // ── directory scanner ────────────────────────────────────────────────
@@ -369,6 +411,7 @@ namespace LuaLoader {
         // those entries to count as "post-startup additions" — they were
         // present at boot. Discard the queue.
         g_pendingAdditions.clear();
+        PublishLuaCounts();
     }
 
     // ── startup injection ────────────────────────────────────────────────

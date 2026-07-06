@@ -5,6 +5,7 @@
 
 #include "core/entry.h"
 #include "core/Orchestrator.h"
+#include "hooks/capture/RuntimeCapture.h"
 #include "hooks/client/PackagePatch.h"
 #include "hooks/client/IpcMethodLoader.h"
 #include "hooks/client/IpcDispatch.h"
@@ -57,28 +58,66 @@ namespace CoreInit {
     // Steam's loader maps it later). Prevents the deferred-dispatch handler
     // in SteamUI::LoadModuleWithPath from running the fetch twice.
     std::atomic<bool> g_steamUiPatternDispatched{false};
+    std::atomic<bool> g_steamUiRetryStarted{false};
 
     // ── Patterns ─────────────────────────────────────────────────────
     namespace Patterns {
 
-        // Fetches the steamui.dll TOML synchronously the moment Steam's loader
-        // maps the module. Called from SteamUI::LoadModuleWithPath the first time
-        // the loader resolves the module when Bootstrap had to skip the steamui
-        // leg because the module wasn't mapped yet. The call site already sits
-        // outside the loader lock so blocking on a network fetch is fine here.
-        void FetchSteamUIDeferred() {
-            bool expected = false;
-            if (!g_steamUiPatternDispatched.compare_exchange_strong(expected, true))
-                return;
+        void TrySteamUiLateInstall(const char* reason) {
             HMODULE ui = GetModuleHandleA("steamui.dll");
-            if (!ui) return;
-            auto r = PatternFetcher::LoadFor(ui, "steamui");
+            if (!ui) {
+                HookStatus::RecordSteamUiLateRetry(
+                    std::string(reason ? reason : "late") + ":waiting-module");
+                return;
+            }
+
+            PatternFetcher::PatternResult r{};
+            bool expected = false;
+            if (g_steamUiPatternDispatched.compare_exchange_strong(expected, true)) {
+                r = PatternFetcher::LoadFor(ui, "steamui");
+            } else {
+                r = PatternFetcher::Get(ui);
+                if (r.sha.empty() || (!r.ok && (r.source.empty() || r.source == "none")))
+                    r = PatternFetcher::LoadFor(ui, "steamui");
+            }
+
             LOG_COREIN_INFO("\"stage\" \"Patterns\" \"module\" \"steamui\" \"deferred\" 1 \"sha\" \"{}\" \"entries\" {} \"ok\" {}",
                        r.sha.empty() ? "<unknown>" : r.sha,
                        static_cast<unsigned>(r.entries.size()),
                        r.ok ? 1 : 0);
             g_shas.Publish("steamui", r.sha);
             HookStatus::SetTomlAvailability("steamui", r.ok);
+            HookStatus::RecordSteamUiLateRetry(
+                std::string(reason ? reason : "late") + (r.ok ? ":toml-ok" : ":toml-missing"));
+            if (r.ok) SteamUI::CoreHook();
+        }
+
+        void StartSteamUiLateRetryLoop() {
+            bool expected = false;
+            if (!g_steamUiRetryStarted.compare_exchange_strong(expected, true))
+                return;
+            HANDLE h = CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
+                for (int i = 0; i < 60; ++i) {
+                    if (GetModuleHandleA("steamui.dll")) {
+                        TrySteamUiLateInstall("bootstrap-late-retry");
+                        return 0;
+                    }
+                    HookStatus::RecordSteamUiLateRetry("bootstrap-late-retry:waiting-module");
+                    Sleep(500);
+                }
+                HookStatus::SetSteamUiAttachState("steamui-not-loaded-after-retry", 60, false);
+                HookStatus::RecordSteamUiLateRetry("bootstrap-late-retry:timeout");
+                return 0;
+            }, nullptr, 0, nullptr);
+            if (h) CloseHandle(h);
+        }
+
+        // Fetches the steamui.dll TOML once SteamUI is mapped. Older code
+        // passed nullptr into LoadFor here, so the deferred leg returned
+        // before doing anything. Keep this tiny and let TrySteamUiLateInstall
+        // own the real module lookup.
+        void FetchSteamUIDeferred() {
+            TrySteamUiLateInstall("loadmodulewithpath");
         }
 
     } // namespace Patterns
@@ -220,6 +259,10 @@ namespace CoreInit {
                        static_cast<unsigned>(pcResult.entries.size()),
                        pcResult.ok ? 1 : 0);
 
+            HookStatus::SetStartupPhase("installing_critical_hooks");
+            PackagePatch::Install();
+            SteamCapture::Install();
+
             // ── Steamui leg ──────────────────────────────────────────
             PatternFetcher::PatternResult puResult{};
             bool steamUiMapped = (GetModuleHandleA("steamui.dll") != nullptr);
@@ -235,6 +278,7 @@ namespace CoreInit {
                 }
             } else {
                 LOG_COREIN_INFO("\"stage\" \"Patterns\" \"module\" \"steamui\" \"act\" \"deferred\"");
+                Patterns::StartSteamUiLateRetryLoop();
             }
 
             // ── IPC method spec loader ───────────────────────────────
@@ -269,9 +313,9 @@ namespace CoreInit {
             for (const auto& dir : watchDirs)
                 LuaLoader::ParseDirectory(dir);
 
-            DirWatch::Start(watchDirs);
+            SteamCapture::TryStartupPackageInjection("lua-loaded");
 
-            PackagePatch::Install();
+            DirWatch::Start(watchDirs);
 
             // ── IPC dispatch layer (ticket spoofing handlers) ──────
             IpcHooks::Install();
@@ -346,7 +390,7 @@ void DispatchSteamUiPatternFetch() {
     static std::once_flag s_once;
     std::call_once(s_once, [] {
         HANDLE h = CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
-            PatternFetcher::LoadFor(HMODULE(nullptr), "steamui");
+            CoreInit::Patterns::FetchSteamUIDeferred();
             return 0;
         }, nullptr, 0, nullptr);
         if (h) CloseHandle(h);

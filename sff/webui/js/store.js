@@ -14,7 +14,6 @@ window.Store = (function() {
     var _sortBy = 'updated';
     var _viewMode = 'grid';
     var _apiKeyConnected = false;
-    var _debounceTimer = null;
     var _initialized = false;
     var _imagesHidden = false;
     var _activeGenre = '';
@@ -22,6 +21,8 @@ window.Store = (function() {
     var _nsfwNameRe = /(hentai|futanari|furry|sex)/i;
     var _active = false;
     var _lastGames = [];
+    var _requestSeq = 0;
+    var _activeRequestId = '';
 
     function init() {
         if (_initialized) return;
@@ -38,29 +39,17 @@ window.Store = (function() {
         var toggleImagesBtn = document.getElementById('store-toggle-images');
 
         if (searchInput) {
-            searchInput.addEventListener('input', function() {
-                clearTimeout(_debounceTimer);
-                _debounceTimer = setTimeout(function() {
-                    _searchQuery = searchInput.value.trim();
-                    _page = 1;
-                    _fetchGames();
-                }, 300);
-            });
             searchInput.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
-                    clearTimeout(_debounceTimer);
-                    _searchQuery = searchInput.value.trim();
-                    _page = 1;
-                    _fetchGames();
+                    e.preventDefault();
+                    _submitSearch(searchInput);
                 }
             });
         }
 
         if (searchBtn) {
             searchBtn.addEventListener('click', function() {
-                _searchQuery = searchInput ? searchInput.value.trim() : '';
-                _page = 1;
-                _fetchGames();
+                _submitSearch(searchInput);
             });
         }
 
@@ -149,9 +138,10 @@ window.Store = (function() {
         // Listen for search results
         Bridge.on('search_results', function(json) {
             if (!_active) return;
-            _hideLoading();
             try {
                 var data = JSON.parse(json);
+                if (data.request_id && data.request_id !== _activeRequestId) return;
+                _hideLoading();
                 var games = data.games || [];
                 if (_blockNsfw) {
                     games = games.filter(function(g) { return !g.nsfw && !_looksNsfwByName(g); });
@@ -172,9 +162,16 @@ window.Store = (function() {
                     }
                 }
             } catch(e) {
+                _hideLoading();
                 Components.showToast('error', 'Failed to parse search results');
             }
         });
+    }
+
+    function _submitSearch(searchInput) {
+        _searchQuery = searchInput ? searchInput.value.trim() : '';
+        _page = 1;
+        _fetchGames();
     }
 
     function onApiKeyAvailable(key) {
@@ -205,8 +202,7 @@ window.Store = (function() {
 
     function onPageLeave() {
         _active = false;
-        clearTimeout(_debounceTimer);
-        _debounceTimer = null;
+        _activeRequestId = '';
         _lastGames = [];
         _releaseStoreImages();
         var grid = document.getElementById('store-grid');
@@ -224,6 +220,8 @@ window.Store = (function() {
     }
 
     function _fetchGames() {
+        var requestId = String(++_requestSeq);
+        _activeRequestId = requestId;
         if (_blockNsfw && _nsfwNameRe.test(_searchQuery || '')) {
             _hideLoading();
             _renderGames([]);
@@ -235,7 +233,7 @@ window.Store = (function() {
         }
         _showLoading();
         var offset = (_page - 1) * _perPage;
-        Bridge.call('search_games', _searchQuery, offset, _perPage, _sortBy, _activeGenre);
+        Bridge.call('search_games', _searchQuery, offset, _perPage, _sortBy, _activeGenre, requestId);
     }
 
     function _looksNsfwByName(game) {

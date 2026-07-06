@@ -82,4 +82,8 @@ namespace SteamCapture {
     // Returns true when all captures needed by NotifyLicenseChanged are ready.
     // Used by the startup injection thread to know when it's safe to call NotifyLicenseChanged.
     bool IsReadyForNotify();
+
+    // Safe late retry for Package 0 capture misses. It only mutates package 0
+    // when Steam already exposed the same pointers the startup path uses.
+    void TryStartupPackageInjection(const char* reason);
 }

@@ -5,9 +5,11 @@
 
 #include "hooks/ui/SteamUI.h"
 #include "core/Orchestrator.h"
+#include "hooks/capture/RuntimeCapture.h"
 #include "hooks/Macros.h"
 #include "hooks/SigTypes.h"
 #include "patterns/ByteScan.h"
+#include "patterns/PatternFetcher.h"
 #include "runtime/HookStatus.h"
 #include "runtime/VehUtil.h"
 #include "config/LuaLoader.h"
@@ -53,7 +55,10 @@ namespace {
 
     // ── Removal queue ──────────────────────────────────────────
     std::mutex g_removalMutex;
+    std::mutex g_coreHookMutex;
+    bool g_coreHookInstalled = false;
     std::vector<AppId_t> g_pendingRemovals;
+    std::vector<AppId_t> g_pendingTouches;
     std::unordered_set<AppId_t> g_removedAppIds;
 
     // CSteamUIAppController offsets (see its Validate() method):
@@ -194,35 +199,68 @@ namespace {
         return result;
     }
 
-    // ▌ STEAMUI ▌ CSteamUIAppControllerRunFrame: drain removal queue
+    // ▌ STEAMUI ▌ CSteamUIAppControllerRunFrame: drain live library queues
     LM_HOOK(CSteamUIAppControllerRunFrame, void*, void* pController)
     {
-        if (oGetAppByID && oMarkAppChange && g_pAppChangeSource)
+        static auto lastPackageRetry = std::chrono::steady_clock::now() - 1s;
+        static uint32_t runFrameRetryLogs = 0;
+        auto now = std::chrono::steady_clock::now();
+        if (now - lastPackageRetry >= 1s) {
+            lastPackageRetry = now;
+            SteamCapture::TryStartupPackageInjection("steamui-runframe-retry");
+            ++runFrameRetryLogs;
+            if (runFrameRetryLogs == 1 || runFrameRetryLogs % 30 == 0) {
+                LOG_STEAMUICH_DEBUG("RunFrame: startup package retry tick={}", runFrameRetryLogs);
+            }
+        }
+
+        if (oMarkAppChange && g_pAppChangeSource)
         {
-            std::vector<AppId_t> draining;
+            std::vector<AppId_t> drainingRemovals;
+            std::vector<AppId_t> drainingTouches;
             {
                 std::lock_guard<std::mutex> lock(g_removalMutex);
-                draining.swap(g_pendingRemovals);
+                drainingRemovals.swap(g_pendingRemovals);
+                drainingTouches.swap(g_pendingTouches);
             }
-            for (AppId_t appId : draining)
+            if (oGetAppByID)
             {
-                if (LuaLoader::IsOwned(appId))
+                for (AppId_t appId : drainingRemovals)
                 {
-                    LOG_STEAMUICH_DEBUG("RunFrame: appId {} is owned again, skipping removal", appId);
-                    continue;
-                }
-                if (void* pApp = oGetAppByID(pController, appId, false))
-                {
-                    // Clear ownership flags so the full snapshot excludes it
-                    *reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(pApp) + 28) = 0;
-                    std::lock_guard<std::mutex> lock(g_removalMutex);
-                    // only add to removed set when the app is uninstalled
-                    auto* cs = static_cast<CSteamApp*>(pApp);
-                    if (cs->StateFlags == k_EAppStateUninstalled) {
-                        g_removedAppIds.insert(appId);
+                    if (LuaLoader::IsSteamProvidedApp(appId))
+                    {
+                        LOG_STEAMUICH_DEBUG("RunFrame: appId {} is Steam-provided again, skipping removal", appId);
+                        continue;
                     }
+                    if (void* pApp = oGetAppByID(pController, appId, false))
+                    {
+                        // Clear ownership flags so the full snapshot excludes it
+                        *reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(pApp) + 28) = 0;
+                        std::lock_guard<std::mutex> lock(g_removalMutex);
+                        // only add to removed set when the app is uninstalled
+                        auto* cs = static_cast<CSteamApp*>(pApp);
+                        if (cs->StateFlags == k_EAppStateUninstalled) {
+                            g_removedAppIds.insert(appId);
+                        }
+                    }
+                    oMarkAppChange(g_pAppChangeSource, appId, 2); // AppInfoOrConfig
+                }
+            }
+            else if (!drainingRemovals.empty())
+            {
+                std::lock_guard<std::mutex> lock(g_removalMutex);
+                g_pendingRemovals.insert(g_pendingRemovals.end(),
+                                         drainingRemovals.begin(),
+                                         drainingRemovals.end());
+            }
+            for (AppId_t appId : drainingTouches)
+            {
+                {
+                    std::lock_guard<std::mutex> lock(g_removalMutex);
+                    g_removedAppIds.erase(appId);
                 }
                 oMarkAppChange(g_pAppChangeSource, appId, 2); // AppInfoOrConfig
+                LOG_STEAMUICH_DEBUG("RunFrame: appId {} touched for live library refresh", appId);
             }
         }
         return oCSteamUIAppControllerRunFrame(pController);
@@ -238,9 +276,23 @@ namespace SteamUI {
     // HookStatus reporting by hand. The shape mirrors what LM_INSTALL and
     // LM_BIND expand to, just with a different module handle.
     void CoreHook() {
+        std::lock_guard<std::mutex> coreLock(g_coreHookMutex);
+        if (g_coreHookInstalled) {
+            LOG_STEAMUICH_DEBUG("CoreHook: already installed");
+            return;
+        }
+
         HMODULE hSteamUI = GetModuleHandleA("steamui.dll");
         if (!hSteamUI) {
             LOG_STEAMUICH_WARN("steamui.dll not loaded; SteamUI hooks disabled");
+            HookStatus::SetSteamUiAttachState("waiting-steamui", 0, false);
+            return;
+        }
+
+        const auto& patternState = PatternFetcher::Get(hSteamUI);
+        if (!patternState.ok) {
+            LOG_STEAMUICH_WARN("CoreHook: steamui patterns unavailable; waiting for retry");
+            HookStatus::SetSteamUiAttachState("waiting-steamui-pattern", 0, false);
             return;
         }
 
@@ -389,9 +441,13 @@ namespace SteamUI {
                          reinterpret_cast<void*>(oGetAppByID),
                          reinterpret_cast<void*>(oAddProtobufAsBinary),
                          reinterpret_cast<void*>(oGetTopManager));
+        g_coreHookInstalled = true;
+        HookStatus::SetSteamUiAttachState("installed", 0, false);
     }
 
     void CoreUnhook() {
+        std::lock_guard<std::mutex> coreLock(g_coreHookMutex);
+        if (!g_coreHookInstalled) return;
         LM_TX_BEGIN();
         LM_REMOVE(LoadModuleWithPath);
         LM_REMOVE(FillInAppOverview);
@@ -407,6 +463,7 @@ namespace SteamUI {
         oBuildCompleteAppOverviewChange = nullptr;
         oCSteamUIAppControllerRunFrame  = nullptr;
         oRepeatedFieldUint32_Add       = nullptr;
+        g_coreHookInstalled = false;
     }
 
     void RemoveAppOverview(AppId_t appId) {
@@ -415,14 +472,11 @@ namespace SteamUI {
             return;
         }
 
-        // Skip eviction for genuinely owned apps. CheckAppOwnership has
-        // already marked them via MarkOwned and the dual-account refresh
-        // path was tearing them out of the library card view because
+        // Skip eviction for apps Steam already provides. The dual-account
+        // refresh path was tearing them out of the library card view because
         // every appid in the package vector got the eviction treatment.
-        // This keeps the legitimate library entry alive while still
-        // dropping the fake-owned cards on hot-reload.
-        if (LuaLoader::IsOwned(appId)) {
-            LOG_STEAMUICH_DEBUG("RemoveAppOverview: appId={} is owned; skipping eviction", appId);
+        if (LuaLoader::IsSteamProvidedApp(appId)) {
+            LOG_STEAMUICH_DEBUG("RemoveAppOverview: appId={} is Steam-provided; skipping eviction", appId);
             return;
         }
 
@@ -458,8 +512,22 @@ namespace SteamUI {
 
     void QueueLibraryRemoval(AppId_t appId) {
         std::lock_guard<std::mutex> lock(g_removalMutex);
-        g_pendingRemovals.push_back(appId);
+        if (std::find(g_pendingRemovals.begin(), g_pendingRemovals.end(), appId) == g_pendingRemovals.end())
+            g_pendingRemovals.push_back(appId);
         LOG_STEAMUICH_DEBUG("QueueLibraryRemoval: appId={} queued", appId);
+    }
+
+    void QueueLibraryTouch(AppId_t appId) {
+        std::lock_guard<std::mutex> lock(g_removalMutex);
+        auto removeIt = std::find(g_pendingRemovals.begin(), g_pendingRemovals.end(), appId);
+        if (removeIt != g_pendingRemovals.end()) {
+            *removeIt = std::move(g_pendingRemovals.back());
+            g_pendingRemovals.pop_back();
+        }
+        g_removedAppIds.erase(appId);
+        if (std::find(g_pendingTouches.begin(), g_pendingTouches.end(), appId) == g_pendingTouches.end())
+            g_pendingTouches.push_back(appId);
+        LOG_STEAMUICH_DEBUG("QueueLibraryTouch: appId={} queued", appId);
     }
 
     void CancelLibraryRemoval(AppId_t appId) {
@@ -470,6 +538,8 @@ namespace SteamUI {
             g_pendingRemovals.pop_back();
             g_removedAppIds.erase(appId);
             LOG_STEAMUICH_DEBUG("CancelLibraryRemoval: appId={} removed from queue and removed set", appId);
+        } else {
+            g_removedAppIds.erase(appId);
         }
     }
 

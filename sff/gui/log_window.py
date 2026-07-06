@@ -38,6 +38,17 @@ _LEVEL_COLORS = {
 }
 
 
+def _live_log_max_lines() -> int:
+    try:
+        from sff.storage.settings import get_setting
+        from sff.structs import Settings
+        raw = get_setting(Settings.LIVE_LOG_MAX_LINES)
+        value = int(str(raw or "100").strip())
+    except Exception:
+        value = 100
+    return max(50, min(5000, value))
+
+
 class _LogSignalEmitter(QObject):
     """Thread-safe bridge: emits log records as HTML strings on the GUI thread."""
     record_emitted = pyqtSignal(int, str)  # (levelno, html_line)
@@ -91,6 +102,9 @@ class GlobalLogWindow(QDialog):
         self._pending: list[tuple[int, str]] = []
         self._setup_ui()
 
+    def _refresh_line_limit(self):
+        self._text.document().setMaximumBlockCount(_live_log_max_lines())
+
     def _setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -121,6 +135,7 @@ class GlobalLogWindow(QDialog):
         font.setStyleHint(QFont.StyleHint.Monospace)
         self._text.setFont(font)
         self._text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self._refresh_line_limit()
         layout.addWidget(self._text)
 
         # Fix clear button now that _text exists
@@ -135,6 +150,7 @@ class GlobalLogWindow(QDialog):
         """Called from QtLogHandler signal — always on GUI thread."""
         if levelno < self._min_level:
             return
+        self._refresh_line_limit()
         self._text.moveCursor(QTextCursor.MoveOperation.End)
         self._text.insertHtml(html + "<br>")
         self._text.moveCursor(QTextCursor.MoveOperation.End)
@@ -151,6 +167,7 @@ class GlobalLogWindow(QDialog):
             f'<span style="color:#666666;">{ts}</span> '
             f'<span style="color:{color};">{safe}</span>'
         )
+        self._refresh_line_limit()
         self._text.moveCursor(QTextCursor.MoveOperation.End)
         self._text.insertHtml(html + "<br>")
         self._text.moveCursor(QTextCursor.MoveOperation.End)

@@ -11,6 +11,7 @@
 #include "runtime/HookStatus.h"
 #include "runtime/Ticket.h"
 
+#include <atomic>
 #include <limits>
 #include <mutex>
 #include <unordered_set>
@@ -22,6 +23,110 @@ namespace {
     std::mutex g_stubWarnLock;
     std::unordered_set<AppId_t> g_stubWarnedApps;
     std::unordered_set<AppId_t> g_ownershipPatchLoggedApps;
+    std::atomic<bool> g_package0Seeded{false};
+    std::atomic<bool> g_packagePatchInstalled{false};
+
+    struct PackageContainmentResult {
+        uint64_t expected = 0;
+        uint64_t present = 0;
+        uint64_t missing = 0;
+        uint64_t appended = 0;
+        uint32_t total = 0;
+        bool ok = false;
+    };
+
+    bool PackageVectorContains(PackageInfo* pPkg, AppId_t appId) {
+        if (!pPkg || !pPkg->AppIdVec.m_Memory.m_pMemory) return false;
+        AppId_t* data = pPkg->AppIdVec.m_Memory.m_pMemory;
+        for (uint32_t i = 0; i < pPkg->AppIdVec.m_Size; ++i) {
+            if (data[i] == appId) return true;
+        }
+        return false;
+    }
+
+    PackageContainmentResult EnsurePackageContains(PackageInfo* pPkg,
+                                                   const std::vector<AppId_t>& appIds,
+                                                   const char* reason) {
+        PackageContainmentResult out{};
+        out.total = pPkg ? pPkg->AppIdVec.m_Size : 0;
+        const char* safeReason = reason ? reason : "package0";
+
+        std::unordered_set<AppId_t> seen;
+        std::vector<AppId_t> missingIds;
+        seen.reserve(appIds.size());
+        missingIds.reserve(appIds.size());
+
+        for (AppId_t id : appIds) {
+            if (!id || !seen.insert(id).second) continue;
+            ++out.expected;
+            if (PackageVectorContains(pPkg, id)) {
+                ++out.present;
+            } else {
+                missingIds.push_back(id);
+            }
+        }
+
+        if (!pPkg) {
+            out.missing = missingIds.size();
+            LOG_PACKAGE_WARN("Package0Containment: reason={} package0=null expected={} present={} missing={} appended=0 status=-1",
+                             safeReason, out.expected, out.present, out.missing);
+            HookStatus::RecordPackageContainment(-1, 0, out.expected, out.present,
+                                                 out.missing, 0, safeReason);
+            return out;
+        }
+
+        if (pPkg->Status != EPackageStatus::Available) {
+            out.missing = missingIds.size();
+            LOG_PACKAGE_WARN(
+                "Package0Containment: reason={} status={} expected={} present={} missing={} appended=0 total={} not-available",
+                safeReason, static_cast<int>(pPkg->Status), out.expected,
+                out.present, out.missing, pPkg->AppIdVec.m_Size);
+            HookStatus::RecordPackageContainment(static_cast<int32_t>(pPkg->Status),
+                                                 pPkg->AppIdVec.m_Size, out.expected,
+                                                 out.present, out.missing, 0,
+                                                 safeReason);
+            return out;
+        }
+
+        if (!missingIds.empty()) {
+            if (!oCUtlMemoryGrow) {
+                out.missing = missingIds.size();
+                LOG_PACKAGE_WARN(
+                    "Package0Containment: reason={} status={} expected={} present={} missing={} appended=0 total={} grow-missing",
+                    safeReason, static_cast<int>(pPkg->Status), out.expected,
+                    out.present, out.missing, pPkg->AppIdVec.m_Size);
+                HookStatus::RecordPackageContainment(static_cast<int32_t>(pPkg->Status),
+                                                     pPkg->AppIdVec.m_Size, out.expected,
+                                                     out.present, out.missing, 0,
+                                                     safeReason);
+                return out;
+            }
+
+            const uint32_t oldSize = pPkg->AppIdVec.m_Size;
+            const uint32_t numToAdd = static_cast<uint32_t>(missingIds.size());
+            oCUtlMemoryGrow(&pPkg->AppIdVec, numToAdd);
+            AppId_t* dst = pPkg->AppIdVec.m_Memory.m_pMemory + oldSize;
+            for (AppId_t id : missingIds) {
+                *dst++ = id;
+            }
+            pPkg->AppIdVec.m_Size = oldSize + numToAdd;
+            out.appended = numToAdd;
+            out.total = pPkg->AppIdVec.m_Size;
+        }
+
+        out.missing = missingIds.size() - out.appended;
+        out.ok = out.missing == 0;
+        g_package0Seeded.store(out.ok, std::memory_order_release);
+        LOG_PACKAGE_INFO(
+            "Package0Containment: reason={} status={} expected={} present={} missing={} appended={} total={}",
+            safeReason, static_cast<int>(pPkg->Status), out.expected,
+            out.present, out.missing, out.appended, pPkg->AppIdVec.m_Size);
+        HookStatus::RecordPackageContainment(static_cast<int32_t>(pPkg->Status),
+                                             pPkg->AppIdVec.m_Size, out.expected,
+                                             out.present, out.missing,
+                                             out.appended, safeReason);
+        return out;
+    }
 
     // ── OnlineFix achievement-callback rewrite helpers ──────────────────────
     //
@@ -76,57 +181,33 @@ namespace {
     }
 
     // Saved pointer to package 0's PackageInfo — captured from LoadPackage hook.
-    // Used by DoStartupInjection to inject apps after hooks are fully installed.
+    // Used by retryable startup injection after hooks are fully installed.
     static PackageInfo* g_pPackage0 = nullptr;
 
     // Set to true once LoadPackage has injected our depot list into package 0.
     // Used by InjectIntoPackage0 to suppress redundant re-injection from
-    // DoStartupInjection — re-injecting causes each AppId to appear twice in
+    // startup retry. Re-injecting causes each AppId to appear twice in
     // package 0's vector, which makes Steam report ExistInPackageNums >= 2 for
     // fake-owned apps, which makes CheckAppOwnership think the user genuinely
     // owns them, which makes HasDepot return false, which breaks every
     // downstream feature (achievements, ownership patching, manifest binding).
-    static std::atomic<bool> g_package0Seeded{false};
-
     LM_HOOK(LoadPackage, bool, PackageInfo* pInfo, uint8* sha1, int32 cn, void* p4) {
         bool result = oLoadPackage(pInfo, sha1, cn, p4);
 
         LOG_PACKAGE_DEBUG("LoadPackage: PackageId={} AppIdVec.m_Size={}", pInfo->PackageId, pInfo->AppIdVec.m_Size);
 
         if (pInfo->PackageId == 0) {
-            // PR-style guard: skip injection unless Steam reports the
-            // package usable. injecting into a non-Available package gets
-            // the vector clobbered when Steam re-loads it, and we lose
-            // every fake appid. better to bail and let the post-login
-            // re-injection from RuntimeCapture pick it up cleanly.
-            if (pInfo->Status != EPackageStatus::Available) {
-                LOG_PACKAGE_WARN("LoadPackage(PackageId=0): status={} not Available; deferring injection",
-                                  static_cast<int>(pInfo->Status));
-                g_pPackage0 = pInfo;
-                return result;
-            }
+            std::vector<AppId_t> appIds = LuaLoader::GetAllDepotIds();
+            HookStatus::RecordPackage0Seen(static_cast<int32_t>(pInfo->Status),
+                                           pInfo->AppIdVec.m_Size,
+                                           static_cast<uint32_t>(appIds.size()));
             // Save the pointer for later use by startup injection
             g_pPackage0 = pInfo;
+            HookStatus::RecordPackage0Capture("loadpackage", !appIds.empty());
 
-            // Don't inject if already seeded — prevents double-injection on
-            // package reload after login.
-            if (g_package0Seeded.load(std::memory_order_acquire)) {
-                LOG_PACKAGE_DEBUG("LoadPackage(PackageId=0): already seeded, skipping injection");
-                return result;
-            }
-
-            std::vector<AppId_t> appIds = LuaLoader::GetAllDepotIds();
             if (!appIds.empty()) {
-                uint32 oldSize = pInfo->AppIdVec.m_Size;
-                uint32 numToAdd = static_cast<uint32>(appIds.size());
-                LOG_PACKAGE_INFO("LoadPackage(PackageId=0): adding {} apps, oldSize={}", numToAdd, oldSize);
-                oCUtlMemoryGrow(&pInfo->AppIdVec, numToAdd);
-                AppId_t* dst = pInfo->AppIdVec.m_Memory.m_pMemory + oldSize;
-                for (uint32 i = 0; i < numToAdd; i++)
-                    *dst++ = appIds[i];
-                pInfo->AppIdVec.m_Size = oldSize + numToAdd;
-                g_package0Seeded.store(true, std::memory_order_release);
-                HookStatus::SetPackageState(true, true, false, false);
+                const auto containment = EnsurePackageContains(pInfo, appIds, "loadpackage");
+                HookStatus::SetPackageState(true, containment.ok, false, false);
             } else {
                 LOG_PACKAGE_WARN("LoadPackage(PackageId=0): no Lua depots loaded yet! Lua parsing happens after hook install.");
             }
@@ -138,12 +219,34 @@ namespace {
     LM_HOOK(CheckAppOwnership, bool, void* pObj, AppId_t appId, AppOwnership* pOwn) {
         bool result = oCheckAppOwnership(pObj, appId, pOwn);
         if (pOwn && LuaLoader::HasDepot(appId)) {
-            if (result && pOwn->ExistInPackageNums > 1
-                && pOwn->ReleaseState == EAppReleaseState::Released) {
-                // Actually owned — record so HasDepot excludes it going forward
-                LuaLoader::MarkOwned(appId);
-                LOG_PACKAGE_DEBUG("CheckAppOwnership: appId={} actually owned, marking", appId);
+            const auto originalReleaseState = pOwn->ReleaseState;
+            const auto originalExistInPackageNums = pOwn->ExistInPackageNums;
+            const bool originalBorrowed = pOwn->bBorrowed;
+            const bool originalFamilyShared = pOwn->bFamilyShared;
+            const bool released = originalReleaseState == EAppReleaseState::Released;
+            const bool steamProvided = result && originalExistInPackageNums > 1 && released;
+            const bool familyShared = steamProvided && (originalBorrowed || originalFamilyShared);
+            if (result && originalExistInPackageNums > 1
+                && released) {
+                if (familyShared) {
+                    LuaLoader::MarkFamilyShared(appId);
+                } else {
+                    LuaLoader::MarkOwned(appId);
+                }
+                HookStatus::RecordOwnershipCheck(
+                    appId, false, !familyShared, familyShared,
+                    static_cast<int32_t>(originalReleaseState),
+                    originalExistInPackageNums, originalBorrowed, originalFamilyShared);
+                LOG_PACKAGE_DEBUG(
+                    "CheckAppOwnership: appId={} steam-provided class={} result={} ExistInPkg={} ReleaseState={} borrowed={} familyShared={}",
+                    appId, familyShared ? "family-shared" : "owned", result,
+                    originalExistInPackageNums, static_cast<int>(originalReleaseState),
+                    originalBorrowed, originalFamilyShared);
             } else {
+                HookStatus::RecordOwnershipCheck(
+                    appId, true, false, false,
+                    static_cast<int32_t>(originalReleaseState),
+                    originalExistInPackageNums, originalBorrowed, originalFamilyShared);
                 pOwn->PackageId     = 0;
                 pOwn->ReleaseState  = EAppReleaseState::Released;
                 pOwn->bFreeLicense  = false;
@@ -154,8 +257,11 @@ namespace {
                     firstPatchLog = g_ownershipPatchLoggedApps.insert(appId).second;
                 }
                 if (firstPatchLog) {
-                    LOG_PACKAGE_INFO("CheckAppOwnership: appId={} patched -> owned (was result={} ExistInPkg={})",
-                                     appId, result, pOwn->ExistInPackageNums);
+                    LOG_PACKAGE_INFO(
+                        "CheckAppOwnership: appId={} patched -> owned (was result={} ExistInPkg={} ReleaseState={} borrowed={} familyShared={})",
+                        appId, result, originalExistInPackageNums,
+                        static_cast<int>(originalReleaseState),
+                        originalBorrowed, originalFamilyShared);
                 } else {
                     LOG_PACKAGE_TRACE("CheckAppOwnership: appId={} patched -> owned (repeat)",
                                       appId);
@@ -184,7 +290,10 @@ namespace {
     LM_HOOK(GetSubscribedApps, uint32_t, void* pThis, uint32_t* pAppList, uint32_t size, uint8_t unknownFlag) {
         uint32_t count = oGetSubscribedApps(pThis, pAppList, size, unknownFlag);
         std::vector<AppId_t> roots = LuaLoader::GetLibraryAppIds();
-        if (roots.empty()) return count;
+        if (roots.empty()) {
+            HookStatus::RecordSubscribedApps(count, roots.size(), 0, count, size);
+            return count;
+        }
 
         uint32_t written = 0;
         uint32_t advertisedAdds = 0;
@@ -217,6 +326,7 @@ namespace {
 
         LOG_PACKAGE_INFO("GetSubscribedApps: original={}, roots={}, written={}, advertised={}, buffer={}",
                          count, roots.size(), written, advertisedTotal, size);
+        HookStatus::RecordSubscribedApps(count, roots.size(), written, advertisedTotal, size);
         return advertisedTotal;
     }
 
@@ -266,6 +376,9 @@ namespace {
 
 namespace PackagePatch {
     void Install() {
+        if (g_packagePatchInstalled.exchange(true, std::memory_order_acq_rel))
+            return;
+
         LM_BIND(CUtlMemoryGrow);
 
         LM_TX_BEGIN();
@@ -277,7 +390,11 @@ namespace PackagePatch {
     }
 
     void Uninstall() {
+        if (!g_packagePatchInstalled.exchange(false, std::memory_order_acq_rel))
+            return;
+
         LM_TX_BEGIN();
+        LM_REMOVE(LoadPackage);
         LM_REMOVE(CheckAppOwnership);
         LM_REMOVE(GetSubscribedApps);
         LM_REMOVE(SendCallbackToPipe);
@@ -287,41 +404,30 @@ namespace PackagePatch {
         g_package0Seeded.store(false, std::memory_order_release);
     }
 
-    // Inject all currently loaded Lua app IDs into package 0.
-    // Called from RuntimeCapture after MarkLicenseAsChanged fires (post-login).
-    // At that point g_pPackage0 is set and oCUtlMemoryGrow is resolved.
-    //
-    // Early-out when LoadPackage already seeded the vector at process start —
-    // injecting the same set twice doubles ExistInPackageNums for every app
-    // and breaks ownership detection.  This branch only matters when Lua
-    // parsing finished after the LoadPackage hook fired (race at startup).
-    //
-    // Post-login MarkLicenseAsChanged reloads package 0 from server license
-    // data, which clears the AppIdVec while leaving g_package0Seeded=true.
-    // Check the vector size to detect this case; if it dropped below our
-    // expected count, reset the flag so the injection below actually runs.
-    bool InjectIntoPackage0(const std::vector<AppId_t>& appIds) {
-        if (!g_pPackage0 || !oCUtlMemoryGrow || appIds.empty()) return false;
-        if (g_package0Seeded.load(std::memory_order_acquire)) {
-            if (g_pPackage0->AppIdVec.m_Size >= appIds.size()) {
-                LOG_PACKAGE_DEBUG("InjectIntoPackage0: package 0 already seeded; skipping {} apps", appIds.size());
-                return true;
-            }
-            LOG_PACKAGE_INFO("InjectIntoPackage0: vector was reset (size={}), re-injecting {} apps",
-                             g_pPackage0->AppIdVec.m_Size, appIds.size());
-            g_package0Seeded.store(false, std::memory_order_release);
+    bool InjectIntoPackage0(const std::vector<AppId_t>& appIds, const char* reason) {
+        return InjectIntoPackage0(g_pPackage0, appIds, reason);
+    }
+
+    bool InjectIntoPackage0(PackageInfo* pPkg, const std::vector<AppId_t>& appIds,
+                            const char* reason) {
+        if (!pPkg) {
+            LOG_PACKAGE_DEBUG("InjectIntoPackage0: package 0 not captured yet (reason={})",
+                              reason ? reason : "package0");
+            return false;
         }
-        PackageInfo* pPkg = g_pPackage0;
-        uint32 oldSize = pPkg->AppIdVec.m_Size;
-        uint32 numToAdd = static_cast<uint32>(appIds.size());
-        oCUtlMemoryGrow(&pPkg->AppIdVec, numToAdd);
-        AppId_t* dst = pPkg->AppIdVec.m_Memory.m_pMemory + oldSize;
-        for (uint32 i = 0; i < numToAdd; i++)
-            *dst++ = appIds[i];
-        pPkg->AppIdVec.m_Size = oldSize + numToAdd;
-        g_package0Seeded.store(true, std::memory_order_release);
-        LOG_PACKAGE_INFO("InjectIntoPackage0: injected {} apps (total now {})", numToAdd, pPkg->AppIdVec.m_Size);
-        return true;
+        bool firstCapture = g_pPackage0 == nullptr;
+        g_pPackage0 = pPkg;
+        if (firstCapture)
+            HookStatus::RecordPackage0Capture(reason ? reason : "inject", !appIds.empty());
+        if (appIds.empty()) {
+            HookStatus::RecordPackageContainment(static_cast<int32_t>(pPkg->Status),
+                                                 pPkg->AppIdVec.m_Size, 0, 0, 0, 0,
+                                                 reason ? reason : "package0-empty");
+            LOG_PACKAGE_INFO("InjectIntoPackage0: no Lua app ids to inject (reason={})",
+                             reason ? reason : "package0-empty");
+            return true;
+        }
+        return EnsurePackageContains(pPkg, appIds, reason).ok;
     }
 
     PackageInfo* GetPackage0() { return g_pPackage0; }

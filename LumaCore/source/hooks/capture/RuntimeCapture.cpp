@@ -10,9 +10,16 @@
 #include "hooks/ui/SteamUI.h"
 #include "runtime/VehUtil.h"
 #include "runtime/HookStatus.h"
+#include "runtime/ProtectionProbe.h"
 #include "runtime/Ticket.h"
 #include "hooks/client/OnlineFixInject.h"
 #include "core/entry.h"
+
+#include <algorithm>
+#include <chrono>
+#include <string_view>
+#include <thread>
+#include <unordered_set>
 
 namespace {
     // ── function type aliases (alphabetical) ─────────────────────────────────
@@ -48,9 +55,12 @@ namespace {
     void* g_pCUser        = nullptr;
     void* g_pCPackageInfo = nullptr;
     std::atomic<bool> g_startupInjectionDone{false};
+    std::atomic<bool> g_startupRetryThreadStarted{false};
+    std::atomic<uint32> g_startupPackageMissLogs{0};
 
     // Forward declaration
-    void DoStartupInjection();
+    void TryStartupInjection(const char* reason);
+    void StartStartupInjectionRetry();
 
     // ── per-session state ─────────────────────────────────────────────────────
     void*                 g_steamEngine        = nullptr;
@@ -195,8 +205,8 @@ namespace {
             g_pCUser = pThis;
             LOG_PACKAGE_INFO("MarkLicenseAsChanged: captured pCUser=0x{:X}",
                              reinterpret_cast<uint64_t>(pThis));
-            DoStartupInjection();
         }
+        TryStartupInjection("mark-license");
         return oMarkLicenseAsChanged(pThis, packageId, bReloadAll);
     }
 
@@ -208,30 +218,98 @@ namespace {
             LOG_PACKAGE_INFO("GetPackageInfo: captured pCPackageInfo=0x{:X}",
                              reinterpret_cast<uint64_t>(pThis));
         }
-        return oGetPackageInfo(pThis, packageId, p3);
+        PackageInfo* result = oGetPackageInfo(pThis, packageId, p3);
+        if (packageId == 0 && result && !g_startupInjectionDone.load(std::memory_order_acquire)) {
+            PackagePatch::InjectIntoPackage0(result, LuaLoader::GetAllDepotIds(), "getpackageinfo-capture");
+            TryStartupInjection("getpackageinfo-capture");
+        }
+        return result;
     }
 
     // ── Startup injection ─────────────────────────────────────────────────────
-    // Called once when MarkLicenseAsChanged fires (post-login).
-    // Injects all startup Lua files into the already-loaded package 0 using
-    // the PackageInfo* pointer saved by the LoadPackage hook.
-    void DoStartupInjection() {
-        if (g_startupInjectionDone.exchange(true)) return;
-        LOG_PACKAGE_INFO("DoStartupInjection: injecting startup Lua files into package 0");
-        LuaLoader::QueueStartupInjection();
-        std::vector<AppId_t> additions = LuaLoader::TakePendingAdditions();
-        if (!PackagePatch::InjectIntoPackage0(additions)) {
-            // First DoStartupInjection fires before GetPackageInfo has captured
-            // the CPackageInfo pointer (~1 ms gap during login). The retry
-            // path inside GetPackageInfo's hook runs the injection again the
-            // moment the pointer arrives, so this is benign startup ordering,
-            // not a hook failure. Keep at debug to avoid scaring users.
-            LOG_PACKAGE_DEBUG("DoStartupInjection: package 0 not captured yet, deferring");
-            g_startupInjectionDone.store(false);
+    PackageInfo* ResolvePackage0ForMutation(const char* reason) {
+        PackageInfo* pPkg = nullptr;
+        if (g_pCPackageInfo && oGetPackageInfo) {
+            pPkg = oGetPackageInfo(g_pCPackageInfo, 0, 0);
+        }
+        if (!pPkg) pPkg = PackagePatch::GetPackage0();
+        if (!pPkg) {
+            const bool retry = reason && std::string_view(reason) == "post-hooks-retry";
+            uint32 misses = retry
+                ? g_startupPackageMissLogs.fetch_add(1, std::memory_order_acq_rel) + 1
+                : 0;
+            if (!retry || misses == 1 || misses % 20 == 0) {
+                if (retry) {
+                    LOG_PACKAGE_DEBUG("{}: package 0 not captured yet (misses={})",
+                                      reason ? reason : "package0", misses);
+                } else {
+                    LOG_PACKAGE_DEBUG("{}: package 0 not captured yet",
+                                      reason ? reason : "package0");
+                }
+            }
+        }
+        return pPkg;
+    }
+
+    void TryStartupInjection(const char* reason) {
+        if (g_startupInjectionDone.load(std::memory_order_acquire)) return;
+        const char* safeReason = reason ? reason : "startup";
+        HookStatus::RecordStartupPackageRetry(safeReason);
+
+        std::vector<AppId_t> additions = LuaLoader::GetAllDepotIds();
+        if (additions.empty()) {
+            LOG_PACKAGE_DEBUG("TryStartupInjection: no Lua app ids loaded (reason={})", safeReason);
+            HookStatus::SetStartupRefreshState(PackagePatch::GetPackage0()
+                ? "package0-captured-awaiting-lua"
+                : "startup-waiting-lua");
             return;
         }
-        LOG_PACKAGE_INFO("DoStartupInjection: done, injected {} apps", additions.size());
+
+        PackageInfo* pPkg = ResolvePackage0ForMutation(safeReason);
+        if (!pPkg) {
+            HookStatus::SetStartupRefreshState("startup-waiting-packageinfo");
+            return;
+        }
+
+        if (!PackagePatch::InjectIntoPackage0(pPkg, additions, safeReason)) {
+            HookStatus::SetStartupRefreshState(
+                pPkg->Status == EPackageStatus::Available
+                    ? "startup-waiting-packageinfo"
+                    : "package0-not-available");
+            return;
+        }
+
+        g_startupInjectionDone.store(true, std::memory_order_release);
+        HookStatus::SetStartupRefreshState(
+            g_pCUser ? "startup-injected" : "startup-injected-local-only");
         HookStatus::SetPackageState(false, false, true, false);
+        LOG_PACKAGE_INFO("TryStartupInjection: reason={} done, verified {} Lua ids in package 0{}",
+                         safeReason, additions.size(),
+                         g_pCUser ? "" : " (local-only)");
+    }
+
+    DWORD WINAPI StartupInjectionRetryThread(LPVOID) {
+        for (int i = 0; i < 150; ++i) {
+            if (g_startupInjectionDone.load(std::memory_order_acquire)) break;
+            TryStartupInjection("post-hooks-retry");
+            if (g_startupInjectionDone.load(std::memory_order_acquire)) break;
+            Sleep(i < 40 ? 250 : 1000);
+        }
+        if (!g_startupInjectionDone.load(std::memory_order_acquire)) {
+            HookStatus::SetStartupRefreshState("package0-not-seen-after-library-init");
+            LOG_PACKAGE_WARN("StartupInjectionRetryThread: package 0 still missing after retry window");
+        }
+        return 0;
+    }
+
+    void StartStartupInjectionRetry() {
+        if (g_startupRetryThreadStarted.exchange(true, std::memory_order_acq_rel)) return;
+        HANDLE h = CreateThread(nullptr, 0, StartupInjectionRetryThread, nullptr, 0, nullptr);
+        if (h) {
+            CloseHandle(h);
+        } else {
+            LOG_PACKAGE_WARN("StartStartupInjectionRetry: CreateThread failed err={}", GetLastError());
+        }
     }
     // Prevents substring matches like "-onlinefixpatch" triggering the -onlinefix path.
     static bool HasExactFlag(const char* cmd, const char* flag) {
@@ -292,26 +370,52 @@ namespace {
                 bool owned = LuaLoader::IsOwned(appId);
                 bool hasFlag = (cmdLine != nullptr) && HasExactFlag(cmdLine, "-onlinefix");
                 bool knownSteamStub = Ticket::IsKnownSteamDrmApp(appId);
-                bool autoSteamStubCandidate = hasDepot && !owned && !hasFlag && knownSteamStub;
+                ProtectionProbe::ScanResult steamStubProbe{};
+                if (hasDepot && !owned && !knownSteamStub && exePath) {
+                    steamStubProbe = ProtectionProbe::ScanBeforeSpawn(appId, exePath);
+                }
+                const bool probeSteamStub = steamStubProbe.valid && steamStubProbe.routeAccepted;
+                const bool detectedSteamStub = knownSteamStub || probeSteamStub;
+                const std::string steamStubSource = knownSteamStub ? "known-list" :
+                    (steamStubProbe.valid && steamStubProbe.detected ? "pre-spawn-probe" : "none");
+                const std::string steamStubMethod = knownSteamStub ? "known-list" :
+                    (steamStubProbe.valid ? steamStubProbe.method : "skipped");
+                const std::string steamStubImage = steamStubProbe.valid && steamStubProbe.detected
+                    ? steamStubProbe.imagePath
+                    : (exePath ? exePath : "");
+                bool autoSteamStubCandidate = hasDepot && !owned && !hasFlag && detectedSteamStub;
+                HookStatus::RecordSteamStubDetection(appId, steamStubSource, steamStubMethod,
+                                                     steamStubImage, steamStubProbe.candidates,
+                                                     detectedSteamStub,
+                                                     knownSteamStub ? "accepted" : steamStubProbe.routeReason);
 
-                LOG_MISC_INFO("SpawnProcess: hit appid={} hasDepot={} owned={} hasFlag={} autoSteamStubCandidate={} exe=\"{}\" cmd=\"{}\"",
+                LOG_MISC_INFO("SpawnProcess: hit appid={} hasDepot={} owned={} hasFlag={} autoSteamStubCandidate={} steamStubRouteAccepted={} steamStubRouteReason={} steamStubSource={} steamStubMethod={} steamStubImage=\"{}\" candidates={} exe=\"{}\" cmd=\"{}\"",
                               appId, hasDepot, owned, hasFlag, autoSteamStubCandidate,
+                              detectedSteamStub,
+                              knownSteamStub ? "accepted" : steamStubProbe.routeReason,
+                              steamStubSource,
+                              steamStubMethod,
+                              steamStubImage,
+                              steamStubProbe.candidates,
                               exePath ? exePath : "(null)",
                               cmdLine ? cmdLine : "(null)");
 
                 Ticket::TicketPreflightResult ticketPreflight{};
                 if (hasDepot) {
-                    ticketPreflight = Ticket::EnsureRegistryTicketsForApp(appId);
-                    LOG_MISC_INFO("SpawnProcess: ticketPreflight={} ticketStatus={} ticketSource={} sourceAppId={} changed={} knownSteamStub={}",
+                    ticketPreflight = Ticket::EnsureRegistryTicketsForApp(appId, detectedSteamStub);
+                    LOG_MISC_INFO("SpawnProcess: ticketPreflight={} ticketStatus={} ticketSource={} sourceAppId={} changed={} knownSteamStub={} steamStubSource={} steamStubMethod={}",
                                   Ticket::TicketPreflightActionName(ticketPreflight.action),
                                   Ticket::AppTicketStatusName(ticketPreflight.ticketStatus),
                                   Ticket::TicketPreflightSourceName(ticketPreflight.ticketSource),
                                   ticketPreflight.sourceAppId,
                                   ticketPreflight.changed,
-                                  ticketPreflight.knownSteamStub);
+                                  ticketPreflight.knownSteamStub,
+                                  steamStubSource,
+                                  steamStubMethod);
                 }
 
-                bool steamStubAuto = SteamStubAuto::ShouldActivate(appId, hasDepot, owned, hasFlag);
+                bool steamStubAuto = SteamStubAuto::ShouldActivate(appId, hasDepot, owned,
+                                                                   hasFlag, detectedSteamStub);
                 bool missingSteamStubTicket =
                     autoSteamStubCandidate
                     && ticketPreflight.ticketSource == Ticket::TicketPreflightSource::Missing;
@@ -332,12 +436,15 @@ namespace {
                     OnlineFixInject::QueueInjection(exePath, appId);
                 } else if (steamStubAuto) {
                     SetOnlineFixRoute(0, SteamCapture::OnlineFixRouteMode::None);
-                    SteamStubAuto::Arm(appId, exePath);
+                    SteamStubAuto::Arm(appId, exePath, probeSteamStub ? steamStubProbe.imagePath : "");
                     *pGameID = kOnlineFixAppId;
-                    LOG_MISC_INFO("SpawnProcess: SteamStubAuto active reason={} appid {} -> {}, CGameID stays 480, overlay resolves real ticketSource={} sourceAppId={}",
+                    LOG_MISC_INFO("SpawnProcess: SteamStubAuto active reason={} appid {} -> {}, CGameID stays 480, overlay resolves real ticketSource={} sourceAppId={} steamStubSource={} steamStubMethod={} matchedImage=\"{}\"",
                                   routeReason, appId, kOnlineFixAppId,
                                   Ticket::TicketPreflightSourceName(ticketPreflight.ticketSource),
-                                  ticketPreflight.sourceAppId);
+                                  ticketPreflight.sourceAppId,
+                                  steamStubSource,
+                                  steamStubMethod,
+                                  probeSteamStub ? steamStubProbe.imagePath : "");
                     if (missingSteamStubTicket) {
                         LOG_MISC_WARN("SpawnProcess: SteamStubAuto ticket source missing for appid={}, route still active",
                                       appId);
@@ -415,6 +522,8 @@ namespace SteamCapture {
         LM_INSTALL(GetPackageInfo);
         LM_INSTALL(BuildSpawnEnvBlock);
         LM_TX_COMMIT();
+
+        StartStartupInjectionRetry();
     }
 
     void Uninstall() {
@@ -446,6 +555,7 @@ namespace SteamCapture {
         g_pCUser        = nullptr;
         g_pCPackageInfo = nullptr;
         g_startupInjectionDone.store(false);
+        g_startupRetryThreadStarted.store(false);
     }
 
     AppId_t GetAppIDForCurrentPipe() {
@@ -545,39 +655,36 @@ namespace SteamCapture {
 
     // ── License refresh (no-restart) ────────────────────────────────
     bool IsReadyForNotify() {
-        return g_pCUser != nullptr && g_pCPackageInfo != nullptr
-            && oGetPackageInfo != nullptr && oMarkLicenseAsChanged != nullptr
-            && oProcessPendingLicenseUpdates != nullptr && oCUtlMemoryGrow != nullptr;
+        return (PackagePatch::GetPackage0() != nullptr || (g_pCPackageInfo && oGetPackageInfo))
+            && oCUtlMemoryGrow != nullptr;
+    }
+
+    void TryStartupPackageInjection(const char* reason) {
+        TryStartupInjection(reason);
     }
 
     void NotifyLicenseChanged() {
-        if (!g_pCUser || !g_pCPackageInfo) {
-            LOG_PACKAGE_WARN("NotifyLicenseChanged: pCUser or pCPackageInfo not captured yet, skipping");
+        if (!oCUtlMemoryGrow) {
+            LOG_PACKAGE_WARN("NotifyLicenseChanged: CUtlMemoryGrow not resolved yet, skipping");
             return;
         }
-        if (!oGetPackageInfo || !oMarkLicenseAsChanged
-            || !oProcessPendingLicenseUpdates || !oCUtlMemoryGrow) {
-            LOG_PACKAGE_WARN("NotifyLicenseChanged: functions not resolved, skipping");
-            return;
-        }
-
-        PackageInfo* pPkg = oGetPackageInfo(g_pCPackageInfo, 0, 0);
+        PackageInfo* pPkg = ResolvePackage0ForMutation("hot-reload");
         if (!pPkg) {
-            LOG_PACKAGE_WARN("NotifyLicenseChanged: GetPackageInfo returned null");
+            HookStatus::SetStartupRefreshState("startup-waiting-packageinfo");
+            LOG_PACKAGE_WARN("NotifyLicenseChanged: package 0 not captured yet, leaving Lua changes pending");
+            return;
+        }
+        if (pPkg->Status != EPackageStatus::Available) {
+            HookStatus::SetStartupRefreshState("package0-not-available");
+            LOG_PACKAGE_WARN("NotifyLicenseChanged: package 0 status={} not Available, leaving Lua changes pending",
+                             static_cast<int>(pPkg->Status));
             return;
         }
 
         // Two-phase order.
         //   1. Mutate the package vector (drop removals, append additions)
-        //   2. Trigger Steam's MarkLicenseAsChanged + ProcessPendingLicenseUpdates
-        //   3. THEN evict UI cards via RemoveAppOverviewBatch
-        //
-        // Mixing UI eviction inside the package-vector loop crashed Steam:
-        // the per-id RemoveAppOverview synchronously dispatches a
-        // CAppOverview_Change to every webhelper subscriber while Steam
-        // itself is still rendering the same card, racing the AppIdVec
-        // mutations on another thread. Doing all vector work first, then
-        // a single batched UI dispatch at the end, eliminates that race.
+        //   2. Trigger Steam's license refresh only if pCUser exists
+        //   3. Queue UI refresh on the SteamUI run-frame hook
 
         // ── Phase 1a: drop removals from the package vector ──
         std::vector<AppId_t> removals = LuaLoader::TakePendingRemovals();
@@ -593,15 +700,8 @@ namespace SteamCapture {
 
         // ── Phase 1b: append additions to the package vector ──
         std::vector<AppId_t> additions = LuaLoader::TakePendingAdditions();
-        if (!additions.empty()) {
-            uint32_t oldSize = pPkg->AppIdVec.m_Size;
-            oCUtlMemoryGrow(&pPkg->AppIdVec, static_cast<uint32>(additions.size()));
-            for (size_t i = 0; i < additions.size(); ++i) {
-                pPkg->AppIdVec.m_Memory.m_pMemory[oldSize + i] = additions[i];
-                LOG_PACKAGE_DEBUG("NotifyLicenseChanged: inserted AppId {} at [{}]", additions[i], oldSize + i);
-            }
-            pPkg->AppIdVec.m_Size = static_cast<uint32>(oldSize + additions.size());
-        }
+        if (!additions.empty())
+            PackagePatch::InjectIntoPackage0(pPkg, additions, "hot-reload");
 
         if (additions.empty() && removals.empty()) {
             LOG_PACKAGE_DEBUG("NotifyLicenseChanged: no changes");
@@ -609,30 +709,42 @@ namespace SteamCapture {
         }
 
         // ── Phase 2: license refresh (Steam re-evaluates package state) ──
-        oMarkLicenseAsChanged(g_pCUser, 0, true);
-        oProcessPendingLicenseUpdates(g_pCUser);
-        HookStatus::SetPackageState(false, false, false, true);
+        bool refreshedLicense = false;
+        if (g_pCUser && oMarkLicenseAsChanged && oProcessPendingLicenseUpdates) {
+            oMarkLicenseAsChanged(g_pCUser, 0, true);
+            oProcessPendingLicenseUpdates(g_pCUser);
+            HookStatus::SetPackageState(false, false, false, true);
+            refreshedLicense = true;
+        } else {
+            HookStatus::SetStartupRefreshState("startup-waiting-cuser");
+            LOG_PACKAGE_WARN("NotifyLicenseChanged: pCUser not ready, package vector updated locally only");
+        }
+
+        std::unordered_set<AppId_t> libraryRoots;
+        for (AppId_t id : LuaLoader::GetLibraryAppIds()) {
+            libraryRoots.insert(id);
+        }
+        uint32_t queuedTouches = 0;
+        for (AppId_t id : additions) {
+            if (libraryRoots.count(id)) {
+                SteamUI::CancelLibraryRemoval(id);
+                SteamUI::QueueLibraryTouch(id);
+                ++queuedTouches;
+            }
+        }
+        uint32_t queuedRemovals = 0;
+        for (AppId_t id : removals) {
+            SteamUI::QueueLibraryRemoval(id);
+            ++queuedRemovals;
+        }
+        if (queuedTouches || queuedRemovals)
+            HookStatus::SetStartupRefreshState("library-refresh-queued");
+        HookStatus::RecordHotReload(static_cast<uint32_t>(additions.size()),
+                                    static_cast<uint32_t>(removals.size()),
+                                    queuedTouches, queuedRemovals,
+                                    refreshedLicense ? "license-refresh"
+                                                     : "local-package-only");
         LOG_PACKAGE_INFO("NotifyLicenseChanged: {} added, {} removed ({} from vector)",
                          additions.size(), removals.size(), removedCount);
-
-        // NO Phase 3 / RemoveAppOverview eviction.
-        //
-        // Three separate attempts to evict library cards via SteamUI's
-        // CAppOverview_Change dispatch all crashed Steam at different points:
-        //   1. Per-id INSIDE the AppIdVec mutation loop — race with Steam's
-        //      reads on the same vector.
-        //   2. Batched after the loop — webhelper choked on a 20-id removal
-        //      burst in one packet.
-        //   3. Per-id AFTER the license refresh, no batching — STILL crashed
-        //      in user testing.
-        //
-        // Old LumaCore shipped without this step and only had the visual
-        // side-effect of cards lingering as "Purchase" until Steam restarted.
-        // We're back to that behavior here. The eviction primitives
-        // (RemoveAppOverview, RemoveAppOverviewBatch) stay available in the
-        // public SteamUI API for future call sites once a safe trigger is
-        // found, just not in the hot-reload path.
-        //
-        // User-visible workaround: restart Steam to drop the lingering card.
     }
 }

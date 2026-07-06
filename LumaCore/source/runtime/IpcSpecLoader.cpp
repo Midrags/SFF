@@ -1,4 +1,4 @@
-// LumaCore — Steam client hook layer for SteaMidra.
+// LumaCore - Steam client hook layer for SteaMidra.
 // Copyright (c) 2025-2026 Midrag (https://github.com/Midrags).
 // Distributed under the GNU General Public License v3 or later.
 // See <https://www.gnu.org/licenses/> for the full license text.
@@ -7,6 +7,7 @@
 
 #include "core/entry.h"
 #include "runtime/Logger.h"
+#include "runtime/RuntimeHttp.h"
 #include "config/Settings.h"
 
 #include <windows.h>
@@ -105,11 +106,61 @@ namespace IpcSpecLoader {
         // ── cache path ──────────────────────────────────────────────────────
 
         std::filesystem::path CacheDir() {
-            return std::filesystem::path(SteamInstallPath) / "lumacore" / "pattern";
+            return std::filesystem::path(SteamInstallPath) / "lumacore" / "pattern" / "steamclientipc";
         }
 
         std::filesystem::path CachePath(const std::string& sha) {
             return CacheDir() / (sha + ".toml");
+        }
+
+        std::string StitchGitflicBlobLines(std::string_view body) {
+            constexpr std::string_view kKey = "\"blobLines\"";
+            size_t k = body.find(kKey);
+            if (k == std::string_view::npos) return {};
+            size_t arrStart = body.find('[', k);
+            if (arrStart == std::string_view::npos) return {};
+            std::string out;
+            out.reserve(body.size() / 2);
+            size_t pos = arrStart + 1;
+            constexpr std::string_view bodyKey = "\"body\"";
+            while (pos < body.size()) {
+                size_t bk = body.find(bodyKey, pos);
+                if (bk == std::string_view::npos) break;
+                size_t arrEnd = body.find(']', pos);
+                if (arrEnd != std::string_view::npos && bk > arrEnd) break;
+                size_t colon = body.find(':', bk + bodyKey.size());
+                if (colon == std::string_view::npos) break;
+                size_t q1 = body.find('"', colon);
+                if (q1 == std::string_view::npos) break;
+                std::string line;
+                bool escaped = false;
+                size_t p = q1 + 1;
+                for (; p < body.size(); ++p) {
+                    char c = body[p];
+                    if (escaped) {
+                        switch (c) {
+                            case 'n': line.push_back('\n'); break;
+                            case 't': line.push_back('\t'); break;
+                            case 'r': line.push_back('\r'); break;
+                            case '"': line.push_back('"'); break;
+                            case '\\': line.push_back('\\'); break;
+                            case '/': line.push_back('/'); break;
+                            default: line.push_back(c); break;
+                        }
+                        escaped = false;
+                        continue;
+                    }
+                    if (c == '\\') { escaped = true; continue; }
+                    if (c == '"') break;
+                    line.push_back(c);
+                }
+                if (p >= body.size()) break;
+                if (!out.empty()) out.push_back('\n');
+                out.append(line);
+                pos = p + 1;
+                if (out.size() > kMaxBodyBytes) return {};
+            }
+            return out;
         }
 
         // ── HTTP GET (minimal, single-leg) ──────────────────────────────────
@@ -294,6 +345,61 @@ namespace IpcSpecLoader {
             return ParseTomlBody(body, out);
         }
 
+        bool FetchFromNetwork(const std::string& sha, std::string& bodyOut,
+                              std::string& sourceOut, std::string& errorOut) {
+            sourceOut.clear();
+            errorOut.clear();
+            const std::string path = "steamclientipc/" + sha + ".toml";
+            const std::string rawUrl =
+                "https://raw.githubusercontent.com/KoriaPolis/Steam-Auto-PT/pattern/" + path;
+            const std::string cdnUrl =
+                "https://cdn.jsdelivr.net/gh/KoriaPolis/Steam-Auto-PT@pattern/" + path;
+            const std::string gfUrl =
+                "https://gitflic.ru/api/project/midrags/steam-auto-pt/blob?branch=pattern&file=" + path;
+
+            bool primary404 = false;
+            for (const auto& url : {rawUrl, cdnUrl}) {
+                if (primary404) break;
+                LOG_MISC_DEBUG("IpcSpecLoader: fetching {}", url);
+                auto resp = RuntimeHttp::Get(url);
+                if (!resp.networkError && resp.status == 200 && !resp.body.empty()) {
+                    bodyOut = std::move(resp.body);
+                    sourceOut = (url == rawUrl) ? "github-raw" : "jsdelivr";
+                    return true;
+                }
+                if (resp.status == 404) primary404 = true;
+                errorOut = "status=" + std::to_string(resp.status) +
+                           " net=" + std::to_string(resp.networkError ? 1 : 0) +
+                           " diag=" + resp.diagnostic;
+                LOG_MISC_DEBUG("IpcSpecLoader: fetch failed status={} net={} diag={}",
+                               resp.status, resp.networkError ? 1 : 0, resp.diagnostic);
+            }
+
+            if (!primary404 && Settings::patternGitflicEnabled) {
+                LOG_MISC_DEBUG("IpcSpecLoader: fetching gitflic");
+                auto resp = RuntimeHttp::Get(gfUrl);
+                if (!resp.networkError && resp.status == 200 && !resp.body.empty()) {
+                    std::string stitched = StitchGitflicBlobLines(resp.body);
+                    if (!stitched.empty()) {
+                        bodyOut = std::move(stitched);
+                        sourceOut = "gitflic";
+                        return true;
+                    }
+                    errorOut = "gitflic-stitch-failed";
+                    LOG_MISC_WARN("IpcSpecLoader: gitflic stitch failed");
+                } else {
+                    errorOut = "gitflic status=" + std::to_string(resp.status) +
+                               " net=" + std::to_string(resp.networkError ? 1 : 0) +
+                               " diag=" + resp.diagnostic;
+                    LOG_MISC_DEBUG("IpcSpecLoader: gitflic failed status={} net={} diag={}",
+                                   resp.status, resp.networkError ? 1 : 0,
+                                   resp.diagnostic);
+                }
+            }
+
+            return false;
+        }
+
     } // anonymous namespace
 
     // ── public surface ──────────────────────────────────────────────────────
@@ -324,34 +430,29 @@ namespace IpcSpecLoader {
                 return;
             }
 
-            // Network fetch: raw.githubusercontent.com
-            std::string urlPath = "/KoriaPolis/Steam-Auto-PT/pattern/steamclientipc/";
-            urlPath += sha;
-            urlPath += ".toml";
-
-            std::wstring wUrlPath(urlPath.begin(), urlPath.end());
-            HttpResult hr = HttpGet(L"raw.githubusercontent.com", wUrlPath.c_str());
-
-            if (!hr.ok || hr.status != 200) {
-                LOG_MISC_DEBUG("IpcSpecLoader: HTTP {} for ipc/steamclient/{}",
-                               hr.status == 0 ? "failed" : std::to_string(hr.status), sha);
+            std::string body;
+            std::string source;
+            std::string fetchError;
+            if (!FetchFromNetwork(sha, body, source, fetchError)) {
+                LOG_MISC_DEBUG("IpcSpecLoader: all network legs failed for sha={} err={}",
+                               sha, fetchError);
                 return;
             }
 
-            if (!ParseTomlBody(hr.body, parsed)) {
-                LOG_MISC_WARN("IpcSpecLoader: TOML parse failed for ipc/steamclient/{}",
-                              sha);
+            if (!ParseTomlBody(body, parsed)) {
+                LOG_MISC_WARN("IpcSpecLoader: TOML parse failed for ipc/steamclient/{} source={}",
+                              sha, source);
                 return;
             }
 
-            WriteCache(sha, hr.body);
+            WriteCache(sha, body);
 
             std::lock_guard<std::mutex> lk(g_mutex);
             g_interfaces = std::move(parsed);
             g_loaded = true;
 
-            LOG_MISC_DEBUG("IpcSpecLoader: network hit sha={} interfaces={}",
-                           sha, static_cast<unsigned>(g_interfaces.size()));
+            LOG_MISC_DEBUG("IpcSpecLoader: network hit sha={} source={} interfaces={}",
+                           sha, source, static_cast<unsigned>(g_interfaces.size()));
         });
     }
 

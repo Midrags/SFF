@@ -7,11 +7,13 @@
 #include "hooks/capture/SteamCapture.h"
 #include "config/LuaLoader.h"
 #include "core/entry.h"
+#include "runtime/HookStatus.h"
 #include "runtime/Logger.h"
 
 #include <unordered_map>
 #include <mutex>
 #include <chrono>
+#include <deque>
 
 namespace NetPacket::Handlers::UserStats {
 
@@ -21,15 +23,31 @@ struct StatAttempt {
     AppId_t appId = 0;
     size_t poolIndex = 0;
     size_t poolCount = 0;
+    uint64_t steamId = 0;
+    uint64_t sequence = 0;
     Clock::time_point seen{};
 };
 
 std::unordered_map<uint64_t, StatAttempt> g_JobIdToAppId;
+std::deque<StatAttempt> g_RecentPlayerStatsAttempts;
+uint64_t g_NextPlayerStatsSequence = 1;
+std::mutex g_PlayerStatsAttemptMutex;
 std::unordered_map<AppId_t, StatAttempt> g_PendingClientStatsSpoof;
 std::mutex g_PendingClientStatsSpoofMutex;
 std::mutex g_StatsPoolMutex;
 std::unordered_map<AppId_t, size_t> g_NextPoolIndexByApp;
 std::unordered_map<AppId_t, size_t> g_PreferredPoolIndexByApp;
+
+constexpr auto kPlayerAttemptWindow = std::chrono::seconds(15);
+constexpr size_t kPlayerAttemptCap = 24;
+
+struct PlayerAttemptResolve {
+    bool matched = false;
+    bool ambiguous = false;
+    size_t candidates = 0;
+    const char* source = "no-match";
+    StatAttempt attempt{};
+};
 
 static bool IsOK(int32_t eresult) {
     return eresult == static_cast<int32_t>(k_EResultOK);
@@ -82,7 +100,102 @@ static StatAttempt MakeAttempt(AppId_t appId) {
 }
 
 static uint64_t FillAttemptSteamId(StatAttempt& attempt) {
-    return PickStatsSteamId(attempt.appId, attempt.poolIndex, attempt.poolCount);
+    attempt.steamId = PickStatsSteamId(attempt.appId, attempt.poolIndex, attempt.poolCount);
+    return attempt.steamId;
+}
+
+static void EraseRecentPlayerAttemptLocked(uint64_t sequence) {
+    for (auto it = g_RecentPlayerStatsAttempts.begin(); it != g_RecentPlayerStatsAttempts.end(); ) {
+        if (it->sequence == sequence) {
+            it = g_RecentPlayerStatsAttempts.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
+static void PrunePlayerAttemptsLocked(Clock::time_point now) {
+    for (auto it = g_RecentPlayerStatsAttempts.begin(); it != g_RecentPlayerStatsAttempts.end(); ) {
+        if (now - it->seen > kPlayerAttemptWindow) {
+            it = g_RecentPlayerStatsAttempts.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    while (g_RecentPlayerStatsAttempts.size() > kPlayerAttemptCap)
+        g_RecentPlayerStatsAttempts.pop_front();
+
+    std::erase_if(g_JobIdToAppId, [&now](const auto& e) {
+        return now - e.second.seen > std::chrono::seconds(30);
+    });
+}
+
+static void RecordPlayerAttempt(StatAttempt attempt, bool hasJobId, uint64_t jobId) {
+    auto now = Clock::now();
+    attempt.seen = now;
+
+    std::lock_guard<std::mutex> guard(g_PlayerStatsAttemptMutex);
+    PrunePlayerAttemptsLocked(now);
+    attempt.sequence = g_NextPlayerStatsSequence++;
+    if (hasJobId)
+        g_JobIdToAppId[jobId] = attempt;
+    g_RecentPlayerStatsAttempts.push_back(attempt);
+
+    LOG_PKTRT_DEBUG(
+        "{{\"evt\":\"UserStats\",\"act\":\"track\",\"sub\":\"GetUserStats\",\"appId\":{},\"seq\":{},\"jobId\":{},\"hasJobId\":{},\"poolIndex\":{},\"poolCount\":{},\"steamId\":{}}}",
+        attempt.appId, attempt.sequence, hasJobId ? jobId : 0, hasJobId ? "true" : "false",
+        attempt.poolIndex, attempt.poolCount, attempt.steamId);
+    HookStatus::RecordStatsState(attempt.appId, "Player.GetUserStats",
+                                 attempt.poolIndex, attempt.poolCount,
+                                 hasJobId ? "send-jobid" : "send-no-job",
+                                 -1, "sent");
+}
+
+static PlayerAttemptResolve ResolvePlayerAttempt(const CMsgProtoBufHeader& hdrMsg) {
+    PlayerAttemptResolve result;
+    auto now = Clock::now();
+    std::lock_guard<std::mutex> guard(g_PlayerStatsAttemptMutex);
+    PrunePlayerAttemptsLocked(now);
+
+    if (hdrMsg.has_jobid_target()) {
+        uint64_t jobId = hdrMsg.jobid_target();
+        auto it = g_JobIdToAppId.find(jobId);
+        if (it != g_JobIdToAppId.end()) {
+            result.matched = true;
+            result.source = "jobid";
+            result.attempt = it->second;
+            g_JobIdToAppId.erase(it);
+            EraseRecentPlayerAttemptLocked(result.attempt.sequence);
+            return result;
+        }
+    }
+
+    StatAttempt candidate;
+    size_t count = 0;
+    for (const auto& attempt : g_RecentPlayerStatsAttempts) {
+        if (now - attempt.seen > kPlayerAttemptWindow)
+            continue;
+        candidate = attempt;
+        ++count;
+    }
+
+    result.candidates = count;
+    if (count == 1) {
+        result.matched = true;
+        result.source = "recent-fallback";
+        result.attempt = candidate;
+        EraseRecentPlayerAttemptLocked(candidate.sequence);
+        std::erase_if(g_JobIdToAppId, [&candidate](const auto& e) {
+            return e.second.sequence == candidate.sequence;
+        });
+        return result;
+    }
+
+    if (count > 1) {
+        result.ambiguous = true;
+        result.source = "ambiguous";
+    }
+    return result;
 }
 
 static void NoteAttemptResult(const StatAttempt& attempt, bool okWithData) {
@@ -163,15 +276,14 @@ bool HandleSend_GetUserStats(const uint8_t* pBody, uint32_t cbBody,
     uint64_t newSteamId = FillAttemptSteamId(attempt);
 
     CMsgProtoBufHeader hdr;
+    bool hasJobId = false;
+    uint64_t jobId = 0;
     if (hdr.ParseFromArray(pHdr, cbHdr) && hdr.has_jobid_source()) {
-        uint64_t jobId = hdr.jobid_source();
-        auto now = Clock::now();
-        std::erase_if(g_JobIdToAppId, [&now](const auto& e) {
-            return now - e.second.seen > std::chrono::seconds(30);
-        });
-        g_JobIdToAppId[jobId] = attempt;
+        hasJobId = true;
+        jobId = hdr.jobid_source();
         LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"GetUserStats\",\"job\":{},\"appId\":{}}}", jobId, appId);
     }
+    RecordPlayerAttempt(attempt, hasJobId, jobId);
 
     req.set_steamid(newSteamId);
     LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"GetUserStats\",\"spoof\":{},\"appId\":{},\"poolIndex\":{},\"poolCount\":{}}}",
@@ -200,20 +312,10 @@ void HandleRecv_GetUserStatsResponse(const uint8_t* pHdr, uint32_t cbHdr,
     }
     LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"GetUserStatsResp\",\"original-header\":{}}}", hdrMsg.DebugString());
 
-    AppId_t appId = 0;
-    bool hasAppId = false;
-    StatAttempt attempt;
-    if (hdrMsg.has_jobid_target()) {
-        uint64_t jobId = hdrMsg.jobid_target();
-        auto it = g_JobIdToAppId.find(jobId);
-        if (it != g_JobIdToAppId.end()) {
-            attempt = it->second;
-            appId = attempt.appId;
-            hasAppId = true;
-            LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"GetUserStatsResp\",\"job-match\":{},\"appId\":{}}}", jobId, appId);
-            g_JobIdToAppId.erase(it);
-        }
-    }
+    PlayerAttemptResolve resolved = ResolvePlayerAttempt(hdrMsg);
+    StatAttempt attempt = resolved.attempt;
+    AppId_t appId = attempt.appId;
+    const int32_t originalResult = hdrMsg.has_eresult() ? hdrMsg.eresult() : -1;
 
     CPlayer_GetUserStats_Response resp;
     if (!resp.ParseFromArray(pBody, cbBody)) {
@@ -222,12 +324,21 @@ void HandleRecv_GetUserStatsResponse(const uint8_t* pHdr, uint32_t cbHdr,
     }
     LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"GetUserStatsResp\",\"original-body\":{}}}", resp.DebugString());
 
-    if (!hasAppId || !LuaLoader::IsStatsManagedApp(appId)) {
-        LOG_PKTRT_DEBUG("{{{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"GetUserStatsResp\",\"skip\":\"no-match\"}}}}");
+    if (!resolved.matched || !LuaLoader::IsStatsManagedApp(appId)) {
+        LOG_PKTRT_DEBUG(
+            "{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"GetUserStatsResp\",\"skip\":\"{}\",\"candidates\":{},\"eresult\":{}}}",
+            resolved.source, resolved.candidates, originalResult);
+        HookStatus::RecordStatsState(0, "Player.GetUserStats", 0, 0,
+                                     resolved.source, originalResult,
+                                     resolved.ambiguous ? "ambiguous" : "skipped");
         return;
     }
 
-    NoteAttemptResult(attempt, IsOK(hdrMsg.eresult()) && HasStatsPayload(resp));
+    const bool okWithData = IsOK(originalResult) && HasStatsPayload(resp);
+    NoteAttemptResult(attempt, okWithData);
+    LOG_PKTRT_INFO(
+        "{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"GetUserStatsResp\",\"match\":\"{}\",\"appId\":{},\"seq\":{},\"eresult\":{},\"poolIndex\":{},\"poolCount\":{}}}",
+        resolved.source, appId, attempt.sequence, originalResult, attempt.poolIndex, attempt.poolCount);
 
     hdrMsg.set_eresult(static_cast<int32_t>(k_EResultOK));
     s_rx.HdrLen = static_cast<uint32_t>(hdrMsg.ByteSizeLong());
@@ -250,6 +361,10 @@ void HandleRecv_GetUserStatsResponse(const uint8_t* pHdr, uint32_t cbHdr,
     }
     s_rx.PatchHdr = true;
     s_rx.PatchBody = true;
+    HookStatus::RecordStatsState(appId, "Player.GetUserStats",
+                                 attempt.poolIndex, attempt.poolCount,
+                                 resolved.source, originalResult,
+                                 okWithData ? "ok-with-data-stripped" : "normalized-ok");
 
     LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"GetUserStatsResp\",\"modified-body\":{}}}", resp.DebugString());
 }
@@ -289,6 +404,9 @@ bool HandleSend_ClientGetUserStats(const uint8_t* pBody, uint32_t cbBody) {
     req.set_steam_id_for_user(newSteamId);
     LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientGetUserStats\",\"spoof\":{},\"appId\":{},\"poolIndex\":{},\"poolCount\":{}}}",
                     newSteamId, appId, attempt.poolIndex, attempt.poolCount);
+    HookStatus::RecordStatsState(appId, "ClientGetUserStats",
+                                 attempt.poolIndex, attempt.poolCount,
+                                 "send-app-map", -1, "sent");
 
     {
         std::lock_guard<std::mutex> guard(g_PendingClientStatsSpoofMutex);
@@ -353,15 +471,26 @@ bool HandleRecv_ClientGetUserStatsResponse(const uint8_t* pBody, uint32_t cbBody
             LOG_PKTRT_DEBUG(
                 "{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"skip\":\"not-spoofed-ok\",\"appId\":{}}}",
                 gameId);
+            HookStatus::RecordStatsState(gameId, "ClientGetUserStats", 0, 0,
+                                         "not-spoofed", resp.eresult(),
+                                         "ok-passthrough");
             return false;
         }
         LOG_PKTRT_INFO(
             "{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"fix\":\"not-spoofed-failure\",\"appId\":{},\"eresult\":{}}}",
             gameId, resp.eresult());
+        HookStatus::RecordStatsState(gameId, "ClientGetUserStats", 0, 0,
+                                     "not-spoofed", resp.eresult(),
+                                     "not-spoofed-failure-normalized");
         return WriteClientStatsOk(resp, gameId, "not-spoofed-failure-normalized");
     }
 
-    NoteAttemptResult(attempt, IsOK(resp.eresult()) && HasStatsPayload(resp));
+    const bool okWithData = IsOK(resp.eresult()) && HasStatsPayload(resp);
+    NoteAttemptResult(attempt, okWithData);
+    HookStatus::RecordStatsState(gameId, "ClientGetUserStats",
+                                 attempt.poolIndex, attempt.poolCount,
+                                 "app-map", resp.eresult(),
+                                 okWithData ? "ok-with-data-stripped" : "spoofed-normalized");
     LOG_PKTRT_DEBUG("{{{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"stripped\":1}}}}");
     return WriteClientStatsOk(resp, gameId, "spoofed");
 }

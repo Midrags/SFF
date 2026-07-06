@@ -31,6 +31,10 @@ namespace SteamUI {
     // CSteamUIAppControllerRunFrame tick. Thread-safe.
     void QueueLibraryRemoval(AppId_t appId);
 
+    // Queues a safe MarkAppChange touch for newly added roots on the next
+    // CSteamUIAppControllerRunFrame tick. Thread-safe.
+    void QueueLibraryTouch(AppId_t appId);
+
     // Cancels a queued removal when the app is added again before
     // the UI drains it. Thread-safe.
     void CancelLibraryRemoval(AppId_t appId);

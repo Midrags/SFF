@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <chrono>
+#include <cstdint>
 #include <cwctype>
 #include <cstring>
 #include <filesystem>
@@ -26,6 +28,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace {
@@ -48,11 +51,21 @@ namespace {
         LegacySectionName,
         LegacyTextMarker,
         OepTextMarker,
+        EntryBindSection,
         TicketCacheHint,
     };
 
     std::mutex g_lock;
     std::unordered_map<ProcessKey, ProtectionProbe::ScanResult, ProcessKeyHash> g_results;
+
+    struct FileScanCacheEntry {
+        uint64 fileSize = 0;
+        int64_t writeTicks = 0;
+        uint64 bytesScanned = 0;
+        Method method = Method::None;
+    };
+
+    std::unordered_map<std::wstring, FileScanCacheEntry> g_fileResults;
 
     constexpr std::array<std::string_view, 5> kLegacySections = {
         ".arch",
@@ -121,9 +134,20 @@ namespace {
             case Method::LegacySectionName: return "legacy_section";
             case Method::LegacyTextMarker:  return "legacy_text";
             case Method::OepTextMarker:     return "oep_text";
+            case Method::EntryBindSection:  return "entry_bind_section";
             case Method::TicketCacheHint:   return "ticket_cache_hint";
             default:                        return "none";
         }
+    }
+
+    bool IsRouteMethod(Method method) {
+        return method == Method::EntryBindSection;
+    }
+
+    const char* RouteReason(Method method) {
+        if (method == Method::None)
+            return "none";
+        return IsRouteMethod(method) ? "accepted" : "diagnostic-only";
     }
 
     std::string PathToUtf8(const std::filesystem::path& path);
@@ -271,13 +295,31 @@ namespace {
         return std::span<const unsigned char>(bytes.data() + section.rawOffset, size);
     }
 
-    Method ScanPeImage(const std::vector<unsigned char>& bytes, const PeSnapshot& pe) {
+    Method ScanPeHeaders(const PeSnapshot& pe) {
+        if (pe.entryRva != 0) {
+            for (const auto& section : pe.sections) {
+                if (!section.ContainsRva(pe.entryRva))
+                    continue;
+                if (section.name == ".bind"
+                    && (section.characteristics & IMAGE_SCN_MEM_EXECUTE) != 0)
+                    return Method::EntryBindSection;
+                break;
+            }
+        }
+
         for (const auto& section : pe.sections) {
             for (std::string_view name : kLegacySections) {
                 if (section.name == name)
                     return Method::LegacySectionName;
             }
         }
+
+        return Method::None;
+    }
+
+    Method ScanPeImage(const std::vector<unsigned char>& bytes, const PeSnapshot& pe) {
+        if (Method headerMethod = ScanPeHeaders(pe); headerMethod == Method::LegacySectionName)
+            return headerMethod;
 
         if (pe.entryRva != 0) {
             for (const auto& section : pe.sections) {
@@ -286,6 +328,8 @@ namespace {
                 auto view = SectionBytes(bytes, section);
                 if (BytesContain(view, kOepMovText) || BytesContain(view, kOepText))
                     return Method::OepTextMarker;
+                if (Method headerMethod = ScanPeHeaders(pe); headerMethod == Method::EntryBindSection)
+                    return headerMethod;
                 break;
             }
         }
@@ -327,12 +371,39 @@ namespace {
         return in.gcount() == static_cast<std::streamsize>(bytes.size());
     }
 
+    bool ReadFilePrefix(const std::filesystem::path& path,
+                        uint64 fileSize,
+                        std::vector<unsigned char>& bytes) {
+        if (fileSize == 0)
+            return false;
+        constexpr uint64 kHeaderBytes = 1024ull * 1024ull;
+        const uint64 wanted = (std::min)(fileSize, kHeaderBytes);
+        std::ifstream in(path, std::ios::binary);
+        if (!in)
+            return false;
+        bytes.resize(static_cast<std::size_t>(wanted));
+        in.read(reinterpret_cast<char*>(bytes.data()),
+                static_cast<std::streamsize>(bytes.size()));
+        return in.gcount() == static_cast<std::streamsize>(bytes.size());
+    }
+
     Method ScanFile(const std::filesystem::path& path, uint64& bytesScanned) {
         bytesScanned = 0;
         std::error_code ec;
         uint64 fileSize = std::filesystem::exists(path, ec)
             ? static_cast<uint64>(std::filesystem::file_size(path, ec))
             : 0;
+
+        std::vector<unsigned char> prefix;
+        if (ReadFilePrefix(path, fileSize, prefix)) {
+            bytesScanned = static_cast<uint64>(prefix.size());
+            if (auto pe = ReadPeLayout(prefix)) {
+                Method method = ScanPeHeaders(*pe);
+                if (method != Method::None)
+                    return method;
+            }
+            bytesScanned = 0;
+        }
 
         std::vector<unsigned char> whole;
         if (ReadWholeFile(path, fileSize, whole)) {
@@ -389,6 +460,24 @@ namespace {
         return static_cast<uint64>(std::filesystem::file_size(path, ec));
     }
 
+    int64_t SafeWriteTicks(const std::filesystem::path& path) {
+        std::error_code ec;
+        auto stamp = std::filesystem::last_write_time(path, ec);
+        if (ec)
+            return 0;
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(
+            stamp.time_since_epoch()).count();
+    }
+
+    std::wstring NormalizedKey(const std::filesystem::path& path) {
+        std::wstring key = path.native();
+        std::replace(key.begin(), key.end(), L'/', L'\\');
+        std::transform(key.begin(), key.end(), key.begin(), [](wchar_t ch) {
+            return static_cast<wchar_t>(std::towlower(ch));
+        });
+        return key;
+    }
+
     void AddCandidate(std::vector<ModuleCandidate>& out,
                       std::unordered_set<std::wstring>& seen,
                       const std::filesystem::path& path,
@@ -410,6 +499,125 @@ namespace {
             return;
 
         out.push_back(ModuleCandidate{path, size, executable, order});
+    }
+
+    Method ScanFileCached(const std::filesystem::path& path,
+                          uint64& fileSize,
+                          uint64& bytesScanned) {
+        fileSize = SafeFileSize(path);
+        bytesScanned = 0;
+        if (fileSize == 0)
+            return Method::None;
+
+        const int64_t writeTicks = SafeWriteTicks(path);
+        const std::wstring key = NormalizedKey(path);
+        {
+            std::scoped_lock lock(g_lock);
+            auto it = g_fileResults.find(key);
+            if (it != g_fileResults.end()
+                && it->second.fileSize == fileSize
+                && it->second.writeTicks == writeTicks) {
+                bytesScanned = it->second.bytesScanned;
+                return it->second.method;
+            }
+        }
+
+        Method method = ScanFile(path, bytesScanned);
+        {
+            std::scoped_lock lock(g_lock);
+            g_fileResults[key] = FileScanCacheEntry{
+                fileSize,
+                writeTicks,
+                bytesScanned,
+                method,
+            };
+        }
+        return method;
+    }
+
+    std::filesystem::path GameRootForLaunch(const std::filesystem::path& launchPath) {
+        std::filesystem::path root;
+        bool seenCommon = false;
+        bool addedGameFolder = false;
+        for (const auto& part : launchPath.parent_path()) {
+            root /= part;
+            std::string value = LowerAscii(PathToUtf8(part));
+            if (seenCommon && !addedGameFolder) {
+                addedGameFolder = true;
+                return root;
+            }
+            if (value == "common")
+                seenCommon = true;
+        }
+        return launchPath.parent_path();
+    }
+
+    bool PathLooksLikeShippingExe(const std::filesystem::path& path) {
+        std::string name = LowerAscii(PathToUtf8(path.filename()));
+        return name.find("win64-shipping.exe") != std::string::npos;
+    }
+
+    bool PathLooksLikeWin64Bin(const std::filesystem::path& path) {
+        std::string value = LowerAscii(PathToUtf8(path));
+        std::replace(value.begin(), value.end(), '/', '\\');
+        return value.find("\\binaries\\win64\\") != std::string::npos;
+    }
+
+    std::vector<ModuleCandidate> PreSpawnCandidates(const std::filesystem::path& launchPath) {
+        std::vector<ModuleCandidate> out;
+        std::unordered_set<std::wstring> seen;
+        size_t order = 0;
+        AddCandidate(out, seen, launchPath, true, order++);
+
+        const std::filesystem::path root = GameRootForLaunch(launchPath);
+        std::error_code ec;
+        if (!std::filesystem::is_directory(root, ec))
+            return out;
+
+        constexpr size_t kMaxCandidates = 128;
+        std::filesystem::recursive_directory_iterator it(
+            root, std::filesystem::directory_options::skip_permission_denied, ec);
+        std::filesystem::recursive_directory_iterator end;
+        while (!ec && it != end && out.size() < kMaxCandidates) {
+            if (it.depth() > 6) {
+                it.disable_recursion_pending();
+                it.increment(ec);
+                continue;
+            }
+
+            const std::filesystem::path path = it->path();
+            if (it->is_regular_file(ec)
+                && LowerAscii(PathToUtf8(path.extension())) == ".exe") {
+                AddCandidate(out, seen, path, true, order++);
+            }
+            if (ec)
+                ec.clear();
+            it.increment(ec);
+        }
+
+        const std::wstring launchKey = NormalizedKey(launchPath);
+        std::stable_sort(out.begin(), out.end(), [&](const auto& lhs, const auto& rhs) {
+            const bool lhsLaunch = NormalizedKey(lhs.path) == launchKey;
+            const bool rhsLaunch = NormalizedKey(rhs.path) == launchKey;
+            if (lhsLaunch != rhsLaunch) return lhsLaunch;
+
+            const bool lhsShipping = PathLooksLikeShippingExe(lhs.path);
+            const bool rhsShipping = PathLooksLikeShippingExe(rhs.path);
+            if (lhsShipping != rhsShipping) return lhsShipping;
+
+            const bool lhsWin64 = PathLooksLikeWin64Bin(lhs.path);
+            const bool rhsWin64 = PathLooksLikeWin64Bin(rhs.path);
+            if (lhsWin64 != rhsWin64) return lhsWin64;
+
+            const bool lhsLarge = lhs.fileSize >= kLargeDllScanFloor;
+            const bool rhsLarge = rhs.fileSize >= kLargeDllScanFloor;
+            if (lhsLarge != rhsLarge) return lhsLarge;
+
+            if (lhs.fileSize != rhs.fileSize)
+                return lhs.fileSize > rhs.fileSize;
+            return lhs.order < rhs.order;
+        });
+        return out;
     }
 
     std::vector<ModuleCandidate> CandidateModules(uint32 pid,
@@ -481,6 +689,88 @@ namespace {
 }
 
 namespace ProtectionProbe {
+    ScanResult ScanBeforeSpawn(AppId_t appId, const std::string& imagePath) {
+        if (imagePath.empty() || !EndsWith(imagePath, ".exe"))
+            return {};
+
+        const ClockMark::Span scanTime;
+        std::filesystem::path launchPath = std::filesystem::u8path(imagePath);
+        std::vector<ModuleCandidate> candidates = PreSpawnCandidates(launchPath);
+
+        ScanResult result{};
+        result.valid = true;
+        result.method = MethodName(Method::None);
+        result.routeReason = RouteReason(Method::None);
+        result.imagePath = PathToUtf8(launchPath);
+
+        uint64 totalScanned = 0;
+        size_t checked = 0;
+        Method bestMethod = Method::None;
+        std::filesystem::path bestPath;
+        uint64 bestFileSize = 0;
+        uint64 bestBytesScanned = 0;
+        size_t bestChecked = 0;
+        for (const auto& candidate : candidates) {
+            ++checked;
+            uint64 fileSize = 0;
+            uint64 bytesScanned = 0;
+            Method method = ScanFileCached(candidate.path, fileSize, bytesScanned);
+            totalScanned += bytesScanned;
+            if (method == Method::None)
+                continue;
+
+            if (bestMethod == Method::None) {
+                bestMethod = method;
+                bestPath = candidate.path;
+                bestFileSize = fileSize;
+                bestBytesScanned = bytesScanned;
+                bestChecked = checked;
+            }
+
+            if (IsRouteMethod(method)) {
+                bestMethod = method;
+                bestPath = candidate.path;
+                bestFileSize = fileSize;
+                bestBytesScanned = bytesScanned;
+                bestChecked = checked;
+                break;
+            }
+        }
+
+        if (bestMethod != Method::None) {
+            result.detected = true;
+            result.routeAccepted = IsRouteMethod(bestMethod);
+            result.method = MethodName(bestMethod);
+            result.routeReason = RouteReason(bestMethod);
+            result.imagePath = PathToUtf8(bestPath);
+            result.fileSize = bestFileSize;
+            result.bytesScanned = bestBytesScanned;
+            result.candidates = bestChecked;
+            LOG_MISC_INFO("ProtectionProbe(pre-spawn): appid={} detected=true routeAccepted={} routeReason={} method={} file_size={} scanned={} total_scanned={} candidates={} elapsed_ms={:.3f} image={}",
+                          appId,
+                          result.routeAccepted,
+                          result.routeReason,
+                          result.method,
+                          result.fileSize,
+                          result.bytesScanned,
+                          totalScanned,
+                          result.candidates,
+                          scanTime.Ms(),
+                          result.imagePath);
+            return result;
+        }
+
+        result.bytesScanned = totalScanned;
+        result.candidates = checked;
+        LOG_MISC_INFO("ProtectionProbe(pre-spawn): appid={} detected=false routeAccepted=false routeReason=none method=none scanned={} candidates={} elapsed_ms={:.3f} image={}",
+                      appId,
+                      result.bytesScanned,
+                      result.candidates,
+                      scanTime.Ms(),
+                      result.imagePath);
+        return result;
+    }
+
     ScanResult ScanOnce(uint32 pid, uint64 creation, AppId_t appId, const std::string& imagePath) {
         if (pid == 0 || creation == 0 || imagePath.empty())
             return {};
@@ -521,6 +811,10 @@ namespace ProtectionProbe {
         result.valid = true;
         result.detected = method != Method::None;
         result.method = MethodName(method);
+        result.imagePath = PathToUtf8(matchedPath);
+        result.fileSize = fileSize;
+        result.bytesScanned = bytesScanned;
+        result.candidates = modulesChecked;
         {
             std::scoped_lock lock(g_lock);
             g_results[key] = result;

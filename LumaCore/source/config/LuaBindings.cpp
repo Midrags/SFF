@@ -314,10 +314,10 @@ int Bind_fetchManifestCodeEx(lua_State* L) {
             DepotKeySet[depotId] = key;
         }
 
-        // Multi-account fix: clearing the owned flag on every addappid means
-        // a secondary account adding a game previously marked owned by the
-        // primary account re-patches correctly through CheckAppOwnership.
+        // Multi-account fix: clearing Steam-provided flags on every addappid
+        // means a secondary account re-patches correctly through ownership.
         OwnedAppIdSet.erase(depotId);
+        FamilySharedAppIdSet.erase(depotId);
 
         if (g_activeSession) {
             g_activeSession->recordDepot(depotId);

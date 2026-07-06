@@ -13,9 +13,12 @@ namespace PackagePatch {
     void Install();
     void Uninstall();
 
-    // Inject app IDs directly into the saved package 0 pointer.
-    // Returns false if package 0 hasn't been captured yet.
-    bool InjectIntoPackage0(const std::vector<AppId_t>& appIds);
+    // Inject app IDs directly into package 0 after checking membership.
+    // Returns false if package 0 or CUtlMemoryGrow is not available yet.
+    bool InjectIntoPackage0(const std::vector<AppId_t>& appIds,
+                            const char* reason = "package0");
+    bool InjectIntoPackage0(PackageInfo* pPkg, const std::vector<AppId_t>& appIds,
+                            const char* reason = "package0");
 
     // Returns the saved PackageInfo* for package 0 (nullptr if not yet captured).
     PackageInfo* GetPackage0();

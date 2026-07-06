@@ -6,6 +6,7 @@
 #include "hooks/client/OnlineFixInject.h"
 #include "hooks/Macros.h"
 #include "config/Settings.h"
+#include "runtime/HookStatus.h"
 #include "runtime/RemoteTools.h"
 
 #include <algorithm>
@@ -15,11 +16,21 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace {
 
     std::mutex g_queueLock;
     std::unordered_map<std::wstring, AppId_t> g_queue;
+
+    struct PendingRoute {
+        AppId_t appId = 0;
+        std::wstring launchExe;
+        uint64_t queuedAt = 0;
+        std::unordered_set<uint32_t> fallbackPids;
+    };
+
+    PendingRoute g_pendingRoute;
 
     std::wstring LowerBasename(LPCWSTR path) {
         if (!path || !*path) return {};
@@ -39,6 +50,11 @@ namespace {
             for (; *cmd && *cmd != L' ' && *cmd != L'\t'; ++cmd) out.push_back(*cmd);
         }
         return out;
+    }
+
+    std::string ImageForLog(std::string_view imageName) {
+        if (!imageName.empty()) return std::string(imageName);
+        return "-";
     }
 
     std::string NarrowPath(std::wstring_view text) {
@@ -84,32 +100,37 @@ namespace {
         AppId_t id = it->second;
         g_queue.erase(it);
         LOG_ONLINEFIX_INFO("claim hit appid={} exe={}", id, NarrowPath(key));
+        HookStatus::RecordOnlineFixPayload(id, 0, NarrowPath(key), "claimed", "createprocess");
         return id;
     }
 
-    AppId_t ClaimQueuedImage(std::string_view imageName, AppId_t expectedAppId) {
+    AppId_t ClaimFallbackRoute(uint32_t pid, std::string_view imageName, AppId_t expectedAppId) {
         std::wstring wide = WideFromUtf8(imageName);
         std::wstring key = LowerBasename(wide.c_str());
-        if (key.empty()) {
-            LOG_ONLINEFIX_DEBUG("fallback claim miss exe=(empty)");
-            return 0;
-        }
-
         std::lock_guard lk(g_queueLock);
-        auto it = g_queue.find(key);
-        if (it == g_queue.end()) {
-            LOG_ONLINEFIX_DEBUG("fallback claim miss exe={}", NarrowPath(key));
+        if (!g_pendingRoute.appId) {
+            LOG_ONLINEFIX_DEBUG("fallback skip appid={} pid={} exe={} reason=no-pending",
+                                expectedAppId, pid, NarrowPath(key));
             return 0;
         }
-        AppId_t id = it->second;
-        if (expectedAppId && id != expectedAppId) {
-            LOG_ONLINEFIX_WARN("fallback claim mismatch queued={} expected={} exe={}",
-                               id, expectedAppId, NarrowPath(key));
+        if (expectedAppId && g_pendingRoute.appId != expectedAppId) {
+            LOG_ONLINEFIX_WARN("fallback skip queued={} expected={} pid={} exe={} reason=appid-mismatch",
+                               g_pendingRoute.appId, expectedAppId, pid, NarrowPath(key));
             return 0;
         }
-        g_queue.erase(it);
-        LOG_ONLINEFIX_INFO("fallback claim hit appid={} exe={}", id, NarrowPath(key));
-        return id;
+        if (pid && g_pendingRoute.fallbackPids.contains(pid)) {
+            LOG_ONLINEFIX_DEBUG("fallback skip appid={} pid={} exe={} reason=already-tried",
+                                g_pendingRoute.appId, pid, NarrowPath(key));
+            return 0;
+        }
+        if (pid)
+            g_pendingRoute.fallbackPids.insert(pid);
+        LOG_ONLINEFIX_INFO("fallback route hit appid={} pid={} launch={} child={}",
+                           g_pendingRoute.appId, pid, NarrowPath(g_pendingRoute.launchExe),
+                           NarrowPath(key));
+        HookStatus::RecordOnlineFixPayload(g_pendingRoute.appId, pid, NarrowPath(key),
+                                           "fallback-claimed", "pipewatch-eos");
+        return g_pendingRoute.appId;
     }
 
     using CreateProcessW_t = BOOL(WINAPI*)(LPCWSTR, LPWSTR, LPSECURITY_ATTRIBUTES,
@@ -177,6 +198,10 @@ namespace {
         bool injected = InjectPayload(pi->hProcess, wPayload);
         LOG_ONLINEFIX_INFO("appid={} pid={} payload {}", appId, pi->dwProcessId,
                            injected ? "loaded" : "FAILED");
+        HookStatus::RecordOnlineFixPayload(appId, pi->dwProcessId,
+                                           app ? NarrowPath(LowerBasename(app)) : std::string{},
+                                           injected ? "claimed-loaded" : "claimed-failed",
+                                           "createprocess");
 
         if (!(flags & CREATE_SUSPENDED)) ResumeThread(pi->hThread);
         return ok;
@@ -258,6 +283,7 @@ namespace OnlineFixInject {
 
         std::lock_guard lk(g_queueLock);
         g_queue.clear();
+        g_pendingRoute = {};
     }
 
     void QueueInjection(const char* exePath, AppId_t realAppId) {
@@ -273,25 +299,47 @@ namespace OnlineFixInject {
 
         std::lock_guard lk(g_queueLock);
         g_queue[key] = realAppId;
+        g_pendingRoute = {};
+        g_pendingRoute.appId = realAppId;
+        g_pendingRoute.launchExe = key;
+        g_pendingRoute.queuedAt = GetTickCount64();
         LOG_ONLINEFIX_INFO("queued appid={} exe={}", realAppId, NarrowPath(key));
+        HookStatus::RecordOnlineFixPayload(realAppId, 0, NarrowPath(key), "queued", "manual-route");
+    }
+
+    void RecordNoEos(uint32_t pid, const std::string& imageName, AppId_t realAppId) {
+        if (!pid || !realAppId) return;
+        std::wstring wide = WideFromUtf8(imageName);
+        std::wstring key = LowerBasename(wide.c_str());
+
+        std::lock_guard lk(g_queueLock);
+        if (g_pendingRoute.appId != realAppId)
+            return;
+        HookStatus::RecordOnlineFixPayload(realAppId, pid, NarrowPath(key), "no-eos", "pipewatch");
     }
 
     bool TryFallbackInject(uint32_t pid, const std::string& imageName, AppId_t realAppId) {
         if (!pid || !realAppId) return false;
-        AppId_t queuedAppId = ClaimQueuedImage(imageName, realAppId);
+        AppId_t queuedAppId = ClaimFallbackRoute(pid, imageName, realAppId);
         if (!queuedAppId) return false;
 
         if (PayloadPath[0] == 0) {
             LOG_ONLINEFIX_WARN("fallback appid={} pid={} payload path empty", queuedAppId, pid);
+            HookStatus::RecordOnlineFixPayload(queuedAppId, pid, ImageForLog(imageName),
+                                               "fallback-failed", "payload-empty");
             return false;
         }
         if (!Settings::onlineFixInjectEnabled) {
             LOG_ONLINEFIX_INFO("fallback appid={} pid={} injection disabled by config", queuedAppId, pid);
+            HookStatus::RecordOnlineFixPayload(queuedAppId, pid, ImageForLog(imageName),
+                                               "fallback-disabled", "config");
             return false;
         }
         if (GetFileAttributesA(PayloadPath) == INVALID_FILE_ATTRIBUTES) {
             LOG_ONLINEFIX_WARN("fallback appid={} pid={} payload DLL missing path=\"{}\"",
                                queuedAppId, pid, PayloadPath);
+            HookStatus::RecordOnlineFixPayload(queuedAppId, pid, ImageForLog(imageName),
+                                               "fallback-failed", "payload-missing");
             return false;
         }
 
@@ -301,11 +349,16 @@ namespace OnlineFixInject {
             LOG_ONLINEFIX_INFO("fallback appid={} pid={} payload {}",
                                queuedAppId, pid,
                                loaded.alreadyLoaded ? "already-loaded" : "loaded");
+            HookStatus::RecordOnlineFixPayload(queuedAppId, pid, ImageForLog(imageName),
+                                               loaded.alreadyLoaded ? "fallback-already-loaded" : "fallback-loaded",
+                                               "pipewatch-eos");
             return true;
         }
 
         LOG_ONLINEFIX_WARN("fallback appid={} pid={} payload FAILED err={}",
                            queuedAppId, pid, loaded.error);
+        HookStatus::RecordOnlineFixPayload(queuedAppId, pid, ImageForLog(imageName),
+                                           "fallback-failed", loaded.error);
         return false;
     }
 

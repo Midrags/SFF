@@ -93,10 +93,33 @@ class StatusBannerPoller(QObject):
         build_id = payload.get("build_id", "?")
         sc_sha = payload.get("steamclient_sha", "")[:12]
         sui_sha = payload.get("steamui_sha", "")[:12]
+        reason = payload.get("diagnostic_reason", "")
+        pattern_status = payload.get("pattern_status", {})
         parts = [f"Steam build {build_id}"]
         if sc_sha:
             parts.append(f"steamclient: {sc_sha}")
         if sui_sha:
             parts.append(f"steamui: {sui_sha}")
-        parts.append("TOML patterns not yet available — wait for auto-fetch or report on GitHub")
+
+        no_cache = reason == "pattern-missing-no-cache"
+        if isinstance(pattern_status, dict):
+            for module in ("steamclient", "steamui"):
+                status = pattern_status.get(module, {})
+                if not isinstance(status, dict):
+                    continue
+                source = status.get("source", "")
+                if source in ("", "none"):
+                    no_cache = True
+
+        if no_cache:
+            parts.append(
+                "No cached LumaCore support data for this Steam build. "
+                "Start Steam once with internet, downgrade Steam if possible, "
+                "or report this build."
+            )
+        else:
+            parts.append(
+                "LumaCore support data is still loading. Restart Steam after "
+                "the fetch finishes, or report this build if it keeps happening."
+            )
         return " | ".join(parts)

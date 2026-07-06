@@ -46,6 +46,10 @@ namespace PatternFetcher {
         bool                   ok = false;
         std::string            sha;
         std::vector<TomlEntry> entries;
+        std::string            source;
+        bool                   cacheHit = false;
+        std::string            networkResult;
+        std::string            error;
     };
 
     enum class Source {

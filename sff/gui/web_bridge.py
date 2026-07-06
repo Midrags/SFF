@@ -318,7 +318,8 @@ class WebBridge(QObject):
         self.refresh_store_metadata()
 
     @pyqtSlot(str, int, int, str, str)
-    def search_games(self, query, offset, per_page, sort_by='updated', tag=''):
+    @pyqtSlot(str, int, int, str, str, str)
+    def search_games(self, query, offset, per_page, sort_by='updated', tag='', request_id=''):
         """Search Steam catalog (primary), then merge fresh hits from
         Hubcap on top.
 
@@ -771,26 +772,18 @@ class WebBridge(QObject):
                             enrich_game_dict(g)
                             _deduped.append(g)
                         if _deduped:
+                            _deduped.sort(key=lambda g: _store_search_score(
+                                query,
+                                g.get('name', ''),
+                                g.get('app_id'),
+                            ))
                             result['games'] = _deduped[offset:offset + per_page]
                             result['total'] = len(_deduped)
                             result['fallback_source'] = 'games_json'
                             result['has_fallback_data'] = True
                 return result
 
-            def _sort_key(g):
-                n = (g.get('name') or '').lower()
-                ql = query.lower().strip() if query else ''
-                if not ql:
-                    return (3, n)
-                if n == ql:
-                    return (0, n)
-                if n.startswith(ql):
-                    return (1, n)
-                if ql in n:
-                    return (2, n)
-                return (3, n)
-
-            merged.sort(key=_sort_key)
+            merged.sort(key=lambda g: _store_search_score(query, g.get('name', ''), g.get('app_id')))
             total = len(merged)
             if not query and not tag:
                 total = max(total, int(result.get('total') or 0))
@@ -809,10 +802,7 @@ class WebBridge(QObject):
             return result
 
         def _on_done(data):
-            if data:
-                self.search_results.emit(json.dumps(data))
-            else:
-                self.search_results.emit(json.dumps({"games": [], "total": 0}))
+            self.search_results.emit(json.dumps(_attach_store_request_id(data, request_id)))
 
         self._run_async(_do, on_done=_on_done)
 
@@ -6372,31 +6362,135 @@ _ALIAS_EXPANSIONS = {
 }
 
 
-def _matches_normalized(query_norm, name_norm):
-    """All whitespace-separated tokens of query_norm must appear in
-    name_norm. Empty query matches everything. The token check is
-    substring-based so partials like 'leg bat' still hit 'lego batman'
-    titles. Common abbreviations (GTA, RDR, CoD, RE, ...) are expanded:
-    if the typed token has a known alias, the name matches when EITHER
-    the token OR any alternative is present.
-    """
-    if not query_norm:
+def _store_words(text_norm):
+    return [w for w in (text_norm or "").split() if w]
+
+
+def _store_query_has_alias(query_norm):
+    if query_norm in _ALIAS_EXPANSIONS:
         return True
-    tokens = query_norm.split()
-    # First try the literal multi-word query as an alias key
-    # (so "gta" works as a single phrase too, not just split).
-    full_aliases = _ALIAS_EXPANSIONS.get(query_norm)
-    if full_aliases and any(alt in name_norm for alt in full_aliases):
+    return any(token in _ALIAS_EXPANSIONS for token in _store_words(query_norm))
+
+
+def _store_short_loose_query(query_norm):
+    compact = (query_norm or "").replace(" ", "")
+    return len(compact) < 3 and not compact.isdigit() and not _store_query_has_alias(query_norm)
+
+
+def _store_word_start_match(query_norm, name_norm):
+    tokens = _store_words(query_norm)
+    if not tokens:
+        return True
+    words = _store_words(name_norm)
+    pos = 0
+    for token in tokens:
+        found = False
+        for idx in range(pos, len(words)):
+            if words[idx].startswith(token):
+                pos = idx + 1
+                found = True
+                break
+        if not found:
+            return False
+    return True
+
+
+def _store_token_match(token, name_norm):
+    if len(token) < 3:
+        return token in _store_words(name_norm)
+    return token in name_norm
+
+
+def _store_all_tokens_match(query_norm, name_norm):
+    tokens = _store_words(query_norm)
+    if not tokens:
         return True
     for token in tokens:
-        if token in name_norm:
+        if _store_token_match(token, name_norm):
             continue
-        # Token miss — see if it's an abbreviation we can expand
         alts = _ALIAS_EXPANSIONS.get(token)
-        if alts and any(alt in name_norm for alt in alts):
+        if alts and any(_store_all_tokens_match(_normalize_for_search(alt), name_norm) for alt in alts):
             continue
         return False
     return True
+
+
+def _store_alias_score(query_norm, name_norm):
+    candidates = []
+    seen = set()
+    for candidate in _alias_expanded_queries(query_norm):
+        cand_norm = _normalize_for_search(candidate)
+        if not cand_norm or cand_norm == query_norm or cand_norm in seen:
+            continue
+        seen.add(cand_norm)
+        candidates.append(cand_norm)
+    for cand_norm in candidates:
+        if name_norm == cand_norm:
+            return 0
+        if name_norm.startswith(cand_norm):
+            return 1
+        if _store_word_start_match(cand_norm, name_norm):
+            return 2
+        if _store_all_tokens_match(cand_norm, name_norm):
+            return 3
+        if cand_norm in name_norm:
+            return 4
+    return None
+
+
+def _store_search_score(query, name, appid=None):
+    query_norm = _normalize_for_search(query or "")
+    name_norm = _normalize_for_search(name or "")
+    appid_text = str(appid or "").strip()
+    if not query_norm:
+        return (50, name_norm, appid_text)
+
+    compact = query_norm.replace(" ", "")
+    if compact.isdigit() and appid_text:
+        if appid_text == compact:
+            return (0, "", appid_text)
+        if len(compact) >= 3 and appid_text.startswith(compact):
+            return (3, appid_text, name_norm)
+
+    if name_norm == query_norm:
+        return (1, name_norm, appid_text)
+
+    has_alias = _store_query_has_alias(query_norm)
+    short_alias = has_alias and len(compact) < 3
+    if not short_alias and name_norm.startswith(query_norm):
+        return (2, name_norm, appid_text)
+    if _store_short_loose_query(query_norm):
+        if len(compact) >= 2 and _store_word_start_match(query_norm, name_norm):
+            return (4, name_norm, appid_text)
+        return (99, name_norm, appid_text)
+    if not short_alias and _store_word_start_match(query_norm, name_norm):
+        return (4, name_norm, appid_text)
+
+    alias_score = _store_alias_score(query_norm, name_norm)
+    if alias_score is not None:
+        return (5, alias_score, name_norm, appid_text)
+
+    if short_alias and name_norm.startswith(query_norm):
+        return (6, name_norm, appid_text)
+    if short_alias and _store_word_start_match(query_norm, name_norm):
+        return (7, name_norm, appid_text)
+    if _store_all_tokens_match(query_norm, name_norm):
+        return (8, name_norm, appid_text)
+    if not short_alias and not _store_short_loose_query(query_norm) and query_norm in name_norm:
+        return (9, name_norm, appid_text)
+    return (99, name_norm, appid_text)
+
+
+def _matches_normalized(query_norm, name_norm):
+    return _store_search_score(query_norm, name_norm)[0] < 99
+
+
+def _attach_store_request_id(data, request_id):
+    if not isinstance(data, dict):
+        data = {"games": [], "total": 0}
+    if request_id:
+        data["request_id"] = str(request_id)
+    return data
 
 
 def _alias_expanded_queries(query):
@@ -6637,7 +6731,7 @@ def _search_steam_catalog(query, offset, per_page, sort_by='updated'):
         if q_norm:
             apps = [
                 a for a in apps
-                if _matches_normalized(q_norm, _normalize_for_search(a.get("name", "")))
+                if _store_search_score(q_norm, a.get("name", ""), a.get("appid"))[0] < 99
             ]
     # Relevance boost: exact/prefix/substring matches always land on page 1
     # regardless of sort mode. Within each relevance tier, the user's sort
@@ -6653,12 +6747,7 @@ def _search_steam_catalog(query, offset, per_page, sort_by='updated'):
         apps.sort(key=lambda a: a.get('appid') or 0, reverse=True)
     # 'updated' falls through to natural order.
     if query:
-        ql = query.lower().strip()
-        apps.sort(key=lambda a: (
-            0 if (a.get('name') or '').lower() == ql else
-            1 if (a.get('name') or '').lower().startswith(ql) else
-            2 if ql in (a.get('name') or '').lower() else 3,
-        ))
+        apps.sort(key=lambda a: _store_search_score(query, a.get("name", ""), a.get("appid")))
     total = len(apps)
     # When a text query is present, fetch enough candidates so the
     # relevance sort at the end actually puts exact/prefix matches

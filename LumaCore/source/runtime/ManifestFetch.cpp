@@ -12,10 +12,14 @@
 #include <charconv>
 #include <cctype>
 #include <chrono>
+#include <future>
 #include <map>
+#include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 
 // I keep the URL substitution dirt simple, three placeholders only.
 // The two providers users actually point this thing at (wudrm, steam.run)
@@ -27,6 +31,27 @@ namespace {
 
     std::mutex g_lock;
     std::map<uint64_t, std::shared_future<std::optional<uint64_t>>> g_pending;
+
+    struct LookupKey {
+        uint64_t gid = 0;
+        uint32_t appId = 0;
+        uint32_t depotId = 0;
+
+        bool operator<(const LookupKey& other) const {
+            if (gid != other.gid) return gid < other.gid;
+            if (appId != other.appId) return appId < other.appId;
+            return depotId < other.depotId;
+        }
+    };
+
+    std::map<LookupKey, std::shared_future<std::optional<uint64_t>>> g_inflight;
+    std::map<LookupKey, uint64_t> g_cache;
+
+    std::shared_future<std::optional<uint64_t>> ReadyFuture(std::optional<uint64_t> value) {
+        std::promise<std::optional<uint64_t>> p;
+        p.set_value(value);
+        return p.get_future().share();
+    }
 
     bool ParseDigitsOnly(std::string_view body, uint64_t* out) {
         if (body.empty()) return false;
@@ -154,9 +179,20 @@ namespace {
             LOG_MANIFESTCH_INFO("ManifestFetch: gid={} provider {}/{} GET {}",
                                 gid, i + 1, chain.size(), url);
 
-            auto resp = UsesProviderCompatAgent(url)
-                ? RuntimeHttp::Get(url, L"OpenSteamTool/1.0")
-                : RuntimeHttp::Get(url);
+            RuntimeHttp::Response resp{};
+            for (int attempt = 0; attempt < 2; ++attempt) {
+                resp = UsesProviderCompatAgent(url)
+                    ? RuntimeHttp::Get(url, L"OpenSteamTool/1.0")
+                    : RuntimeHttp::Get(url);
+                if (!resp.networkError && resp.status == 429 && attempt == 0) {
+                    LOG_MANIFESTCH_WARN("ManifestFetch: gid={} provider {} HTTP=429 "
+                                        "body_bytes={}, retrying once",
+                                        gid, i + 1, resp.body.size());
+                    std::this_thread::sleep_for(std::chrono::milliseconds(750));
+                    continue;
+                }
+                break;
+            }
             if (resp.networkError) {
                 LOG_MANIFESTCH_WARN("ManifestFetch: gid={} provider {} net err '{}', "
                                     "trying next", gid, i + 1, resp.diagnostic);
@@ -193,16 +229,44 @@ namespace ManifestFetch {
     void Submit(uint64_t jobId, uint64_t manifestGid,
                 uint32_t appId, uint32_t depotId)
     {
+        LookupKey key{manifestGid, appId, depotId};
+        std::shared_future<std::optional<uint64_t>> fut;
         std::lock_guard<std::mutex> lock(g_lock);
         if (g_pending.count(jobId)) {
             LOG_MANIFESTCH_DEBUG("ManifestFetch: duplicate Submit for jobId={}", jobId);
             return;
         }
-        auto fut = std::async(std::launch::async,
-                              [manifestGid, appId, depotId]() -> std::optional<uint64_t> {
-            return RunOnce(manifestGid, appId, depotId);
-        });
-        g_pending.emplace(jobId, fut.share());
+
+        if (auto cached = g_cache.find(key); cached != g_cache.end()) {
+            LOG_MANIFESTCH_INFO("ManifestFetch: jobId={} gid={} using cached code={}",
+                                jobId, manifestGid, cached->second);
+            g_pending.emplace(jobId, ReadyFuture(cached->second));
+            return;
+        }
+
+        if (auto inflight = g_inflight.find(key); inflight != g_inflight.end()) {
+            LOG_MANIFESTCH_INFO("ManifestFetch: jobId={} gid={} joined in-flight lookup",
+                                jobId, manifestGid);
+            g_pending.emplace(jobId, inflight->second);
+            return;
+        }
+
+        auto promise = std::make_shared<std::promise<std::optional<uint64_t>>>();
+        fut = promise->get_future().share();
+        g_inflight.emplace(key, fut);
+        g_pending.emplace(jobId, fut);
+
+        std::thread([key, promise]() {
+            std::optional<uint64_t> result = RunOnce(key.gid, key.appId, key.depotId);
+            {
+                std::lock_guard<std::mutex> lock(g_lock);
+                if (result.has_value()) {
+                    g_cache[key] = *result;
+                }
+                g_inflight.erase(key);
+            }
+            promise->set_value(result);
+        }).detach();
     }
 
     std::optional<uint64_t> Resolve(uint64_t jobId) {

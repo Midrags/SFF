@@ -10,9 +10,10 @@
 #include <string_view>
 
 namespace SteamStubAuto {
-    bool ShouldActivate(AppId_t appId, bool hasDepot, bool owned, bool hasManualFlag);
+    bool ShouldActivate(AppId_t appId, bool hasDepot, bool owned,
+                        bool hasManualFlag, bool detectedSteamStub);
 
-    void Arm(AppId_t realAppId, const char* exePath);
+    void Arm(AppId_t realAppId, const char* exePath, std::string_view detectedImagePath = {});
     void Clear();
     bool IsActive();
     AppId_t RealAppId();

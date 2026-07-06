@@ -1,5 +1,42 @@
 # Changelog
 
+## 6.3.9
+
+### Store / search
+
+- Store search now waits for Enter or the Search button, so typing does not spam backend searches anymore. Ranking is tighter too, with app IDs, exact names, prefixes, word-start hits, and aliases beating loose fuzzy matches.
+
+### Logs
+
+- Home Live Log and the native Logs window now obey a line limit setting, default 100. Long runs like Update All Games stop dragging the UI into a huge scrollback.
+
+### LumaCore library reliability
+
+- Lua hot reload is steadier now. New numeric lua files refresh the Steam library without needing three Steam restarts, and removed lua files stop leaving stale cards behind.
+- Purchase and Install states should settle faster after startup. LumaCore attaches the package hooks earlier, checks the real app IDs it injected instead of trusting a big enough count, and retries from safe late UI frames when Steam loads package data slowly.
+- Offline startup got less fragile. If Steam has enough local package data, LumaCore can seed the lua apps without waiting for a full login refresh.
+
+### LumaCore diagnostics
+
+- `status.json` now says why a broken install is broken instead of giving you a dead folder with almost no logs. Missing package data, empty lua loading, waiting-for-login cases, hook misses, ownership checks, cloud decisions, and the latest SteamStub detection all get surfaced there.
+- Release and Debug builds now stamp `status.json` with build config, build time, package capture state, and the latest online-fix payload state, so old DLLs and missed child-process injection show up without needing verbose logs.
+
+### LumaCore cloud / saves
+
+- Managed games that the active account does not own keep Steam Cloud blocked without touching save folders or asking Steam to close cloud state. That protects local saves without causing the cloud error popups seen in the broken test build.
+- Family-shared games are separated from fake-managed games now. If Steam marks a lua app as borrowed or family shared, LumaCore leaves its Steam Cloud answer alone instead of treating it like an unowned unlock.
+- Managed games now prefer their existing app ticket or userdata SteamID before using the current login account. Satisfactory-style saves should stay in the same account folder instead of vanishing because the game looked under a new ID.
+
+### LumaCore SteamStub
+
+- SteamStub auto routing can detect Stray-style protected child binaries before launch and route through 480 without needing a hardcoded appid.
+- SteamStub detection is stricter now. Generic protection diagnostics no longer launch normal managed games as 480, so false Spacewar launches should stop.
+- The dedicated SteamStub route stays separate from manual `-onlinefix`. Manual online-fix keeps its multiplayer path, while SteamStub auto keeps Steam tracking on 480 and hides the real game from the running-app packet.
+
+### LumaCore online-fix
+
+- Manual `-onlinefix` keeps the existing multiplayer route, but EOS games with launcher-child splits now get the payload loaded into the child process too. Mecha Chameleon no longer gets stuck on the missing auth-token login screen after Steam starts the real game exe.
+
 ## 6.3.8
 
 ### Bug fixes
@@ -42,6 +79,10 @@
 - Known Steam Stub games now use a dedicated 480 tracking route instead of borrowing the manual online-fix path. Steam sees 480, the game-facing overlay, ticket, and stats identity resolve to the real app, and manual `-onlinefix` keeps its full online-fix behavior.
 - SteamStub ownership tickets now prefer the app-7 source from Steam's user-local config store and keep the IPC reply layout Steam expects. Teardown no longer bounces between error 54 and 86 during launch.
 - LumaCore validates AppTicket SteamID and appid before serving it, so stale cross-app tickets get rejected instead of poisoning the next launch. Target-valid fallbacks stay in place until a better app-7 ticket is available.
+
+### LumaCore save protection
+
+- LumaCore now turns native Steam Cloud off for managed games that the active account does not own. Owned games keep Steam Cloud, and managed story games stop letting Steam pick the wrong account folder or wipe local progress after a break.
 
 ### Store / search
 
@@ -594,7 +635,7 @@
 
 ### LumaCore — CD key bypass
 
-- Lua-tracked games no longer hit the legacy CD key prompt for keys Steam itself wants. Older titles like Wargame: Red Dragon used to refuse to launch because Steam asked for a key the user doesn't have. The new license layer answers `false` for `RequiresLegacyCDKey` on apps tracked by Lua, so the prompt never fires. The hook is byte-pattern only against `steamclient64.dll` so it never lands on the wrong target
+- Lua-tracked games no longer hit the legacy CD key prompt for keys Steam itself wants. Older titles like Wargame: Red Dragon used to refuse to launch because Steam asked for a key the user doesn't have. The new license layer answers `false` for `RequiresLegacyCDKey` on apps tracked by Lua, so the prompt never fires.
 - DLC ownership / install / cloud checks deliberately stay out of the new hook. Steam already returns the right answer for Lua-tracked appids through the existing CheckAppOwnership patch
 
 ### LumaCore — version checker + deactivate
@@ -668,7 +709,7 @@
 - Wipe stale tickets when the active Steam account changes
 - Hot-reload crash fix when deleting a `.lua` file from `config/stplug-in/` (card may linger as Purchase until Steam restart — accepted trade-off)
 - Family-share lock-status bypass: clear `k_EMsgClientSharedLibraryLockStatus` (9405) in addition to 9406
-- SteamUI hook hardening: string-xref + byte-pattern fallback for `LoadModuleWithPath`, removed double-attach
+- SteamUI hook hardening: safer `LoadModuleWithPath` attach path, removed double-attach
 - Multi-account fix: clear `OwnedAppIdSet` on Lua re-parse / `addappid`
 - `-onlinefix` debug logs every SpawnProcess hit with reason for skip
 
@@ -719,11 +760,11 @@
 
 ### LumaCore — Hook System Overhaul
 
-- Fixed Steam crash on startup. `OptedInMask` and `BuildSpawnEnvBlock` were attached via string xref, which on the current Steam build resolved to mid-function addresses and corrupted the call stack. Both now use byte patterns exclusively, landing on the correct 16-byte aligned entry points
+- Fixed Steam crash on startup. `OptedInMask` and `BuildSpawnEnvBlock` now land on the correct aligned entry points instead of corrupting the call stack on the current Steam build.
 - Re-enabled the `-onlinefix` controller and overlay fix. `OptedInMask` redirects appid 480 (Spacewar) to the real game appid so Steam Input opt-in and SDL controller env vars are correct; `BuildSpawnEnvBlock` patches `pOverlayCGameID` so the overlay shows the right game name, screenshots tag correctly, and "View Community Hub" opens the right hub
 - Fixed `AppLicensesChanged` not triggering a full library reload. `SendCallbackToPipe` now forces `m_bReloadAll = true` on every `AppLicensesChanged` callback
-- Every hook and capture now logs its method (byte-pattern or string-xref), the matched string if any, and the resolved address to `main.log` at debug level. Failed hooks log a warning
-- `PatternDb.h` filled out: added wildcarded fallback patterns for `CUtlMemoryGrow`, `LoadDepotDecryptionKey`, `PchMsgNameFromEMsg`, and other previously fallback-less functions. Added `OptedInMask` and `BuildSpawnEnvBlock` patterns. `GetPipeClient` now has two string-xref entries for robustness
+- Hook and capture failures now log enough detail to make missing Steam build coverage obvious in `main.log`.
+- Added fallback coverage for several LumaCore capture points that used to miss on some Steam builds.
 - `RuntimeCapture.cpp` cleanup: removed the disabled env-block-string-rebuild path for `BuildSpawnEnvBlock` (was the source of the earlier crashes); replaced with the working `pOverlayCGameID` patch
 
 ### SteaMidra — Linux SLSteam Auto-Update

@@ -17,6 +17,12 @@
 //
 // Schema produced by WriteToDisk (top-level keys only, exact set):
 //   build_id            string
+//   lumacore_build_stamp string (__DATE__ + __TIME__ from the DLL)
+//   build_config        string (Debug or Release)
+//   logging_enabled     boolean (false in shipped Release)
+//   diagnostics_enabled boolean (true in standard builds)
+//   protobuf_runtime    string (full or lite)
+//   startup_capture_revision string (purchase-race fix marker)
 //   toml_found          object with exactly steamclient and steamui booleans
 //   hooks_installed     non-negative integer (count of RecordInstalled calls)
 //   hooks_missed        array of strings (names from RecordMissed)
@@ -26,6 +32,7 @@
 //   hook_target         string (diversion or active_steamclient)
 //   hook_module         string (path used for steamclient hook resolution)
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -42,6 +49,47 @@ namespace HookStatus {
     void SetLoaderState(std::string loader, std::string hookTarget, std::string hookModule);
     void SetPackageState(bool package0Captured, bool package0Seeded,
                          bool startupInjectionDone, bool licenseRefreshDone);
+    void SetLuaCounts(std::uint64_t files, std::uint64_t depots,
+                      std::uint64_t libraryRoots, std::uint64_t statsRoots);
+    void RecordPackage0Seen(std::int32_t status, std::uint32_t appVecSize,
+                            std::uint32_t luaAddCount);
+    void RecordPackage0Capture(std::string source, bool luaReady);
+    void RecordStartupPackageRetry(std::string reason);
+    void RecordPackageContainment(std::int32_t status, std::uint32_t appVecSize,
+                                  std::uint64_t expected, std::uint64_t present,
+                                  std::uint64_t missing, std::uint64_t appended,
+                                  std::string reason);
+    void RecordHotReload(std::uint32_t additions, std::uint32_t removals,
+                         std::uint32_t uiTouches, std::uint32_t uiRemovals,
+                         std::string reason);
+    void RecordOwnershipCheck(std::uint32_t appId, bool patched,
+                              bool directOwned, bool familyShared,
+                              std::int32_t releaseState,
+                              std::uint32_t existInPackageNums,
+                              bool borrowedFlag, bool familySharedFlag);
+    void RecordSubscribedApps(std::uint32_t original, std::uint64_t roots,
+                              std::uint32_t written, std::uint32_t advertised,
+                              std::uint32_t buffer);
+    void RecordCloudDecision(std::uint32_t appId, bool tracked, bool managed,
+                             bool owned, bool familyShared, bool original,
+                             bool finalValue, std::string reason);
+    void RecordCloudCloseState(std::uint32_t appId, std::string result,
+                               bool ownerCaptured, bool sehDisabled);
+    void RecordPatternStatus(std::string moduleName, std::string source,
+                             bool cacheHit, std::string networkResult,
+                             std::string lastError);
+    void RecordSteamUiLateRetry(std::string result);
+    void RecordSteamStubDetection(std::uint32_t appId, std::string source,
+                                  std::string method, std::string image,
+                                  std::uint64_t candidates,
+                                  bool routeAccepted, std::string routeReason);
+    void RecordOnlineFixPayload(std::uint32_t appId, std::uint32_t pid,
+                                std::string image, std::string state,
+                                std::string detail);
+    void RecordStatsState(std::uint32_t appId, std::string protocol,
+                          std::uint64_t poolIndex, std::uint64_t poolCount,
+                          std::string matchSource, std::int32_t originalResult,
+                          std::string finalResult);
     void SetStartupPhase(std::string phase);
     void SetStartupRefreshState(std::string state);
     void SetStartupSafety(std::string phase, bool safe, std::string deferredReason);

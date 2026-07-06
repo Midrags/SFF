@@ -12,11 +12,12 @@
 #include <cctype>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace {
     std::atomic<AppId_t> g_realAppId{0};
     std::mutex g_routeLock;
-    std::string g_imageName;
+    std::vector<std::string> g_imageNames;
 
     std::string LowerAscii(std::string_view text) {
         std::string out(text);
@@ -36,34 +37,48 @@ namespace {
 
 namespace SteamStubAuto {
 
-    bool ShouldActivate(AppId_t appId, bool hasDepot, bool owned, bool hasManualFlag) {
+    bool ShouldActivate(AppId_t appId, bool hasDepot, bool owned,
+                        bool hasManualFlag, bool detectedSteamStub) {
         return hasDepot
             && !owned
             && !hasManualFlag
-            && Ticket::IsKnownSteamDrmApp(appId);
+            && detectedSteamStub;
     }
 
-    void Arm(AppId_t realAppId, const char* exePath) {
+    void Arm(AppId_t realAppId, const char* exePath, std::string_view detectedImagePath) {
         std::string image = BaseName(exePath ? std::string_view(exePath) : std::string_view{});
+        std::string detectedImage = BaseName(detectedImagePath);
         {
             std::scoped_lock lock(g_routeLock);
-            g_imageName = image;
+            g_imageNames.clear();
+            if (!image.empty())
+                g_imageNames.push_back(image);
+            if (!detectedImage.empty()
+                && std::ranges::find(g_imageNames, detectedImage) == g_imageNames.end())
+                g_imageNames.push_back(detectedImage);
             g_realAppId.store(realAppId, std::memory_order_release);
         }
-        LOG_MISC_INFO("SteamStubAuto: armed appid={} exe={}",
-                      realAppId, image.empty() ? "-" : image);
+        LOG_MISC_INFO("SteamStubAuto: armed appid={} launch={} detected={}",
+                      realAppId,
+                      image.empty() ? "-" : image,
+                      detectedImage.empty() ? "-" : detectedImage);
     }
 
     void Clear() {
         AppId_t oldAppId = g_realAppId.exchange(0, std::memory_order_acq_rel);
-        std::string oldImage;
+        std::vector<std::string> oldImages;
         {
             std::scoped_lock lock(g_routeLock);
-            oldImage.swap(g_imageName);
+            oldImages.swap(g_imageNames);
         }
-        if (oldAppId || !oldImage.empty()) {
+        if (oldAppId || !oldImages.empty()) {
+            std::string joined;
+            for (const auto& image : oldImages) {
+                if (!joined.empty()) joined += ",";
+                joined += image;
+            }
             LOG_MISC_DEBUG("SteamStubAuto: cleared appid={} exe={}",
-                           oldAppId, oldImage.empty() ? "-" : oldImage);
+                           oldAppId, joined.empty() ? "-" : joined);
         }
     }
 
@@ -85,7 +100,9 @@ namespace SteamStubAuto {
 
         const std::string current = BaseName(imageName);
         std::scoped_lock lock(g_routeLock);
-        if (g_imageName.empty() || current.empty() || current != g_imageName)
+        if (g_imageNames.empty() || current.empty())
+            return 0;
+        if (std::ranges::find(g_imageNames, current) == g_imageNames.end())
             return 0;
 
         LOG_MISC_TRACE("SteamStubAuto: resolved image={} appid={}",

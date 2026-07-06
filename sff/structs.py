@@ -284,6 +284,7 @@ class Settings(Enum):
     # the list back to type "game" only and matches pre-A17 behavior.
     STORE_SHOW_SOFTWARE = SettingItem("store_show_software", "Show software in Store", False, bool)
     STORE_BLOCK_NSFW = SettingItem("store_block_nsfw", "Block NSFW content in Store", False, bool)
+    LIVE_LOG_MAX_LINES = SettingItem("live_log_max_lines", "Live Log Line Limit", False, str)
     # LumaCore version tracking. Both fields are managed by sff.lumacore_setup
     # and never surface in the Settings UI directly.
     LUMACORE_INSTALLED_VERSION = SettingItem(
