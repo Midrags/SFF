@@ -513,6 +513,7 @@ start YourGame-Shipping.exe</pre>
                         <div class="custom-select-dropdown hidden"></div>
                     </div>
                     <button id="store-update-list-btn" class="btn btn-sm" data-tooltip="Download latest game list and metadata from all sources">Update List</button>
+                    <button id="store-provider-refresh-btn" class="btn btn-sm" data-tooltip="Refresh local depot-key provider cache">Depot Keys</button>
                     <div class="view-toggle">
                         <button id="view-grid" class="btn btn-icon active" data-tooltip="Grid view with cover images"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
                         <button id="view-list" class="btn btn-icon" data-tooltip="Compact list view"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
@@ -522,6 +523,7 @@ start YourGame-Shipping.exe</pre>
                     </div>
                 </div>
             </div>
+            <p id="store-provider-status" class="setting-hint" style="margin:8px 0 0;"></p>
             <div id="genre-chips" class="genre-chips">
                 <button class="genre-chip active" data-genre="">All</button>
                 <button class="genre-chip" data-genre="action">Action</button>
@@ -571,6 +573,7 @@ start YourGame-Shipping.exe</pre>
             </div>
             <div class="library-controls">
                 <button id="library-refresh" class="btn" data-tooltip="Scan Steam libraries for installed games">Refresh</button>
+                <button id="library-filter-managed" class="btn btn-sm" data-tooltip="Show only games with SteaMidra Lua files">SteaMidra Only</button>
                 <input type="text" id="library-search" class="library-search" placeholder="Search library..." autocomplete="off">
                 <span class="disk-info-wrap">
                     <svg class="disk-info-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1087,6 +1090,22 @@ start YourGame-Shipping.exe</pre>
             <div class="settings-section">
                 <h2 class="section-title">Theme</h2>
                 <div id="theme-picker" class="theme-grid"></div>
+                <div class="input-group">
+                    <label>Custom Background:</label>
+                    <div class="input-with-btn">
+                        <input type="text" id="setting-custom-background" placeholder="No custom background" readonly data-tooltip="Local PNG, JPG, JPEG, or WebP copied into SteaMidra data">
+                        <button id="setting-custom-background-browse" class="btn">Browse</button>
+                        <button id="setting-custom-background-clear" class="btn">Clear</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Button Accent:</label>
+                    <div class="input-with-btn">
+                        <input type="color" id="setting-custom-accent" value="#4a9eff" data-tooltip="Accent color for buttons and active navigation">
+                        <button id="setting-custom-accent-save" class="btn btn-primary">Save</button>
+                        <button id="setting-custom-accent-clear" class="btn">Reset</button>
+                    </div>
+                </div>
             </div>
 
             <div class="settings-section">
@@ -1284,6 +1303,10 @@ start YourGame-Shipping.exe</pre>
                     <label class="checkbox-option" data-tooltip="When ON, games tagged as NSFW in the games.json metadata are hidden from the Store page. Toggle the NSFW button in the Store tab to override.">
                         <input type="checkbox" id="setting-block-nsfw" checked>
                         <span data-i18n="Block NSFW content in Store">Block NSFW content in Store</span>
+                    </label>
+                    <label class="checkbox-option" data-tooltip="Newly added SteaMidra games will allow Steam update prompts automatically. Risky for Denuvo/protected or cracked builds because updates may break the crack.">
+                        <input type="checkbox" id="setting-auto-enable-new-game-updates">
+                        <span>Auto-enable updates for newly added games</span>
                     </label>
                 </div>
             </div>

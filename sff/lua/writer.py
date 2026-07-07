@@ -48,13 +48,37 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _normalise_manifest_map(manifest_map: Optional[dict]) -> dict[str, str]:
+    if not manifest_map:
+        return {}
+    clean: dict[str, str] = {}
+    for depot_id, manifest_id in manifest_map.items():
+        depot_str = str(depot_id).strip()
+        manifest_str = str(manifest_id).strip()
+        if depot_str.isdigit() and manifest_str.isdigit():
+            clean[depot_str] = manifest_str
+    return clean
+
+
+def _manifest_map_for_lua(lua: LuaParsedInfo, manifest_override: Optional[dict]) -> dict[str, str]:
+    return _normalise_manifest_map(manifest_override) or _normalise_manifest_map(
+        getattr(lua, "manifest_overrides", {}) or {}
+    )
+
+
 @dataclass
 
 class ACFWriter:
 
     steam_lib_path: Path
 
-    def write_acf(self, lua: LuaParsedInfo, manifest_override: Optional[dict] = None):
+    def write_acf(
+        self,
+        lua: LuaParsedInfo,
+        manifest_override: Optional[dict] = None,
+        buildid: str = "0",
+        size_on_disk: int = 0,
+    ):
         # On Windows, LumaCore manages app ownership — ACF writing is not needed
         # and can cause Steam to show "Purchase" on secondary accounts.
         if sys.platform == "win32":
@@ -75,6 +99,8 @@ class ACFWriter:
             app_name = get_game_name(lua.app_id)
             app_id_str = str(lua.app_id)
             installdir = sanitize_filename(app_name).replace("'", "").strip()
+            manifest_map = _manifest_map_for_lua(lua, manifest_override)
+            acf_file.parent.mkdir(parents=True, exist_ok=True)
             if not installdir:
                 installdir = app_id_str
                 print(
@@ -90,25 +116,26 @@ class ACFWriter:
                 "installdir": installdir,
                 "LastUpdated": "0",
                 "UpdateResult": "0",
-                "SizeOnDisk": "0",
+                "SizeOnDisk": str(size_on_disk),
                 "BytesToDownload": "0",
                 "BytesDownloaded": "0",
+                "buildid": str(buildid),
             }
-            if manifest_override:
+            if manifest_map:
                 app_state["InstalledDepots"] = {
-                    str(depot_id): {"manifest": str(manifest_id), "size": "0"}
-                    for depot_id, manifest_id in manifest_override.items()
+                    depot_id: {"manifest": manifest_id, "size": "0"}
+                    for depot_id, manifest_id in manifest_map.items()
                 }
                 app_state["MountedDepots"] = {
-                    str(depot_id): str(manifest_id)
-                    for depot_id, manifest_id in manifest_override.items()
+                    depot_id: manifest_id
+                    for depot_id, manifest_id in manifest_map.items()
                 }
                 print(
-                    f"InstalledDepots set for {len(manifest_override)} depot(s) → "
+                    f"InstalledDepots set for {len(manifest_map)} depot(s) -> "
                     + ", ".join(
-                        f"{d}:{m}" for d, m in list(manifest_override.items())[:3]
+                        f"{d}:{m}" for d, m in list(manifest_map.items())[:3]
                     )
-                    + ("..." if len(manifest_override) > 3 else "")
+                    + ("..." if len(manifest_map) > 3 else "")
                 )
             acf_contents = {"AppState": app_state}
             vdf_dump(acf_file, acf_contents)
@@ -133,6 +160,7 @@ class ACFWriter:
         app_name = get_game_name(lua.app_id)
         app_id_str = str(lua.app_id)
         installdir = sanitize_filename(app_name).replace("'", "").strip()
+        manifest_map = _manifest_map_for_lua(lua, manifest_override)
         if not installdir:
             installdir = app_id_str
             print(
@@ -141,6 +169,7 @@ class ACFWriter:
             )
         print(f"installdir will be set to: {installdir}")
         acf_file = self.steam_lib_path / f"steamapps/appmanifest_{lua.app_id}.acf"
+        acf_file.parent.mkdir(parents=True, exist_ok=True)
         app_state: dict = {
             "appid": app_id_str,
             "Universe": "1",
@@ -152,20 +181,19 @@ class ACFWriter:
             "SizeOnDisk": str(size_on_disk),
             "buildid": str(buildid),
         }
-        if manifest_override:
+        if manifest_map:
             if empty_depots:
                 app_state["InstalledDepots"] = {}
-            elif sys.platform == "win32":
+            else:
                 app_state["InstalledDepots"] = {
-                    str(depot_id): {"manifest": str(manifest_id), "size": "0"}
-                    for depot_id, manifest_id in manifest_override.items()
+                    depot_id: {"manifest": manifest_id, "size": "0"}
+                    for depot_id, manifest_id in manifest_map.items()
                 }
                 app_state["MountedDepots"] = {
-                    str(depot_id): str(manifest_id)
-                    for depot_id, manifest_id in manifest_override.items()
+                    depot_id: manifest_id
+                    for depot_id, manifest_id in manifest_map.items()
                 }
-            else:
-                app_state["InstalledDepots"] = {}
+            if sys.platform != "win32":
                 app_state["UserConfig"] = {
                     "platform_override_dest": "linux",
                     "platform_override_source": "windows",
@@ -175,11 +203,11 @@ class ACFWriter:
                     "platform_override_source": "windows",
                 }
             print(
-                f"InstalledDepots set for {len(manifest_override)} depot(s) → "
+                f"InstalledDepots set for {len(manifest_map)} depot(s) -> "
                 + ", ".join(
-                    f"{d}:{m}" for d, m in list(manifest_override.items())[:3]
+                    f"{d}:{m}" for d, m in list(manifest_map.items())[:3]
                 )
-                + ("..." if len(manifest_override) > 3 else "")
+                + ("..." if len(manifest_map) > 3 else "")
             )
         acf_contents = {"AppState": app_state}
         vdf_dump(acf_file, acf_contents)

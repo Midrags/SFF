@@ -126,6 +126,41 @@ def _filter_store_nsfw_rows(rows):
     ]
 
 
+def _collect_steamidra_managed_sources(steam_path, saved_lua_root=None) -> dict[str, list[str]]:
+    managed_sources: dict[str, set[str]] = {}
+
+    def _remember(appid: str, source: str):
+        appid = str(appid or "").strip()
+        if appid.isdigit():
+            managed_sources.setdefault(appid, set()).add(source)
+
+    def _scan_lua_root(root: Path, source: str):
+        if not root.exists():
+            return
+        for lua_path in list(root.glob("*.lua")) + list(root.glob("*/*.lua")):
+            try:
+                if lua_path.name.lower() in ("00_letupdate_override.lua", "letupdate_override.lua"):
+                    continue
+                if lua_path.stem.isdigit():
+                    _remember(lua_path.stem, source)
+                    continue
+                text = lua_path.read_text(encoding="utf-8", errors="ignore")
+                match = re.search(r"addappid\s*\(\s*(\d+)", text, re.IGNORECASE)
+                if match:
+                    _remember(match.group(1), source)
+            except Exception:
+                continue
+
+    if saved_lua_root is None:
+        from sff.utils import root_folder
+
+        saved_lua_root = root_folder(outside_internal=True) / "saved_lua"
+    _scan_lua_root(Path(saved_lua_root), "saved_lua")
+    if steam_path:
+        _scan_lua_root(Path(steam_path) / "config" / "stplug-in", "stplug-in")
+    return {appid: sorted(sources) for appid, sources in managed_sources.items()}
+
+
 class WebBridge(QObject):
     """QObject subclass registered via QWebChannel.
     JS accesses this as ``channel.objects.bridge``.
@@ -164,12 +199,19 @@ class WebBridge(QObject):
         self._provider_timer.timeout.connect(self._maybe_auto_contribute_provider)
         self._provider_timer.start()
         QTimer.singleShot(3000, self._maybe_auto_contribute_provider)
+        self._provider_cache_refreshing = False
+        self._provider_cache_timer = QTimer(self)
+        self._provider_cache_timer.setInterval(10 * 60 * 1000)
+        self._provider_cache_timer.timeout.connect(self._maybe_auto_refresh_provider_cache)
+        self._provider_cache_timer.start()
+        QTimer.singleShot(8000, self._maybe_auto_refresh_provider_cache)
+        self._library_image_cache: dict[str, str] = {}
 
-        # Pre-cache installed games on a background thread every 30s so
+        # Pre-cache installed games on a background thread so
         # get_installed_games (a sync @pyqtSlot) never blocks the main thread.
         self._installed_games_cache = None
         self._games_prefetch_timer = QTimer(self)
-        self._games_prefetch_timer.setInterval(30_000)
+        self._games_prefetch_timer.setInterval(120_000)
         self._games_prefetch_timer.timeout.connect(self._prefetch_installed_games)
         self._games_prefetch_timer.start()
         QTimer.singleShot(2000, self._prefetch_installed_games)
@@ -264,6 +306,59 @@ class WebBridge(QObject):
                 self.provider_contribute_submit("auto")
         except Exception as exc:
             logger.debug("provider auto-contribute check failed: %s", exc)
+
+    def _maybe_auto_refresh_provider_cache(self):
+        if getattr(self, "_provider_cache_refreshing", False):
+            return
+        try:
+            from sff.lua.provider import provider_update_due, download_provider_update
+
+            if not provider_update_due():
+                return
+            self._provider_cache_refreshing = True
+
+            def _do():
+                return download_provider_update()
+
+            def _on_done(result):
+                self._provider_cache_refreshing = False
+                result = result or {"ok": False, "errors": ["unknown"]}
+                ok = bool(result.get("ok"))
+                msg = (
+                    f"Provider updated from {result.get('url', '')} ({result.get('count', 0)} entries)"
+                    if ok else
+                    "Provider update failed: " + "; ".join(result.get("errors") or [])
+                )
+                logger.info("provider cache auto-refresh: %s", msg)
+                self._emit_task_result("provider_update", ok, msg, background=True, **result)
+
+            self._run_async(_do, on_done=_on_done)
+        except Exception as exc:
+            self._provider_cache_refreshing = False
+            logger.debug("provider cache auto-refresh check failed: %s", exc)
+
+    def _auto_update_was_registered(self, app_id) -> bool:
+        try:
+            from sff.auto_update_defaults import steam_game_has_pins
+
+            return steam_game_has_pins(self._steam_path, app_id)
+        except Exception:
+            return False
+
+    def _apply_auto_update_default(self, app_id, was_registered=False):
+        try:
+            from sff.auto_update_defaults import apply_new_game_update_default
+
+            result = apply_new_game_update_default(
+                self._steam_path,
+                app_id,
+                was_registered=bool(was_registered),
+                log=lambda msg: logger.info(msg),
+            )
+            if result.get("applied"):
+                self._installed_games_cache = None
+        except Exception as exc:
+            logger.debug("auto-update default skipped for %s: %s", app_id, exc)
 
     def _get_store_client(self):
         if self._store_client is None and not self._hubcap_unavailable:
@@ -955,6 +1050,7 @@ class WebBridge(QObject):
                     "app_id": app_id, "status": "Error: Failed to parse Lua", "progress": 0
                 }))
                 return False
+            _auto_update_was_registered = self._auto_update_was_registered(app_id)
 
             # Copy manifests from manifest_folder if provided
             if manifest_folder:
@@ -976,6 +1072,7 @@ class WebBridge(QObject):
                 "app_id": app_id, "status": "Installing Lua to Steam", "progress": 30
             }))
             install_lua_to_steam(steam_path, app_id, lua_install_file)
+            self._apply_auto_update_default(app_id, _auto_update_was_registered)
 
             self.download_progress.emit(json.dumps({
                 "app_id": app_id, "status": "Writing decryption keys", "progress": 40
@@ -1094,6 +1191,7 @@ class WebBridge(QObject):
             parsed = parse_lua_contents(lua_contents, lua_path)
             if not parsed:
                 return False
+            _auto_update_was_registered = self._auto_update_was_registered(app_id)
 
             # Step 3: set stats and achievements (Windows only)
             self.download_progress.emit(json.dumps({
@@ -1130,6 +1228,7 @@ class WebBridge(QObject):
             }))
             try:
                 install_lua_to_steam(steam_path, app_id, lua_path)
+                self._apply_auto_update_default(app_id, _auto_update_was_registered)
             except Exception as e:
                 logger.warning("install_lua_to_steam failed: %s", e)
 
@@ -1650,26 +1749,55 @@ class WebBridge(QObject):
             pinned = write_manifest_pins_to_lua(lua_path, manifest_override)
             if not pinned:
                 logger.warning("download_game_version_native: no manifests pinned for %s", app_id)
+                self.download_progress.emit(json.dumps({
+                    "app_id": app_id,
+                    "status": "No manifest pins were written. ACF was not created.",
+                    "progress": 0,
+                    "error": True,
+                }))
+                return False
 
             self.download_progress.emit(json.dumps({
                 "app_id": app_id, "status": "Installing Lua to Steam", "progress": 50
             }))
+            _auto_update_was_registered = self._auto_update_was_registered(app_id)
             install_lua_to_steam(steam_path, app_id, lua_path)
+            self._apply_auto_update_default(app_id, _auto_update_was_registered)
+
+            parsed = parse_lua_contents(
+                lua_path.read_text(encoding="utf-8", errors="replace"), lua_path
+            )
+            if not parsed:
+                self.download_progress.emit(json.dumps({
+                    "app_id": app_id,
+                    "status": "Lua parse failed after pinning. ACF was not created.",
+                    "progress": 0,
+                    "error": True,
+                }))
+                return False
 
             config_writer = ConfigVDFWriter(steam_path)
-            config_writer.add_decryption_keys_to_config(parse_lua_contents(
-                lua_path.read_text(encoding="utf-8", errors="replace"), lua_path
-            ))
+            config_writer.add_decryption_keys_to_config(parsed)
 
             self.download_progress.emit(json.dumps({
                 "app_id": app_id, "status": "Writing ACF", "progress": 70
             }))
+            buildid = "0"
+            try:
+                from sff.steam_client import create_provider_for_current_thread
+                app_data = create_provider_for_current_thread().get_single_app_info(int(app_id))
+                bid = (
+                    app_data.get("depots", {})
+                    .get("branches", {})
+                    .get("public", {})
+                    .get("buildid")
+                )
+                if bid:
+                    buildid = str(bid)
+            except Exception as exc:
+                logger.debug("download_game_version_native: buildid lookup failed for %s: %s", app_id, exc)
             acf_writer = ACFWriter(lib_override)
-            parsed = parse_lua_contents(
-                lua_path.read_text(encoding="utf-8", errors="replace"), lua_path
-            )
-            if parsed:
-                acf_writer.write_acf(parsed)
+            acf_writer.write_acf(parsed, manifest_override=manifest_override, buildid=buildid)
 
             self.download_progress.emit(json.dumps({
                 "app_id": app_id, "status": "Complete — Steam will download the game", "progress": 100
@@ -4064,6 +4192,24 @@ class WebBridge(QObject):
 
         self._run_async(_do, on_done=_on_done)
 
+    @pyqtSlot(result=str)
+    def get_provider_cache_status(self):
+        try:
+            from sff.lua.provider import provider_update_state, load_provider
+
+            data = provider_update_state()
+            data["count"] = len(load_provider())
+            return json.dumps(data)
+        except Exception as exc:
+            return json.dumps({
+                "last_attempt_at": 0,
+                "last_success_at": 0,
+                "last_error": str(exc),
+                "count": 0,
+                "due": True,
+                "interval_seconds": 6 * 60 * 60,
+            })
+
     @pyqtSlot()
     def linux_setup_now(self):
         """Rerun Linux SLSsteam and .NET setup."""
@@ -4214,6 +4360,65 @@ class WebBridge(QObject):
             "Image Files (*.png *.jpg *.jpeg)",
         )
         return path or ""
+
+    @pyqtSlot(result=str)
+    def browse_custom_background_file(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self.parent(),
+            "Select Background Image",
+            "",
+            "Image Files (*.png *.jpg *.jpeg *.webp)",
+        )
+        return path or ""
+
+    @pyqtSlot(str, result=str)
+    def set_custom_background(self, source_path):
+        try:
+            from sff.storage.settings import set_setting
+            from sff.structs import Settings
+            from sff.utils import sff_data_dir
+
+            src = Path(source_path)
+            if not src.is_file():
+                return json.dumps({"ok": False, "error": "File not found"})
+            ext = src.suffix.lower()
+            if ext not in (".png", ".jpg", ".jpeg", ".webp"):
+                return json.dumps({"ok": False, "error": "Use PNG, JPG, JPEG, or WebP"})
+            if src.stat().st_size > 10 * 1024 * 1024:
+                return json.dumps({"ok": False, "error": "Image must be 10 MB or smaller"})
+            target_dir = sff_data_dir() / "webui_custom"
+            target_dir.mkdir(parents=True, exist_ok=True)
+            for old in target_dir.glob("background.*"):
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
+            dst = target_dir / f"background{ext}"
+            shutil.copy2(src, dst)
+            set_setting(Settings.CUSTOM_BACKGROUND_IMAGE, str(dst))
+            return json.dumps({"ok": True, "path": str(dst), "url": dst.resolve().as_uri()})
+        except Exception as exc:
+            logger.warning("set_custom_background failed: %s", exc)
+            return json.dumps({"ok": False, "error": str(exc)})
+
+    @pyqtSlot(result=str)
+    def clear_custom_background(self):
+        try:
+            from sff.storage.settings import clear_setting
+            from sff.structs import Settings
+            from sff.utils import sff_data_dir
+
+            clear_setting(Settings.CUSTOM_BACKGROUND_IMAGE)
+            target_dir = sff_data_dir() / "webui_custom"
+            if target_dir.exists():
+                for old in target_dir.glob("background.*"):
+                    try:
+                        old.unlink()
+                    except OSError:
+                        pass
+            return json.dumps({"ok": True})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)})
 
     @pyqtSlot(result=str)
     def open_lua_file_dialog(self):
@@ -4561,6 +4766,7 @@ class WebBridge(QObject):
                 parsed = parse_lua_contents(lua_text, lua_file)
                 if not parsed or not parsed.depots:
                     return (False, "Failed to parse Lua — no depot info found")
+                _auto_update_was_registered = self._auto_update_was_registered(app_id)
 
                 # ── Steam registration (LumaCore on Windows / SLSSteam on Linux) ──
                 # Without these the library card shows "Buy" because Steam never
@@ -4575,6 +4781,7 @@ class WebBridge(QObject):
                     try:
                         from sff.steam_tools_compat import install_lua_to_steam
                         install_lua_to_steam(steam_path, app_id, lua_install_file)
+                        self._apply_auto_update_default(app_id, _auto_update_was_registered)
                     except Exception as _ile:
                         logger.warning("install_lua_to_steam failed (non-fatal): %s", _ile)
 
@@ -4905,8 +5112,14 @@ class WebBridge(QObject):
                 except Exception:
                     pass
 
-                if ok:
+                if ok and _size > 0:
                     return (True, "Download complete")
+                if ok and _size <= 0:
+                    return (
+                        False,
+                        "DepotDownloaderMod exited without errors but wrote 0 bytes. "
+                        "Manifest setup may be ready, but the game files were not downloaded.",
+                    )
                 # Build a more specific failure message: did EVERY depot exit
                 # non-zero, or just some? Did the install dir end up empty?
                 _failed_dir = (
@@ -4982,6 +5195,7 @@ class WebBridge(QObject):
                 parsed = parse_lua_contents(lua_text, lua_file)
                 if not parsed:
                     return (False, "Failed to parse Lua")
+                _auto_update_was_registered = self._auto_update_was_registered(app_id)
 
                 if manifest_folder:
                     import shutil as _shutil
@@ -4994,6 +5208,7 @@ class WebBridge(QObject):
                         _shutil.copy2(mf, depotcache / mf.name)
 
                 install_lua_to_steam(steam_path, app_id, lua_install_file)
+                self._apply_auto_update_default(app_id, _auto_update_was_registered)
                 ConfigVDFWriter(steam_path).add_decryption_keys_to_config(parsed)
                 try:
                     from sff.registry_access import set_stats_and_achievements
@@ -5361,6 +5576,8 @@ class WebBridge(QObject):
             return "[]"
         from sff.storage.vdf import get_steam_libs
         import os
+        managed_sources = _collect_steamidra_managed_sources(self._steam_path)
+
         libs = list(get_steam_libs(self._steam_path))
         if os.name == 'nt':
             from string import ascii_uppercase
@@ -5403,11 +5620,14 @@ class WebBridge(QObject):
                             skipped_missing_dir += 1
                             continue
                     seen.add(app_id)
+                    managed = managed_sources.get(app_id) or []
                     games.append({
                         "app_id": int(app_id) if app_id.isdigit() else 0,
                         "name": name or f"App {app_id}",
                         "installed": True,
                         "path": str(steamapps / "common" / installdir) if installdir else "",
+                        "steamidra_managed": bool(managed),
+                        "steamidra_source": ",".join(sorted(managed)),
                     })
                 except Exception as e:
                     logger.debug("_scan_installed_games: skipped %s: %s", acf.name, e)
@@ -5438,7 +5658,7 @@ class WebBridge(QObject):
         blocks the main thread. Falls back to sync scan on first call."""
         import time as _t
         _cached = getattr(self, '_installed_games_cache', None)
-        if _cached and (_t.monotonic() - _cached[0]) < 35.0:
+        if _cached and (_t.monotonic() - _cached[0]) < 240.0:
             return _cached[1]
         try:
             payload = self._scan_installed_games()
@@ -5525,8 +5745,19 @@ class WebBridge(QObject):
             app_ids = []
 
         def _do():
-            image_urls, _, _ = _fetch_steam_image_urls(app_ids)
-            return image_urls
+            cached = {
+                int(app_id): url
+                for app_id, url in getattr(self, "_library_image_cache", {}).items()
+                if str(app_id).isdigit() and url
+            }
+            missing = [app_id for app_id in app_ids if str(app_id) not in self._library_image_cache]
+            if missing:
+                fresh, _, _ = _fetch_steam_image_urls(missing)
+                for app_id, url in fresh.items():
+                    if url:
+                        self._library_image_cache[str(app_id)] = url
+                cached.update(fresh)
+            return cached
 
         def _on_done(result):
             self.task_finished.emit(json.dumps({
@@ -5548,9 +5779,15 @@ class WebBridge(QObject):
             if not games:
                 return []
             app_ids = [g["app_id"] for g in games if g.get("app_id")]
-            image_urls, _, _ = _fetch_steam_image_urls(app_ids)
+            cached = getattr(self, "_library_image_cache", {})
+            missing = [int(app_id) for app_id in app_ids if str(app_id) not in cached]
+            if missing:
+                image_urls, _, _ = _fetch_steam_image_urls(missing)
+                for img_appid, url in image_urls.items():
+                    if url:
+                        cached[str(img_appid)] = url
             for g in games:
-                g["image_url"] = image_urls.get(g["app_id"])
+                g["image_url"] = cached.get(str(g["app_id"]))
             return games
 
         def _on_done(games):
@@ -5561,6 +5798,11 @@ class WebBridge(QObject):
             }))
 
         self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot()
+    def refresh_library(self):
+        self._installed_games_cache = None
+        self.load_library()
 
     @pyqtSlot(str, str, str)
     def delete_game(self, app_id, game_path, mode):

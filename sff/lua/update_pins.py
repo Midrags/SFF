@@ -1,3 +1,21 @@
+# SteaMidra - Steam game setup and manifest tool (SFF)
+# Copyright (c) 2025-2026 Midrag (https://github.com/Midrags)
+#
+# This file is part of SteaMidra.
+#
+# SteaMidra is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SteaMidra is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
+
 from __future__ import annotations
 
 import json
@@ -297,6 +315,37 @@ def apply_selection(
         "errors": errors,
         "games": discover_games(steam_path),
     }
+
+
+def set_game_allow_update(
+    steam_path: str | os.PathLike[str] | None,
+    app_id: str | int,
+    allow_update: bool,
+) -> dict:
+    target = str(app_id).strip()
+    if not target.isdigit():
+        return {"ok": False, "error": "invalid app_id", "target_found": False}
+
+    games = discover_games(steam_path)
+    target_found = any(str(g.get("app_id") or "") == target for g in games)
+    if not target_found:
+        return {"ok": False, "error": "no pinned lua found for app_id", "target_found": False}
+
+    selected = {
+        str(g.get("app_id") or "")
+        for g in games
+        if g.get("allow_update") and str(g.get("app_id") or "").isdigit()
+    }
+    if allow_update:
+        selected.add(target)
+    else:
+        selected.discard(target)
+
+    result = apply_selection(steam_path, selected)
+    result["target_app_id"] = target
+    result["target_found"] = True
+    result["target_allow_update"] = bool(allow_update)
+    return result
 
 
 def apply_selection_json(steam_path: str | os.PathLike[str] | None, payload_json: str) -> str:

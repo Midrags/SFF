@@ -19,6 +19,7 @@
 import json
 import threading
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import gevent
@@ -43,8 +44,15 @@ def create_provider_for_current_thread():
     return SteamInfoProvider(client)
 
 
-_MAX_APP_INFO_RETRIES = 3
+_APP_INFO_TIMEOUTS = (15, 30, 60)
+_MAX_APP_INFO_RETRIES = len(_APP_INFO_TIMEOUTS)
 _GEVENT_LOCK = threading.Lock()
+
+
+@dataclass
+class _ProductInfoResult:
+    info: ProductInfo
+    complete: bool
 
 
 def _steam_transient_errors():
@@ -74,58 +82,93 @@ def _ensure_client_session(client):
     print(" Done!")
 
 
+def _client_state(client):
+    return (
+        f"logged_on={getattr(client, 'logged_on', None)!r}, "
+        f"server={getattr(client, 'current_server_addr', None)!r}"
+    )
+
+
 def _reopen_client_session(client):
     try:
+        if getattr(client, "logged_on", False) and hasattr(client, "disconnect"):
+            client.disconnect()
+            time.sleep(0.5)
+    except Exception as e:
+        logger.debug("Steam appinfo reconnect disconnect failed: %r", e)
+    try:
         client.anonymous_login()
-    except Exception:
-        pass
+        logger.debug("Steam appinfo reconnect ok (%s)", _client_state(client))
+    except Exception as e:
+        logger.debug("Steam appinfo reconnect failed: %r (%s)", e, _client_state(client))
 
 
 def _empty_product_info():
     return ProductInfo({"apps": {}, "packages": {}})
 
 
-def _request_app_info(client, app_ids):
+def _request_app_info(client, app_ids, timeout):
     print("Getting app info...")
-    logger.debug(f"Getting info for {', '.join([str(x) for x in app_ids])}")
+    logger.debug(
+        "Getting info for %s with timeout=%ss (%s)",
+        ", ".join([str(x) for x in app_ids]),
+        timeout,
+        _client_state(client),
+    )
     start = time.time()
-    info = client.get_product_info(app_ids)  # pyright: ignore[reportUnknownMemberType]
+    info = client.get_product_info(  # pyright: ignore[reportUnknownMemberType]
+        apps=list(app_ids),
+        timeout=timeout,
+    )
     if info is None:
         raise gevent.Timeout(None, "get_product_info returned None")
     logger.debug(f"Product info request took: {time.time() - start}s")
     return ProductInfo(info)
 
 
-def _get_product_info(client, app_ids):
+def _get_product_info_result(client, app_ids):
     if len(app_ids) == 0:
         raise ValueError("app_ids cannot be empty.")
     with _GEVENT_LOCK:
         _ensure_client_session(client)
         last_error: Exception | None = None
         transient = _steam_transient_errors()
-        for attempt in range(1, _MAX_APP_INFO_RETRIES + 1):
+        for attempt, timeout in enumerate(_APP_INFO_TIMEOUTS, start=1):
             try:
-                return _request_app_info(client, app_ids)
+                return _ProductInfoResult(_request_app_info(client, app_ids, timeout), True)
             except transient as e:
                 last_error = e
-                logger.debug(f"App info attempt {attempt} hit {type(e).__name__}: {e}")
+                logger.debug(
+                    "App info attempt %s/%s hit %s with timeout=%ss for apps=%s: %r (%s)",
+                    attempt,
+                    _MAX_APP_INFO_RETRIES,
+                    type(e).__name__,
+                    timeout,
+                    app_ids,
+                    e,
+                    _client_state(client),
+                )
                 if attempt < _MAX_APP_INFO_RETRIES:
-                    print(f"Request timed out. Trying again ({attempt}/{_MAX_APP_INFO_RETRIES})...")
+                    print(
+                        f"Request timed out after {timeout}s. "
+                        f"Trying again ({attempt}/{_MAX_APP_INFO_RETRIES})..."
+                    )
                     _reopen_client_session(client)
                     time.sleep(2)
                     continue
                 print(
-                    "Request timed out after several attempts. "
-                    "Check your internet connection and Steam status, then try again later."
+                    "Steam appinfo timed out after several attempts. "
+                    "SteaMidra will use cached/local manifests if available."
                 )
-                # Return an empty ProductInfo instead of raising so the
-                # caller's worker thread doesn't crash. The bridge will
-                # surface "no game info" via its existing empty-result path.
-                return _empty_product_info()
+                return _ProductInfoResult(_empty_product_info(), False)
         # All retries exhausted without an exception we recognised.
         if last_error is not None:
             logger.warning(f"App info gave up after {_MAX_APP_INFO_RETRIES} attempts: {last_error}")
-        return _empty_product_info()
+        return _ProductInfoResult(_empty_product_info(), False)
+
+
+def _get_product_info(client, app_ids):
+    return _get_product_info_result(client, app_ids).info
 
 
 class SteamInfoProvider:
@@ -159,13 +202,19 @@ class SteamInfoProvider:
             if not self._load_cached_app(app_id):
                 missing.append(app_id)
         if missing:
-            info = _get_product_info(self.client, missing)
-            apps = info.get("apps", {})
+            result = _get_product_info_result(self.client, missing)
+            apps = result.info.get("apps", {})
             valid_ids = set(apps.keys())
-            invalid_ids = set(missing) - valid_ids
             self._store_app_payloads(apps)
-            for app_id in invalid_ids:
-                self._cache[app_id] = False
+            if result.complete:
+                invalid_ids = set(missing) - valid_ids
+                for app_id in invalid_ids:
+                    self._cache[app_id] = False
+            else:
+                logger.debug(
+                    "Steam appinfo fetch incomplete; leaving %s uncached for later retry",
+                    sorted(set(missing) - valid_ids),
+                )
         else:
             print("Reading app info from cache...")
         return {

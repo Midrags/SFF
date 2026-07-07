@@ -14,6 +14,42 @@ window.App = (function() {
     var _lcHomeNoticeBusy = false;
     var _liveLogMaxLines = 100;
 
+    function _pathToFileUrl(path) {
+        if (!path) return '';
+        if (/^file:/i.test(path)) return path;
+        return 'file:///' + String(path).replace(/\\/g, '/').replace(/^\/+/, '');
+    }
+
+    function applyCustomAppearance(backgroundPath, accentColor) {
+        if (backgroundPath) {
+            document.body.style.backgroundImage = 'url("' + _pathToFileUrl(backgroundPath) + '")';
+            document.body.style.backgroundSize = 'cover';
+            document.body.style.backgroundPosition = 'center';
+        }
+        if (accentColor && /^#[0-9a-fA-F]{6}$/.test(accentColor)) {
+            document.documentElement.style.setProperty('--accent', accentColor);
+            document.documentElement.style.setProperty('--sidebar-active', accentColor);
+        }
+    }
+
+    function clearCustomAppearance(backgroundOnly) {
+        document.body.style.backgroundImage = '';
+        document.body.style.backgroundSize = '';
+        document.body.style.backgroundPosition = '';
+        if (!backgroundOnly) {
+            document.documentElement.style.removeProperty('--accent');
+            document.documentElement.style.removeProperty('--sidebar-active');
+        }
+    }
+
+    function _loadCustomAppearance(py) {
+        py.get_setting('custom_background_image', function(bgPath) {
+            py.get_setting('custom_accent_color', function(accent) {
+                applyCustomAppearance(bgPath || '', accent || '');
+            });
+        });
+    }
+
     function init() {
         Components.initModals();
         new Components.CustomSelect('home-game-select', 'home-game-select-ui');
@@ -70,6 +106,7 @@ window.App = (function() {
                     document.body.style.backgroundSize = _bgImg ? 'cover' : '';
                     document.body.style.backgroundPosition = _bgImg ? 'center' : '';
                 }
+                _loadCustomAppearance(py);
             });
 
             // Apply saved language for live i18n
@@ -112,6 +149,10 @@ window.App = (function() {
                             result.success ? 'success' : 'error',
                             result.success ? 'DRM removed' : 'DRM removal failed (see log)'
                         );
+                        return;
+                    }
+                    if (result.task === 'provider_update' && result.background) {
+                        _updateHomeProviderStatus(result);
                         return;
                     }
                     if (result.message) {
@@ -2297,7 +2338,9 @@ window.App = (function() {
     return {
         init: init,
         navigateTo: navigateTo,
-        getPlatform: getPlatform
+        getPlatform: getPlatform,
+        applyCustomAppearance: applyCustomAppearance,
+        clearCustomAppearance: clearCustomAppearance
     };
 })();
 

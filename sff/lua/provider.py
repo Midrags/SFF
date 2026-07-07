@@ -43,6 +43,7 @@ ALLOWED_KINDS = {"game", "software", "dlc", "depot", "dlc_depot", "unknown"}
 ROOT_KINDS = {"game", "software"}
 MAX_ITEMS_PER_REQUEST = 1000
 MAX_BODY_BYTES = 200_000
+PROVIDER_REFRESH_INTERVAL_SECONDS = 6 * 60 * 60
 
 _HEX64_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _ID_RE = re.compile(r"^\d+$")
@@ -221,7 +222,56 @@ def _writable_provider_update_targets() -> list[Path]:
     return targets
 
 
+def _provider_epoch(value) -> int:
+    try:
+        return max(0, int(float(str(value or "0"))))
+    except (TypeError, ValueError):
+        return 0
+
+
+def provider_update_state(now: int | None = None) -> dict:
+    from sff.storage.settings import get_setting
+    from sff.structs import Settings
+
+    now = int(time.time()) if now is None else int(now)
+    last_attempt = _provider_epoch(get_setting(Settings.PROVIDER_LAST_UPDATE_ATTEMPT))
+    last_success = _provider_epoch(get_setting(Settings.PROVIDER_LAST_UPDATE_SUCCESS))
+    last_error = str(get_setting(Settings.PROVIDER_LAST_UPDATE_ERROR) or "")
+    age = now - last_attempt if last_attempt else None
+    return {
+        "last_attempt_at": last_attempt,
+        "last_success_at": last_success,
+        "last_error": last_error,
+        "next_due_at": (last_attempt + PROVIDER_REFRESH_INTERVAL_SECONDS) if last_attempt else 0,
+        "due": not last_attempt or age is None or age >= PROVIDER_REFRESH_INTERVAL_SECONDS,
+        "interval_seconds": PROVIDER_REFRESH_INTERVAL_SECONDS,
+    }
+
+
+def provider_update_due(now: int | None = None) -> bool:
+    return bool(provider_update_state(now).get("due"))
+
+
+def _record_provider_update_attempt(result: dict, attempted_at: int | None = None) -> dict:
+    from sff.storage.settings import set_setting
+    from sff.structs import Settings
+
+    attempted_at = int(time.time()) if attempted_at is None else int(attempted_at)
+    ok = bool(result.get("ok"))
+    error = "" if ok else "; ".join(str(x) for x in (result.get("errors") or []) if str(x).strip())
+    set_setting(Settings.PROVIDER_LAST_UPDATE_ATTEMPT, str(attempted_at))
+    set_setting(Settings.PROVIDER_LAST_UPDATE_CHECK, str(attempted_at))
+    if ok:
+        set_setting(Settings.PROVIDER_LAST_UPDATE_SUCCESS, str(attempted_at))
+        set_setting(Settings.PROVIDER_LAST_UPDATE_ERROR, "")
+    else:
+        set_setting(Settings.PROVIDER_LAST_UPDATE_ERROR, error or "Provider update failed")
+    result.update(provider_update_state())
+    return result
+
+
 def download_provider_update(urls: Iterable[str] = PROVIDER_URLS, timeout: float = 20.0) -> dict:
+    attempted_at = int(time.time())
     errors: list[str] = []
     for url in urls:
         try:
@@ -241,17 +291,17 @@ def download_provider_update(urls: Iterable[str] = PROVIDER_URLS, timeout: float
             if not saved_paths:
                 errors.extend(save_errors)
                 continue
-            return {
+            return _record_provider_update_attempt({
                 "ok": True,
                 "url": url,
                 "count": len(data),
                 "paths": saved_paths,
                 "save_errors": save_errors,
                 "errors": errors,
-            }
+            }, attempted_at)
         except Exception as exc:
             errors.append(f"{url}: {exc}")
-    return {"ok": False, "errors": errors}
+    return _record_provider_update_attempt({"ok": False, "errors": errors}, attempted_at)
 
 
 def update_cache_from_lua_bytes(lua_bytes: bytes, app_id: str = "", app_name: str = "") -> int:

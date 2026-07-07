@@ -69,28 +69,134 @@ from typing import cast
 logger = logging.getLogger(__name__)
 
 
+class LocalManifestStrategy(IManifestStrategy):
+    def __init__(self, downloader):
+        self.downloader = downloader
+
+    @property
+    def name(self):
+        return "Local manifest file"
+
+    def get_manifest_id(self, ctx, depot_id):
+        found = self.downloader._find_latest_local_manifest_id(str(depot_id))
+        if found is None:
+            return None
+        manifest_id, path = found
+        logger.debug(
+            "Local manifest fallback picked %s for depot %s from %s",
+            manifest_id,
+            depot_id,
+            path,
+        )
+        return manifest_id
+
+
 class ManifestDownloader:
     def __init__(self, provider, steam_path, use_hubcap = False):
         self.steam_path = steam_path
         self.provider = provider
         self.use_hubcap = use_hubcap
 
-    def _preseed_depotcache(self):
-        # Copy everything from the staging dir into depotcache now so
-        # Steam finds them locally and never needs a network call.
-        from sff.utils import manifests_staging_dir
-        manifests_dir = manifests_staging_dir()
-        if not manifests_dir.exists():
-            return 0
+    def _manifest_search_dirs(self):
+        dirs = [
+            manifests_staging_dir(),
+            self.steam_path / "depotcache",
+            self.steam_path / "config" / "depotcache",
+        ]
+        seen = set()
+        out = []
+        for directory in dirs:
+            key = str(directory).lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(directory)
+        return out
+
+    def _newest_existing(self, paths):
+        existing = [p for p in paths if p.exists()]
+        if not existing:
+            return None
+
+        def _mtime(path):
+            try:
+                return path.stat().st_mtime
+            except OSError:
+                return 0
+
+        return max(existing, key=_mtime)
+
+    def _find_exact_local_manifest(self, depot_id: str, manifest_id: str):
+        name = f"{depot_id}_{manifest_id}.manifest"
+        return self._newest_existing([directory / name for directory in self._manifest_search_dirs()])
+
+    def _find_latest_local_manifest_id(self, depot_id: str):
+        candidates = []
+        for directory in self._manifest_search_dirs():
+            if not directory.exists():
+                continue
+            for mf in directory.glob(f"{depot_id}_*.manifest"):
+                parts = mf.stem.split("_", 1)
+                if len(parts) == 2 and parts[0] == depot_id and parts[1].isdigit():
+                    candidates.append((parts[1], mf))
+        if not candidates:
+            return None
+
+        def _mtime(item):
+            try:
+                return item[1].stat().st_mtime
+            except OSError:
+                return 0
+
+        return max(candidates, key=_mtime)
+
+    def _copy_local_manifest_to_depotcache(self, source: Path, depot_id: str, manifest_id: str):
         depotcache = self.steam_path / "depotcache"
-        depotcache.mkdir(exist_ok=True)
+        depotcache.mkdir(parents=True, exist_ok=True)
+        dest = depotcache / f"{depot_id}_{manifest_id}.manifest"
+        if source.resolve() != dest.resolve():
+            shutil.copy2(source, dest)
+        sync_manifest_to_config_depotcache(self.steam_path, dest)
+        return dest
+
+    def _cleanup_live_stale_manifests(self, manifest_ids):
+        removed = 0
+        live_dirs = (self.steam_path / "depotcache", self.steam_path / "config" / "depotcache")
+        for depot_id, correct_manifest_id in manifest_ids.items():
+            if not depot_id or not correct_manifest_id:
+                continue
+            for directory in live_dirs:
+                if not directory.exists():
+                    continue
+                for mf in directory.glob(f"{depot_id}_*.manifest"):
+                    parts = mf.stem.split("_", 1)
+                    if len(parts) != 2 or parts[1] == str(correct_manifest_id):
+                        continue
+                    try:
+                        mf.unlink()
+                        removed += 1
+                        logger.debug("Removed stale live manifest: %s", mf)
+                    except OSError:
+                        pass
+        if removed:
+            print(
+                Fore.YELLOW
+                + f"Cleaned up {removed} stale same-depot manifest(s) from Steam depotcache."
+                + Style.RESET_ALL
+            )
+
+    def _preseed_depotcache(self, manifest_ids=None):
+        if not manifest_ids:
+            logger.debug("Preseed skipped: no exact manifest map")
+            return 0
         copied = 0
-        for mf in manifests_dir.glob("*.manifest"):
-            dest = depotcache / mf.name
-            shutil.copy2(mf, dest)
-            sync_manifest_to_config_depotcache(self.steam_path, dest)
+        for depot_id, manifest_id in manifest_ids.items():
+            source = self._find_exact_local_manifest(str(depot_id), str(manifest_id))
+            if source is None:
+                continue
+            self._copy_local_manifest_to_depotcache(source, str(depot_id), str(manifest_id))
             copied += 1
-            logger.debug("Pre-seeded depotcache: %s", mf.name)
+            logger.debug("Pre-seeded depotcache: %s_%s.manifest", depot_id, manifest_id)
         if copied:
             print(
                 Fore.CYAN
@@ -172,6 +278,7 @@ class ManifestDownloader:
             strats.append(StandardManifestStrategy())
             strats.append(SharedDepotManifestStrategy())
             strats.append(InnerDepotManifestStrategy())
+            strats.append(LocalManifestStrategy(self))
         strats.append(ManualManifestStrategy())
         resolver = ManifestIDResolver(strats)
         use_pins = get_setting(Settings.USE_MANIFEST_PINS)
@@ -325,35 +432,6 @@ class ManifestDownloader:
                     logger.debug(f"{name} failed in _try_manifesthub_combined: {e}")
         return None
 
-    def _log_mirror_coverage(
-        self, app_id: str, depot_manifest_pairs: list[tuple[str, str]]
-    ):
-        """
-        Queries GitHub API for the mirror repo and counts how many of the needed
-        {depot_id}_{manifest_id}.manifest files it has. Purely informational.
-        """
-        needed = {f"{d}_{m}.manifest" for d, m in depot_manifest_pairs}
-        try:
-            resp = httpx.get(
-                "https://api.github.com/repos/qwe213312/k25FCdfEOoEJ42S6/git/trees/main?recursive=1",
-                timeout=15,
-                headers={"Accept": "application/vnd.github.v3+json"},
-                follow_redirects=True,
-            )
-            if resp.status_code == 200:
-                files = {item["path"] for item in resp.json().get("tree", []) if item.get("type") == "blob"}
-                count = len(needed & files)
-                print(
-                    Fore.CYAN
-                    + f"GitHub mirror coverage: {count}/{len(needed)} manifests available"
-                    + Style.RESET_ALL
-                )
-                return count
-            logger.debug(f"GitHub mirror API returned HTTP {resp.status_code}")
-        except Exception as e:
-            logger.debug(f"GitHub mirror coverage check failed: {e}")
-        return 0
-
     def _try_mirror_endpoints(self, depot_id, manifest_id):
         """Hit the 3 GMRC mirrors to get a request code, then download
         from Steam's fixed CDN (steampipe.akamaized.net). HTTPS first,
@@ -434,8 +512,6 @@ class ManifestDownloader:
         cdn_client = None,
         app_id = "",
     ):
-        if cdn_client is None:
-            cdn_client = self.get_cdn_client()
         if self.use_hubcap:
             # Hubcap path: Hubcap → ManifestHub API → CDN (interactive)
             hubcap_result = self._try_hubcap_generate(depot_id, manifest_id)
@@ -519,17 +595,12 @@ class ManifestDownloader:
         self, lua: LuaParsedInfo, decrypt: bool = False, auto_manifest: bool = False,
         manifest_override: dict = None
     ):
-        cdn = self.get_cdn_client()
         if manifest_override is not None:
             manifest_ids = DepotManifestMap(manifest_override)
         else:
             manifest_ids = self.get_manifest_ids(lua, auto_manifest)
-        # Pre-seed depotcache from ./manifests/ so Steam finds them locally
-        self._preseed_depotcache()
-        if not self.use_hubcap and lua.app_id:
-            pairs = [(d, m) for d, m in manifest_ids.items() if m]
-            if pairs:
-                self._log_mirror_coverage(lua.app_id, pairs)
+        self._preseed_depotcache(manifest_ids)
+        self._cleanup_live_stale_manifests(manifest_ids)
         # Build dec_key lookup from lua.depots (used when manifest_override bypasses the normal loop).
         dec_key_map = {pair.depot_id: pair.decryption_key for pair in lua.depots if pair.decryption_key}
         # Determine which (depot_id, manifest_id, dec_key) triples to process.
@@ -557,25 +628,22 @@ class ManifestDownloader:
                 + Style.RESET_ALL
             )
             depotcache = self.steam_path / "depotcache"
-            depotcache.mkdir(exist_ok=True)
+            depotcache.mkdir(parents=True, exist_ok=True)
             final_manifest_loc = depotcache / f"{depot_id}_{manifest_id}.manifest"
-            possible_saved_manifest = manifests_staging_dir() / f"{depot_id}_{manifest_id}.manifest"
-            # If saved manifest exists (from Morrenus ZIP), refresh depotcache
-            if possible_saved_manifest.exists():
-                shutil.copy2(str(possible_saved_manifest), final_manifest_loc)
-                print(Fore.GREEN + f"  Refreshed from saved manifests: {possible_saved_manifest.name}" + Style.RESET_ALL)
-                sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
-                manifest_paths.append(final_manifest_loc)
-                continue
-            # Already in depotcache and no fresher copy available
-            if final_manifest_loc.exists():
-                print(Fore.GREEN + f"  Already in depotcache: {final_manifest_loc.name}" + Style.RESET_ALL)
-                sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
-                manifest_paths.append(final_manifest_loc)
+            local_manifest = self._find_exact_local_manifest(str(depot_id), str(manifest_id))
+            if local_manifest is not None:
+                written = self._copy_local_manifest_to_depotcache(
+                    local_manifest, str(depot_id), str(manifest_id)
+                )
+                if local_manifest == final_manifest_loc:
+                    print(Fore.GREEN + f"  Already in depotcache: {final_manifest_loc.name}" + Style.RESET_ALL)
+                else:
+                    print(Fore.GREEN + f"  Refreshed from local manifest: {local_manifest.name}" + Style.RESET_ALL)
+                manifest_paths.append(written)
                 continue
             # Fetch from network (Morrenus on-demand → ManifestHub → CDN)
             manifest = self.download_single_manifest(
-                depot_id, manifest_id, cdn, app_id=lua.app_id
+                depot_id, manifest_id, app_id=lua.app_id
             )
             if manifest:
                 # Write to depotcache using the unified helper (handles ZIP + raw)
@@ -599,15 +667,12 @@ class ManifestDownloader:
             worker_count = max(1, min(worker_count, 10))  # Clamp between 1-10
         except (ValueError, TypeError):
             worker_count = 4
-        cdn = self.get_cdn_client()
         if manifest_override is not None:
             manifest_ids = DepotManifestMap(manifest_override)
         else:
             manifest_ids = self.get_manifest_ids(lua, auto_manifest)
-        if not self.use_hubcap and lua.app_id:
-            pairs = [(d, m) for d, m in manifest_ids.items() if m]
-            if pairs:
-                self._log_mirror_coverage(lua.app_id, pairs)
+        self._preseed_depotcache(manifest_ids)
+        self._cleanup_live_stale_manifests(manifest_ids)
         # Build dec_key lookup from lua.depots (see download_manifests for explanation).
         dec_key_map_p = {pair.depot_id: pair.decryption_key for pair in lua.depots if pair.decryption_key}
         download_tasks = []
@@ -644,7 +709,7 @@ class ManifestDownloader:
         print(Fore.CYAN + f"\nDownloading {len(download_tasks)} manifests with {worker_count} workers..." + Style.RESET_ALL)
         manifest_paths = []
         depotcache = self.steam_path / "depotcache"
-        depotcache.mkdir(exist_ok=True)
+        depotcache.mkdir(parents=True, exist_ok=True)
         def download_task(task):
             depot_id = task['depot_id']
             manifest_id = task['manifest_id']
@@ -653,18 +718,20 @@ class ManifestDownloader:
             app_id = task.get('app_id', '')
             try:
                 final_manifest_loc = depotcache / f"{depot_id}_{manifest_id}.manifest"
-                # Prefer saved manifest (from Morrenus ZIP) over stale depotcache
-                possible_saved_manifest = manifests_staging_dir() / f"{depot_id}_{manifest_id}.manifest"
-                if possible_saved_manifest.exists():
-                    shutil.copy2(possible_saved_manifest, final_manifest_loc)
-                    sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
-                    return (True, depot_id, manifest_id, final_manifest_loc, "Refreshed from saved")
+                local_manifest = self._find_exact_local_manifest(str(depot_id), str(manifest_id))
+                if local_manifest is not None:
+                    written = self._copy_local_manifest_to_depotcache(
+                        local_manifest, str(depot_id), str(manifest_id)
+                    )
+                    if local_manifest == final_manifest_loc:
+                        return (True, depot_id, manifest_id, written, "Already exists")
+                    return (True, depot_id, manifest_id, written, "Refreshed from local")
                 if final_manifest_loc.exists():
                     sync_manifest_to_config_depotcache(self.steam_path, final_manifest_loc)
                     return (True, depot_id, manifest_id, final_manifest_loc, "Already exists")
                 # Steps 1-4 for oureveryday (silent), or full Morrenus chain
                 manifest = self.download_single_manifest(
-                    depot_id, manifest_id, cdn, app_id=app_id
+                    depot_id, manifest_id, app_id=app_id
                 )
                 if manifest:
                     if decrypt_flag:

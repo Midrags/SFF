@@ -26,6 +26,23 @@ def _sanitize_name(name: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', "_", name).strip()
 
 
+def _normalise_manifest_map(manifests: dict) -> dict[str, str]:
+    clean: dict[str, str] = {}
+    for depot_id, manifest_id in (manifests or {}).items():
+        depot_str = str(depot_id).strip()
+        manifest_str = str(manifest_id).strip()
+        if depot_str.isdigit() and manifest_str.isdigit():
+            clean[depot_str] = manifest_str
+    return clean
+
+
+def _depot_size(depots: dict, depot_id: str) -> str:
+    info = depots.get(depot_id) or depots.get(int(depot_id) if depot_id.isdigit() else depot_id) or {}
+    value = info.get("size", "0") if isinstance(info, dict) else "0"
+    value_str = str(value).strip()
+    return value_str if value_str.isdigit() else "0"
+
+
 def create_acf(
     game_data: dict,
     dest_path: Path,
@@ -37,7 +54,7 @@ def create_acf(
     game_name = game_data.get("game_name", f"App {appid}")
     installdir = game_data.get("installdir") or _sanitize_name(game_name) or f"App_{appid}"
     buildid = str(game_data.get("buildid", "0"))
-    manifests = game_data.get("manifests", {})
+    manifests = _normalise_manifest_map(game_data.get("manifests", {}))
     depots = game_data.get("depots", {})
 
     steamapps_dir = dest_path / "steamapps"
@@ -45,18 +62,26 @@ def create_acf(
     acf_path = steamapps_dir / f"appmanifest_{appid}.acf"
 
     installed_depots_lines = []
+    mounted_depots_lines = []
     for depot_id in selected_depots:
         depot_id_str = str(depot_id)
         manifest_gid = manifests.get(depot_id_str, "")
         if manifest_gid:
+            depot_size = _depot_size(depots, depot_id_str)
             installed_depots_lines.append(
                 f'\t\t"{depot_id_str}"\n\t\t{{\n'
                 f'\t\t\t"manifest"\t\t"{manifest_gid}"\n'
-                f'\t\t\t"size"\t\t"0"\n'
+                f'\t\t\t"size"\t\t"{depot_size}"\n'
                 f'\t\t}}'
             )
+            mounted_depots_lines.append(f'\t\t"{depot_id_str}"\t\t"{manifest_gid}"')
+
+    if selected_depots and not installed_depots_lines:
+        print_fn(Fore.RED + "Refusing to write ACF: no manifest IDs for selected depots." + Style.RESET_ALL)
+        return False
 
     installed_depots_block = "\n".join(installed_depots_lines)
+    mounted_depots_block = "\n".join(mounted_depots_lines)
 
     user_config = (
         '\t"UserConfig"\n\t{\n'
@@ -82,6 +107,10 @@ def create_acf(
         f'\t"InstalledDepots"\n'
         f'\t{{\n'
         f'{installed_depots_block}\n'
+        f'\t}}\n'
+        f'\t"MountedDepots"\n'
+        f'\t{{\n'
+        f'{mounted_depots_block}\n'
         f'\t}}\n'
         f'{user_config}'
         '}\n'

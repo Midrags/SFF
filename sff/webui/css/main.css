@@ -172,6 +172,27 @@ a:hover { text-decoration: underline; }
     opacity: 0.6;
 }
 
+.steamidra-managed-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 3;
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+}
+
+#library-filter-managed.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}
+
 /* ── Section Groups ─────────────────────────────────── */
 
 .section-group {

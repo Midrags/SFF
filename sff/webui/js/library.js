@@ -8,6 +8,10 @@ window.Library = (function() {
 
     var _initialized = false;
     var _pendingDelete = null; // { appId, gamePath }
+    var _libraryGames = [];
+    var _managedOnly = false;
+    var _renderToken = 0;
+    var _renderChunkSize = 48;
 
     function init() {
         if (_initialized) return;
@@ -15,13 +19,22 @@ window.Library = (function() {
 
         var refreshBtn = document.getElementById('library-refresh');
         if (refreshBtn) {
-            refreshBtn.addEventListener('click', _refreshLibrary);
+            refreshBtn.addEventListener('click', function() { _refreshLibrary(true); });
         }
 
         var searchInp = document.getElementById('library-search');
         if (searchInp) {
             searchInp.addEventListener('input', function() {
                 _applyLibraryFilter(this.value.trim().toLowerCase());
+            });
+        }
+
+        var managedBtn = document.getElementById('library-filter-managed');
+        if (managedBtn) {
+            managedBtn.addEventListener('click', function() {
+                _managedOnly = !_managedOnly;
+                managedBtn.classList.toggle('active', _managedOnly);
+                _applyLibraryFilter(searchInp ? searchInp.value.trim().toLowerCase() : '');
             });
         }
 
@@ -139,7 +152,7 @@ window.Library = (function() {
 
     function onPageEnter() {
         init();
-        _refreshLibrary();
+        _refreshLibrary(false);
         _refreshDiskInfo();
     }
 
@@ -212,11 +225,9 @@ window.Library = (function() {
         return (b / 1e3).toFixed(0) + ' KB';
     }
 
-    function _refreshLibrary() {
-        Bridge.call('load_library');
+    function _refreshLibrary(force) {
+        Bridge.call(force ? 'refresh_library' : 'load_library');
     }
-
-    var _libraryGames = [];
 
     function _renderLibrary(games) {
         _libraryGames = games || [];
@@ -235,8 +246,12 @@ window.Library = (function() {
                 return (g.name || '').toLowerCase().indexOf(filter) !== -1;
             });
         }
+        if (_managedOnly) {
+            games = games.filter(function(g) { return !!g.steamidra_managed; });
+        }
 
         if (grid) grid.innerHTML = '';
+        _renderToken++;
 
         if (games.length === 0) {
             if (grid) grid.classList.add('hidden');
@@ -247,31 +262,62 @@ window.Library = (function() {
         if (grid) grid.classList.remove('hidden');
         if (empty) empty.classList.add('hidden');
 
-        games.forEach(function(game, index) {
-            game.installed = true;
-            var card = Components.createGameCard(game, { index: index, forceShowImage: true });
+        _renderLibraryBatch(games, 0, _renderToken);
+    }
 
-            // Add library-specific actions
-            var safeName = (game.name || '').replace(/"/g, '&quot;');
-            var safePath = (game.path || '').replace(/"/g, '&quot;');
-            var actions = card.querySelector('.game-card-actions');
-            if (actions) {
-                actions.innerHTML =
-                    '<button class="btn btn-sm btn-primary" data-action="play" data-appid="' + game.app_id + '" data-tooltip="Launch through Steam">Play</button>' +
-                    '<button class="btn btn-sm" data-action="fix" data-appid="' + game.app_id + '" data-tooltip="Fix this game">Fix</button>' +
-                    '<button class="btn btn-sm" data-action="dlc_check" data-appid="' + game.app_id + '" data-tooltip="Check DLCs">DLC</button>' +
-                    '<button class="btn btn-sm" data-action="workshop" data-appid="' + game.app_id + '" data-tooltip="Open Workshop">Workshop</button>' +
-                    '<button class="btn btn-sm" data-action="lure_fix" data-appid="' + game.app_id + '" data-tooltip="Patch ACF to match Steam CM latest — no download, stops update prompt">Lure Fix</button>' +
-                    '<button class="btn btn-sm" data-action="check_update" data-appid="' + game.app_id + '" data-tooltip="Download latest manifests and patch ACF">Update</button>' +
-                    '<button class="btn btn-sm btn-danger" data-action="delete" data-appid="' + game.app_id + '" data-gamepath="' + safePath + '" data-gamename="' + safeName + '" data-tooltip="Remove this game">\u2715</button>';
-            }
+    function _renderLibraryBatch(games, start, token) {
+        var grid = document.getElementById('library-grid');
+        if (!grid || token !== _renderToken) return;
+        var end = Math.min(start + _renderChunkSize, games.length);
+        var frag = document.createDocumentFragment();
+        for (var i = start; i < end; i++) {
+            frag.appendChild(_createLibraryCard(games[i], i));
+        }
+        grid.appendChild(frag);
+        if (end < games.length) {
+            setTimeout(function() {
+                _renderLibraryBatch(games, end, token);
+            }, 16);
+        }
+    }
 
-            _attachUpdateBadge(card, game.app_id);
+    function _createLibraryCard(game, index) {
+        game.installed = true;
+        var card = Components.createGameCard(game, { index: index, forceShowImage: true });
+        var safeName = (game.name || '').replace(/"/g, '&quot;');
+        var safePath = (game.path || '').replace(/"/g, '&quot;');
+        var actions = card.querySelector('.game-card-actions');
+        if (actions) {
+            actions.innerHTML =
+                '<button class="btn btn-sm btn-primary" data-action="play" data-appid="' + game.app_id + '" data-tooltip="Launch through Steam">Play</button>' +
+                '<button class="btn btn-sm" data-action="fix" data-appid="' + game.app_id + '" data-tooltip="Fix this game">Fix</button>' +
+                '<button class="btn btn-sm" data-action="dlc_check" data-appid="' + game.app_id + '" data-tooltip="Check DLCs">DLC</button>' +
+                '<button class="btn btn-sm" data-action="workshop" data-appid="' + game.app_id + '" data-tooltip="Open Workshop">Workshop</button>' +
+                '<button class="btn btn-sm" data-action="lure_fix" data-appid="' + game.app_id + '" data-tooltip="Patch ACF to match Steam CM latest, no download">Lure Fix</button>' +
+                '<button class="btn btn-sm" data-action="check_update" data-appid="' + game.app_id + '" data-tooltip="Download latest manifests and patch ACF">Update</button>' +
+                '<button class="btn btn-sm btn-danger" data-action="delete" data-appid="' + game.app_id + '" data-gamepath="' + safePath + '" data-gamename="' + safeName + '" data-tooltip="Remove this game">\u2715</button>';
+        }
+        if (game.steamidra_managed) {
+            var badge = document.createElement('div');
+            badge.className = 'steamidra-managed-badge';
+            badge.textContent = 'SM';
+            badge.title = 'Added with SteaMidra';
+            card.appendChild(badge);
+        }
+        _attachUpdateBadge(card, game.app_id);
+        return card;
+    }
 
-            if (grid) grid.appendChild(card);
+    function onPageLeave() {
+        _renderToken++;
+        var grid = document.getElementById('library-grid');
+        if (!grid) return;
+        grid.querySelectorAll('img').forEach(function(img) {
+            img.onload = null;
+            img.onerror = null;
+            img.removeAttribute('src');
         });
-
-
+        grid.innerHTML = '';
     }
 
     // 6.2.5: update-available badge + popover.
@@ -435,6 +481,7 @@ window.Library = (function() {
 
     return {
         init: init,
-        onPageEnter: onPageEnter
+        onPageEnter: onPageEnter,
+        onPageLeave: onPageLeave
     };
 })();

@@ -231,6 +231,7 @@ def run_download(
             + f"  [staging] could not scan staging dir ({exc}); continuing without auto-fill"
             + Style.RESET_ALL
         )
+    game_data["manifests"] = manifests
 
     dotnet_path = get_dotnet_path()
     if not dotnet_path:

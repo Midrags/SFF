@@ -1,5 +1,22 @@
 # Changelog
 
+## 6.4.0
+
+### Store / download
+
+- Steam native downloads now write real depot manifest blocks into the ACF instead of a bare app state. Steam should see the selected depots, build ID, size, and Linux Proton config instead of trying to repair a broken install.
+- Steam appinfo timeouts are less nasty now. SteaMidra retries with longer waits, logs the Steam server state, and falls back to cached or local manifests instead of marking the app as broken for the rest of the run.
+- Oureveryday downloads no longer print GitHub mirror coverage before the request-code mirrors get their shot. GitHub only shows up when SteaMidra reaches that fallback.
+- Stale same-depot manifests get cleaned from Steam's live depotcache after SteaMidra knows the current manifest IDs, so old saved files stop winning over the update you picked.
+- DepotDownloaderMod failures no longer end with a fake success message. If every depot fails or the download writes 0 bytes, the tracker and notification now say the file download is incomplete.
+- The Store tab now has a Depot Keys refresh button, and SteaMidra refreshes the local provider cache every 6 hours based on the last attempt. Manual refreshes still run immediately.
+
+### Library / UI
+
+- Library scans now tag games that have SteaMidra Lua files, add a SteaMidra-only filter, cache cover URLs, and render cards in batches so large libraries feel lighter.
+- Settings now supports a custom UI background image and accent color. Images are copied into SteaMidra data and can be cleared without touching the original file.
+- A new opt-in setting can enable Steam update prompts for newly added SteaMidra games. The setting warns that cracked and protected games can break after Steam updates them.
+
 ## 6.3.9
 
 ### Store / search

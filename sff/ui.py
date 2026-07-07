@@ -694,10 +694,18 @@ class UI:
         if lua_manager.last_endpoint in (LuaEndpoint.HUBCAP, LuaEndpoint.RYUU):
             _maybe_prompt_manifest_pins(parsed_lua)
         lua_manager.backup_lua(parsed_lua)
+        from sff.auto_update_defaults import steam_game_has_pins, apply_new_game_update_default
+        _auto_update_was_registered = steam_game_has_pins(self.steam_path, parsed_lua.app_id)
         install_lua_to_steam(
             self.steam_path,
             str(parsed_lua.app_id),
             lua_manager.saved_lua / f"{parsed_lua.app_id}.lua",
+        )
+        apply_new_game_update_default(
+            self.steam_path,
+            parsed_lua.app_id,
+            was_registered=_auto_update_was_registered,
+            log=print,
         )
         print(Fore.YELLOW + "\nDownloading Manifests:" + Style.RESET_ALL)
         decrypt = prompt_confirm(
@@ -805,10 +813,18 @@ class UI:
         print(Fore.YELLOW + "\nAdding Decryption Keys:" + Style.RESET_ALL)
         config.add_decryption_keys_to_config(parsed_lua)
         lua_manager.backup_lua(parsed_lua)
+        from sff.auto_update_defaults import steam_game_has_pins, apply_new_game_update_default
+        _auto_update_was_registered = steam_game_has_pins(self.steam_path, parsed_lua.app_id)
         install_lua_to_steam(
             self.steam_path,
             str(parsed_lua.app_id),
             lua_manager.saved_lua / f"{parsed_lua.app_id}.lua",
+        )
+        apply_new_game_update_default(
+            self.steam_path,
+            parsed_lua.app_id,
+            was_registered=_auto_update_was_registered,
+            log=print,
         )
         print(Fore.YELLOW + "\nACF Writing:" + Style.RESET_ALL)
         acf.write_acf(parsed_lua)
@@ -834,6 +850,9 @@ class UI:
         # Steam refuses to mark the appid as installed. DDMod is the
         # reliable path on both platforms.
         print(Fore.YELLOW + "\nDownloading game files via DepotDownloaderMod:" + Style.RESET_ALL)
+        _download_ok = False
+        _download_size = 0
+        _selected = []
         if ensure_dotnet_9():
             _manifest_re = _re.compile(
                 r"setManifestid\s*\(\s*(\d+)\s*,\s*[\"']([0-9a-fA-F]+)[\"']\s*\)"
@@ -860,7 +879,9 @@ class UI:
             except Exception:
                 _app_info = None
             _selected = filter_depots_by_os(_selected, _app_info, print_fn=print)
-            run_download(_game_data, _selected, lib_path, self.steam_path, print_fn=print)
+            _download_ok, _download_size = run_download(
+                _game_data, _selected, lib_path, self.steam_path, print_fn=print
+            )
         else:
             if sys.platform != "win32":
                 print(
@@ -874,33 +895,47 @@ class UI:
                     + ".NET 9 not found. Manifests + ACF written. Install .NET 9 and re-run this download."
                     + Style.RESET_ALL
                 )
+        _setup_ok = bool(_download_ok and _download_size > 0)
+        if not _setup_ok:
+            print(
+                Fore.YELLOW
+                + "\nManifest/Lua setup finished, but DepotDownloaderMod did not download game files. "
+                "Check the errors above; Steam may still be able to repair/update from the prepared manifests."
+                + Style.RESET_ALL
+            )
         # Mark download as completed in tracking tab
         if self.download_manager and _tracking_item:
-            self.download_manager.complete_external(_tracking_item, success=True)
+            self.download_manager.complete_external(_tracking_item, success=_setup_ok)
         # Record successful operation
         duration = time.time() - start_time
         self.analytics_tracker.record_operation(
             "process_lua_full",
             app_id=int(parsed_lua.app_id),
-            success=True,
+            success=_setup_ok,
             duration=duration
         )
         # Show notification
-        self.notification_service.show_success(
-            "Processing Complete",
-            f"Successfully processed {parsed_lua.app_id}"
-        )
-        if sys.platform != "win32":
-            print(
-                Fore.GREEN
-                + "\nSuccess! Restart Steam — your game should appear in the library."
-                + Style.RESET_ALL
+        if _setup_ok:
+            self.notification_service.show_success(
+                "Processing Complete",
+                f"Successfully processed {parsed_lua.app_id}"
             )
+            if sys.platform != "win32":
+                print(
+                    Fore.GREEN
+                    + "\nSuccess! Restart Steam — your game should appear in the library."
+                    + Style.RESET_ALL
+                )
+            else:
+                print(
+                    Fore.GREEN
+                    + "\nSuccess! Your game should show up in the library ready to \"update\""
+                    + Style.RESET_ALL
+                )
         else:
-            print(
-                Fore.GREEN
-                + "\nSuccess! Your game should show up in the library ready to \"update\""
-                + Style.RESET_ALL
+            self.notification_service.show_error(
+                "Download Incomplete",
+                f"Manifest setup finished for {parsed_lua.app_id}, but game files were not downloaded."
             )
         return MainReturnCode.LOOP
 
@@ -972,10 +1007,18 @@ class UI:
                 shutil.copyfile(lua_path, backup_target)
         except Exception:
             pass
+        from sff.auto_update_defaults import steam_game_has_pins, apply_new_game_update_default
+        _auto_update_was_registered = steam_game_has_pins(self.steam_path, parsed_lua.app_id)
         install_lua_to_steam(
             self.steam_path,
             str(parsed_lua.app_id),
             backup_target,
+        )
+        apply_new_game_update_default(
+            self.steam_path,
+            parsed_lua.app_id,
+            was_registered=_auto_update_was_registered,
+            log=print,
         )
         use_parallel = get_setting(Settings.USE_PARALLEL_DOWNLOADS)
         print(Fore.YELLOW + "\nPre-downloading manifests for DepotDownloaderMod:" + Style.RESET_ALL)

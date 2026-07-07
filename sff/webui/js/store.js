@@ -37,6 +37,7 @@ window.Store = (function() {
         var nextBtn = document.getElementById('page-next');
         var apiKeyConnect = document.getElementById('api-key-connect');
         var toggleImagesBtn = document.getElementById('store-toggle-images');
+        var providerRefreshBtn = document.getElementById('store-provider-refresh-btn');
 
         if (searchInput) {
             searchInput.addEventListener('keydown', function(e) {
@@ -119,6 +120,15 @@ window.Store = (function() {
             });
         }
 
+        if (providerRefreshBtn) {
+            providerRefreshBtn.addEventListener('click', function() {
+                providerRefreshBtn.disabled = true;
+                providerRefreshBtn.textContent = 'Refreshing...';
+                _setProviderStatus('Refreshing depot keys...');
+                Bridge.call('provider_update_now');
+            });
+        }
+
         if (apiKeyConnect) {
             apiKeyConnect.addEventListener('click', function() {
                 var input = document.getElementById('api-key-input');
@@ -166,6 +176,15 @@ window.Store = (function() {
                 Components.showToast('error', 'Failed to parse search results');
             }
         });
+
+        Bridge.on('task_finished', function(json) {
+            try {
+                var data = JSON.parse(json || '{}');
+                if (data.task === 'provider_update') {
+                    _onProviderUpdateResult(data);
+                }
+            } catch(e) {}
+        });
     }
 
     function _submitSearch(searchInput) {
@@ -197,6 +216,7 @@ window.Store = (function() {
             var btn = document.getElementById('store-toggle-nsfw');
             if (btn) btn.classList.toggle('active', _blockNsfw);
         });
+        _loadProviderStatus();
         _fetchGames();
     }
 
@@ -360,6 +380,49 @@ window.Store = (function() {
     function _showConnectBanner() {
         var banner = document.getElementById('store-connect-banner');
         if (banner) banner.classList.remove('hidden');
+    }
+
+    function _fmtProviderTime(epoch) {
+        var n = parseInt(epoch || '0', 10);
+        if (!n) return 'never';
+        try {
+            return new Date(n * 1000).toLocaleString();
+        } catch(e) {
+            return 'unknown';
+        }
+    }
+
+    function _setProviderStatus(text) {
+        var el = document.getElementById('store-provider-status');
+        if (el) el.textContent = text || '';
+    }
+
+    function _renderProviderStatus(data) {
+        data = data || {};
+        var parts = [
+            'Depot keys: ' + (data.count || 0) + ' entries',
+            'last attempt ' + _fmtProviderTime(data.last_attempt_at),
+            'last success ' + _fmtProviderTime(data.last_success_at)
+        ];
+        if (data.last_error) parts.push('last error: ' + data.last_error);
+        _setProviderStatus(parts.join(' • '));
+    }
+
+    function _loadProviderStatus() {
+        Bridge.callWithCallback('get_provider_cache_status', function(json) {
+            var data = {};
+            try { data = JSON.parse(json || '{}'); } catch(e) {}
+            _renderProviderStatus(data);
+        });
+    }
+
+    function _onProviderUpdateResult(data) {
+        var btn = document.getElementById('store-provider-refresh-btn');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Depot Keys';
+        }
+        _renderProviderStatus(data);
     }
 
     return {

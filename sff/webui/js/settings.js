@@ -56,6 +56,7 @@ window.Settings = (function() {
         _initAutoBackupControls();
         _initAboutLinks();
         _initAvatarControls();
+        _initCustomAppearanceControls();
     }
 
     function onPageEnter() {
@@ -114,6 +115,13 @@ window.Settings = (function() {
         document.body.style.backgroundImage = _bgImg;
         document.body.style.backgroundSize = _bgImg ? 'cover' : '';
         document.body.style.backgroundPosition = _bgImg ? 'center' : '';
+        Bridge.callWithCallback('get_setting', 'custom_background_image', function(bgPath) {
+            Bridge.callWithCallback('get_setting', 'custom_accent_color', function(accent) {
+                if (window.App && App.applyCustomAppearance) {
+                    App.applyCustomAppearance(bgPath || '', accent || '');
+                }
+            });
+        });
     }
 
     function _initPathControls() {
@@ -434,6 +442,7 @@ window.Settings = (function() {
             'setting-manifest-preserve': 'manifest_preserve',
             'setting-store-show-software': 'store_show_software',
             'setting-block-nsfw': 'store_block_nsfw',
+            'setting-auto-enable-new-game-updates': 'auto_enable_updates_new_games',
         };
         Object.keys(checkboxes).forEach(function(id) {
             var el = document.getElementById(id);
@@ -506,6 +515,78 @@ window.Settings = (function() {
         }
     }
 
+    function _initCustomAppearanceControls() {
+        var bgInput = document.getElementById('setting-custom-background');
+        var browseBtn = document.getElementById('setting-custom-background-browse');
+        var clearBtn = document.getElementById('setting-custom-background-clear');
+        var accentInput = document.getElementById('setting-custom-accent');
+        var accentSave = document.getElementById('setting-custom-accent-save');
+        var accentClear = document.getElementById('setting-custom-accent-clear');
+
+        if (browseBtn) {
+            browseBtn.addEventListener('click', function() {
+                Bridge.callSync('browse_custom_background_file', function(path) {
+                    if (!path) return;
+                    Bridge.callWithCallback('set_custom_background', path, function(json) {
+                        var result = {};
+                        try { result = JSON.parse(json || '{}'); } catch(e) {}
+                        if (!result.ok) {
+                            Components.showToast('error', result.error || 'Background update failed');
+                            return;
+                        }
+                        if (bgInput) bgInput.value = result.path || path;
+                        if (window.App && App.applyCustomAppearance) {
+                            App.applyCustomAppearance(result.path || path, accentInput ? accentInput.value : '');
+                        }
+                        Components.showToast('success', 'Background updated');
+                    });
+                });
+            });
+        }
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                Bridge.callWithCallback('clear_custom_background', function(json) {
+                    var result = {};
+                    try { result = JSON.parse(json || '{}'); } catch(e) {}
+                    if (!result.ok) {
+                        Components.showToast('error', result.error || 'Could not clear background');
+                        return;
+                    }
+                    if (bgInput) bgInput.value = '';
+                    var themeId = document.documentElement.getAttribute('data-theme') || 'dark';
+                    _applyTheme(themeId);
+                    Components.showToast('success', 'Background cleared');
+                });
+            });
+        }
+
+        if (accentSave && accentInput) {
+            accentSave.addEventListener('click', function() {
+                var color = accentInput.value || '';
+                if (!/^#[0-9a-fA-F]{6}$/.test(color)) {
+                    Components.showToast('warning', 'Pick a valid accent color');
+                    return;
+                }
+                Bridge.call('set_setting', 'custom_accent_color', color);
+                if (window.App && App.applyCustomAppearance) {
+                    App.applyCustomAppearance(bgInput ? bgInput.value : '', color);
+                }
+                Components.showToast('success', 'Accent saved');
+            });
+        }
+
+        if (accentClear && accentInput) {
+            accentClear.addEventListener('click', function() {
+                Bridge.call('set_setting', 'custom_accent_color', '');
+                document.documentElement.style.removeProperty('--accent');
+                document.documentElement.style.removeProperty('--sidebar-active');
+                accentInput.value = '#4a9eff';
+                Components.showToast('success', 'Accent reset');
+            });
+        }
+    }
+
     function _loadCurrentSettings() {
         Bridge.callSync('get_all_settings', function(json) {
             try {
@@ -528,6 +609,10 @@ window.Settings = (function() {
                 _setInputVal('setting-backup-retention', settings.backup_retention || '4');
                 _setInputVal('setting-live-log-lines', settings.live_log_max_lines || '100');
                 _setInputVal('setting-manifest-excludes', settings.manifest_update_excludes || '');
+                _setInputVal('setting-custom-background', settings.custom_background_image || '');
+                if (settings.custom_accent_color && /^#[0-9a-fA-F]{6}$/.test(settings.custom_accent_color)) {
+                    _setInputVal('setting-custom-accent', settings.custom_accent_color);
+                }
                 // Auto Backup
                 _setInputVal('setting-autobackup-interval', settings.save_watcher_interval || '10');
                 try {
@@ -590,8 +675,12 @@ window.Settings = (function() {
                         ? 'True'
                         : blockNsfw
                 );
+                _setCheckbox('setting-auto-enable-new-game-updates', settings.auto_enable_updates_new_games);
                 // Theme
                 if (settings.theme) _applyTheme(settings.theme);
+                if (window.App && App.applyCustomAppearance) {
+                    App.applyCustomAppearance(settings.custom_background_image || '', settings.custom_accent_color || '');
+                }
             } catch(e) {
                 // Fallback: load just steam_path and theme
                 Bridge.callWithCallback('get_setting', 'steam_path', function(val) {

@@ -211,6 +211,8 @@ class Settings(Enum):
     STEAM_WEB_API_KEY = SettingItem("steam_web_api_key", "Steam Web API Key", True, str)
     PLAY_MUSIC = SettingItem("play_music", "Play Music", False, bool)
     THEME = SettingItem("theme", "Theme", False, str)
+    CUSTOM_BACKGROUND_IMAGE = SettingItem("custom_background_image", "Custom UI Background Image", False, str)
+    CUSTOM_ACCENT_COLOR = SettingItem("custom_accent_color", "Custom UI Accent Color", False, str)
     ONLINE_FIX_NEW_SYSTEM_SHOWN = SettingItem("online_fix_new_system_shown", "Online-Fix New System Shown", False, bool)
     PARALLEL_DOWNLOADS = SettingItem("parallel_downloads", "Parallel Download Workers", False, str)
     BACKUP_RETENTION = SettingItem("backup_retention", "Backup Retention Count", False, str)
@@ -351,6 +353,12 @@ class Settings(Enum):
         False,
         str,
     )
+    AUTO_ENABLE_UPDATES_NEW_GAMES = SettingItem(
+        "auto_enable_updates_new_games",
+        "Auto-enable Steam update prompts for newly added games",
+        False,
+        bool,
+    )
     WINDOW_GEOMETRY = SettingItem(
         "window_geometry",
         "Window geometry (managed automatically)",
@@ -386,6 +394,24 @@ class Settings(Enum):
     PROVIDER_LAST_UPDATE_CHECK = SettingItem(
         "provider_last_update_check",
         "Provider cache last update check (managed automatically)",
+        False,
+        str,
+    )
+    PROVIDER_LAST_UPDATE_ATTEMPT = SettingItem(
+        "provider_last_update_attempt",
+        "Provider cache last update attempt (managed automatically)",
+        False,
+        str,
+    )
+    PROVIDER_LAST_UPDATE_SUCCESS = SettingItem(
+        "provider_last_update_success",
+        "Provider cache last successful update (managed automatically)",
+        False,
+        str,
+    )
+    PROVIDER_LAST_UPDATE_ERROR = SettingItem(
+        "provider_last_update_error",
+        "Provider cache last update error (managed automatically)",
         False,
         str,
     )
