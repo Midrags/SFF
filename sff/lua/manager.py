@@ -100,31 +100,60 @@ def write_manifest_pins_to_lua(path: Path, manifest_map: dict) -> int:
 
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
-    rewritten: list[str] = []
-    written: set[str] = set()
 
+    # First pass: know which depots already have a real setManifestid line anywhere.
+    # This prevents inserting a new line after addappid when the existing line appears below it.
+    existing_pin_depots: set[str] = set()
     for line in lines:
         if _COMMENTED_SETMANIFESTID_REGEX.match(line):
             continue
 
         manifest_line = _SETMANIFESTID_LINE_REGEX.match(line)
         if manifest_line:
+            existing_pin_depots.add(manifest_line.group(2))
+
+    rewritten: list[str] = []
+    written: set[str] = set()
+
+    for line in lines:
+        # Drop old commented-out pins completely, same behavior as before.
+        if _COMMENTED_SETMANIFESTID_REGEX.match(line):
+            continue
+
+        manifest_line = _SETMANIFESTID_LINE_REGEX.match(line)
+        if manifest_line:
             indent, depot_id = manifest_line.groups()
+
             if depot_id in pins:
+                # Rewrite only the first active setManifestid for this depot.
+                # Any later duplicates are skipped.
+                if depot_id in written:
+                    continue
+
                 rewritten.append(f'{indent}setManifestid({depot_id}, "{pins[depot_id]}")')
                 written.add(depot_id)
             else:
                 rewritten.append(line)
+
             continue
 
         rewritten.append(line)
+
         addappid = _KEYED_ADDAPPID_LINE_REGEX.search(line)
         if addappid:
             depot_id = addappid.group(1)
-            if depot_id in pins and depot_id not in written:
+
+            # Only insert after addappid when the lua has no active setManifestid
+            # for this depot anywhere in the file.
+            if (
+                depot_id in pins
+                and depot_id not in existing_pin_depots
+                and depot_id not in written
+            ):
                 rewritten.append(f'setManifestid({depot_id}, "{pins[depot_id]}")')
                 written.add(depot_id)
 
+    # If a selected depot was not next to an addappid line, append it at the end.
     for depot_id in sorted(set(pins) - written, key=int):
         rewritten.append(f'setManifestid({depot_id}, "{pins[depot_id]}")')
         written.add(depot_id)
@@ -132,6 +161,7 @@ def write_manifest_pins_to_lua(path: Path, manifest_map: dict) -> int:
     new_text = "\n".join(rewritten).rstrip() + "\n"
     if new_text != text:
         path.write_text(new_text, encoding="utf-8")
+
     return len(written)
 
 
