@@ -100,6 +100,12 @@ Steam was started without SLSsteam injected. Use the SteaMidra **Restart Steam**
 
 The setup tool has not run, or the SLSsteam files were wiped by a Steam update. Re-run **Quick Tools → Set up Linux tools**.
 
+If you manually placed `SLSteam.so` and `library-inject.so` under the Steam folder, current builds check that location after the managed install path. Use **Restart Steam** again after placing the files.
+
+### SLSsteam extraction fails on CachyOS or Arch
+
+Current builds extract the SLSsteam archive with Python first, then fall back to `7zz`, `7z`, or `7za` using a cleaned subprocess environment. If you still see a readline or shell symbol error, install the distro package for p7zip or 7zip, then run **Set up Linux tools** again.
+
 ### `.NET 9` errors on download
 
 DepotDownloaderMod runs on `.NET 9`. If `dotnet --list-runtimes` does not list a 9.x entry:

@@ -1082,6 +1082,15 @@ start YourGame-Shipping.exe</pre>
             </div>
 
             <div class="settings-section">
+                <h2 class="section-title">Settings Backup</h2>
+                <p class="setting-hint" style="margin-bottom:12px;">Export your current settings or import a saved settings JSON after reinstalling or moving PCs.</p>
+                <div class="button-row" style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button id="settings-export-file" class="btn btn-primary">Export Settings</button>
+                    <button id="settings-import-file" class="btn">Import Settings</button>
+                </div>
+            </div>
+
+            <div class="settings-section">
                 <h2 class="section-title">Updates</h2>
                 <p class="setting-hint" style="margin-bottom:12px;">Current version: <strong id="settings-version-label">loading...</strong></p>
                 <button id="about-update" class="btn btn-primary" style="min-width:180px;">Check for Updates</button>
@@ -1703,9 +1712,12 @@ start YourGame-Shipping.exe</pre>
                     </table>
                 </div>
                 <div style="margin-top:12px;border-top:1px solid var(--border,rgba(255,255,255,0.12));padding-top:10px;">
-                    <label style="font-size:12px;font-weight:600;opacity:0.8;">Manual Depot / Manifest IDs</label>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                        <label style="font-size:12px;font-weight:600;opacity:0.8;">Manual Depot / Manifest IDs</label>
+                        <button id="version-import-html" class="btn" style="padding:6px 10px;font-size:12px;">Import HTML</button>
+                    </div>
                     <textarea id="version-manual-input" rows="4" placeholder="One per line, for example:&#10;939851=2233225956230312354&#10;939852 45510479311498930" style="width:100%;box-sizing:border-box;margin-top:6px;font-family:monospace;font-size:12px;"></textarea>
-                    <div style="font-size:11px;opacity:0.65;margin-top:4px;">Use this when the history list is empty or SteamDB blocks the request. Format: depot ID, then manifest GID.</div>
+                    <div style="font-size:11px;opacity:0.65;margin-top:4px;">Use this when the history list is empty or SteamDB blocks the request. Format: depot ID, then manifest GID. Import HTML lists saved SteamDB depot pages above so you can select them.</div>
                 </div>
             </div>
             <div class="modal-footer">

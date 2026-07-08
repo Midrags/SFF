@@ -1,27 +1,29 @@
 # Multiplayer Fix
 
-SteaMidra's multiplayer fix downloads and applies fixes from online-fix.me for supported games.
+SteaMidra's online-fix.me integration is now search plus browser-open only. It does not log in, store credentials, download archives, or extract files from online-fix.me.
 
 ---
 
 ## online-fix.me method
 
-SteaMidra can download and apply multiplayer fixes from online-fix.me for supported games.
+SteaMidra searches online-fix.me for the selected game. If it finds a likely result, it opens the page in your default browser. If it cannot find a good match, it opens online-fix.me so you can search there yourself.
 
 **What you need**
 
-An account on online-fix.me. Create one on their website. You will enter your username and password in SteaMidra the first time you use the feature. SteaMidra stores them securely.
-
-Depending on the version of SteaMidra, you may need extra Python packages. If the project includes a batch file for online-fix requirements, run it. Otherwise the Setup Guide or project README will say what to install (for example httpx, beautifulsoup4, lxml, or selenium).
+- A browser.
+- Any account or download steps required by online-fix.me are handled on their website, outside SteaMidra.
 
 **How to use it**
 
-Run SteaMidra, then choose "Apply multiplayer fix (online-fix.me)" or the equivalent from the menu. Pick your Steam library and the game. SteaMidra will log in, find the fix, download it, and extract it into the game folder. The first time you may need to enter your online-fix.me credentials.
+1. Pick the game in SteaMidra.
+2. Click **Multiplayer Fix**.
+3. SteaMidra searches online-fix.me and opens the best page it finds.
+4. Follow the instructions on the website manually.
 
 **If something goes wrong**
 
-If login fails, check your username and password on the online-fix.me website. If the game is not found, try the full official game name. If downloads or extraction fail, check your internet connection and antivirus. If it still fails, check debug.log in the SteaMidra folder or ask for help on Discord.
+Use the full official game name if the search opens the wrong page. If online-fix.me blocks access, requires login, or changes the page layout, use the website search directly in your browser.
 
 **Responsibility**
 
-Use this feature at your own risk. SteaMidra only automates downloading and extracting files from online-fix.me. Respect the site’s rules and the game’s terms.
+Use online-fix.me content at your own risk. SteaMidra is not affiliated with online-fix.me and no longer automates downloads from that site.

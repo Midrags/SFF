@@ -23,7 +23,11 @@ Process recent .lua file: Opens your last processed files so you can run them ag
 
 Scan game library: Lets SteaMidra find games in your Steam libraries.
 
-Settings: Change Steam path and other options.
+Store search: Type a game name or App ID, then press Enter or click Search. The Depot Keys button refreshes the local provider cache. In the version picker, Import HTML can read saved SteamDB depot pages into the selectable history list.
+
+Library filter: Use SteaMidra Only to show installed games with saved Lua or `config/stplug-in` Lua entries.
+
+Settings: Use Settings Backup near the top to export/import JSON settings, or change Steam path and other options.
 
 **Keyboard**
 

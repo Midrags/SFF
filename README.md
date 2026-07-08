@@ -26,14 +26,14 @@ Need help? Chat with us on our Discord server: https://discord.gg/V8aZqnbB84
 - Download and use Lua files for games, download manifests, and set up LumaCore.
 - Write Lua and manifest data into Steam's config.
 - **LC Online Fix** — toggle `-onlinefix` on a chosen App ID in `localconfig.vdf`. Closes Steam first, picks the active SteamID3 from `loginusers.vdf`, navigates the VDF tree case-insensitively. LumaCore handles the appid-480 redirect at launch so the overlay, Steam Input, and screenshots still tag the real game.
-- **Multiplayer Fix** — downloads and applies multiplayer patches from **online-fix.me** straight into the game folder. Requires an online-fix.me account.
+- **Multiplayer Fix** — searches **online-fix.me** for the selected game and opens the result in your browser. SteaMidra no longer stores online-fix credentials or downloads files from the site.
 - **Fixes & Bypasses** — searches a curated list from the CrakFiles repo on GitHub and applies the chosen fix to the game folder. No API key, no account. Achievement-safe — only adds bypass DLLs, leaves the Steam API intact.
 - **HyperVisor Cracks (HV Auto)** — download HyperVisor bypasses for Denuvo-protected games. Includes VBS.cmd to prepare your system. See the [HyperVisor Guide](docs/HV_GUIDE.md) before use.
 - DLC status check, cracking (gbe_fork), SteamStub DRM removal (Steamless), and DLC Unlockers (CreamInstaller-style: SmokeAPI, CreamAPI, Uplay).
 - **Multi-language GUI** — English and Portuguese built-in; add more via `sff/locales/`.
 - Parallel downloads, backups, recent files, and settings export/import.
 - **Linux support** — SLSSteam ID management, platform-aware MIDI, and Linux-compatible auto-update.
-- **Store tab** — ⭐ **THIS IS THE MAIN WAY TO DOWNLOAD GAMES.** browse Hubcap's manifest library to find games and download either using the Steam download function for downloading latest versions very quick or **older or specific versions** of a game via DepotDownloaderMod (.NET 9 required, slower). Use this **only** when you need a specific older version of a game, not the latest.
+- **Store tab** — ⭐ **THIS IS THE MAIN WAY TO DOWNLOAD GAMES.** Browse Hubcap's manifest library to find games, refresh depot keys, and download either the latest version through Steam or **older/specific versions** through DepotDownloaderMod (.NET 9 required, slower). Search runs when you press Enter or the Search button so the tab stays smooth.
 - **Main tab "Download Game"** — Downloads the **latest version** of a game directly from Steam (fast, no .NET required for Windows OS). Processes the Lua file, writes decryption keys, copies the Lua to `config/stplug-in/` and the manifests to `depotcache/` so LumaCore picks the game up immediately, then triggers Steam to download the game files natively. Use this for 99% of games.
 
 ---
@@ -86,7 +86,7 @@ For the full walkthrough (supported distros, troubleshooting, what files go wher
 
 ## GUI features
 
-SteaMidra has a full graphical interface with a **Modern UI (new in 5.5.0, updated in 6.0.0)** and the classic Qt interface.
+SteaMidra has a full graphical interface with a **Modern UI** and the classic Qt interface.
 
 **Modern UI** — the new default interface, built with QWebEngine. Accessible from a clean sidebar with 8 tabs: Home (game picker with auto-refresh), Store (search/browse Hubcap, grid/list, pagination), Library (installed games), Downloads (live progress + history), Fix Game (full emulator pipeline), Tools (GBE Token Generator, VDF Extractor, Workshop), Cloud Saves (scan/backup/restore, Google Drive, rclone with 17 provider shortcuts, All Save Locations), and Settings. Supports 11+ themes, tooltips, and toast notifications.
 
@@ -94,10 +94,10 @@ SteaMidra has a full graphical interface with a **Modern UI (new in 5.5.0, updat
 - **Tabbed interface** — Main, Store, Downloads, Fix Game, Tools, and Cloud Saves tabs.
 - Pick your game from a dropdown (all Steam libraries scanned) or set a path for games outside Steam.
 - All actions as buttons: crack, DRM removal, DLC check, workshop items, multiplayer fix, **Fixes & Bypasses**, DLC unlockers, and more.
-- **Store browser** — search and browse the Hubcap Manifest library with pagination. Download button opens a version picker with full depot/manifest history (SteamDB + GitHub mirror sources). **Force Refresh** button bypasses cache to re-scrape all historical manifests.
+- **Store browser** — search and browse the Hubcap Manifest library with pagination. Download opens a version picker with full depot/manifest history, and the Depot Keys button refreshes the local provider cache. **Force Refresh** bypasses cache to rebuild historical manifests.
 - **Fix Game pipeline** — automate emulator application (Goldberg, ColdClient, ColdLoader) with SteamStub unpacking.
 - **GBE Token Generator** — generate full Goldberg emulator configs with achievements, DLCs, stats, and icons.
-- **Cloud Saves** — Steam userdata save backup/restore. Scans `Steam/userdata/<steam32id>/` for all games with saves, back up and restore with one click (safety backup created automatically). Supports local folder, **Google Drive** (sign in once), and **rclone** (Dropbox, OneDrive, MEGA, S3, Backblaze B2, SFTP, and 70+ other backends — click a provider shortcut to pre-fill the remote format, then hit Setup in Terminal to configure it without leaving the app). **All Save Locations** scans every known emu save path (CODEX, EMPRESS, RUNE, OnlineFix, Goldberg, GSE, Steam userdata) and backs them all up in one operation.
+- **Cloud Saves** — Steam userdata plus Ludusavi save-path backup/restore. Multiple save folders for the same App ID are grouped into one backup with per-source restore details and a safety backup before overwrites. Supports local folder, **Google Drive** (sign in once), and **rclone** (Dropbox, OneDrive, MEGA, S3, Backblaze B2, SFTP, and 70+ other backends).
 - **VDF Key Extractor** — extract depot decryption keys from Steam's config.vdf.
 - Lua/manifest processing and library tools all accessible from buttons.
 - Full settings dialog where you can edit, delete, export, and import all settings.
@@ -125,7 +125,7 @@ Full changelog: [CHANGELOG.md](CHANGELOG.md)
 
 [Feature Guide](docs/FEATURE_USAGE_GUIDE.md) – Parallel downloads, backups, library scanner, and more.
 
-[Multiplayer Fix](docs/MULTIPLAYER_FIX.md) – Using the online-fix.me multiplayer fix.
+[Multiplayer Fix](docs/MULTIPLAYER_FIX.md) – Searching online-fix.me and opening the result in your browser.
 
 [Fixes & Bypasses](docs/CRACK_FIX.md) – Searching and applying community-maintained fixes from the CrakFiles repo. No API key, no account.
 

@@ -203,15 +203,9 @@ class SFFMainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         root_layout = QVBoxLayout(central)
-
-        # ── Web UI toggle bar ──
-        toggle_bar = QHBoxLayout()
-        self._web_ui_toggle = QPushButton(T("Switch to Classic UI"))
-        self._web_ui_toggle.setToolTip(T("Toggle between the classic tab UI and the new web-based UI"))
-        self._web_ui_toggle.clicked.connect(self._toggle_web_ui)
-        toggle_bar.addStretch()
-        toggle_bar.addWidget(self._web_ui_toggle)
-        root_layout.addLayout(toggle_bar)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+        central.installEventFilter(self)
 
         # ── LumaCore status banner (hidden until a poll finds missing TOML) ──
         self._lumacore_banner = QLabel()
@@ -257,6 +251,18 @@ class SFFMainWindow(QMainWindow):
             except Exception:
                 pass
         root_layout.addWidget(self._web_view)
+        self._web_ui_reveal = QPushButton("⋯", central)
+        self._web_ui_reveal.setToolTip(T("Show UI switcher"))
+        self._web_ui_reveal.setFixedSize(34, 28)
+        self._web_ui_reveal.clicked.connect(self._show_web_ui_toggle)
+        self._web_ui_toggle = QPushButton(T("Switch to Classic UI"), central)
+        self._web_ui_toggle.setToolTip(T("Toggle between the classic tab UI and the new web-based UI"))
+        self._web_ui_toggle.clicked.connect(self._toggle_web_ui)
+        self._web_ui_toggle.setVisible(False)
+        self._web_ui_toggle_hide_timer = QTimer(self)
+        self._web_ui_toggle_hide_timer.setSingleShot(True)
+        self._web_ui_toggle_hide_timer.timeout.connect(self._web_ui_toggle.hide)
+        self._style_web_ui_switcher()
         self._web_channel = QWebChannel()
         from sff.gui.web_bridge import WebBridge
         self._web_bridge = WebBridge(ui=ui, steam_path=steam_path, parent=self)
@@ -630,6 +636,8 @@ class SFFMainWindow(QMainWindow):
             self.tabs.setVisible(True)
             self._web_view.setVisible(False)
             self._web_ui_toggle.setText(T("Switch to New UI"))
+        self._web_ui_toggle.hide()
+        self._position_web_ui_switcher()
         self._tray = None
         self._tray_hide_notified = False
         self._save_watcher_timer = QTimer(self)
@@ -799,6 +807,48 @@ class SFFMainWindow(QMainWindow):
 
     # ── Web UI toggle ────────────────────────────────────────────
 
+    def _style_web_ui_switcher(self):
+        style = (
+            "QPushButton {"
+            " background-color: rgba(44, 44, 44, 185);"
+            " color: #f4f4f4;"
+            " border: 1px solid rgba(255, 255, 255, 55);"
+            " border-radius: 4px;"
+            " padding: 4px 10px;"
+            " font-size: 12px;"
+            "}"
+            "QPushButton:hover {"
+            " background-color: rgba(65, 65, 65, 225);"
+            " border-color: rgba(255, 255, 255, 95);"
+            "}"
+        )
+        self._web_ui_reveal.setStyleSheet(style + "QPushButton { padding: 0; font-size: 16px; }")
+        self._web_ui_toggle.setStyleSheet(style)
+
+    def _position_web_ui_switcher(self):
+        central = self.centralWidget()
+        if central is None or not hasattr(self, "_web_ui_reveal"):
+            return
+        margin = 10
+        reveal = self._web_ui_reveal
+        reveal.move(max(margin, central.width() - reveal.width() - margin), margin)
+        reveal.raise_()
+
+        toggle = self._web_ui_toggle
+        toggle.adjustSize()
+        toggle.resize(max(toggle.width(), 156), reveal.height())
+        toggle.move(max(margin, reveal.x() - toggle.width() - 8), margin)
+        toggle.raise_()
+
+    def _show_web_ui_toggle(self):
+        self._web_ui_toggle.setText(
+            T("Switch to Classic UI") if self._web_ui_active else T("Switch to New UI")
+        )
+        self._position_web_ui_switcher()
+        self._web_ui_toggle.show()
+        self._web_ui_toggle.raise_()
+        self._web_ui_toggle_hide_timer.start(6000)
+
     def _toggle_web_ui(self):
         """Toggle between classic tab UI and new web-based UI."""
         self._web_ui_active = not self._web_ui_active
@@ -820,6 +870,9 @@ class SFFMainWindow(QMainWindow):
             self._web_view.setVisible(False)
             self.menuBar().setVisible(True)
             self._web_ui_toggle.setText(T("Switch to New UI"))
+        self._web_ui_toggle.hide()
+        self._web_ui_reveal.show()
+        self._position_web_ui_switcher()
 
     def _load_web_ui(self):
         """Load index.html into the QWebEngineView."""
@@ -963,6 +1016,8 @@ class SFFMainWindow(QMainWindow):
             splash = getattr(self, "_web_splash", None)
             if splash is not None and splash.isVisible():
                 splash.resize(self._web_view.size())
+        if obj is self.centralWidget() and event.type() == QEvent.Type.Resize:
+            self._position_web_ui_switcher()
         return super().eventFilter(obj, event)
 
     # ── LumaCore status banner ───────────────────────────────────

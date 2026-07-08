@@ -443,12 +443,14 @@ namespace PatternFetcher {
                 {"CheckAppOwnership", 0x9BBA20, "48 8B C4 89 50 10 48 89 48 08 55 53"},
                 {"CloseAppCloud", 0xA1E450, "48 89 5C 24 10 57 48 83 EC 30 8B FA 48 8B D9 85 D2"},
                 {"ConfigStoreGetBinary", 0x5B3870, "40 53 55 56 57 48 83 EC 38 48 63 FA 49 8B E9"},
+                {"EvaluateRemoteStorageSyncState", 0x739DC0, "48 89 5C 24 08 48 89 74 24 20 57 48 83 EC ?? 41 0F B6 F8 8B DA 48 8B F1 BA 40 00 00 00 41 B8 20 00 00 00 48 8D 4C 24 30 45 33 C9 E8 ?? ?? ?? ??"},
                 {"GetAppDataFromAppInfo", 0x4A2D70, "40 53 55 56 57 41 56 41 57 48 81 EC 78 01 00 00"},
                 {"GetAppIDForCurrentPipe", 0x967600, "8B 81 30 0D 00 00 83 F8 FF 74 ??"},
                 {"GetDecryptionKey", 0x9BEBC0, "40 53 55 56 57 48 81 EC 48 01 00 00 8B FA 48 8B"},
                 {"GetOrAddAppData", 0x4A40B0, "48 83 EC 58 48 8B 05 ?? ?? ?? ?? 48 89 5C 24 68 48 89 6C 24 70"},
                 {"GetPackageInfo", 0x4A4350, "48 89 5C 24 18 89 54 24 10 55 56 57 48 83 EC 20 44 8B 49 20"},
                 {"GetPipeClient", 0x878500, "85 D2 74 ?? 44 0F B7 CA 44 3B 49 60"},
+                {"GetRemoteStorageSyncState", 0x775880, "40 53 56 57 48 83 EC ?? 8B DA 48 8B F9 BA 40 00 00 00 48 8D 4C 24 30 45 33 C9 41 B8 20 00 00 00 E8 ?? ?? ?? ??"},
                 {"GetSubscribedApps", 0x77CBA0, "48 89 5C 24 10 55 56 57 41 56 41 57 48 8B EC 48 83 EC ?? 41 0F B6 D9 41"},
                 {"IPCProcessMessage", 0x877B10, "48 89 5C 24 18 48 89 6C 24 20 57 41 54 41 55 41 56 41 57 48 83 EC 30"},
                 {"IsAppDlcInstalled", 0x820B40, "48 89 5C 24 20 55 56 57 48 8B EC 48 83 EC ?? 41 8B F8 8B DA 48 8B F1 BA 40 00 00 00 41 B8 20 00 00 00 48 8D 4D D0 45 33 C9 E8 ?? ?? ?? ?? B2 01 48 8D 4D D0 E8 ?? ?? ?? ?? B2 11 48 8D 4D D0 E8 ?? ?? ?? ?? 8B 46 08 48 8D 55 20 41 B8 04 00 00 00 89 45 20 48 8D 4D D0 E8 ?? ?? ?? ?? 41 B8 04 00 00 00 C7 45 20 71 8C"},
@@ -464,6 +466,8 @@ namespace PatternFetcher {
                 {"ProcessPendingLicenseUpdates", 0x9B2010, "41 56 41 57 48 83 EC 38 83 B9 98 24 00 00 00"},
                 {"RecvPkt", 0x596500, "48 8B C4 55 48 8D A8 98 F6 FF FF"},
                 {"RequiresLegacyCDKey", 0x83C490, "48 89 5C 24 18 55 56 57 48 83 EC ?? 49 8B E8 ?? ?? ?? ?? F1 BA 40 00 00 00 41 B8 20 00 00 00 48 8D 4C 24 30 45 33 C9 E8 ?? ?? ?? ?? B2 01 48 8D 4C 24 30 E8 ?? ?? ?? ?? B2 01 48 8D"},
+                {"RunAutoCloudOnAppExit", 0x83EAD0, "48 89 5C 24 18 48 89 74 24 20 57 48 83 EC ?? 8B DA 48 8B F9 BA 40 00 00 00 48 8D 4C 24 30 45 33 C9 41 B8 20 00 00 00 E8 ?? ?? ?? ??"},
+                {"RunAutoCloudOnAppLaunch", 0x83EC40, "48 89 5C 24 18 48 89 74 24 20 57 48 83 EC ?? 8B DA 48 8B F9 BA 40 00 00 00 48 8D 4C 24 30 45 33 C9 41 B8 20 00 00 00 E8 ?? ?? ?? ??"},
                 {"SendCallbackToPipe", 0x96CB50, "48 89 5C 24 08 57 48 83 EC 30 41 8B D9 41 8B F8"},
                 {"SpawnProcess", 0x9D5CA0, "48 89 5C 24 18 4C 89 4C 24 20 48 89 54 24 10 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 30 FF FF FF"},
             };
@@ -476,6 +480,19 @@ namespace PatternFetcher {
                 out.emplace(builtIn.name, std::move(e));
             }
             return !out.empty();
+        }
+
+        std::size_t MergeBuiltInSteamclientCurrent(std::string_view sha, EntryMap& out) {
+            EntryMap builtIn;
+            if (!FillBuiltInSteamclientCurrent(sha, builtIn))
+                return 0;
+
+            std::size_t added = 0;
+            for (auto& pair : builtIn) {
+                if (out.emplace(pair.first, std::move(pair.second)).second)
+                    ++added;
+            }
+            return added;
         }
 
         // ── cache layout ────────────────────────────────────────────────────
@@ -1096,6 +1113,9 @@ namespace PatternFetcher {
         {
             EntryMap cmap; std::string cerr;
             if (ReadCache(r.sha, cmap, cerr)) {
+                std::size_t merged = 0;
+                if (IEquals(subdir, "steamclient"))
+                    merged = MergeBuiltInSteamclientCurrent(r.sha, cmap);
                 r.entries = ToPublicEntries(cmap);
                 r.ok      = true;
                 r.source  = "cache";
@@ -1105,8 +1125,9 @@ namespace PatternFetcher {
                 StoreResult(moduleHandle, r);
                 HookStatus::RecordPatternStatus(subdir, r.source, r.cacheHit,
                                                 r.networkResult, r.error);
-                LOG_MISC_DEBUG("PatternFetcher: {} cache hit sha={} entries={}",
-                               subdir, r.sha, static_cast<unsigned>(r.entries.size()));
+                LOG_MISC_DEBUG("PatternFetcher: {} cache hit sha={} entries={} mergedBuiltIns={}",
+                               subdir, r.sha, static_cast<unsigned>(r.entries.size()),
+                               static_cast<unsigned>(merged));
                 return r;
             }
             r.error = cerr;
@@ -1163,6 +1184,10 @@ namespace PatternFetcher {
             // re-fetch from the network and try again.
         }
 
+        std::size_t merged = 0;
+        if (IEquals(subdir, "steamclient"))
+            merged = MergeBuiltInSteamclientCurrent(r.sha, map);
+
         r.entries = ToPublicEntries(map);
         r.ok      = true;
         r.source  = SourceToStr(src);
@@ -1173,9 +1198,10 @@ namespace PatternFetcher {
         HookStatus::RecordPatternStatus(subdir, r.source, r.cacheHit,
                                         r.networkResult, r.error);
 
-        LOG_MISC_DEBUG("PatternFetcher: {} network hit sha={} source={} entries={}",
+        LOG_MISC_DEBUG("PatternFetcher: {} network hit sha={} source={} entries={} mergedBuiltIns={}",
                        subdir, r.sha, SourceToStr(src),
-                       static_cast<unsigned>(r.entries.size()));
+                       static_cast<unsigned>(r.entries.size()),
+                       static_cast<unsigned>(merged));
         return r;
     }
 
@@ -1206,6 +1232,8 @@ namespace PatternFetcher {
 
         EntryMap cmap; std::string cerr;
         if (ReadCache(r.sha, cmap, cerr)) {
+            if (IEquals(subdir, "steamclient"))
+                (void)MergeBuiltInSteamclientCurrent(r.sha, cmap);
             r.entries = ToPublicEntries(cmap);
             r.ok      = true;
             r.source  = "cache";

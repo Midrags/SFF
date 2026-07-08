@@ -75,6 +75,9 @@ namespace HookStatus {
                              bool finalValue, std::string reason);
     void RecordCloudCloseState(std::uint32_t appId, std::string result,
                                bool ownerCaptured, bool sehDisabled);
+    void RecordCloudSyncGate(std::uint32_t appId, std::string stage,
+                             std::string result, std::string reason,
+                             bool attached);
     void RecordPatternStatus(std::string moduleName, std::string source,
                              bool cacheHit, std::string networkResult,
                              std::string lastError);

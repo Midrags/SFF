@@ -88,6 +88,6 @@ Some entries have these empty if the original source could not be found or docum
 ## Notes
 
 - Fixes extract directly into your game folder. If something breaks, verify game files via Steam to restore originals.
-- The fix list covers games not available on online-fix.me and games that need a standalone crack or bypass rather than a multiplayer fix.
+- The fix list covers games not available on online-fix.me and games that need a standalone crack or bypass SteaMidra can apply directly.
 - Build IDs go stale when a game updates. If the fix stops working after a game update, check back later — an updated entry may have been added.
 - If you want to add a fix for a game not yet in the list, contribute to the CrakFiles repository on GitHub.

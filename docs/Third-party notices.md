@@ -215,8 +215,8 @@ Notes: SteaMidra does not ship CreamInstaller. SteaMidra has its own implementat
 Type: External website/service
 Bundled: No
 Modified: No
-Used for: Multiplayer fix downloads when the user provides their own online-fix.me account.
-Notes: SteaMidra is not affiliated with online-fix.me. online-fix.me files and services remain owned/controlled by their respective authors/maintainers.
+Used for: Searching online-fix.me and opening result pages in the user's browser.
+Notes: SteaMidra is not affiliated with online-fix.me. SteaMidra does not store online-fix.me credentials or download files from that site.
 
 ### Hubcap Manifest
 

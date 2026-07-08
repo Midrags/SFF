@@ -261,10 +261,10 @@ Hooks `LoadPackage`, `CheckAppOwnership`, `GetSubscribedApps`, and `SendCallback
 
 ### LicenseHooks (`hooks/LicenseHooks.cpp`)
 
-Detours `OptedInMask`, `IsCloudEnabledForApp`, and `RequiresLegacyCDKey` against `steamclient64.dll`.
+Detours `OptedInMask`, `IsCloudEnabledForApp`, native AutoCloud sync entrypoints, and `RequiresLegacyCDKey` against `steamclient64.dll`.
 
 - **`OptedInMask`**: manual 480 route launches and dedicated Steam Stub auto launches swap controller-mask requests from 480 to the real appid. SteamStub auto keeps Steam's process tracking on 480 while game-facing controller identity resolves to the target app.
-- **`IsCloudEnabledForApp`**: Lua-managed apps that are not owned by the active account return `false` so Steam's native cloud sync cannot delete or overwrite local story saves. Owned games, family-shared games, and unmanaged games still use Steam's original answer.
+- **Cloud save gate**: Lua-managed apps that are not owned by the active account return `false` for Steam's cloud-enabled query and have native AutoCloud sync jobs stopped before upload/delete work starts. Owned games, family-shared games, and unmanaged games still use Steam's original behavior.
 - **`RequiresLegacyCDKey`** — Steam asks the wrapper for a CD key on a small set of pre-2010 titles when ownership crosses certain code paths. For Lua-tracked appids the user has no real key, so the detour answers `false` and the prompt never fires. Without this hook those games refuse to launch.
 
 DLC ownership / install / license-update / ownership-ticket queries (`BIsDlcEnabled`, `IsAppDlcInstalled`, `BUpdateLicenses`, `BUpdateAppOwnershipTicket`) are intentionally not detoured here. Steam already returns the right answer for Lua-tracked appids through the existing `CheckAppOwnership` patch, so detouring those is redundant and risks stack corruption on x64 fastcall when an argument count or type is even slightly off.
@@ -425,7 +425,7 @@ When enabled, logs are written to `Steam\lumacore\` alongside `LumaCore.dll`.  E
 | `ipcrtr.log` | IPC router internal trace — per-packet command/pipe/interface logging |
 | `usrcmd.log` | CmdUser — GetSteamID, ticket, and achievement callback handling |
 | `package.log` | PackagePatch — CheckAppOwnership, LoadPackage, NotifyLicenseChanged |
-| `license.log` | LicenseHooks - OptedInMask, IsCloudEnabledForApp, RequiresLegacyCDKey, ConfigStoreGetBinary |
+| `license.log` | LicenseHooks - OptedInMask, cloud save gate, RequiresLegacyCDKey, ConfigStoreGetBinary |
 | `decryptionkey.log` | DecryptionKeyHook — license decryption config interception |
 | `auth.log` | DenuvoAuth — authorization window state, SteamID persistence |
 | `eticket.log` | EticketFetcher — HTTP eticket minting calls |

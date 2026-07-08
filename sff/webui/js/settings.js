@@ -57,6 +57,7 @@ window.Settings = (function() {
         _initAboutLinks();
         _initAvatarControls();
         _initCustomAppearanceControls();
+        _initSettingsBackupControls();
     }
 
     function onPageEnter() {
@@ -583,6 +584,45 @@ window.Settings = (function() {
                 document.documentElement.style.removeProperty('--sidebar-active');
                 accentInput.value = '#4a9eff';
                 Components.showToast('success', 'Accent reset');
+            });
+        }
+    }
+
+    function _initSettingsBackupControls() {
+        var exportBtn = document.getElementById('settings-export-file');
+        var importBtn = document.getElementById('settings-import-file');
+
+        if (exportBtn) {
+            exportBtn.addEventListener('click', function() {
+                Bridge.callWithCallback('export_settings_file', function(json) {
+                    var result = {};
+                    try { result = JSON.parse(json || '{}'); } catch(e) {}
+                    if (result.cancelled) return;
+                    if (!result.ok) {
+                        Components.showToast('error', result.message || 'Settings export failed');
+                        return;
+                    }
+                    Components.showToast('success', 'Settings exported');
+                });
+            });
+        }
+
+        if (importBtn) {
+            importBtn.addEventListener('click', function() {
+                if (!window.confirm('Importing settings will overwrite matching current settings. Continue?')) {
+                    return;
+                }
+                Bridge.callWithCallback('import_settings_file', function(json) {
+                    var result = {};
+                    try { result = JSON.parse(json || '{}'); } catch(e) {}
+                    if (result.cancelled) return;
+                    if (!result.ok) {
+                        Components.showToast('error', result.message || 'Settings import failed');
+                        return;
+                    }
+                    _loadCurrentSettings();
+                    Components.showToast('success', result.message || 'Settings imported');
+                });
             });
         }
     }

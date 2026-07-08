@@ -8,11 +8,11 @@ SteaMidra can download several manifest files at once so adding a game is faster
 
 **Settings export and import**
 
-You can save your SteaMidra settings to a file and load them again later. Use Settings from the main menu, then Export Settings or Import Settings. Handy when you reinstall or move to another PC. When you export, you can choose whether to include things like passwords (stored encrypted).
+You can save your SteaMidra settings to a file and load them again later. Open Settings and use the Settings Backup buttons near the top of the page. Handy when you reinstall or move to another PC. The modern export skips saved secrets such as API keys; SteaMidra still keeps those encrypted in its own settings file.
 
 **Library scanner**
 
-The Scan Library option looks through your Steam libraries and lists your installed games. It can show which games have Lua backups and which might need manifest updates. You can then use that list to decide what to process next.
+The Scan Library option looks through your Steam libraries and lists your installed games. The modern Library tab marks games as SteaMidra-managed when their App ID appears in saved Lua files or Steam `config/stplug-in`, and the SteaMidra Only filter shows that subset.
 
 **Recent files**
 
@@ -39,19 +39,23 @@ In menus you can often press a number to choose an option. Escape or Back goes b
 SteaMidra has two separate download paths:
 
 - **Main tab "Download Games"** — downloads the **latest version** of a game directly from Steam. Fast, no .NET required. SteaMidra processes your Lua file, writes decryption keys, registers SLSsteam IDs (Linux) or LumaCore handles it via hook (Windows), and triggers Steam to download game files natively. Progress is tracked in the Downloads tab.
-- **Store tab** — lets you find and download **older or specific versions** of a game using Hubcap’s manifest library. Slower: it fetches the full depot and manifest ID list first, then downloads the game files via DepotDownloaderMod (.NET 9 required). Use this when you need a version other than the current latest.
+- **Store tab**: lets you find and download **older or specific versions** of a game using Hubcap’s manifest library. Slower: it fetches the full depot and manifest ID list first, then downloads the game files via DepotDownloaderMod (.NET 9 required). If the history list is empty, the version picker can import saved SteamDB depot HTML pages into the selectable list.
 
 **Store browser (GUI)**
 
-The Store tab lets you search the Hubcap manifest library by game name or App ID. You need a Hubcap API key (set it in Settings). Results are paginated. Click **Download (choose version)** to fetch the full depot and manifest history from multiple sources (Steam CM, GitHub mirror, SteamDB) and pick a specific version to download. If the version list looks incomplete, click **Force Refresh** to ignore the disk cache and re-fetch all historical manifests from scratch.
+The Store tab lets you search the Hubcap manifest library by game name or App ID. You need a Hubcap API key (set it in Settings). Typing does not start a backend search until you press Enter or click Search, and stale search results are ignored if a newer search finishes first. Click **Depot Keys** to refresh the local provider cache manually; SteaMidra also attempts a background refresh every 6 hours based on the last attempt time.
 
 **Floating Log Viewer**
 
-Click the **Logs** button in the menu bar (to the right of Help) to open the floating log viewer. It shows all Python logging output from the entire app — every tab, every background operation. You can filter by level (DEBUG, INFO, WARNING, ERROR), clear the log, or copy everything to the clipboard. Closing the window just hides it; click Logs again to bring it back.
+Click the **Logs** button in the menu bar (to the right of Help) to open the floating log viewer. It shows Python logging output from the entire app and keeps the newest lines based on the Live Log Line Limit setting. You can filter by level (DEBUG, INFO, WARNING, ERROR), clear the log, or copy everything to the clipboard.
 
 **Themes (GUI)**
 
-SteaMidra has 11+ themes including Dracula, Nord, Cyberpunk, and more. Change your theme from the Theme menu in the GUI.
+SteaMidra has 11+ themes including Dracula, Nord, Cyberpunk, and more. Settings also let you copy in a custom PNG, JPG, or WebP background and choose a custom accent color.
+
+**Auto update defaults**
+
+Auto Enable Updates For New Games is off by default. If you turn it on, newly added SteaMidra games with manifest pins are allowed to receive Steam update prompts. Per-game Auto Update still wins, and protected or cracked games may break after an update.
 
 **System tray icon (GUI)**
 

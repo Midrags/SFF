@@ -6,8 +6,8 @@ SteaMidra can search and apply game fixes and bypasses from a curated list hoste
 
 Use this if:
 
-- The game isn't available on online-fix.me, or you don't have an account there.
-- You want a second source to check when the multiplayer fix doesn't work.
+- The game isn't available on online-fix.me, or you want a fix source SteaMidra can apply directly.
+- You want a second source after the online-fix browser search does not find what you need.
 - The game has a bypass (not just a multiplayer fix) that the fix list covers.
 
 ## How to use it

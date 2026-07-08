@@ -4371,6 +4371,85 @@ class WebBridge(QObject):
         )
         return path or ""
 
+    @pyqtSlot(result=str)
+    def export_settings_file(self):
+        try:
+            from sff.storage.settings import export_settings
+
+            path, _ = QFileDialog.getSaveFileName(
+                self.parent(),
+                "Export Settings",
+                "settings_export.json",
+                "JSON Files (*.json);;All Files (*)",
+            )
+            if not path:
+                return json.dumps({"ok": False, "cancelled": True, "message": "Export cancelled"})
+            export_path = Path(path)
+            if export_path.suffix.lower() != ".json":
+                export_path = export_path.with_suffix(".json")
+            ok = export_settings(export_path, include_sensitive=False)
+            return json.dumps({
+                "ok": bool(ok),
+                "path": str(export_path),
+                "message": f"Settings exported to {export_path}" if ok else "Failed to export settings",
+            })
+        except Exception as exc:
+            logger.warning("export_settings_file failed: %s", exc)
+            return json.dumps({"ok": False, "message": str(exc)})
+
+    @pyqtSlot(result=str)
+    def import_settings_file(self):
+        try:
+            from sff.storage.settings import import_settings
+
+            path, _ = QFileDialog.getOpenFileName(
+                self.parent(),
+                "Import Settings",
+                "",
+                "JSON Files (*.json);;All Files (*)",
+            )
+            if not path:
+                return json.dumps({"ok": False, "cancelled": True, "message": "Import cancelled"})
+            ok, message = import_settings(Path(path))
+            return json.dumps({"ok": bool(ok), "path": path, "message": message})
+        except Exception as exc:
+            logger.warning("import_settings_file failed: %s", exc)
+            return json.dumps({"ok": False, "message": str(exc)})
+
+    @pyqtSlot(result=str)
+    def import_depot_manifest_html(self):
+        try:
+            from sff.manifest.html_manifest_import import (
+                flatten_manifest_groups,
+                format_manifest_entries,
+                parse_depot_manifest_html_files,
+            )
+
+            paths, _ = QFileDialog.getOpenFileNames(
+                self.parent(),
+                "Import Depot Manifest HTML",
+                "",
+                "HTML/Text Files (*.html *.htm *.txt);;All Files (*)",
+            )
+            if not paths:
+                return json.dumps({"ok": False, "cancelled": True, "message": "Import cancelled"})
+            groups = parse_depot_manifest_html_files([Path(path) for path in paths])
+            entries = flatten_manifest_groups(groups)
+            if not entries:
+                return json.dumps({"ok": False, "message": "No depot manifest IDs found in those files"})
+            line_text = format_manifest_entries(entries)
+            return json.dumps({
+                "ok": True,
+                "paths": paths,
+                "groups": groups,
+                "entries": entries,
+                "line_text": line_text,
+                "message": f"Imported {len(entries)} depot manifest ID(s)",
+            })
+        except Exception as exc:
+            logger.warning("import_depot_manifest_html failed: %s", exc)
+            return json.dumps({"ok": False, "message": str(exc)})
+
     @pyqtSlot(str, result=str)
     def set_custom_background(self, source_path):
         try:

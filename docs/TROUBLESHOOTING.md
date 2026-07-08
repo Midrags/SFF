@@ -134,21 +134,21 @@ If your antivirus still flags files, add your SteaMidra folder (e.g. `C:\SteaMid
 
 ---
 
-## Chrome or ChromeDriver errors (multiplayer fix)
+## online-fix.me page does not open
 
-If the multiplayer fix needs a browser and you get a Chrome or ChromeDriver error, make sure Chrome is installed and up to date. Try closing all Chrome windows and running SteaMidra again, or run it as administrator.
+SteaMidra opens online-fix.me pages in your default browser. If nothing opens, set a default browser in Windows Settings and try again. You can also open online-fix.me yourself and search the full game name.
 
 ---
 
-## Login failed (online-fix.me)
+## online-fix.me asks for login or blocks access
 
-Check your username and password on the online-fix.me website. If you can log in there, update your credentials in SteaMidra under Settings. Some games may no longer be available on the site.
+SteaMidra no longer stores online-fix.me credentials or downloads files from that site. Log in, download, and follow instructions on the website manually.
 
 ---
 
 ## Download timeout or extraction failed
 
-Check your internet connection. Try disabling antivirus temporarily and run SteaMidra again. Make sure you have 7-Zip or WinRAR installed if SteaMidra needs to extract archives. If a download keeps failing, you can try downloading the fix manually from online-fix.me and extracting it into the game folder yourself.
+Check your internet connection. Try disabling antivirus temporarily and run SteaMidra again. Make sure you have 7-Zip or WinRAR installed if SteaMidra needs to extract archives. For online-fix.me pages, download and extract from your browser because SteaMidra only opens the page.
 
 ---
 
@@ -160,7 +160,7 @@ Steam or the game folder may be in a protected location. Try running SteaMidra a
 
 ## Settings export or import error
 
-If exporting or importing settings fails, try exporting without including sensitive data. Make sure the folder you export to is writable. If you get a message about "JSON serializable", try updating SteaMidra to the latest version.
+If exporting settings fails, make sure the folder you export to is writable. The modern Export Settings button skips saved secrets such as API keys. If importing fails, make sure the file is a SteaMidra settings JSON and was not edited into invalid JSON.
 
 ---
 
@@ -213,7 +213,7 @@ During a large game download, `QtWebEngineProcess.exe` (the embedded Chromium re
 
 **Why it happens:** Every download progress line printed by the downloader was appended as a new DOM node in the log panel with no limit. Over a long download, hundreds of thousands of nodes accumulated, causing Chromium's renderer to bloat.
 
-**Fixed in 6.1.3:** The log panel now evicts old entries, keeping only the last 1000 lines. RAM usage stays flat regardless of download size.
+**Fixed in current builds:** The Home live log and native Logs window cap their line count. The default is 100 lines, and you can raise or lower it in Settings with Live Log Line Limit.
 
 If you are still seeing high RAM on an older version, update to 6.1.3 or newer.
 

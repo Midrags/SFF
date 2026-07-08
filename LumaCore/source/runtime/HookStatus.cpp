@@ -113,6 +113,11 @@ namespace HookStatus {
         std::string   g_lastCloudCloseResult;
         bool          g_cloudCloseOwnerCaptured = false;
         bool          g_cloudCloseSehDisabled = false;
+        std::uint32_t g_lastCloudSyncAppId = 0;
+        std::string   g_lastCloudSyncStage;
+        std::string   g_lastCloudSyncResult;
+        std::string   g_lastCloudSyncReason;
+        bool          g_cloudSyncGateAttached = false;
         std::string   g_steamclientPatternSource;
         std::string   g_steamuiPatternSource;
         bool          g_steamclientPatternCacheHit = false;
@@ -510,6 +515,21 @@ namespace HookStatus {
             out += "  \"cloud_close_seh_disabled\": ";
             out += g_cloudCloseSehDisabled ? "true" : "false";
             out += ",\n";
+            out += "  \"last_cloud_sync_appid\": ";
+            out += std::to_string(g_lastCloudSyncAppId);
+            out += ",\n";
+            out += "  \"last_cloud_sync_stage\": \"";
+            out += JsonEscape(g_lastCloudSyncStage);
+            out += "\",\n";
+            out += "  \"last_cloud_sync_result\": \"";
+            out += JsonEscape(g_lastCloudSyncResult);
+            out += "\",\n";
+            out += "  \"last_cloud_sync_reason\": \"";
+            out += JsonEscape(g_lastCloudSyncReason);
+            out += "\",\n";
+            out += "  \"cloud_sync_gate_attached\": ";
+            out += g_cloudSyncGateAttached ? "true" : "false";
+            out += ",\n";
             out += "  \"last_steamstub_appid\": ";
             out += std::to_string(g_lastSteamStubAppId);
             out += ",\n";
@@ -860,6 +880,18 @@ namespace HookStatus {
         g_lastCloudCloseResult = std::move(result);
         g_cloudCloseOwnerCaptured = ownerCaptured;
         g_cloudCloseSehDisabled = sehDisabled;
+        MaybeRepublishLocked();
+    }
+
+    void RecordCloudSyncGate(std::uint32_t appId, std::string stage,
+                             std::string result, std::string reason,
+                             bool attached) {
+        std::lock_guard<std::mutex> lk(g_mu);
+        g_lastCloudSyncAppId = appId;
+        g_lastCloudSyncStage = std::move(stage);
+        g_lastCloudSyncResult = std::move(result);
+        g_lastCloudSyncReason = std::move(reason);
+        g_cloudSyncGateAttached = attached;
         MaybeRepublishLocked();
     }
 

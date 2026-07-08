@@ -13,6 +13,9 @@ window.App = (function() {
     var _letUpdatesHelper = null;
     var _lcHomeNoticeBusy = false;
     var _liveLogMaxLines = 100;
+    var _versionHistoryHandler = null;
+    var _versionHistorySession = 0;
+    var _versionImportedGroups = [];
 
     function _pathToFileUrl(path) {
         if (!path) return '';
@@ -1069,6 +1072,12 @@ window.App = (function() {
                 _downloadManualVersion();
             });
         }
+        var versionImportHtml = document.getElementById('version-import-html');
+        if (versionImportHtml) {
+            versionImportHtml.addEventListener('click', function() {
+                _importVersionManifestHtml();
+            });
+        }
 
         // Home page action cards
         document.querySelectorAll('.action-card[data-action]').forEach(function(card) {
@@ -1363,115 +1372,157 @@ window.App = (function() {
         }
     }
 
-    function _showVersionPicker(appId) {
-        Components.showModal('version-modal');
+    function _renderVersionGroups(groups, options) {
+        options = options || {};
         var loading = document.getElementById('version-loading');
         var table = document.getElementById('version-table');
         var tbody = document.getElementById('version-tbody');
         var dlBtn = document.getElementById('version-download');
+        if (loading) loading.classList.add('hidden');
+        if (table) table.classList.remove('hidden');
+        if (dlBtn) dlBtn.disabled = true;
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        var sourceColors = {
+            'SteamDB': '#c084fc',
+            'Steam CM': '#60a5fa',
+            'Imported HTML': '#facc15'
+        };
+
+        function _uncheckSameDepotChoices(active) {
+            if (!active || !active.checked) return;
+            var depot = active.dataset.depot || '';
+            if (!depot) return;
+            tbody.querySelectorAll('.version-check:checked').forEach(function(cb) {
+                if (cb !== active && cb.dataset.depot === depot) {
+                    cb.checked = false;
+                }
+            });
+        }
+
+        (groups || []).forEach(function(group, gi) {
+            var groupId = 'vg-' + gi;
+            var entries = group.entries || [];
+            var srcColor = sourceColors[group.source] || '#ccc';
+            var expanded = !!options.expanded;
+            var depotCounts = {};
+            entries.forEach(function(entry) {
+                var depot = entry && entry.depot_id ? String(entry.depot_id) : '';
+                if (depot) depotCounts[depot] = (depotCounts[depot] || 0) + 1;
+            });
+            var sameDepotChoices = !!group.single_depot_choices || Object.keys(depotCounts).some(function(depot) {
+                return depotCounts[depot] > 1;
+            });
+
+            var hdr = document.createElement('tr');
+            hdr.className = 'version-group-header';
+            hdr.dataset.group = groupId;
+            hdr.dataset.collapsed = expanded ? 'false' : 'true';
+            hdr.style.cssText = 'background:rgba(255,255,255,0.07);cursor:pointer;user-select:none;';
+            hdr.innerHTML =
+                '<td colspan="5" style="font-weight:600;padding:6px 8px;">' +
+                '<span class="vg-chevron" style="display:inline-block;width:16px;margin-right:4px;transition:transform 0.2s;' +
+                (expanded ? 'transform:rotate(90deg);' : '') + '">&#9654;</span>' +
+                '<span style="color:' + srcColor + ';">' + Components.escapeHtml(group.label || 'Imported HTML') + '</span>' +
+                '</td>' +
+                '<td style="text-align:center;" onclick="event.stopPropagation();">' +
+                (sameDepotChoices ? '' : '<input type="checkbox" class="version-group-check" data-group="' + groupId + '" title="Select all depots in this version">') +
+                '</td>';
+            tbody.appendChild(hdr);
+
+            entries.forEach(function(entry) {
+                var tr = document.createElement('tr');
+                tr.className = 'version-depot-row';
+                tr.dataset.group = groupId;
+                tr.style.display = expanded ? '' : 'none';
+                var rowDate = entry.date || group.date || '';
+                var rowBranch = entry.branch || group.branch || '';
+                var rowSource = entry.source || group.source || '';
+                tr.innerHTML =
+                    '<td>' + Components.escapeHtml(entry.depot_id) + '</td>' +
+                    '<td style="font-family:monospace;font-size:0.85em;">' + Components.escapeHtml(entry.manifest_id) + '</td>' +
+                    '<td>' + Components.escapeHtml(rowDate === '0000-00-00' ? 'Unknown' : rowDate) + '</td>' +
+                    '<td>' + Components.escapeHtml(rowBranch) + '</td>' +
+                    '<td style="color:' + srcColor + ';">' + Components.escapeHtml(rowSource) + '</td>' +
+                    '<td style="text-align:center;">' +
+                    '<input type="checkbox" class="version-check" data-group="' + groupId + '" data-depot="' + Components.escapeHtml(entry.depot_id) + '" data-manifest="' + Components.escapeHtml(entry.manifest_id) + '">' +
+                    '</td>';
+                tbody.appendChild(tr);
+            });
+        });
+
+        tbody.onclick = function(e) {
+            var hdr = e.target.closest('.version-group-header');
+            if (!hdr || e.target.tagName === 'INPUT') return;
+            var gid = hdr.dataset.group;
+            var isCollapsed = hdr.dataset.collapsed === 'true';
+            var rows = tbody.querySelectorAll('.version-depot-row[data-group="' + gid + '"]');
+            var chevron = hdr.querySelector('.vg-chevron');
+            rows.forEach(function(r) { r.style.display = isCollapsed ? '' : 'none'; });
+            hdr.dataset.collapsed = isCollapsed ? 'false' : 'true';
+            if (chevron) chevron.style.transform = isCollapsed ? 'rotate(90deg)' : '';
+        };
+
+        tbody.onchange = function(e) {
+            if (e.target.classList.contains('version-group-check')) {
+                var gid = e.target.dataset.group;
+                tbody.querySelectorAll('.version-check[data-group="' + gid + '"]').forEach(function(cb) {
+                    cb.checked = e.target.checked;
+                    _uncheckSameDepotChoices(cb);
+                });
+            } else if (e.target.classList.contains('version-check')) {
+                _uncheckSameDepotChoices(e.target);
+            }
+            var checked = tbody.querySelectorAll('.version-check:checked');
+            if (dlBtn) dlBtn.disabled = checked.length === 0;
+        };
+    }
+
+    function _stopVersionHistoryFetch() {
+        _versionHistorySession += 1;
+        if (_versionHistoryHandler) {
+            Bridge.off('depot_history_results', _versionHistoryHandler);
+            _versionHistoryHandler = null;
+        }
+        var loading = document.getElementById('version-loading');
+        if (loading) loading.classList.add('hidden');
+    }
+
+    function _showVersionPicker(appId) {
+        Components.showModal('version-modal');
+        _stopVersionHistoryFetch();
+        _versionImportedGroups = [];
+        var loading = document.getElementById('version-loading');
+        var table = document.getElementById('version-table');
         var manualBtn = document.getElementById('version-manual-download');
+        var importBtn = document.getElementById('version-import-html');
         var manualInp = document.getElementById('version-manual-input');
+        var dlBtn = document.getElementById('version-download');
+        var session = _versionHistorySession;
 
         if (loading) loading.classList.remove('hidden');
         if (table) table.classList.add('hidden');
         if (dlBtn) { dlBtn.disabled = true; dlBtn.dataset.appid = appId; }
         if (manualBtn) manualBtn.dataset.appid = appId;
+        if (importBtn) importBtn.dataset.appid = appId;
         if (manualInp) manualInp.value = '';
 
         var handler = function(json) {
+            if (session !== _versionHistorySession) return;
             Bridge.off('depot_history_results', handler);
+            _versionHistoryHandler = null;
             if (loading) loading.classList.add('hidden');
             if (table) table.classList.remove('hidden');
 
             try {
                 var groups = JSON.parse(json);
-                if (!tbody) return;
-                tbody.innerHTML = '';
-
-                // Source color map
-                var sourceColors = {
-                    'SteamDB': '#c084fc',
-                    'Steam CM': '#60a5fa'
-                };
-
-                groups.forEach(function(group, gi) {
-                    var groupId = 'vg-' + gi;
-                    var entries = group.entries || [];
-                    var srcColor = sourceColors[group.source] || '#ccc';
-
-                    // Version group header row (collapsible, starts collapsed)
-                    var hdr = document.createElement('tr');
-                    hdr.className = 'version-group-header';
-                    hdr.dataset.group = groupId;
-                    hdr.dataset.collapsed = 'true';
-                    hdr.style.cssText = 'background:rgba(255,255,255,0.07);cursor:pointer;user-select:none;';
-                    hdr.innerHTML =
-                        '<td colspan="5" style="font-weight:600;padding:6px 8px;">' +
-                        '<span class="vg-chevron" style="display:inline-block;width:16px;margin-right:4px;transition:transform 0.2s;">&#9654;</span>' +
-                        '<span style="color:' + srcColor + ';">' + Components.escapeHtml(group.label) + '</span>' +
-                        '</td>' +
-                        '<td style="text-align:center;" onclick="event.stopPropagation();">' +
-                        '<input type="checkbox" class="version-group-check" data-group="' + groupId + '" title="Select all depots in this version">' +
-                        '</td>';
-                    tbody.appendChild(hdr);
-
-                    // Individual depot rows (hidden by default)
-                    entries.forEach(function(entry) {
-                        var tr = document.createElement('tr');
-                        tr.className = 'version-depot-row';
-                        tr.dataset.group = groupId;
-                        tr.style.display = 'none';
-                        var srcCellColor = sourceColors[group.source] || '';
-                        tr.innerHTML =
-                            '<td>' + Components.escapeHtml(entry.depot_id) + '</td>' +
-                            '<td style="font-family:monospace;font-size:0.85em;">' + Components.escapeHtml(entry.manifest_id) + '</td>' +
-                            '<td>' + Components.escapeHtml(group.date === '0000-00-00' ? 'Unknown' : group.date) + '</td>' +
-                            '<td>' + Components.escapeHtml(group.branch || '') + '</td>' +
-                            '<td style="color:' + srcCellColor + ';">' + Components.escapeHtml(group.source || '') + '</td>' +
-                            '<td style="text-align:center;">' +
-                            '<input type="checkbox" class="version-check" data-group="' + groupId + '" data-depot="' + Components.escapeHtml(entry.depot_id) + '" data-manifest="' + Components.escapeHtml(entry.manifest_id) + '">' +
-                            '</td>';
-                        tbody.appendChild(tr);
-                    });
-                });
-
-                // Click header to expand/collapse depot rows
-                tbody.onclick = function(e) {
-                    var hdr = e.target.closest('.version-group-header');
-                    if (!hdr) return;
-                    // Don't toggle when clicking the checkbox
-                    if (e.target.tagName === 'INPUT') return;
-                    var gid = hdr.dataset.group;
-                    var isCollapsed = hdr.dataset.collapsed === 'true';
-                    var rows = tbody.querySelectorAll('.version-depot-row[data-group="' + gid + '"]');
-                    var chevron = hdr.querySelector('.vg-chevron');
-                    if (isCollapsed) {
-                        rows.forEach(function(r) { r.style.display = ''; });
-                        hdr.dataset.collapsed = 'false';
-                        if (chevron) chevron.style.transform = 'rotate(90deg)';
-                    } else {
-                        rows.forEach(function(r) { r.style.display = 'none'; });
-                        hdr.dataset.collapsed = 'true';
-                        if (chevron) chevron.style.transform = '';
-                    }
-                };
-
-                // Group header checkbox: toggle all depots in that group
-                tbody.onchange = function(e) {
-                    if (e.target.classList.contains('version-group-check')) {
-                        var gid = e.target.dataset.group;
-                        tbody.querySelectorAll('.version-check[data-group="' + gid + '"]').forEach(function(cb) {
-                            cb.checked = e.target.checked;
-                        });
-                    }
-                    var checked = tbody.querySelectorAll('.version-check:checked');
-                    if (dlBtn) dlBtn.disabled = checked.length === 0;
-                };
-
+                _renderVersionGroups(groups, { expanded: false });
             } catch(e) {
                 Components.showToast('error', 'Failed to load version history');
             }
         };
+        _versionHistoryHandler = handler;
         Bridge.on('depot_history_results', handler);
         Bridge.call('fetch_depot_history', appId, false);
     }
@@ -1516,6 +1567,66 @@ window.App = (function() {
             return;
         }
         _downloadVersionWithOverride(appId, manifest_override);
+    }
+
+    function _importVersionManifestHtml() {
+        Bridge.callWithCallback('import_depot_manifest_html', function(json) {
+            var result = {};
+            try { result = JSON.parse(json || '{}'); } catch(e) {}
+            if (result.cancelled) return;
+            if (!result.ok) {
+                Components.showToast('error', result.message || 'Could not import depot HTML');
+                return;
+            }
+            var imported = result.entries || [];
+            if (!imported.length || !result.line_text) {
+                Components.showToast('warning', 'No depot manifest IDs found in that file');
+                return;
+            }
+            _stopVersionHistoryFetch();
+            var seen = {};
+            var added = 0;
+            _versionImportedGroups.forEach(function(group) {
+                (group.entries || []).forEach(function(entry) {
+                    if (entry && entry.depot_id && entry.manifest_id) {
+                        seen[String(entry.depot_id) + ':' + String(entry.manifest_id)] = true;
+                    }
+                });
+            });
+            (result.groups || [{
+                label: 'Imported HTML',
+                date: 'Imported',
+                branch: 'manual',
+                source: 'Imported HTML',
+                entries: imported
+            }]).forEach(function(group) {
+                var filtered = [];
+                (group.entries || []).forEach(function(entry) {
+                    var depot = entry && entry.depot_id ? String(entry.depot_id) : '';
+                    var manifest = entry && entry.manifest_id ? String(entry.manifest_id) : '';
+                    var seenKey = depot + ':' + manifest;
+                    if (!depot || !manifest || seen[seenKey]) return;
+                    seen[seenKey] = true;
+                    filtered.push(entry);
+                });
+                if (filtered.length) {
+                    added += filtered.length;
+                    _versionImportedGroups.push({
+                        label: group.label || 'Imported HTML',
+                        date: group.date || 'Imported',
+                        branch: group.branch || 'manual',
+                        source: group.source || 'Imported HTML',
+                        entries: filtered
+                    });
+                }
+            });
+            if (!added) {
+                Components.showToast('warning', 'Those depot IDs are already listed.');
+                return;
+            }
+            _renderVersionGroups(_versionImportedGroups, { expanded: true });
+            Components.showToast('success', result.message || 'Imported depot manifest IDs');
+        });
     }
 
     function _downloadVersionWithOverride(appId, manifest_override) {

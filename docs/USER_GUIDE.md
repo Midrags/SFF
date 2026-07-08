@@ -1,6 +1,6 @@
 # SteaMidra User Guide
 
-## Modern UI (new in 5.5.0, updated in 6.0.0)
+## Modern UI
 
 SteaMidra 5.5.0 introduced a new browser-based interface built with QWebEngine. It launches by default alongside the classic interface. Navigate using the sidebar on the left.
 
@@ -8,9 +8,9 @@ SteaMidra 5.5.0 introduced a new browser-based interface built with QWebEngine. 
 
 **Home** — pick a game from the dropdown (scanned from all Steam libraries). Click ↻ to rescan manually. The list refreshes automatically after any download and every 10 minutes.
 
-**Store** — search or browse the Hubcap manifest library. Switch between grid and list view, sort results, and page through them. Click a game to open the version picker with full depot/manifest history, then download directly.
+**Store** — search or browse the Hubcap manifest library. Typing in the search box does not hit the backend until you press Enter or click Search. Switch between grid and list view, sort results, refresh depot keys, and open the version picker for downloads.
 
-**Library** — shows all games installed across your Steam libraries.
+**Library** — shows all games installed across your Steam libraries. Use the SteaMidra Only filter to show games that have a saved Lua or `config/stplug-in` Lua entry.
 
 **Downloads** — live progress for active downloads and a history of completed ones.
 
@@ -21,7 +21,7 @@ SteaMidra 5.5.0 introduced a new browser-based interface built with QWebEngine. 
 - *VDF Key Extractor* — extract depot decryption keys from Steam's `config.vdf`.
 - *Workshop Browser* — open the embedded Steam Workshop browser to find and download workshop items.
 
-**Cloud Saves** — enter your Steam path and Steam32 ID, then scan. Select a game from the results to back up its `remote/` folder to a destination of your choice, or restore from a previous backup (a safety backup is created automatically before any overwrite).
+**Cloud Saves** — enter your Steam path and Steam32 ID, then scan. SteaMidra scans Steam userdata and bundled Ludusavi save paths, groups all save folders for the same App ID into one backup, and restores each source with per-location results. A safety backup is created before any overwrite.
 
 Providers:
 
@@ -35,9 +35,9 @@ Providers:
   5. Select your remote from the dropdown or type it in, then click **Test** to confirm it works.
   6. Click **Save Provider Config**, then back up normally.
 
-**All Save Locations** (at the bottom of the tab): click Scan All to find saves across all known emu save paths — CODEX, EMPRESS, RUNE, OnlineFix, Goldberg, GSE, and Steam userdata. Check the rows you want, pick a destination, and click Backup. To restore, scan an existing backup root and pick a location and game from the dropdowns.
+**All Save Locations** (at the bottom of the tab): click Scan All to find saves across Steam userdata, bundled Ludusavi paths, and known emu save roots. Check the rows you want, pick a destination, and click Backup. New backups use `SteaMidraAllSaves/<AppID - Game>/`; older `SteaMidraAllSaves/Games/<AppID - Game>/` backups still show in restore scans.
 
-**Settings** — change theme (11+ options), Steam path, API keys, and all other preferences. Settings apply immediately. Language changes take effect without restarting the app.
+**Settings:** export/import settings near the top, change theme, custom background image, accent color, Steam path, API keys, log line cap, and feature toggles. Auto Enable Updates For New Games is off by default because auto-updating pinned or cracked games can break cracks, especially Denuvo or protected games.
 
 ---
 
@@ -73,7 +73,7 @@ The Store tab lets you pick a specific game version (depot + manifest combinatio
 **How it works:**
 
 **1. Version selection**
-Browse the Store tab, find the game, and pick the version you want. SteaMidra fetches the available depot/manifest combinations from the source.
+Browse the Store tab, find the game, and pick the version you want. SteaMidra fetches the available depot/manifest combinations from the source. If that list is empty, use the version picker’s Manual Depot / Manifest IDs box, or click Import HTML and choose saved SteamDB depot pages so SteaMidra lists their newest depot/manifest pairs for selection.
 
 **2. Lua download**
 SteaMidra automatically downloads the Lua file for the selected game (from Hubcap or OurEveryday, depending on your selection).
@@ -107,10 +107,10 @@ Like the main option but skips `config.vdf` and ACF steps — only does the .lua
 Opens a list of the last .lua files you processed so you can run one again quickly without browsing for the file.
 
 ### Update manifests for all outdated games
-Scans your Steam library for games that have outdated manifests and updates them in one go.
+Scans your Steam library for games that have outdated manifests and updates them in one go. Games disabled in the per-game Auto Update state are skipped.
 
 ### Scan game library
-Scans all your Steam libraries and lists your installed games. Shows which ones have Lua backups saved and which might need manifest updates.
+Scans all your Steam libraries and lists your installed games. The modern Library tab can filter to SteaMidra-managed games by comparing installed App IDs with saved Lua files and Steam `config/stplug-in` Lua files.
 
 ### Download workshop item manifest
 Paste a Steam Workshop URL or item/collection ID to download its manifest. Supports both single items and full collections.
@@ -136,7 +136,7 @@ Some games have SteamStub DRM that causes them to fail when launched without Ste
 Downloads the achievements schema for a game. Uncracked games can use Steam's own achievement system when running in Offline Mode. Use this to create the files needed for that.
 
 ### Apply multiplayer fix (online-fix.me)
-Logs into online-fix.me, finds the fix for your game, downloads it, and extracts it into the game folder. You need an account on online-fix.me. SteaMidra stores your credentials securely after the first use. See [Multiplayer Fix](MULTIPLAYER_FIX.md) for more detail.
+Searches online-fix.me for your game and opens the best result in your browser. SteaMidra does not store online-fix.me credentials or download files from the site. See [Multiplayer Fix](MULTIPLAYER_FIX.md) for more detail.
 
 
 ### Fixes & Bypasses
@@ -155,7 +155,7 @@ Removes a game's Lua from the stplug-in folder. Choose from a list of games or t
 Shows local usage stats — how many operations you ran, which features you used most, and success rates. Nothing is sent online; it's all stored locally.
 
 ### Check for updates
-Checks GitHub for the latest SteaMidra release and compares it to your version. If a newer version is available you can download and update automatically (source installs will relaunch; EXE users need to rebuild).
+Checks GitHub for the latest SteaMidra release and compares it to your version. If no update exists, the button stops loading and tells you the app is already up to date.
 
 ### Install/Uninstall Context Menu
 Adds or removes a right-click option on .lua and .zip files in Windows Explorer that opens SteaMidra directly into the "Process a .lua file" step with that file already loaded.
@@ -164,16 +164,16 @@ Adds or removes a right-click option on .lua and .zip files in Windows Explorer 
 Runs the SteamAutoCrack CLI on a game. Choose a Steam game from your library or point to any game folder outside Steam. Requires the SteamAutoCrack repo placed in `third_party/SteamAutoCrack` with the CLI built into `third_party/SteamAutoCrack/cli/`.
 
 ### Settings
-Edit, export, or import SteaMidra settings. Settings are usually set automatically as you use the tool, but you can change Steam path, API keys, credentials, and feature toggles here. Export saves your config to a JSON file; import loads it back.
+Edit, export, or import SteaMidra settings. Settings are usually set automatically as you use the tool, but you can change Steam path, API keys, custom appearance, live log limit, and feature toggles here. Use the Settings Backup section at the top to export a JSON file or import one back. The modern export skips saved secrets such as API keys.
 
 ---
 
-## GUI Tabs (v4.8.0+)
+## GUI Tabs
 
 The GUI uses a tabbed interface. All CLI features are on the **Main** tab. The other tabs are:
 
 ### Store Tab
-Search and browse the Hubcap manifest library. Enter your API key in Settings first. Search by game name or App ID, paginate through results, and pick a version to download.
+Search and browse the Hubcap manifest library. Enter your API key in Settings first. Press Enter or click Search to submit a query, paginate through results, refresh Depot Keys when needed, and pick a version to download.
 
 ### Downloads Tab
 View and manage active and queued downloads. When you use "Download Games" on the Main tab, downloads appear here with progress tracking.
@@ -188,7 +188,7 @@ Automate the emulator application pipeline. Choose an emulator mode (Regular Gol
 ### Cloud Saves Tab
 Two modes:
 - **STFixer Mode** — Patches broken save behavior in Capcom games (based on STFixer by Selectively11). Enable Cloud Fix and Hubcap Fallback.
-- **Backup/Restore Mode** — Create, list, restore, and delete save backups per game.
+- **Backup/Restore Mode** — Create, list, restore, and delete grouped save backups per game. Multi-location backups show every target path before restore.
 
 ---
 
@@ -208,10 +208,10 @@ Two modes:
 
 ## Tips
 
-- **Use full game names** when searching online-fix.me (e.g. "Counter-Strike: Global Offensive" not "CS:GO").
-- **Fixes & Bypasses** — if a game isn't found on online-fix.me, try the **Fixes & Bypasses** option. It has a broader fix list and no account required.
+- **Use full game names** when searching online-fix.me (e.g. "Counter-Strike: Global Offensive" not "CS:GO"). SteaMidra opens the result in your browser and leaves downloads to the website.
+- **Fixes & Bypasses** — if online-fix search does not find what you need, try the **Fixes & Bypasses** option. It has a broader fix list and no account required.
 - **Language** — change the GUI display language in Settings → Language.
-- **Credentials** for online-fix.me are stored encrypted after the first use. Update them in Settings if they change.
+- **Auto Update for new games** is opt-in. Leave it off for games where updates can break cracks or protected-game bypasses.
 - **If Steam path is wrong**, go to Settings → Steam Installation Path and set it manually to the folder containing steam.exe.
 - **Antivirus** may flag files downloaded by SteaMidra (false positives are common with game-related tools). Exclude the SteaMidra folder and `sff\dlc_unlockers\resources` from Windows Security if needed.
 - **Run as administrator** if you get permission errors.

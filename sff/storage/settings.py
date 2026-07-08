@@ -24,7 +24,7 @@ from pathlib import Path
 import msgpack  # type: ignore
 
 from sff.secret_store import keyring_decrypt, keyring_encrypt
-from sff.structs import Settings
+from sff.structs import SettingCustomTypes, Settings
 from sff.utils import root_folder, sff_data_dir
 from typing import cast
 
@@ -173,8 +173,14 @@ def import_settings(import_path):
             if setting.type == bool and not isinstance(value, bool):
                 errors.append(f"{key}: expected bool, got {type(value).__name__}")
                 continue
-            elif setting.type == str and not isinstance(value, str):
+            elif (
+                setting.type == str
+                or setting.type in (SettingCustomTypes.DIR, SettingCustomTypes.FILE)
+            ) and not isinstance(value, str):
                 errors.append(f"{key}: expected str, got {type(value).__name__}")
+                continue
+            elif setting.type == dict and not isinstance(value, dict):
+                errors.append(f"{key}: expected dict, got {type(value).__name__}")
                 continue
             try:
                 set_setting(setting, value)

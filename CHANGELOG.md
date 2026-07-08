@@ -1,5 +1,23 @@
 # Changelog
 
+## 6.4.1
+
+### Settings
+
+- Modern Settings now has backup buttons near the top. Export writes a JSON without saved secrets, and Import reloads the visible settings after it applies the file.
+
+### Store / download
+
+- The older-version picker can import one or more saved SteamDB depot pages into the selectable history list. Helps when the live history list is blocked or empty and you already have the depot pages saved.
+
+### UI
+
+- Modern UI now fills the window instead of sitting under an empty host strip. The Classic UI switch is tucked behind a small corner button so it stays out of the way until you need it.
+
+### Docs
+
+- Docs now match the current online-fix flow and Settings backup UI. online-fix stays browser-open only, with downloads and login handled on the website.
+
 ## 6.4.0
 
 ### Store / download

@@ -32,7 +32,7 @@ Command line options, keyboard shortcuts, and where important files are stored.
 Parallel downloads, download tracking, settings backup, library scanner, store browser, and other features.
 
 [Multiplayer Fix](MULTIPLAYER_FIX.md)  
-How to use the online fix feature for multiplayer games.
+How SteaMidra searches online-fix.me and opens the selected result in your browser.
 
 [Fixes & Bypasses](CRACK_FIX.md)  
 Using the community fix list as an alternative or supplement to online-fix.me. No account required.

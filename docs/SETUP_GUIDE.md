@@ -31,16 +31,16 @@ If the installer reports "No DLLs found": build from `LumaCore/build.bat` or ask
 
 ## Multiplayer fix (online-fix.me)
 
-Use the **Apply multiplayer fix (online-fix.me)** option to download and apply a multiplayer fix for your game directly from online-fix.me.
+Use the **Apply multiplayer fix (online-fix.me)** option to search online-fix.me for your game and open the result in your browser.
 
 What you need:
 
-- An account on online-fix.me (create one on their website).
-- Chrome installed and an archiver (7-Zip or WinRAR) for extraction.
+- A browser.
+- Any login, download, or extraction step required by online-fix.me is done manually on their website.
 
-SteaMidra will log in, find the fix for your game, download it, and extract it into the game folder automatically. Your credentials are stored securely after the first use.
+SteaMidra does not store online-fix.me credentials and does not download files from online-fix.me anymore.
 
-You can also use **Fixes & Bypasses** as an additional source — no account needed, and it covers many games not found on online-fix.me.
+You can also use **Fixes & Bypasses** as an additional source. It has no online-fix.me account requirement and downloads from its own curated fix list.
 
 ---
 
