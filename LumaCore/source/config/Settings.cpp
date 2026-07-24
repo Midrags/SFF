@@ -52,7 +52,7 @@ namespace Settings {
             processExtensionX86.clear();
             processExtensionX64.clear();
             onlineFixInjectEnabled = true;
-            steamstubAutoEnabled = true;
+            steamstubAutoEnabled = false;
         }
 
         void RememberStamp(const std::filesystem::path& cfgPath)

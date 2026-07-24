@@ -19,6 +19,7 @@
 import json
 import logging
 import tempfile
+import threading
 from pathlib import Path
 
 import msgpack  # type: ignore
@@ -35,6 +36,7 @@ SETTINGS_VERSION = "1.0.0"  # For migration tracking
 
 
 _SETTINGS_CACHE: dict | None = None
+_settings_lock = threading.Lock()
 
 
 def _invalidate_cache():
@@ -99,19 +101,21 @@ def set_setting(key, value):
         raise ValueError("Invalid type used for set_setting")
 
     logger.debug(f"set_setting: {key.clean_name} -> {str(value)}")
-    settings = load_all_settings()
-    settings[key.key_name] = (
-        keyring_encrypt(value) if key.hidden and isinstance(value, str) else value
-    )
-    _atomic_write_settings(settings)
+    with _settings_lock:
+        settings = load_all_settings()
+        settings[key.key_name] = (
+            keyring_encrypt(value) if key.hidden and isinstance(value, str) else value
+        )
+        _atomic_write_settings(settings)
 
 
 def clear_setting(key):
     logger.debug(f"clear_setting: {key.clean_name}")
-    settings = load_all_settings()
-    if key.key_name in settings:
-        settings.pop(key.key_name)
-        _atomic_write_settings(settings)
+    with _settings_lock:
+        settings = load_all_settings()
+        if key.key_name in settings:
+            settings.pop(key.key_name)
+            _atomic_write_settings(settings)
 
 
 def resolve_advanced_mode():

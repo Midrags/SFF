@@ -155,7 +155,8 @@ window.Settings = (function() {
             'setting-hubcap-save': { input: 'setting-hubcap-key', key: 'morrenus_key', label: 'Hubcap API key', useConnect: true },
             'setting-steam-web-api-save': { input: 'setting-steam-web-api-key', key: 'steam_web_api_key', label: 'Steam Web API Key' },
             'setting-manifesthub-save': { input: 'setting-manifesthub-key', key: 'manifesthub_api_key', label: 'ManifestHub API Key' },
-            'setting-ryuu-save': { input: 'setting-ryuu-key', label: 'Ryuu API Key', useRyuuConnect: true },
+            'setting-ryuu-save': { input: 'setting-ryuu-key', label: 'Ryuu Reseller Key', useRyuuConnect: true },
+            'setting-ryuu-api-save': { input: 'setting-ryuu-api-key', key: 'ryuu_api_key', label: 'Ryuu Premium API Key' },
         };
         Object.keys(apiSaveMap).forEach(function(btnId) {
             var btn = document.getElementById(btnId);
@@ -190,6 +191,20 @@ window.Settings = (function() {
                 }
                 ryuuTestBtn.textContent = 'Testing...';
                 Bridge.call('test_ryuu_key');
+            });
+        }
+
+        // Test Ryuu Premium Key
+        var ryuuApiTestBtn = document.getElementById('setting-ryuu-api-test');
+        if (ryuuApiTestBtn) {
+            ryuuApiTestBtn.addEventListener('click', function() {
+                if (ryuuApiTestBtn.disabled) return;
+                ryuuApiTestBtn.disabled = true;
+                if (!ryuuApiTestBtn.dataset.originalText) {
+                    ryuuApiTestBtn.dataset.originalText = ryuuApiTestBtn.textContent;
+                }
+                ryuuApiTestBtn.textContent = 'Testing...';
+                Bridge.call('test_ryuu_api_key');
             });
         }
 
@@ -322,6 +337,21 @@ window.Settings = (function() {
                             'Ryuu rejected: ' + (data.status || '?') +
                             (bodySnippet ? ' — ' + bodySnippet : '')
                         );
+                    }
+                } else if (data.task === 'test_ryuu_api_key') {
+                    var rbtn2 = document.getElementById('setting-ryuu-api-test');
+                    if (rbtn2) {
+                        rbtn2.disabled = false;
+                        rbtn2.textContent = rbtn2.dataset.originalText || 'Test Premium Key';
+                    }
+                    if (data.ok) {
+                        Components.showToast('success', 'Ryuu premium key works (200 OK)');
+                    } else if (data.reason === 'no_api_key') {
+                        Components.showToast('warning', 'No Ryuu premium API key configured');
+                    } else if (data.error) {
+                        Components.showToast('error', 'Ryuu premium test failed: ' + data.error);
+                    } else {
+                        Components.showToast('error', 'Ryuu premium rejected: ' + (data.status || '?'));
                     }
                 }
             } catch(e) {}
@@ -642,6 +672,7 @@ window.Settings = (function() {
                 // Password fields — only set placeholder text for encrypted values
                 _setPasswordField('setting-hubcap-key', settings.morrenus_key);
                 _setPasswordField('setting-ryuu-key', settings.ryuu_key);
+                _setPasswordField('setting-ryuu-api-key', settings.ryuu_api_key);
                 _setPasswordField('setting-steam-pass', settings.steam_pass);
                 _setPasswordField('setting-steam-web-api-key', settings.steam_web_api_key);
                 _setPasswordField('setting-manifesthub-key', settings.manifesthub_api_key);

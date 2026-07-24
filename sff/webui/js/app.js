@@ -208,6 +208,12 @@ window.App = (function() {
                         var ofStatus = document.getElementById('lc-onlinefix-status');
                         if (ofStatus) ofStatus.textContent = result.success ? (result.message || 'Done.') : (result.message || 'Failed.');
                     }
+                    if (result.task === 'ryuu_request_branch') {
+                        Components.showToast(
+                            result.success ? 'success' : 'error',
+                            result.success ? ('Branch requested: ' + (result.message || 'OK')) : (result.message || result.error || 'Request failed')
+                        );
+                    }
                     if (result.task === 'workshop_auto_import') {
                         var wsBtn = document.getElementById('action-workshop-import');
                         if (wsBtn) { wsBtn.disabled = false; wsBtn.classList.remove('is-busy'); }
@@ -645,6 +651,38 @@ window.App = (function() {
             });
         });
 
+        // Ryuu branch refresh button
+        var ryuuRefreshBtn = document.getElementById('ryuu-refresh-branches');
+        if (ryuuRefreshBtn) {
+            ryuuRefreshBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var appId = (document.getElementById('dl-fastest') || {}).dataset.appid || '';
+                if (!appId) return;
+                var sel = document.getElementById('ryuu-branch-select');
+                if (sel) sel.innerHTML = '<option value="public">public (fetching...)</option>';
+                Bridge.callWithCallback('refresh_game_branches', appId, function(json) {
+                    Components._populateRyuuBranches(json);
+                });
+            });
+        }
+
+        // Ryuu request branch button
+        var ryuuReqBranchBtn = document.getElementById('ryuu-request-branch-btn');
+        if (ryuuReqBranchBtn) {
+            ryuuReqBranchBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                var appId = (document.getElementById('dl-fastest') || {}).dataset.appid || '';
+                var sel = document.getElementById('ryuu-branch-select');
+                var branch = sel ? sel.value : 'public';
+                if (!appId || branch === 'public') {
+                    Components.showToast('warning', 'Select a non-public branch first.');
+                    return;
+                }
+                Components.showToast('info', 'Requesting branch ' + branch + ' for App ' + appId + '...');
+                Bridge.call('ryuu_request_branch', appId, branch);
+            });
+        }
+
         // Download modal — browse local lua/zip file
         var dlLocalBrowse = document.getElementById('dl-local-lua-browse');
         if (dlLocalBrowse) {
@@ -705,6 +743,14 @@ window.App = (function() {
                 var source = sourceEl ? sourceEl.value : 'oureveryday';
                 var updateEl = document.getElementById('ryuu-request-update');
                 var requestUpdate = (source === 'ryuu' && updateEl && updateEl.checked) ? '1' : '0';
+                var branch = '';
+                var fileType = '';
+                if (source === 'ryuu') {
+                    var branchSel = document.getElementById('ryuu-branch-select');
+                    if (branchSel) branch = branchSel.value || 'public';
+                    var ftSel = document.getElementById('ryuu-file-type');
+                    if (ftSel) fileType = ftSel.value || 'zip';
+                }
                 Components.hideModal('download-modal');
                 if (source === 'local') {
                     var luaPath = (document.getElementById('dl-local-lua-path') || {}).value || '';

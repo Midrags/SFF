@@ -1789,6 +1789,23 @@ class SFFMainWindow(QMainWindow):
             except Exception:
                 logger.exception("SHOW_UPDATE_PROMPTS apply_setting raised")
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._restore_webview_gpu()
+
+    def _release_webview_gpu(self):
+        if not self._web_ui_active or not hasattr(self, '_web_view'):
+            return
+        try:
+            self._web_view.setVisible(False)
+        except Exception:
+            pass
+
+    def _restore_webview_gpu(self):
+        if not self._web_ui_active or not hasattr(self, '_web_view'):
+            return
+        self._web_view.setVisible(True)
+
     # ── Tray / close-to-tray ────────────────────────────────────
 
     def set_tray(self, tray):
@@ -1836,6 +1853,7 @@ class SFFMainWindow(QMainWindow):
         ):
             event.ignore()
             self.hide()
+            self._release_webview_gpu()
             if not self._tray_hide_notified:
                 self._tray_hide_notified = True
                 self._tray.notify(

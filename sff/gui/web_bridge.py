@@ -1023,10 +1023,12 @@ class WebBridge(QObject):
 
         self._run_async(_do, on_done=_on_done)
 
+    @pyqtSlot(str, str, str, str, str, str, str)
+    @pyqtSlot(str, str, str, str, str, str)
     @pyqtSlot(str, str, str, str, str)
     @pyqtSlot(str, str, str, str)
     @pyqtSlot(str, str, str)
-    def download_game_with_source(self, app_id, source, request_update='0', lua_path='', manifest_folder=''):
+    def download_game_with_source(self, app_id, source, request_update='0', lua_path='', manifest_folder='', branch='', file_type=''):
         """Fastest download with explicit source choice ('hubcap', 'oureveryday', 'ryuu', or 'local').
         Emits download_progress + task_finished signals.
         When source='local', lua_path is required (path to .lua/.zip/.rar/.7z),
@@ -1042,7 +1044,7 @@ class WebBridge(QObject):
             if source == "local":
                 return self._run_local_import(app_id, lua_path, manifest_folder)
             if sys.platform == "win32":
-                return self._run_windows_fastest(app_id, source=source, request_update=(request_update == '1'))
+                return self._run_windows_fastest(app_id, source=source, request_update=(request_update == '1'), branch=branch, file_type=file_type)
             else:
                 return self._run_linux_fastest(app_id)
 
@@ -1175,7 +1177,7 @@ class WebBridge(QObject):
             }))
             return False
 
-    def _run_windows_fastest(self, app_id, source='', request_update=False):
+    def _run_windows_fastest(self, app_id, source='', request_update=False, branch='', file_type=''):
         """Prompt-free 11-step pipeline for Windows."""
         try:
             from sff.lua.choices import download_lua_direct
@@ -3381,7 +3383,77 @@ class WebBridge(QObject):
                 "checked_at": 0,
             })
 
-    @pyqtSlot(str)
+    @pyqtSlot(str, result=str)
+    def get_game_branches(self, app_id):
+        """Return JSON array of available branches from Steam appinfo.
+        Tries fresh fetch first, falls back to cache if Steam CM is down."""
+        return self._fetch_branches(app_id, force_refresh=False)
+
+    @pyqtSlot(str, result=str)
+    def refresh_game_branches(self, app_id):
+        """Force-refresh branches from Steam, ignoring cache."""
+        return self._fetch_branches(app_id, force_refresh=True)
+
+    def _fetch_branches(self, app_id, force_refresh=False):
+        try:
+            from sff.steam_client import create_provider_for_current_thread
+            if force_refresh:
+                from sff.cache import get_cache
+                cache = get_cache()
+                cache.invalidate(f"app_info_{app_id}")
+            provider = create_provider_for_current_thread()
+            info = provider.get_single_app_info(int(app_id))
+            depots = info.get("depots", {})
+            branches = depots.get("branches", {})
+            if not isinstance(branches, dict) or not branches:
+                return json.dumps([])
+            result = []
+            for name, b in branches.items():
+                if isinstance(b, dict):
+                    result.append({
+                        "name": name,
+                        "buildid": str(b.get("buildid", "")),
+                        "description": str(b.get("description", "")),
+                        "password_required": bool(b.get("pwdrequired", False)),
+                    })
+            result.sort(key=lambda x: (x["name"] != "public", x["name"]))
+            return json.dumps(result)
+        except Exception as e:
+            logger.warning("get_game_branches failed for %s: %s", app_id, e)
+            return json.dumps([])
+
+    @pyqtSlot(str, str)
+    def ryuu_request_branch(self, app_id, branch):
+        """Request a specific branch from Ryuu using the premium API key. Runs async."""
+        from sff.storage.settings import get_setting
+        from sff.structs import Settings
+        api_key = (get_setting(Settings.RYUU_API_KEY) or "").strip()
+        if not api_key:
+            self._emit_task_result("ryuu_request_branch", False,
+                "No Ryuu premium API key set. Add it in Settings.", ok=False)
+            return
+        def _do():
+            import httpx
+            try:
+                resp = httpx.get(
+                    "https://generator.ryuu.lol/requestbranch",
+                    params={"appid": str(app_id), "branch": str(branch)},
+                    headers={"X-Auth-Key": api_key},
+                    timeout=15, follow_redirects=True,
+                )
+                if resp.status_code == 200:
+                    msg = resp.json().get("message", "OK")
+                    return {"ok": True, "message": msg}
+                return {"ok": False, "error": f"HTTP {resp.status_code}: {(resp.text or '')[:500]}"}
+            except Exception as e:
+                return {"ok": False, "error": str(e)}
+        def _on_done(result):
+            result = result or {"ok": False, "error": "unknown"}
+            self._emit_task_result("ryuu_request_branch", bool(result.get("ok")),
+                result.get("message") or result.get("error") or "",
+                **{k: v for k, v in result.items() if k != "ok"})
+        self._run_async(_do, on_done=_on_done)
+
     def lure_fix_acf(self, app_id):
         """Patch the game's ACF with the latest Steam CM manifest IDs and buildid.
         No files are downloaded — pure ACF update to suppress Steam's update prompt.
@@ -4014,12 +4086,18 @@ class WebBridge(QObject):
 
         def _do():
             import httpx as _httpx
-            url = (
-                "https://generator.ryuu.lol/resellerrequestupdate"
-                f"?appid=440&auth_code={key}"
-            )
+            # Try old endpoint first (auth_code param, normal users)
             try:
-                resp = _httpx.get(url, timeout=30, follow_redirects=True)
+                resp = _httpx.get("https://generator.ryuu.lol/resellerrequestupdate",
+                    params={"appid": "440", "auth_code": key}, timeout=30, follow_redirects=True)
+                if resp.status_code == 200:
+                    return {"ok": True}
+            except Exception:
+                pass
+            # Fall back to new endpoint (X-Auth-Key header, premium users)
+            try:
+                resp = _httpx.get("https://generator.ryuu.lol/requestupdate",
+                    params={"appid": "440"}, headers={"X-Auth-Key": key}, timeout=30, follow_redirects=True)
             except Exception as e:
                 return {"ok": False, "error": str(e)}
             if resp.status_code == 200:
@@ -4042,6 +4120,31 @@ class WebBridge(QObject):
                 ok=bool(result.get("ok")),
             )
 
+        self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot()
+    def test_ryuu_api_key(self):
+        """Test the premium Ryuu API key (X-Auth-Key header) against the requestupdate endpoint."""
+        from sff.storage.settings import get_setting
+        from sff.structs import Settings
+        key = (get_setting(Settings.RYUU_API_KEY) or "").strip()
+        if not key:
+            self._emit_task_result("test_ryuu_api_key", False, "", ok=False, reason="no_api_key")
+            return
+        def _do():
+            import httpx as _httpx
+            try:
+                resp = _httpx.get("https://generator.ryuu.lol/requestupdate",
+                    params={"appid": "440"}, headers={"X-Auth-Key": key}, timeout=30, follow_redirects=True)
+                if resp.status_code == 200:
+                    return {"ok": True}
+                return {"ok": False, "status": resp.status_code, "body": (resp.text or "")[:4096]}
+            except Exception as e:
+                return {"ok": False, "error": str(e)}
+        def _on_done(result):
+            result = result or {"ok": False, "error": "unknown"}
+            self._emit_task_result("test_ryuu_api_key", bool(result.get("ok")), "",
+                **{k: v for k, v in result.items() if k != "ok"}, ok=bool(result.get("ok")))
         self._run_async(_do, on_done=_on_done)
 
     @pyqtSlot(result=str)
@@ -4820,8 +4923,8 @@ class WebBridge(QObject):
             logger.warning("get_recent_lua_files failed: %s", e)
             return "[]"
 
-    @pyqtSlot(str, str, str, str, str)
-    def download_game_ddmod(self, app_id, source, lua_path, manifest_folder='', target_os=''):
+    @pyqtSlot(str, str, str, str, str, str, str)
+    def download_game_ddmod(self, app_id, source, lua_path, manifest_folder='', target_os='', branch='', file_type=''):
         """Download a game using DepotDownloaderMod.
         source: 'hubcap' | 'oureveryday' | 'ryuu' | 'local'
         lua_path: used when source == 'local'
@@ -4882,7 +4985,7 @@ class WebBridge(QObject):
                 elif source == "oureveryday":
                     lua_file = get_oureverday(lua_dest, app_id)
                 elif source == "ryuu":
-                    lua_file = get_ryuu(lua_dest, app_id, request_update=False, depotcache=(steam_path / "depotcache") if steam_path else None)
+                    lua_file = get_ryuu(lua_dest, app_id, request_update=False, branch=branch, file_type=file_type, depotcache=(steam_path / "depotcache") if steam_path else None)
                 else:
                     return (False, f"Unknown source: {source}")
 

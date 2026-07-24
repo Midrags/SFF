@@ -452,15 +452,13 @@ def get_hubcap(dest, app_id, depotcache = None):
         return None
 
 
-def get_ryuu(dest, app_id, depotcache=None, request_update=None):
+def get_ryuu(dest, app_id, depotcache=None, request_update=None, branch=None, file_type=None):
     if not app_id or not str(app_id).strip().isdigit():
         print(Fore.RED + f"Invalid App ID: '{app_id}'" + Style.RESET_ALL)
         return None
-    if request_update is None:
-        request_update = prompt_confirm(
-            "[Optional] Request an update from Ryuu before downloading?\n"
-            "  (This can be slow and may fail — skip to get the current version.)"
-        )
+
+    branch = (branch or "").strip() or "public"
+    file_type = (file_type or "").strip().lower() or "zip"
 
     max_attempts = 3
     attempt = 0
@@ -477,105 +475,103 @@ def get_ryuu(dest, app_id, depotcache=None, request_update=None):
         if request_update:
             try:
                 upd_resp = httpx.get(
-                    f"https://generator.ryuu.lol/resellerrequestupdate"
-                    f"?appid={app_id}&auth_code={ryuu_key}",
-                    timeout=30,
-                    follow_redirects=True,
+                    "https://generator.ryuu.lol/resellerrequestupdate",
+                    params={"appid": str(app_id), "auth_code": ryuu_key},
+                    timeout=30, follow_redirects=True,
                 )
                 if upd_resp.status_code == 200:
                     msg = upd_resp.json().get("message", "OK")
                     print(Fore.GREEN + f"Ryuu update: {msg}" + Style.RESET_ALL)
                 elif upd_resp.status_code == 400:
                     body = (upd_resp.text or "")[:4096]
-                    print(
-                        Fore.YELLOW
-                        + f"ryuu rejected update: 400 (appid not in db) {body}"
-                        + Style.RESET_ALL
-                    )
+                    print(Fore.YELLOW + f"ryuu rejected update: 400 (appid not in db) {body}" + Style.RESET_ALL)
                 else:
                     body = (upd_resp.text or "")[:4096]
-                    print(
-                        Fore.YELLOW
-                        + f"ryuu rejected update: {upd_resp.status_code} {body}"
-                        + Style.RESET_ALL
-                    )
+                    print(Fore.YELLOW + f"ryuu rejected update: {upd_resp.status_code} {body}" + Style.RESET_ALL)
             except Exception as e:
-                print(Fore.YELLOW + f"Ryuu update request failed ({e}). Continuing with download..." + Style.RESET_ALL)
+                print(Fore.YELLOW + f"Ryuu update request failed ({e}). Continuing..." + Style.RESET_ALL)
             request_update = False
 
-        try:
-            resp = httpx.get(
-                f"https://generator.ryuu.lol/secure_download"
-                f"?appid={app_id}&auth_code={ryuu_key}",
-                timeout=60,
-                follow_redirects=True,
-            )
-        except httpx.ConnectError:
-            print(
-                Fore.RED
-                + "\nNetwork error: Cannot reach Ryuu API."
-                  " Check your internet connection."
-                + Style.RESET_ALL
-            )
-            return None
-        except httpx.RequestError as e:
-            print(Fore.RED + f"\nNetwork error connecting to Ryuu: {e}" + Style.RESET_ALL)
-            return None
+        # Try old endpoint first (auth_code param, works for normal reseller users)
+        lua_bytes = _ryuu_download_old(app_id, ryuu_key, dest, depotcache, file_type)
+        if lua_bytes is not None:
+            return _ryuu_save_lua(lua_bytes, dest, app_id)
 
-        if resp.status_code == 404:
-            body = (resp.text or "")[:4096]
-            print(
-                Fore.RED
-                + f"ryuu rejected: 404 (App ID {app_id} not found) {body}"
-                + Style.RESET_ALL
-            )
-            return None
+        # Try new endpoint with API key (X-Auth-Key header, premium users)
+        api_key = (get_setting(Settings.RYUU_API_KEY) or "").strip()
+        if api_key:
+            lua_bytes = _ryuu_download_new(app_id, api_key, branch, file_type)
+            if lua_bytes is not None:
+                return _ryuu_save_lua(lua_bytes, dest, app_id)
 
-        if resp.status_code == 403:
-            attempt += 1
-            body = (resp.text or "")[:4096]
-            print(
-                Fore.RED
-                + f"ryuu rejected: 403 — API key rejected or subscription expired."
-                  f" {body} (Attempt {attempt}/{max_attempts})"
-                + Style.RESET_ALL
-            )
-            if attempt >= max_attempts:
-                print(Fore.RED + "Ryuu: Max attempts reached. Check your API key in Settings." + Style.RESET_ALL)
-                return None
-            if prompt_confirm("Do you want to enter a new API key?"):
-                set_setting(Settings.RYUU_KEY, "")
-                continue
-            return None
+        # Fall back: try old endpoint with API key too
+        lua_bytes = _ryuu_download_new(app_id, ryuu_key, branch, file_type)
+        if lua_bytes is not None:
+            return _ryuu_save_lua(lua_bytes, dest, app_id)
 
-        if resp.status_code != 200:
-            body = (resp.text or "")[:4096]
-            print(
-                Fore.RED
-                + f"ryuu rejected: {resp.status_code} {body}"
-                + Style.RESET_ALL
-            )
+        attempt += 1
+        print(Fore.RED + f"ryuu: both endpoints failed (Attempt {attempt}/{max_attempts})" + Style.RESET_ALL)
+        if attempt >= max_attempts:
+            print(Fore.RED + "Ryuu: Max attempts reached. Check your API key in Settings." + Style.RESET_ALL)
             return None
-
-        lua_bytes = read_lua_from_zip(io.BytesIO(resp.content), decode=False, depotcache=depotcache)
-        if lua_bytes is None:
-            print(Fore.RED + "Ryuu: ZIP downloaded but no .lua file found inside." + Style.RESET_ALL)
-            return None
-
-        lua_path = dest / f"{app_id}.lua"
-        with lua_path.open("wb") as f:
-            f.write(lua_bytes)
-        _update_fallback_depotkeys(lua_bytes)
-        try:
-            from sff.lua.dlc_appid_enricher import append_depotless_dlcs
-            appended = append_depotless_dlcs(lua_path, app_id)
-            if appended:
-                logger.debug(
-                    "ryuu: appended %d depotless dlc line(s) for %s",
-                    appended, app_id,
-                )
-        except Exception as e:
-            logger.debug("ryuu: dlc enricher raised for %s: %s", app_id, e)
-        print(Fore.GREEN + f"[OK] Ryuu: Downloaded Lua for {app_id}" + Style.RESET_ALL)
-        return lua_path
+        if prompt_confirm("Do you want to enter a new API key?"):
+            set_setting(Settings.RYUU_KEY, "")
+            continue
+        return None
     return None
+
+
+def _ryuu_download_old(app_id, ryuu_key, dest, depotcache, file_type):
+    """Old endpoint: auth_code URL param. Works for normal users."""
+    url = "https://generator.ryuu.lol/secure_download"
+    params = {"appid": str(app_id), "auth_code": ryuu_key}
+    if file_type == "lua":
+        url = "https://generator.ryuu.lol/resellerlua"
+    try:
+        resp = httpx.get(url, params=params, timeout=60, follow_redirects=True)
+    except Exception:
+        return None
+    if resp.status_code != 200:
+        return None
+    return _ryuu_extract_lua(resp, depotcache, file_type)
+
+
+def _ryuu_download_new(app_id, ryuu_key, branch="public", file_type="zip"):
+    """New endpoint: X-Auth-Key header. Works for premium users."""
+    headers = {"X-Auth-Key": ryuu_key}
+    params: dict = {"branch": branch}
+    if file_type != "zip":
+        params["file_type"] = file_type
+    try:
+        resp = httpx.get(
+            "https://generator.ryuu.lol/api/download/" + str(app_id),
+            params=params, headers=headers, timeout=60, follow_redirects=True,
+        )
+    except Exception:
+        return None
+    if resp.status_code != 200:
+        return None
+    return _ryuu_extract_lua(resp, None, file_type)
+
+
+def _ryuu_extract_lua(resp, depotcache, file_type):
+    if file_type == "lua":
+        return resp.content
+    return read_lua_from_zip(io.BytesIO(resp.content), decode=False, depotcache=depotcache)
+
+
+def _ryuu_save_lua(lua_bytes, dest, app_id):
+    if lua_bytes is None:
+        print(Fore.RED + "Ryuu: downloaded but no .lua content found." + Style.RESET_ALL)
+        return None
+    lua_path = dest / f"{app_id}.lua"
+    with lua_path.open("wb") as f:
+        f.write(lua_bytes)
+    _update_fallback_depotkeys(lua_bytes)
+    try:
+        from sff.lua.dlc_appid_enricher import append_depotless_dlcs
+        append_depotless_dlcs(lua_path, app_id)
+    except Exception:
+        pass
+    print(Fore.GREEN + f"[OK] Ryuu: Downloaded Lua for {app_id}" + Style.RESET_ALL)
+    return lua_path

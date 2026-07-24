@@ -272,7 +272,32 @@ window.Components = (function() {
         if (dlDdmod) dlDdmod.dataset.appid = appId;
         if (dlDdmodDest) dlDdmodDest.value = '';
 
+        // Reset source to default, then pre-fetch Ryuu branches in background
+        var defaultSource = document.querySelector('input[name="dl-source"][value="oureveryday"]');
+        if (defaultSource) defaultSource.checked = true;
+        var ryuuOpt = document.getElementById('ryuu-update-option');
+        if (ryuuOpt) ryuuOpt.style.display = 'none';
+        var localRow = document.getElementById('dl-local-row');
+        if (localRow) localRow.style.display = 'none';
+        Bridge.callWithCallback('get_game_branches', appId, function(json) {
+            _populateRyuuBranches(json);
+        });
+
         showModal('download-modal');
+    }
+
+    function _populateRyuuBranches(json) {
+        var sel = document.getElementById('ryuu-branch-select');
+        if (!sel) return;
+        sel.innerHTML = '<option value="public">public (default)</option>';
+        try {
+            var branches = JSON.parse(json || '[]');
+            branches.forEach(function(b) {
+                if (b.name === 'public') return;
+                var label = b.name + (b.description ? ' - ' + b.description : '');
+                sel.innerHTML += '<option value="' + b.name + '">' + label + '</option>';
+            });
+        } catch(e) {}
     }
 
     // Show library selection modal
@@ -438,6 +463,7 @@ window.Components = (function() {
         escapeHtml: escapeHtml,
         initModals: initModals,
         CustomSelect: CustomSelect,
-        setHideImages: setHideImages
+        setHideImages: setHideImages,
+        _populateRyuuBranches: _populateRyuuBranches
     };
 })();

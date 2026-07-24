@@ -117,7 +117,9 @@
 
             <div class="section-group">
                 <h2 class="section-title">Select Game</h2>
-                <input type="text" id="home-game-search" class="home-game-search" placeholder="Filter games..." autocomplete="off">
+                <input type="text" id="home-game-search" class="home-game-search" placeholder="Filter games..." autocomplete="off" aria-label="Search and filter games" role="combobox" aria-expanded="false" aria-controls="home-game-select-ui">
+
+
                 <div class="game-source-row">
                     <label class="game-source-label">
                         <input type="radio" id="game-source-steam" name="game-source" checked>
@@ -129,10 +131,10 @@
                     </label>
                 </div>
                 <div id="steam-mode-row" class="input-group" style="max-width:500px;margin-top:8px;display:flex;gap:8px;align-items:center;">
-                    <select id="home-game-select" style="display:none" data-tooltip="Select a game from your Steam libraries for quick actions">
+                    <select id="home-game-select" style="display:none" data-tooltip="Select a game from your Steam libraries for quick actions" aria-label="Select a game">
                         <option value="">-- Select a game --</option>
                     </select>
-                    <div class="custom-select" id="home-game-select-ui">
+                    <div class="custom-select" id="home-game-select-ui" role="listbox" aria-label="Game selection list">
                         <div class="custom-select-display">
                             <span class="custom-select-text">-- Select a game --</span>
                             <span class="custom-select-arrow">▾</span>
@@ -1138,11 +1140,19 @@ start YourGame-Shipping.exe</pre>
                     </div>
                 </div>
                 <div class="input-group">
-                    <label>Ryuu API Key:</label>
+                    <label>Ryuu Reseller Key:</label>
                     <div class="input-with-btn">
-                        <input type="password" id="setting-ryuu-key" placeholder="Enter API key" data-tooltip="Ryuu API key for Lua and manifest downloads">
+                        <input type="password" id="setting-ryuu-key" placeholder="Enter reseller key" data-tooltip="Ryuu reseller key for Lua and manifest downloads via auth_code">
                         <button id="setting-ryuu-save" class="btn btn-primary">Save</button>
-                        <button id="setting-ryuu-test" class="btn" data-i18n="Test Ryuu Key" data-tooltip="Verify the saved Ryuu key by hitting the test endpoint with appid=440">Test Ryuu Key</button>
+                        <button id="setting-ryuu-test" class="btn" data-tooltip="Verify the saved Ryuu reseller key with appid=440">Test Key</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Ryuu API Key (premium):</label>
+                    <div class="input-with-btn">
+                        <input type="password" id="setting-ryuu-api-key" placeholder="Enter premium API key" data-tooltip="Ryuu premium API key for branch requests, direct downloads, and game requests via X-Auth-Key">
+                        <button id="setting-ryuu-api-save" class="btn btn-primary">Save</button>
+                        <button id="setting-ryuu-api-test" class="btn" data-tooltip="Verify the saved Ryuu premium API key with appid=440">Test Key</button>
                     </div>
                 </div>
                 <div class="input-group">
@@ -1400,6 +1410,24 @@ start YourGame-Shipping.exe</pre>
                         <input type="checkbox" id="ryuu-request-update"> Request Ryuu update before download
                         <small style="color:#888; display:block; margin-top:2px;">(can be slow and may fail)</small>
                     </label>
+                    <div style="margin-top:8px;">
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            <label style="font-size:12px;">Branch:</label>
+                            <button id="ryuu-refresh-branches" class="btn btn-sm" style="font-size:10px; padding:1px 6px;" title="Re-fetch branches from Steam">&#x21bb; Refresh</button>
+                        </div>
+                        <select id="ryuu-branch-select" style="width:100%; font-size:12px; margin-top:2px;">
+                            <option value="public">public (default)</option>
+                        </select>
+                        <button id="ryuu-request-branch-btn" class="btn btn-sm" style="font-size:10px; padding:2px 6px; margin-top:3px; width:100%;" title="Request this branch from Ryuu (needs premium API key)">Request Branch</button>
+                    </div>
+                    <div style="margin-top:6px;">
+                        <label style="font-size:12px;">File type:</label>
+                        <select id="ryuu-file-type" style="width:100%; font-size:12px; margin-top:2px;">
+                            <option value="zip">ZIP (lua + manifests)</option>
+                            <option value="lua">Lua only</option>
+                            <option value="manifest">Manifests only</option>
+                        </select>
+                    </div>
                 </div>
                 <div id="dl-local-row" style="display:none; margin-top:8px; padding-left:4px; display:none;">
                     <div style="display:flex; gap:8px; align-items:center;">

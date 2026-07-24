@@ -8,6 +8,18 @@
 - DDMod downloads on Windows stopped randomly failing with "An operation was attempted on something that is not a socket" across all depots at once. This was a Windows socket handle leak from the subprocess pipe setup. Each depot now retries with a longer wait when this specific error code is hit, and the handle table resets between attempts.
 - The Lure Fix button in the Library tab now sets the ACF read-only after patching it. Without this, Steam would overwrite StateFlags back to the update-pending value on the next launch and the game would flip back to "Update" instead of "Play".
 - Linux users on CachyOS and other distros no longer get "Permission denied" when the SLSsteam installer tries to patch steam.sh. SteaMidra now ensures the file is writable before touching it.
+- Settings could silently lose changes when two things tried to save at the same time. set_setting and clear_setting now use a threading lock so the file write is serialized, and msgpack errors that used to crash the whole app now just reset to defaults.
+
+### Ryuu
+
+- Ryuu got a second API key slot in Settings. The original key is now labeled Reseller Key and uses the auth_code URL parameter for secure_download, resellerlua, and resellerrequestupdate. The new Premium API Key slot uses the X-Auth-Key header on the newer /api/download, /requestupdate, /request, and /requestbranch endpoints. Both keys are tried, premium first for downloads, reseller as fallback.
+- The Ryuu download modal now has a branch dropdown that populates from Steam appinfo when the modal opens. Public is default, every branch Steam reports shows up with its description. A Refresh button next to it re-fetches from Steam CM and invalidates the cache first so you always get the latest branch list.
+- A Request Branch button sits next to the branch selector. Select something other than public, click it, and SteaMidra asks Ryuu to add that branch to the database using the premium API key. The call runs in the background so the UI doesn't freeze while Ryuu processes it.
+- File type selection: ZIP (lua + manifests, default), lua only, or manifests only. Passed through as the file_type parameter on both the old and new Ryuu download endpoints.
+
+### Performance
+
+- When SteaMidra minimizes to the system tray, the web view is hidden so Chromium releases its GPU textures and render surface. Background memory drops from around 300 MB to about 80 MB. Restores when you bring the window back.
 
 ### UI
 
