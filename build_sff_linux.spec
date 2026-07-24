@@ -71,9 +71,9 @@ lua_dir = os.path.join(spec_root, 'sff', 'lua')
 if os.path.exists(lua_dir):
     datas.append((lua_dir, 'sff/lua'))
 
-fallback_db = os.path.join(spec_root, 'sff', 'fallback_depotkeys.json')
+fallback_db = os.path.join(spec_root, 'sff', 'lua', 'fallback_depotkeys.json')
 if os.path.exists(fallback_db):
-    datas.append((fallback_db, 'sff'))
+    datas.append((fallback_db, 'sff/lua'))
 
 c_dir = os.path.join(spec_root, 'c')
 if os.path.exists(c_dir):
@@ -90,7 +90,14 @@ if os.path.exists(c_dir):
 #       libxcb-keysyms1 libxcb-util1 libxcb-render-util0 libxcb-icccm4 \
 #       libxcb-shape0 libasound2
 
-_SYSLIB_BASE = '/usr/lib/x86_64-linux-gnu'
+_SYSLIB_BASE = os.environ.get('SYSLIB_BASE')
+if not _SYSLIB_BASE:
+    for candidate in ('/usr/lib/x86_64-linux-gnu', '/usr/lib64', '/usr/lib'):
+        if os.path.isdir(candidate):
+            _SYSLIB_BASE = candidate
+            break
+    if not _SYSLIB_BASE:
+        _SYSLIB_BASE = '/usr/lib'
 
 def _find_syslib(pattern):
     """Return up to 1 (path, dest_dir) tuple for a system library glob."""
@@ -237,6 +244,9 @@ a = Analysis(
         'rich',
         'rich.console',
         'rich.table',
+        'rich._unicode_data',
+        'rich.box',
+        'rich.text',
         'yaml',
         'tqdm',
         'pathvalidate',

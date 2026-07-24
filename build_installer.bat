@@ -15,6 +15,11 @@ echo Version: %APP_VERSION%
 
 :: Patch installer.nsi fallback version to match strings.py
 python -c "import re,sys; c=open('installer.nsi').read(); c=re.sub(r'(!define VERSION\s+\")[^\"]+\"', r'\g<1>%APP_VERSION%\"', c); open('installer.nsi','w').write(c)"
+if %errorlevel% neq 0 (
+    echo Failed to patch installer.nsi!
+    pause
+    exit /b 1
+)
 echo Patched installer.nsi to version %APP_VERSION%
 
 :: Allow NSI-only mode: pass "nsi" as first argument to skip PyInstaller

@@ -65,10 +65,10 @@ lua_dir = os.path.join(spec_root, 'sff', 'lua')
 if os.path.exists(lua_dir):
     datas.append((lua_dir, 'sff/lua'))
 
-# Include fallback depot keys database if present at sff/ level
-fallback_db = os.path.join(spec_root, 'sff', 'fallback_depotkeys.json')
+# Include fallback depot keys database
+fallback_db = os.path.join(spec_root, 'sff', 'lua', 'fallback_depotkeys.json')
 if os.path.exists(fallback_db):
-    datas.append((fallback_db, 'sff'))
+    datas.append((fallback_db, 'sff/lua'))
 
 # Include all_games.txt for offline game name resolution in Cloud Saves
 all_games_txt = os.path.join(spec_root, 'all_games.txt')
@@ -89,6 +89,9 @@ win10toast_data = get_win10toast_data()
 if win10toast_data:
     datas.append(win10toast_data)
     print(f"Including win10toast data from: {win10toast_data[0]}")
+
+from PyInstaller.utils.hooks import collect_data_files
+datas.extend(collect_data_files("rich", include_py_files=False))
 
 a = Analysis(
     ['Main_gui.py'],
@@ -183,6 +186,9 @@ a = Analysis(
         'bs4.builder._html5lib',
         'bs4.builder._lxml',
         'bs4.builder._htmlparser',
+        'rich._unicode_data',
+        'rich.box',
+        'rich.text',
     ],
     hookspath=['hooks'],
     hooksconfig={},

@@ -83,7 +83,6 @@ cleanup_existing() {
     rm -f "$INSTALL_DIR/run.sh"             2>/dev/null || true
     # Remove old source tree but keep .venv and settings
     rm -rf "$INSTALL_DIR/sff"               2>/dev/null || true
-    rm -rf "$INSTALL_DIR/static"            2>/dev/null || true
     rm -rf "$INSTALL_DIR/third_party"       2>/dev/null || true
     rm -f  "$INSTALL_DIR/Main.py"           2>/dev/null || true
     rm -f  "$INSTALL_DIR/Main_gui.py"       2>/dev/null || true
@@ -168,9 +167,9 @@ install_dotnet9() {
     log_info "Installing .NET 9 runtime (needed for game downloads)..."
     local TMP
     TMP="$(mktemp)"
-    curl -sSL https://dot.net/v1/dotnet-install.sh -o "$TMP"
+    curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$TMP" || { log_error "Failed to download dotnet-install.sh"; rm -f "$TMP"; return 1; }
     chmod +x "$TMP"
-    DOTNET_ROOT="$HOME/.dotnet" bash "$TMP" --channel 9.0 --runtime dotnet
+    DOTNET_ROOT="$HOME/.dotnet" bash "$TMP" --channel 9.0 --runtime dotnet || { log_error ".NET 9 install failed"; rm -f "$TMP"; return 1; }
     rm -f "$TMP"
     if "$HOME/.dotnet/dotnet" --list-runtimes 2>/dev/null | grep -q "Microsoft.NETCore.App 9\."; then
         log_info ".NET 9 installed successfully."

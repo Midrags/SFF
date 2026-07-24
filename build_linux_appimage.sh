@@ -175,8 +175,8 @@ if [ ! -f "appimagetool" ]; then
     wget --show-progress -O appimagetool \
         https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage \
         || die "Failed to download appimagetool. Check your internet connection."
-    chmod +x appimagetool
 fi
+chmod +x appimagetool
 
 ARCH=$ARCH ./appimagetool "$APPDIR" "$APPIMAGE_OUT" \
     || die "appimagetool failed.\nIf you see 'fuse: device not found', fix with: sudo apt install libfuse2"
