@@ -60,16 +60,22 @@ def load_all_settings():
     if _SETTINGS_CACHE is not None:
         return _SETTINGS_CACHE
 
-    SETTINGS_FILE.touch(exist_ok=True)
-    with SETTINGS_FILE.open("rb") as f:
-        data = f.read()
+    try:
+        SETTINGS_FILE.touch(exist_ok=True)
+        with SETTINGS_FILE.open("rb") as f:
+            data = f.read()
+    except Exception:
+        logger.exception("Failed to read settings file — resetting to defaults")
+        _SETTINGS_CACHE = {}
+        return _SETTINGS_CACHE
     try:
         settings = (
             cast("dict[Any, Any]", msgpack.unpackb(data))  # type: ignore
             if data
             else {}
         )
-    except (ValueError, msgpack.ExcessiveDataError, msgpack.FormatError):
+    except Exception:
+        logger.exception("Failed to unpack settings — resetting to defaults")
         settings = {}
 
     settings = migrate_settings(settings)

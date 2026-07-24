@@ -3455,6 +3455,10 @@ class WebBridge(QObject):
                 state["BytesStaged"] = "0"
                 acf_data["AppState"] = state
                 vdf_dump(acf_path, acf_data)
+                try:
+                    os.chmod(acf_path, 0o444)
+                except OSError:
+                    pass
 
                 return {
                     "success": True,

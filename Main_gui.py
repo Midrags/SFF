@@ -125,14 +125,17 @@ except Exception as e:
 
 logger = logging.getLogger("sff")
 logger.setLevel(logging.DEBUG)
-fh = logging.FileHandler(str(sff_data_dir() / "debug.log"), encoding="utf-8", errors="replace")
-fh.setFormatter(
-    logging.Formatter(
-        "%(asctime)s::%(name)s::%(levelname)s::%(message)s",
-        datefmt="%m/%d/%Y %I:%M:%S %p",
+try:
+    fh = logging.FileHandler(str(sff_data_dir() / "debug.log"), encoding="utf-8", errors="replace")
+    fh.setFormatter(
+        logging.Formatter(
+            "%(asctime)s::%(name)s::%(levelname)s::%(message)s",
+            datefmt="%m/%d/%Y %I:%M:%S %p",
+        )
     )
-)
-logger.addHandler(fh)
+    logger.addHandler(fh)
+except Exception:
+    logging.basicConfig(level=logging.DEBUG)
 
 if _LINUX_CHROMIUM_FALLBACK_APPLIED:
     logger.info("Linux: applying Chromium GPU fallback flags")

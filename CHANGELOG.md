@@ -1,5 +1,42 @@
 # Changelog
 
+## 6.4.3
+
+### Fixes
+
+- SteaMidra no longer refuses to open after an update because of a corrupted settings file. A partial write during a crashed exit used to leave settings.bin in a state that msgpack couldn't read, and the error happened before Qt had a chance to show anything. Now corrupted settings reset to defaults with a log line instead of silently crashing.
+- DDMod downloads on Windows stopped randomly failing with "An operation was attempted on something that is not a socket" across all depots at once. This was a Windows socket handle leak from the subprocess pipe setup. Each depot now retries with a longer wait when this specific error code is hit, and the handle table resets between attempts.
+- The Lure Fix button in the Library tab now sets the ACF read-only after patching it. Without this, Steam would overwrite StateFlags back to the update-pending value on the next launch and the game would flip back to "Update" instead of "Play".
+- Linux users on CachyOS and other distros no longer get "Permission denied" when the SLSsteam installer tries to patch steam.sh. SteaMidra now ensures the file is writable before touching it.
+
+### UI
+
+- Custom background images finally clear properly without needing a restart. The clear handler was racing with a deferred settings fetch that re-applied the old image. Same fix applies to theme switching.
+- The Settings page version label actually shows the version now. It was calling the wrong bridge method and getting stuck on "loading..." forever.
+- The GDrive connection status in Cloud Saves now updates in real time. Same wrong bridge call pattern, same silent failure.
+- The Library page drive-select dropdown no longer flickers and dies because a duplicate CustomSelect was being created on page load.
+- Google Fonts are gone from the CSS. The external import was blocking the entire UI for 30+ seconds on offline machines while QtWebEngine waited for the network timeout.
+
+### Performance
+
+- QThread objects in the web bridge are now stored in a list alongside their workers. Python's GC used to nuke the C++ thread object while the event loop was still running, which caused intermittent crashes under load.
+- Four lazy-singletons (cache, analytics, notifications, recent files) now use double-checked locking. Two threads hitting them at once could create duplicate instances with desynced state before.
+- The game update state cache no longer grows forever. When it passes 1500 entries the oldest ones get evicted so checking hundreds of games doesn't leak memory over days.
+
+### Build
+
+- All three PyInstaller spec files no longer reference the removed static/ directory, which was causing CI builds to fail at "Appending datas" before the actual packaging step.
+- The fallback depot keys database is now bundled from the correct path (sff/lua/ not sff/) so the provider database actually lands in the frozen build.
+- Missing rich._unicode_data, rich.box, and rich.text hidden imports are now declared in both the GUI and Linux specs. The DLC check was importing these at runtime and crashing when they weren't bundled.
+- The Linux build script no longer assumes every distro uses /usr/lib/x86_64-linux-gnu. It tries that path first, then /usr/lib64, then /usr/lib, so Fedora and Arch CI containers don't break.
+- The Windows installer script now checks whether the Python version-patcher actually ran before continuing to NSIS compilation.
+- The AppImage build script always re-chmods appimagetool before running it, even if the file already exists from a cached download.
+- The install script no longer tries to delete a static/ directory that was removed, and curl now uses the fail-on-error flag so a 404ed dotnet-install.sh doesn't get executed as a bash script.
+
+### Linux
+
+- Goldberg emulator DLLs and .so files were refreshed from the latest gbe_fork build. Windows DLLs (regular and experimental), Linux .so files, steam_settings examples, lobby_connect, steamclient_loader, and the new Steam.dll for old-game compatibility are all updated.
+
 ## 6.4.2
 
 ### Home page

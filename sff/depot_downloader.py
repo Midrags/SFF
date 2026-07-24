@@ -407,6 +407,15 @@ def run_download(
                 all_ok = False
                 break
             except (OSError, subprocess.SubprocessError) as e:
+                is_winsock = sys.platform == "win32" and isinstance(e, OSError) and getattr(e, "winerror", 0) == 10038
+                if is_winsock and attempt <= max_retries:
+                    time.sleep(5)
+                    print_fn(
+                        Fore.YELLOW
+                        + f"\n[retry] Windows socket handle reset for depot {depot_id_str}"
+                        + Style.RESET_ALL
+                    )
+                    continue
                 print_fn(Fore.RED + f"Error downloading depot {depot_id_str}: {e}" + Style.RESET_ALL)
                 if attempt <= max_retries:
                     continue

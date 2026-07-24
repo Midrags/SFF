@@ -339,6 +339,7 @@ def patch_steam_sh(steam_path: Path, print_fn=print) -> bool:
     ld_line = f"export LD_AUDIT={ld_audit}"
 
     try:
+        os.chmod(steam_sh, 0o644)
         lines = steam_sh.read_text(encoding="utf-8").splitlines()
         lines = [l for l in lines if "LD_AUDIT" not in l]
         insert_idx = min(10, len(lines))

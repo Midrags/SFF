@@ -1373,7 +1373,7 @@ class SFFMainWindow(QMainWindow):
     def changeEvent(self, event):
         if event.type() == QEvent.Type.WindowStateChange:
             maximized = self.windowState() & Qt.WindowState.WindowMaximized
-            if self._title_bar is not None:
+            if getattr(self, '_title_bar', None) is not None:
                 self._title_bar.set_maximized(bool(maximized))
         super().changeEvent(event)
 
