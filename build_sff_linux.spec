@@ -35,7 +35,6 @@ _qt_hidden   = _qt6[2] + _wec[2] + _wew[2]
 
 # ── Data files ────────────────────────────────────────────────────────────────
 datas = [
-    ('static', 'static'),
 ] + _qt_datas
 
 # third_party tools (gbe_fork binaries, linux deps, etc.)

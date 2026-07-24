@@ -80,7 +80,6 @@ def get_win10toast_data():
 
 # Collect data files
 datas = [
-    ('static', 'static'),
 ]
 
 # Include third_party tools if present

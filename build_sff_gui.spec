@@ -21,7 +21,6 @@ def get_win10toast_data():
     return None
 
 datas = [
-    ('static', 'static'),
 ]
 
 # Include only Windows-side third_party tools. Do not drag Linux .so folders
