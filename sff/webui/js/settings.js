@@ -117,11 +117,13 @@ window.Settings = (function() {
         document.body.style.backgroundSize = _bgImg ? 'cover' : '';
         document.body.style.backgroundPosition = _bgImg ? 'center' : '';
         Bridge.callWithCallback('get_setting', 'custom_background_image', function(bgPath) {
-            Bridge.callWithCallback('get_setting', 'custom_accent_color', function(accent) {
-                if (window.App && App.applyCustomAppearance) {
-                    App.applyCustomAppearance(bgPath || '', accent || '');
-                }
-            });
+            if (bgPath) {
+                Bridge.callWithCallback('get_setting', 'custom_accent_color', function(accent) {
+                    if (window.App && App.applyCustomAppearance) {
+                        App.applyCustomAppearance(bgPath, accent || '');
+                    }
+                });
+            }
         });
     }
 
@@ -167,6 +169,7 @@ window.Settings = (function() {
                         Bridge.call('connect_store', val);
                     } else if (cfg.useRyuuConnect) {
                         Bridge.call('save_ryuu_key', val);
+                        setTimeout(function() { Bridge.call('test_ryuu_key'); }, 500);
                     } else {
                         Bridge.call('set_setting', cfg.key, val);
                     }
@@ -386,7 +389,7 @@ window.Settings = (function() {
         }
 
         if (versionLabel) {
-            Bridge.call('get_app_version', function(ver) {
+            Bridge.callSync('get_app_version', function(ver) {
                 versionLabel.textContent = ver || '';
             });
         }
@@ -718,9 +721,6 @@ window.Settings = (function() {
                 _setCheckbox('setting-auto-enable-new-game-updates', settings.auto_enable_updates_new_games);
                 // Theme
                 if (settings.theme) _applyTheme(settings.theme);
-                if (window.App && App.applyCustomAppearance) {
-                    App.applyCustomAppearance(settings.custom_background_image || '', settings.custom_accent_color || '');
-                }
             } catch(e) {
                 // Fallback: load just steam_path and theme
                 Bridge.callWithCallback('get_setting', 'steam_path', function(val) {

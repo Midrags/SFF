@@ -52,9 +52,18 @@ from PyQt6.QtWidgets import (
 )
 
 from sff.gui.log_window import GlobalLogWindow, QtLogHandler
-from sff.gui.themes import THEMES, theme_background
+from sff.gui.themes import THEMES, theme_background, titlebar_colors
+from sff.gui.title_bar import TitleBarWidget
 from sff.i18n import T
 from sff.structs import MainMenu, MainReturnCode
+
+# Import preserver at module level so its dependency imports run
+# during Python's single-threaded import phase, not inside a background
+# thread where importlib concurrency can race with QtWebEngine init.
+try:
+    from sff.manifests.preserver import start_watcher as _start_watcher
+except Exception:
+    _start_watcher = None
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 logger = logging.getLogger(__name__)
@@ -190,6 +199,8 @@ class SFFMainWindow(QMainWindow):
         self._worker_thread = None
         self.setWindowTitle("SteaMidra")
         self.setMinimumSize(960, 700)
+        if sys.platform == "win32":
+            self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
         geom = get_setting(_S.WINDOW_GEOMETRY)
         if geom:
             try:
@@ -206,6 +217,13 @@ class SFFMainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
         central.installEventFilter(self)
+
+        # ── Custom title bar (Windows only) ──────────────────────
+        if sys.platform == "win32":
+            self._title_bar = TitleBarWidget(self)
+            root_layout.addWidget(self._title_bar)
+        else:
+            self._title_bar = None
 
         # ── LumaCore status banner (hidden until a poll finds missing TOML) ──
         self._lumacore_banner = QLabel()
@@ -226,10 +244,14 @@ class SFFMainWindow(QMainWindow):
         # ── Classic tab UI (hidden by default — new UI is primary) ──
         self.tabs = QTabWidget()
         self.tabs.setVisible(False)
+        self.tabs.setUpdatesEnabled(False)
+        self.tabs.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         root_layout.addWidget(self.tabs)
 
         # ── New Web UI (visible by default) ──
         self._web_view = QWebEngineView()
+        self._web_view_freed = False
+        self._web_index_path = None
         # Mark the view as opaque so Qt's drag/resize/paint pipeline skips
         # the parent-erase step under it. Without this, every drag tick on
         # Windows DWM hands the compositor a frame where the parent gets
@@ -251,18 +273,6 @@ class SFFMainWindow(QMainWindow):
             except Exception:
                 pass
         root_layout.addWidget(self._web_view)
-        self._web_ui_reveal = QPushButton("⋯", central)
-        self._web_ui_reveal.setToolTip(T("Show UI switcher"))
-        self._web_ui_reveal.setFixedSize(34, 28)
-        self._web_ui_reveal.clicked.connect(self._show_web_ui_toggle)
-        self._web_ui_toggle = QPushButton(T("Switch to Classic UI"), central)
-        self._web_ui_toggle.setToolTip(T("Toggle between the classic tab UI and the new web-based UI"))
-        self._web_ui_toggle.clicked.connect(self._toggle_web_ui)
-        self._web_ui_toggle.setVisible(False)
-        self._web_ui_toggle_hide_timer = QTimer(self)
-        self._web_ui_toggle_hide_timer.setSingleShot(True)
-        self._web_ui_toggle_hide_timer.timeout.connect(self._web_ui_toggle.hide)
-        self._style_web_ui_switcher()
         self._web_channel = QWebChannel()
         from sff.gui.web_bridge import WebBridge
         self._web_bridge = WebBridge(ui=ui, steam_path=steam_path, parent=self)
@@ -271,6 +281,18 @@ class SFFMainWindow(QMainWindow):
         # Allow loading Steam CDN images from local file:// page
         self._web_view.page().settings().setAttribute(
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
+        )
+        self._web_view.page().settings().setAttribute(
+            QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, True
+        )
+        self._web_view.page().settings().setAttribute(
+            QWebEngineSettings.WebAttribute.WebGLEnabled, True
+        )
+        self._web_view.page().settings().setAttribute(
+            QWebEngineSettings.WebAttribute.ShowScrollBars, False
+        )
+        self._web_view.page().settings().setAttribute(
+            QWebEngineSettings.WebAttribute.ErrorPageEnabled, False
         )
         self._web_view.page().renderProcessTerminated.connect(self._on_render_crash)
         self._install_web_splash()
@@ -302,13 +324,11 @@ class SFFMainWindow(QMainWindow):
             import threading as _threading
 
             def _start_manifest_preserver():
-                try:
-                    from sff.manifests.preserver import start_watcher
-                    start_watcher(self.steam_path)
-                except Exception:
-                    # Watcher is best-effort. A failure here must not
-                    # block the GUI from showing.
-                    pass
+                if _start_watcher is not None:
+                    try:
+                        _start_watcher(self.steam_path)
+                    except Exception:
+                        pass
 
             _threading.Thread(
                 target=_start_manifest_preserver,
@@ -317,6 +337,75 @@ class SFFMainWindow(QMainWindow):
             ).start()
         except Exception:
             pass
+        _should_save = _saved_theme is None or _saved_theme in THEMES
+        self._set_theme(self._current_theme, save=_should_save)
+        if not self._web_ui_active:
+            self._build_classic_ui(steam_path)
+            self._on_source_changed()
+            self._refresh_game_list()
+            self.menuBar().setVisible(True)
+            self.tabs.setVisible(True)
+            self._web_view.setVisible(False)
+        else:
+            self.tabs.setVisible(False)
+            self._web_view.setVisible(True)
+            self._load_web_ui()
+            self._web_ui_loaded = True
+        self._tray = None
+        self._tray_hide_notified = False
+        self._save_watcher_timer = QTimer(self)
+        self._save_watcher_timer.timeout.connect(self._run_background_save_watcher)
+        self._start_save_watcher()
+        # 6.2.5: per-app update-available periodic timer. The tick runs
+        # every 5 minutes, walks app_list_man, applies per-app overrides
+        # and the global gate, and dispatches at most one
+        # check_game_update call per app per UPDATE_CHECK_INTERVAL_MIN.
+        # Cross-app dispatches are paced one per 2 seconds via
+        # QTimer.singleShot chaining.
+        self._update_check_timer = QTimer(self)
+        self._update_check_timer.timeout.connect(self._run_update_check_tick)
+        self._update_check_dispatched_at: dict[str, float] = {}
+        self._update_check_pending_queue: list[str] = []
+        self._update_check_dispatching = False
+        self._update_check_timer.start(5 * 60 * 1000)
+        # First tick after a short delay so the UI settles before the
+        # initial sweep fires.
+        QTimer.singleShot(15 * 1000, self._run_update_check_tick)
+
+        # 6.2.6: surface a leftover updater log if the previous launch's
+        # in-place update bat hit an error. The bat runs headless, so a
+        # robocopy failure (locked _internal\, antivirus, partial copy)
+        # otherwise dies silently and the user keeps running the old
+        # build without knowing why. Cleanup the log after surfacing so
+        # subsequent launches don't re-warn.
+        QTimer.singleShot(2 * 1000, self._surface_stale_updater_log)
+
+    def _build_classic_ui(self, steam_path):
+        if getattr(self, '_classic_ui_built', False):
+            return
+        self._classic_ui_built = True
+
+        from sff.download_manager import DownloadManager
+        self._download_manager = DownloadManager()
+        self.ui.download_manager = self._download_manager
+
+        from sff.gui.store_tab import StoreTab
+        from sff.gui.downloads_tab import DownloadsTab
+        from sff.gui.fix_game_tab import FixGameTab
+        from sff.gui.tools_tab import ToolsTab
+        from sff.gui.cloud_saves_tab import CloudSavesTab
+
+        self.store_tab = StoreTab(steam_path=steam_path, ui=self.ui, run_tool_fn=self._run_tool)
+        self.tabs.addTab(self.store_tab, "Store")
+        self.downloads_tab = DownloadsTab(download_manager=self._download_manager)
+        self.tabs.addTab(self.downloads_tab, "Download Tracking")
+        self.fix_game_tab = FixGameTab(steam_path=steam_path)
+        self.tabs.addTab(self.fix_game_tab, "Fix Game")
+        self.tools_tab = ToolsTab(steam_path)
+        self.tabs.addTab(self.tools_tab, "Tools")
+        self.cloud_saves_tab = CloudSavesTab(steam_path)
+        self.tabs.addTab(self.cloud_saves_tab, "Cloud Saves")
+
         main_tab_widget = QWidget()
         main_tab_layout = QVBoxLayout(main_tab_widget)
         scroll = QScrollArea()
@@ -325,14 +414,10 @@ class SFFMainWindow(QMainWindow):
         layout = QVBoxLayout(scroll_widget)
         scroll.setWidget(scroll_widget)
         main_tab_layout.addWidget(scroll, stretch=1)
-        self.tabs.addTab(main_tab_widget, "Main")
+        self.tabs.insertTab(0, main_tab_widget, "Main")
         from sff.gui.help_buttons import add_help_button
-        add_help_button(
-            layout,
-            "Main Hub",
-            "SteaMidra Main Hub\n\n"
-            "Game / Path:\n"
-            "  Select a Steam game from the dropdown or browse to a game\n"
+        add_help_button(layout, "Main Hub", "SteaMidra Main Hub\n\n"
+            "Game / Path:\n  Select a Steam game from the dropdown or browse to a game\n"
             "  folder outside Steam. Used by all Game Actions below.\n\n"
             "Game Actions:\n"
             "  - Crack game (gbe_fork): Replace steam_api DLLs with Goldberg\n"
@@ -367,35 +452,12 @@ class SFFMainWindow(QMainWindow):
             "    right-click menu.",
             parent_widget=self,
         )
-        from sff.gui.store_tab import StoreTab
-        from sff.gui.downloads_tab import DownloadsTab
-        from sff.gui.fix_game_tab import FixGameTab
-        from sff.gui.tools_tab import ToolsTab
-        from sff.gui.cloud_saves_tab import CloudSavesTab
-        from sff.download_manager import DownloadManager
-        # Shared download manager — used by both the tracking tab and
-        # the backend (process_lua_full) so downloads show up in the UI.
-        self._download_manager = DownloadManager()
-        self.ui.download_manager = self._download_manager
-        self.store_tab = StoreTab(steam_path=steam_path, ui=self.ui, run_tool_fn=self._run_tool)
-        self.tabs.addTab(self.store_tab, "Store")
-        self.downloads_tab = DownloadsTab(download_manager=self._download_manager)
-        self.tabs.addTab(self.downloads_tab, "Download Tracking")
-        self.fix_game_tab = FixGameTab(steam_path=steam_path)
-        self.tabs.addTab(self.fix_game_tab, "Fix Game")
-        self.tools_tab = ToolsTab(steam_path)
-        self.tabs.addTab(self.tools_tab, "Tools")
-        self.cloud_saves_tab = CloudSavesTab(steam_path)
-        self.tabs.addTab(self.cloud_saves_tab, "Cloud Saves")
-        # ── Game / path ──────────────────────────────────────────
         path_group = QGroupBox(T("Game / path"))
         path_layout = QVBoxLayout(path_group)
         path_row = QHBoxLayout()
         path_row.addWidget(QLabel(T("Path:")))
         self.path_edit = QLineEdit()
-        self.path_edit.setPlaceholderText(
-            T("Game folder (for outside Steam) or leave empty for Steam games")
-        )
+        self.path_edit.setPlaceholderText(T("Game folder (for outside Steam) or leave empty for Steam games"))
         path_row.addWidget(self.path_edit)
         browse_btn = QPushButton("...")
         browse_btn.setFixedWidth(36)
@@ -440,15 +502,9 @@ class SFFMainWindow(QMainWindow):
         outside_row.addWidget(self.outside_appid_edit)
         outside_row.addStretch()
         path_layout.addLayout(outside_row)
-        for w in (
-            self._outside_name_label,
-            self.outside_name_edit,
-            self._outside_appid_label,
-            self.outside_appid_edit,
-        ):
+        for w in (self._outside_name_label, self.outside_name_edit, self._outside_appid_label, self.outside_appid_edit):
             w.setVisible(False)
         layout.addWidget(path_group)
-        # ── Game Actions (need selected game) ────────────────────
         game_actions_group = QGroupBox(T("Game Actions"))
         ga_layout = QVBoxLayout(game_actions_group)
         ga_layout.setSpacing(6)
@@ -503,7 +559,6 @@ class SFFMainWindow(QMainWindow):
         row2.addStretch()
         ga_layout.addLayout(row2)
         layout.addWidget(game_actions_group)
-        # ── Lua / Manifest Processing ────────────────────────────
         lua_group = QGroupBox(T("Lua / Manifest Processing"))
         lua_layout = QVBoxLayout(lua_group)
         lua_row = QHBoxLayout()
@@ -519,7 +574,6 @@ class SFFMainWindow(QMainWindow):
         lua_row.addStretch()
         lua_layout.addLayout(lua_row)
         layout.addWidget(lua_group)
-        # ── Library & Steam Tools ────────────────────────────────
         tools_group = QGroupBox(T("Library & Steam Tools"))
         tools_layout = QVBoxLayout(tools_group)
         tools_row1 = QHBoxLayout()
@@ -546,16 +600,13 @@ class SFFMainWindow(QMainWindow):
             tools_row2.addStretch()
             tools_layout.addLayout(tools_row2)
         layout.addWidget(tools_group)
-
         if sys.platform == "win32":
             lc_group = QGroupBox(T("LumaCore Setup"))
             lc_layout = QVBoxLayout(lc_group)
             lc_row1 = QHBoxLayout()
             lc_row1.setSpacing(4)
             lc_install_btn = QPushButton(T("Install / Update LumaCore"))
-            lc_install_btn.setToolTip(
-                T("Download the latest LumaCore release and install it into the Steam folder.")
-            )
+            lc_install_btn.setToolTip(T("Download the latest LumaCore release and install it into the Steam folder."))
             lc_install_btn.clicked.connect(self._install_lumacore_gui)
             lc_row1.addWidget(lc_install_btn)
             lc_deact_btn = QPushButton(T("Deactivate LumaCore"))
@@ -577,8 +628,6 @@ class SFFMainWindow(QMainWindow):
             lc_row2.addStretch()
             lc_layout.addLayout(lc_row2)
             layout.addWidget(lc_group)
-
-        # ── Log ──────────────────────────────────────────────────
         log_group = QGroupBox(T("Log"))
         log_layout = QVBoxLayout(log_group)
         self.log_text = QPlainTextEdit()
@@ -590,7 +639,7 @@ class SFFMainWindow(QMainWindow):
         clear_btn.clicked.connect(self.log_text.clear)
         log_layout.addWidget(clear_btn)
         layout.addWidget(log_group)
-        # ── Menu bar ─────────────────────────────────────────────
+
         menubar = self.menuBar()
         settings_action = menubar.addAction(T("Settings"))
         settings_action.triggered.connect(self._show_settings)
@@ -614,58 +663,17 @@ class SFFMainWindow(QMainWindow):
         )
         logs_action = menubar.addAction("Logs")
         logs_action.triggered.connect(self._show_log_window)
-        # The legacy menubar QTextEdit is hidden by default but the
-        # connection used to fire per-line and burn cycles even when
-        # invisible. Route it through the same Qt-side log buffer.
-        # Only persist the Qt fallback theme if there was no saved theme or the saved
-        # theme is a known Qt theme. Web-only themes (photo themes, extra color themes)
-        # are not in THEMES but must not be overwritten here.
-        _should_save = _saved_theme is None or _saved_theme in THEMES
-        self._set_theme(self._current_theme, save=_should_save)
-        self._on_source_changed()
-        self._refresh_game_list()
-        if self._web_ui_active:
-            menubar.setVisible(False)
-            self.tabs.setVisible(False)
-            self._web_view.setVisible(True)
-            self._load_web_ui()
-            self._web_ui_loaded = True
-            self._web_ui_toggle.setText(T("Switch to Classic UI"))
-        else:
-            menubar.setVisible(True)
-            self.tabs.setVisible(True)
-            self._web_view.setVisible(False)
-            self._web_ui_toggle.setText(T("Switch to New UI"))
-        self._web_ui_toggle.hide()
-        self._position_web_ui_switcher()
-        self._tray = None
-        self._tray_hide_notified = False
-        self._save_watcher_timer = QTimer(self)
-        self._save_watcher_timer.timeout.connect(self._run_background_save_watcher)
-        self._start_save_watcher()
-        # 6.2.5: per-app update-available periodic timer. The tick runs
-        # every 5 minutes, walks app_list_man, applies per-app overrides
-        # and the global gate, and dispatches at most one
-        # check_game_update call per app per UPDATE_CHECK_INTERVAL_MIN.
-        # Cross-app dispatches are paced one per 2 seconds via
-        # QTimer.singleShot chaining.
-        self._update_check_timer = QTimer(self)
-        self._update_check_timer.timeout.connect(self._run_update_check_tick)
-        self._update_check_dispatched_at: dict[str, float] = {}
-        self._update_check_pending_queue: list[str] = []
-        self._update_check_dispatching = False
-        self._update_check_timer.start(5 * 60 * 1000)
-        # First tick after a short delay so the UI settles before the
-        # initial sweep fires.
-        QTimer.singleShot(15 * 1000, self._run_update_check_tick)
 
-        # 6.2.6: surface a leftover updater log if the previous launch's
-        # in-place update bat hit an error. The bat runs headless, so a
-        # robocopy failure (locked _internal\, antivirus, partial copy)
-        # otherwise dies silently and the user keeps running the old
-        # build without knowing why. Cleanup the log after surfacing so
-        # subsequent launches don't re-warn.
-        QTimer.singleShot(2 * 1000, self._surface_stale_updater_log)
+        switch_btn = QPushButton(T("Switch to Modern UI"))
+        switch_btn.setStyleSheet(
+            "QPushButton { background: rgba(44,44,44,185); color: #f4f4f4;"
+            " border: 1px solid rgba(255,255,255,55); border-radius: 4px;"
+            " padding: 4px 10px; font-size: 12px; }"
+            "QPushButton:hover { background: rgba(65,65,65,225);"
+            " border-color: rgba(255,255,255,95); }"
+        )
+        switch_btn.clicked.connect(self._toggle_web_ui)
+        self.tabs.setCornerWidget(switch_btn, Qt.Corner.TopRightCorner)
 
     def _surface_stale_updater_log(self):
         try:
@@ -807,72 +815,37 @@ class SFFMainWindow(QMainWindow):
 
     # ── Web UI toggle ────────────────────────────────────────────
 
-    def _style_web_ui_switcher(self):
-        style = (
-            "QPushButton {"
-            " background-color: rgba(44, 44, 44, 185);"
-            " color: #f4f4f4;"
-            " border: 1px solid rgba(255, 255, 255, 55);"
-            " border-radius: 4px;"
-            " padding: 4px 10px;"
-            " font-size: 12px;"
-            "}"
-            "QPushButton:hover {"
-            " background-color: rgba(65, 65, 65, 225);"
-            " border-color: rgba(255, 255, 255, 95);"
-            "}"
-        )
-        self._web_ui_reveal.setStyleSheet(style + "QPushButton { padding: 0; font-size: 16px; }")
-        self._web_ui_toggle.setStyleSheet(style)
-
-    def _position_web_ui_switcher(self):
-        central = self.centralWidget()
-        if central is None or not hasattr(self, "_web_ui_reveal"):
-            return
-        margin = 10
-        reveal = self._web_ui_reveal
-        reveal.move(max(margin, central.width() - reveal.width() - margin), margin)
-        reveal.raise_()
-
-        toggle = self._web_ui_toggle
-        toggle.adjustSize()
-        toggle.resize(max(toggle.width(), 156), reveal.height())
-        toggle.move(max(margin, reveal.x() - toggle.width() - 8), margin)
-        toggle.raise_()
-
-    def _show_web_ui_toggle(self):
-        self._web_ui_toggle.setText(
-            T("Switch to Classic UI") if self._web_ui_active else T("Switch to New UI")
-        )
-        self._position_web_ui_switcher()
-        self._web_ui_toggle.show()
-        self._web_ui_toggle.raise_()
-        self._web_ui_toggle_hide_timer.start(6000)
-
     def _toggle_web_ui(self):
-        """Toggle between classic tab UI and new web-based UI."""
         self._web_ui_active = not self._web_ui_active
         from sff.storage.settings import set_setting
         from sff.structs import Settings as _S
         set_setting(_S.USE_MODERN_UI, self._web_ui_active)
 
         if self._web_ui_active:
-            # Load web UI on first use
-            if not self._web_ui_loaded:
+            if self._web_view_freed:
+                self._load_web_ui()
+                self._web_view_freed = False
+                self._web_ui_loaded = True
+            elif not self._web_ui_loaded:
                 self._load_web_ui()
                 self._web_ui_loaded = True
+            else:
+                if self._web_index_path:
+                    self._web_view.page().load(QUrl.fromLocalFile(str(self._web_index_path)))
             self.tabs.setVisible(False)
+            self.tabs.setUpdatesEnabled(False)
+            self.tabs.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             self._web_view.setVisible(True)
             self.menuBar().setVisible(False)
-            self._web_ui_toggle.setText(T("Switch to Classic UI"))
         else:
+            self._build_classic_ui(self.steam_path)
             self.tabs.setVisible(True)
+            self.tabs.setUpdatesEnabled(True)
+            self.tabs.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
             self._web_view.setVisible(False)
+            self._web_view.setUrl(QUrl("about:blank"))
+            self._web_view_freed = True
             self.menuBar().setVisible(True)
-            self._web_ui_toggle.setText(T("Switch to New UI"))
-        self._web_ui_toggle.hide()
-        self._web_ui_reveal.show()
-        self._position_web_ui_switcher()
 
     def _load_web_ui(self):
         """Load index.html into the QWebEngineView."""
@@ -881,13 +854,13 @@ class SFFMainWindow(QMainWindow):
         else:
             webui_dir = Path(__file__).resolve().parent.parent / "webui"
 
-        index_path = webui_dir / "index.html"
-        if index_path.exists():
-            self._web_view.setUrl(QUrl.fromLocalFile(str(index_path)))
+        self._web_index_path = webui_dir / "index.html"
+        if self._web_index_path.exists():
+            self._web_view.setUrl(QUrl.fromLocalFile(str(self._web_index_path)))
         else:
             import logging
             logging.getLogger(__name__).error(
-                "Web UI not found at %s", index_path
+                "Web UI not found at %s", self._web_index_path
             )
 
     # ── Web UI splash overlay ────────────────────────────────────
@@ -977,6 +950,7 @@ class SFFMainWindow(QMainWindow):
         logger = logging.getLogger(__name__)
         logger.warning("QWebEngine render process crashed (status=%s), reloading once", status)
         try:
+            self._install_web_splash()
             self._web_view.reload()
         except Exception:
             pass
@@ -1016,8 +990,6 @@ class SFFMainWindow(QMainWindow):
             splash = getattr(self, "_web_splash", None)
             if splash is not None and splash.isVisible():
                 splash.resize(self._web_view.size())
-        if obj is self.centralWidget() and event.type() == QEvent.Type.Resize:
-            self._position_web_ui_switcher()
         return super().eventFilter(obj, event)
 
     # ── LumaCore status banner ───────────────────────────────────
@@ -1376,6 +1348,8 @@ class SFFMainWindow(QMainWindow):
 
     def _append_log(self, text):
         text = _ANSI_RE.sub("", text)
+        if not hasattr(self, 'log_text') or self.log_text is None:
+            return
         self.log_text.moveCursor(QTextCursor.MoveOperation.End)
         self.log_text.insertPlainText(text)
         self.log_text.moveCursor(QTextCursor.MoveOperation.End)
@@ -1386,11 +1360,54 @@ class SFFMainWindow(QMainWindow):
         self._current_theme = key
         _, style = THEMES[key]
         self.setStyleSheet(style)
-        self.game_combo._update_arrow()
+        if hasattr(self, 'game_combo') and self.game_combo is not None:
+            self.game_combo._update_arrow()
+        if self._title_bar is not None:
+            c = titlebar_colors(key)
+            self._title_bar.set_colors(c["bg"], c["fg"], c["accent"], c["close"], c["border"])
         if save:
             from sff.storage.settings import set_setting
             from sff.structs import Settings as _S
             set_setting(_S.THEME, key)
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.Type.WindowStateChange:
+            maximized = self.windowState() & Qt.WindowState.WindowMaximized
+            if self._title_bar is not None:
+                self._title_bar.set_maximized(bool(maximized))
+        super().changeEvent(event)
+
+    if sys.platform == "win32":
+        def nativeEvent(self, eventType, message):
+            try:
+                import ctypes.wintypes
+                msg = ctypes.wintypes.MSG.from_address(message.__int__())
+                if msg.message == 0x0084:
+                    from PyQt6.QtCore import QPoint
+                    pos = self.mapFromGlobal(QPoint(
+                        ctypes.wintypes.LOWORD(msg.lParam),
+                        ctypes.wintypes.HIWORD(msg.lParam),
+                    ))
+                    w, h = self.width(), self.height()
+                    margin = 8
+                    edge = 0
+                    if pos.x() < margin:
+                        edge |= 1
+                    if pos.x() >= w - margin:
+                        edge |= 2
+                    if pos.y() < margin:
+                        edge |= 4
+                    if pos.y() >= h - margin:
+                        edge |= 8
+                    if edge:
+                        HT_map = {
+                            5: 13, 6: 14, 9: 10, 10: 11,
+                            4: 12, 8: 15, 1: 10, 2: 11,
+                        }
+                        return (True, ctypes.c_ulong(HT_map.get(edge, 12)))
+            except Exception:
+                pass
+            return (False, 0)
 
     # ── Log forwarding to web UI ────────────────────────────────
 
@@ -1781,6 +1798,10 @@ class SFFMainWindow(QMainWindow):
         self._save_watcher_timer.stop()
         if hasattr(self, "_update_check_timer"):
             self._update_check_timer.stop()
+        if hasattr(self, "_web_log_flush_timer") and self._web_log_flush_timer.isActive():
+            self._web_log_flush_timer.stop()
+        if hasattr(self, "_qt_log_flush_timer") and self._qt_log_flush_timer.isActive():
+            self._qt_log_flush_timer.stop()
         if self._tray is not None:
             self._tray.minimize_to_tray = False
         self.close()

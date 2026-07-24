@@ -1,12 +1,10 @@
 /* SteaMidra — Premium Layer v3 */
 /* Soft ambient sections, no cards, just content + glow */
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
-
 /* ── Background Atmosphere ─────────────────── */
 
 body {
-  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-weight: 500;
   -webkit-font-smoothing: antialiased;
 }
@@ -317,6 +315,11 @@ h3 { font-size: 15px; font-weight: 600; }
   transform: translateY(-4px) scale(1.02);
   box-shadow: 0 8px 28px rgba(74, 158, 255, 0.18);
   border-color: rgba(74, 158, 255, 0.3);
+}
+.game-card:focus-visible,
+.game-list-item:focus-visible {
+  outline: 2px solid #4a9eff;
+  outline-offset: 2px;
 }
 
 .game-card-img {

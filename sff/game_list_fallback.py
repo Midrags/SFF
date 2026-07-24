@@ -33,11 +33,20 @@ Files are expected alongside all_games.txt in the internal data folder:
 
 import json
 import logging
+import ssl
 import tempfile
 import threading
 import time
 import urllib.request as _req
 from pathlib import Path
+
+
+def _get_ssl_ctx():
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +61,7 @@ _name_cache_time = 0.0
 _name_mtime = 0.0
 
 _loaded = False
+_FALLBACK_LOG_LAST = 0.0
 _LOAD_LOCK = threading.Lock()
 
 _GAMES_JSON_URL = (
@@ -176,7 +186,7 @@ def _load_games_json(force=False):
             logger.debug("Fetching games.json from GitHub...")
         try:
             request = _req.Request(_GAMES_JSON_URL, headers={"User-Agent": "SteaMidra/6.0.0"})
-            with _req.urlopen(request, timeout=30) as resp:
+            with _req.urlopen(request, timeout=30, context=_get_ssl_ctx()) as resp:
                 data = json.load(resp)
             _games_cache = _normalize_games_data(data)
             if _games_cache:
@@ -215,7 +225,7 @@ def _load_name_source(fname: str, urls: list[str], *, force: bool, cache_dir: Pa
     for url in urls:
         try:
             request = _req.Request(url, headers={"User-Agent": "SteaMidra/6.3.2"})
-            with _req.urlopen(request, timeout=20) as resp:
+            with _req.urlopen(request, timeout=20, context=_get_ssl_ctx()) as resp:
                 data = json.load(resp)
             normalized = _normalize_name_data(data)
             if normalized:
@@ -265,10 +275,14 @@ def ensure_loaded(force=False):
     _load_name_cache(force=force)
     _has = _loaded or bool(_name_cache) or bool(_dlc_name_cache)
     if force or not _loaded:
-        logger.debug("Fallback data: games=%d entries, name_cache=%d entries, dlc_cache=%d entries",
-                     len(_games_cache) if _games_cache else 0,
-                     len(_name_cache) if _name_cache else 0,
-                     len(_dlc_name_cache) if _dlc_name_cache else 0)
+        global _FALLBACK_LOG_LAST
+        now = time.time()
+        if now - _FALLBACK_LOG_LAST > 60:
+            logger.debug("Fallback data: games=%d entries, name_cache=%d entries, dlc_cache=%d entries",
+                         len(_games_cache) if _games_cache else 0,
+                         len(_name_cache) if _name_cache else 0,
+                         len(_dlc_name_cache) if _dlc_name_cache else 0)
+            _FALLBACK_LOG_LAST = now
     return _has
 
 
@@ -430,12 +444,15 @@ def search_games_json(query: str, limit=500):
     return results
 
 
+_NON_GAME_NAME_KEYWORDS = ("soundtrack", "art book", "artbook", "ost", "music pack", "digital artbook")
+
+
 def _is_game_entry(info: dict) -> bool:
     gtype = (info.get("type") or "").lower().strip()
     if gtype not in ("game", "demo", ""):
         return False
     name_lc = (info.get("name") or "").lower()
-    for kw in ("soundtrack", "art book", "artbook", "ost", "music pack", "digital artbook"):
+    for kw in _NON_GAME_NAME_KEYWORDS:
         if kw in name_lc:
             return False
     return True

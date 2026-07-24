@@ -4,6 +4,7 @@
 // See <https://www.gnu.org/licenses/> for the full license text.
 
 #include "hooks/client/SteamStubAuto.h"
+#include "config/Settings.h"
 #include "runtime/Ticket.h"
 #include "runtime/Logger.h"
 
@@ -39,6 +40,8 @@ namespace SteamStubAuto {
 
     bool ShouldActivate(AppId_t appId, bool hasDepot, bool owned,
                         bool hasManualFlag, bool detectedSteamStub) {
+        if (!Settings::steamstubAutoEnabled)
+            return false;
         return hasDepot
             && !owned
             && !hasManualFlag

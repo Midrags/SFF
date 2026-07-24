@@ -5,6 +5,7 @@
 
 #include "hooks/client/NetPacket.h"
 #include "hooks/capture/SteamCapture.h"
+#include "hooks/ui/SteamUI.h"
 #include "config/LuaLoader.h"
 #include "core/entry.h"
 #include "runtime/HookStatus.h"
@@ -493,6 +494,52 @@ bool HandleRecv_ClientGetUserStatsResponse(const uint8_t* pBody, uint32_t cbBody
                                  okWithData ? "ok-with-data-stripped" : "spoofed-normalized");
     LOG_PKTRT_DEBUG("{{{{\"evt\":\"UserStats\",\"act\":\"recv\",\"sub\":\"ClientGetUserStatsResp\",\"stripped\":1}}}}");
     return WriteClientStatsOk(resp, gameId, "spoofed");
+}
+
+bool HandleSend_ClientStoreUserStats2(const uint8_t* pBody, uint32_t cbBody) {
+    CMsgClientStoreUserStats2 req;
+    if (!req.ParseFromArray(pBody, cbBody)) {
+        LOG_PKTRT_WARN("{{{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientStoreUserStats2\",\"err\":\"parse-fail\"}}}}");
+        return false;
+    }
+    LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientStoreUserStats2\",\"original\":{}}}", req.DebugString());
+
+    if (!req.has_game_id()) {
+        LOG_PKTRT_WARN("{{{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientStoreUserStats2\",\"err\":\"no-game-id\"}}}}");
+        return false;
+    }
+
+    AppId_t gameId = static_cast<AppId_t>(req.game_id());
+    AppId_t realAppId = SteamCapture::ResolveAppId();
+    if (gameId == kOnlineFixAppId
+        && realAppId != 0
+        && realAppId != kOnlineFixAppId) {
+        LOG_PKTRT_INFO(
+            "{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientStoreUserStats2\",\"redirect\":\"onlinefix\",\"was\":{},\"now\":{}}}",
+            gameId, realAppId);
+        gameId = realAppId;
+        req.set_game_id(realAppId);
+    }
+    if (!LuaLoader::IsStatsManagedApp(gameId)) {
+        LOG_PKTRT_DEBUG("{{{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientStoreUserStats2\",\"skip\":\"no-stats-root\",\"appId\":{}}}}}", gameId);
+        return false;
+    }
+
+    HookStatus::RecordStatsState(gameId, "ClientStoreUserStats2", 0, 0, "send", -1, "sent");
+
+    s_tx.BodyLen = static_cast<uint32_t>(req.ByteSizeLong());
+    if (s_tx.BodyLen > kBodyCap) {
+        LOG_PKTRT_WARN("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientStoreUserStats2\",\"err\":\"overflow\",\"size\":{}}}", s_tx.BodyLen);
+        return false;
+    }
+    if (!req.SerializeToArray(s_tx.Body, kBodyCap)) {
+        LOG_PKTRT_WARN("{{{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientStoreUserStats2\",\"err\":\"encode-fail\"}}}}");
+        return false;
+    }
+
+    LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientStoreUserStats2\",\"modified\":{}}}", req.DebugString());
+    SteamUI::QueueLibraryTouch(gameId);
+    return true;
 }
 
 } // namespace NetPacket::Handlers::UserStats

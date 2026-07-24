@@ -353,7 +353,6 @@ namespace {
         // appid-480 callback registration. RewriteAchievementCallbackGameId
         // also covers the no-op session and pipe-mismatch paths.
         if (IsAchievementCallback(iCallback)
-            && SteamCapture::StatsScopePipe() == hSteamPipe
             && SteamCapture::ActiveRouteRealAppId() != 0)
         {
             const bool firstOk = oSendCallbackToPipe(pSteamEngine, hSteamPipe, iClientUser,

@@ -44,6 +44,7 @@ _TREE_FETCHED_AT = 0.0
 _TREE_MAP = {}
 _DATES = {}
 _DATES_DIRTY = False
+_DATES_LOADED = False
 _RATE_REMAINING = 60
 _RESULT_CACHE = {}
 
@@ -230,7 +231,8 @@ def _sff_dir():
 
 
 def _load_dates_cache():
-    global _DATES
+    global _DATES, _DATES_LOADED
+    _DATES_LOADED = True
     try:
         p = _sff_dir() / "github_dates.json"
         if p.exists():
@@ -248,9 +250,6 @@ def _save_dates_cache():
         _DATES_DIRTY = False
     except Exception as exc:
         logger.debug("dates cache save error: %s", exc)
-
-
-_load_dates_cache()
 
 
 # ---------------------------------------------------------------------------
@@ -317,7 +316,7 @@ def _save_app_depot_cache(app_id: str, result: dict):
         data = {
             "version": _APP_CACHE_VERSION,
             "app_id": app_id,
-            "cached_at": datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "cached_at": datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "depots": {
                 depot_id: [
                     {
@@ -440,8 +439,9 @@ def _build_tree_map(tree):
 
 
 def _fetch_file_date(filename):
-    """Fetch commit date for one mirror file. Rate-limited; cached persistently."""
     global _DATES_DIRTY
+    if not _DATES_LOADED:
+        _load_dates_cache()
     if filename in _DATES:
         return _DATES[filename]
     if _RATE_REMAINING < 3:
@@ -990,7 +990,9 @@ def _ensure_chrome_for_testing(progress_cb=None):
             _old_timeout_cft = _sock_cft.getdefaulttimeout()
             _sock_cft.setdefaulttimeout(120)
             try:
-                urllib.request.urlretrieve(entry["url"], str(zip_path))
+                with urllib.request.urlopen(entry["url"], context=_ctx) as _in, open(str(zip_path), "wb") as _out:
+                    import shutil as _shutil_cft
+                    _shutil_cft.copyfileobj(_in, _out)
             finally:
                 _sock_cft.setdefaulttimeout(_old_timeout_cft)
 
@@ -1822,33 +1824,19 @@ def get_depots_for_app(app_id, progress_cb=None, force_refresh=False):
             merged.sort(key=_sort_fn, reverse=True)
             result[depot_id] = merged
 
-    # Source 5 — SteamDB 3-layer fetch for stale depots not yet covered.
-    # Layer 1 (curl_cffi) → Layer 2 (cf_clearance cookie) → Layer 3 (SeleniumBase).
-    # Skip depots that get_depot_manifests already scraped (have SteamDB-sourced entries).
-    needs_steamdb = [
-        d for d in stale_depots
-        if not any(e.source.startswith("SteamDB") for e in result.get(d, []))
-    ]
-    if needs_steamdb:
-        logger.debug("SteamDB 3-layer scraping %d depots for historical data", len(needs_steamdb))
-        for did, sdb_entries in _fetch_steamdb_all(needs_steamdb, progress_cb=progress_cb, app_id=app_id).items():
-            # Deduplicate on (manifest_id, date) so DLC depots with a single
-            # manifest still appear under their historical SteamDB date even
-            # when Steam CM already reported that manifest under a different date.
-            current_seen = {(e.manifest_id, e.date) for e in result.get(did, [])}
-            new_entries = [e for e in sdb_entries if (e.manifest_id, e.date) not in current_seen]
-            if new_entries:
-                result.setdefault(did, [])
-                result[did].extend(new_entries)
-                result[did].sort(key=_sort_fn, reverse=True)
+    # SteamDB 3-layer scraper disabled — was unreliable (CF challenge always
+    # blocked it), spawned headed Chrome instances, and the layers never
+    # recovered enough data to justify the resource cost.
+    # needs_steamdb = [...]
+    # _fetch_steamdb_all(...) — removed
 
     # ── Persist updated result to disk cache ─────────────────────────────────
     if result:
         _save_app_depot_cache(app_id, result)
 
-    # ── Fetch build IDs from SteamDB patchnotes (if not already cached) ────
-    if app_id:
-        _ensure_build_ids(app_id)
+    # build-ids from SteamDB patchnotes RSS disabled along with the scraper
+    # if app_id:
+    #     _ensure_build_ids(app_id)
 
     return result
 

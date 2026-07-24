@@ -53,6 +53,21 @@ from sff.storage.settings import get_setting
 from sff.structs import Settings
 from sff.utils import manifests_staging_dir
 
+# Import platform-specific dependencies at module level (not inside threads)
+# to avoid importlib race conditions with QtWebEngine initialization.
+try:
+    import win32con  # noqa: F401
+except ImportError:
+    win32con = None
+try:
+    import win32file  # noqa: F401
+except ImportError:
+    win32file = None
+try:
+    from inotify_simple import INotify, flags  # noqa: F401
+except ImportError:
+    INotify = flags = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -207,12 +222,9 @@ def _watch_loop_polling(depotcache: Path, stop_event: threading.Event,
 def _watch_loop_windows(depotcache: Path, stop_event: threading.Event) -> None:
     """Windows watcher backed by ReadDirectoryChangesW (pywin32).
 
-    Falls back to polling when pywin32 is unavailable.
+    Falls back to polling when the package is unavailable.
     """
-    try:
-        import win32con  # type: ignore
-        import win32file  # type: ignore
-    except ImportError:
+    if win32con is None or win32file is None:
         logger.info(
             "pywin32 missing; falling back to polling watcher for %s",
             depotcache,
@@ -270,9 +282,7 @@ def _watch_loop_linux(depotcache: Path, stop_event: threading.Event) -> None:
 
     Falls back to polling when the package is missing.
     """
-    try:
-        from inotify_simple import INotify, flags  # type: ignore
-    except ImportError:
+    if INotify is None or flags is None:
         logger.info(
             "inotify_simple missing; falling back to polling watcher for %s",
             depotcache,
@@ -342,9 +352,16 @@ def start_watcher(library: Path) -> None:
 
     started_any = False
     for depotcache in candidates:
-        if not depotcache.is_dir():
+        try:
+            if not depotcache.is_dir():
+                logger.debug(
+                    "start_watcher: skipping %s (folder missing)",
+                    depotcache,
+                )
+                continue
+        except OSError:
             logger.debug(
-                "start_watcher: skipping %s (folder missing)",
+                "start_watcher: skipping %s (drive inaccessible)",
                 depotcache,
             )
             continue

@@ -271,3 +271,24 @@ THEME_BACKGROUNDS = {
 def theme_background(key: str) -> str:
     """Hex bg colour for a theme key. Falls back to dark on unknown keys."""
     return THEME_BACKGROUNDS.get(key, THEME_BACKGROUNDS["dark"])
+
+
+# Title bar colours per theme. Derived from the _gen_dark_variant params
+# used above. The close button uses the OS-red convention (#e81123).
+TITLEBAR_COLORS = {
+    "light":     {"bg": "#e8e8e8", "fg": "#111111", "accent": "#2563eb", "close": "#e81123", "border": "#cccccc"},
+    "dark":      {"bg": "#1a1a1a", "fg": "#e8e8e8", "accent": "#4a9eff", "close": "#e81123", "border": "#444444"},
+    "cherry":    {"bg": "#12080c", "fg": "#f0d0d8", "accent": "#c0392b", "close": "#e81123", "border": "#3a1520"},
+    "sunset":    {"bg": "#120c06", "fg": "#f0dcc0", "accent": "#e67e22", "close": "#e81123", "border": "#3a2418"},
+    "forest":    {"bg": "#08120a", "fg": "#d0f0d8", "accent": "#27ae60", "close": "#e81123", "border": "#1a3a24"},
+    "grape":     {"bg": "#0e0812", "fg": "#dcc0f0", "accent": "#8e44ad", "close": "#e81123", "border": "#28183a"},
+    "cyberpunk": {"bg": "#080812", "fg": "#00ffcc", "accent": "#ff006a", "close": "#e81123", "border": "#18183a"},
+    "pink":      {"bg": "#120810", "fg": "#f0c0e8", "accent": "#e84393", "close": "#e81123", "border": "#3a1830"},
+    "nord":      {"bg": "#252933", "fg": "#d8dee9", "accent": "#88c0d0", "close": "#e81123", "border": "#3b4252"},
+    "dracula":   {"bg": "#1e1f2a", "fg": "#f8f8f2", "accent": "#bd93f9", "close": "#e81123", "border": "#3a3c4e"},
+    "pastel":    {"bg": "#e8ddd0", "fg": "#333333", "accent": "#e6a07c", "close": "#e81123", "border": "#c8b4a0"},
+}
+
+
+def titlebar_colors(key: str) -> dict:
+    return TITLEBAR_COLORS.get(key, TITLEBAR_COLORS["dark"])

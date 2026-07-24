@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -84,11 +86,23 @@ def provider_file_candidates() -> list[Path]:
 
 
 def cache_dir() -> Path:
-    return bundled_provider_path().parent
+    if getattr(sys, "frozen", False) and sys.platform.startswith("linux"):
+        d = sff_data_dir() / "provider_cache"
+    else:
+        d = bundled_provider_path().parent
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def cache_path() -> Path:
-    return cache_dir() / "fallback_depotkeys.json"
+    dest = cache_dir() / "fallback_depotkeys.json"
+    bundled = bundled_provider_path()
+    if not dest.exists() and bundled.exists() and dest != bundled:
+        try:
+            dest.write_bytes(bundled.read_bytes())
+        except OSError:
+            pass
+    return dest
 
 
 def state_path() -> Path:

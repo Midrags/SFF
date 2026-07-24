@@ -110,7 +110,10 @@ class GameHandler:
                     if drive_letter in ("A", "B"):
                         continue
                     drive = Path(f"{drive_letter}:/")
-                    if not drive.exists():
+                    try:
+                        if not drive.exists():
+                            continue
+                    except OSError:
                         continue
                     potential_paths = [
                         drive / "SteamLibrary",
@@ -120,34 +123,40 @@ class GameHandler:
                         drive / "Games" / "Steam",
                     ]
                     for path in potential_paths:
-                        steamapps = path / "steamapps"
-                        if steamapps.exists() and path not in steam_libs:
-                            steam_libs.append(path)
+                        try:
+                            steamapps = path / "steamapps"
+                            if steamapps.exists() and path not in steam_libs:
+                                steam_libs.append(path)
+                        except OSError:
+                            continue
             for lib in steam_libs:
-                steamapps = lib / "steamapps"
-                if not steamapps.exists():
+                try:
+                    steamapps = lib / "steamapps"
+                    if not steamapps.exists():
+                        continue
+                    for acf_path in steamapps.glob("*.acf"):
+                        try:
+                            app_acf = vdf_load(acf_path)
+                            app_state = app_acf.get("AppState", {})
+                            name = app_state.get("name")
+                            installdir = app_state.get("installdir")
+                            app_id = app_state.get("appid")
+                            if not app_id or not installdir:
+                                logger.warning(f"Skipping {acf_path.name}: missing appid or installdir")
+                                continue
+                            if app_id in seen_app_ids:
+                                continue
+                            seen_app_ids.add(app_id)
+                            game_path = steamapps / "common" / installdir
+                            if not game_path.exists():
+                                continue
+                            games.append(
+                                (name, ACFInfo(app_id, game_path))
+                            )
+                        except Exception as e:
+                            logger.debug(f"Failed to parse {acf_path}: {e}")
+                except OSError:
                     continue
-                for acf_path in steamapps.glob("*.acf"):
-                    try:
-                        app_acf = vdf_load(acf_path)
-                        app_state = app_acf.get("AppState", {})
-                        name = app_state.get("name")
-                        installdir = app_state.get("installdir")
-                        app_id = app_state.get("appid")
-                        if not app_id or not installdir:
-                            logger.warning(f"Skipping {acf_path.name}: missing appid or installdir")
-                            continue
-                        if app_id in seen_app_ids:
-                            continue
-                        seen_app_ids.add(app_id)
-                        game_path = steamapps / "common" / installdir
-                        if not game_path.exists():
-                            continue
-                        games.append(
-                            (name, ACFInfo(app_id, game_path))
-                        )
-                    except Exception as e:
-                        logger.debug(f"Failed to parse {acf_path}: {e}")
         except Exception as e:
             logger.error(f"Failed to scan Steam libraries: {e}")
             # Fallback to original behavior

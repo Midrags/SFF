@@ -31,9 +31,15 @@ import shutil
 import ssl as _ssl
 import subprocess
 import sys
+import unicodedata as _ud
+from functools import lru_cache
+
+_ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
+_DDMOD_PCT_RE = re.compile(r"^\s*(\d{1,3}(?:\.\d+)?)%\s")
+_UNSAFE_FILENAME_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, Qt, QThread, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QFileDialog
 
 logger = logging.getLogger(__name__)
@@ -153,9 +159,11 @@ def _collect_steamidra_managed_sources(steam_path, saved_lua_root=None) -> dict[
 
     if saved_lua_root is None:
         from sff.utils import root_folder
-
         saved_lua_root = root_folder(outside_internal=True) / "saved_lua"
     _scan_lua_root(Path(saved_lua_root), "saved_lua")
+    cwd_saved = Path.cwd() / "saved_lua"
+    if cwd_saved != Path(saved_lua_root).resolve() and cwd_saved.exists():
+        _scan_lua_root(cwd_saved, "saved_lua")
     if steam_path:
         _scan_lua_root(Path(steam_path) / "config" / "stplug-in", "stplug-in")
     return {appid: sorted(sources) for appid, sources in managed_sources.items()}
@@ -189,6 +197,7 @@ class WebBridge(QObject):
         self._hubcap_check_timer.timeout.connect(self._check_hubcap_key)
         self._hubcap_check_timer.start()
         self._workers = []  # prevent GC of running workers
+        self._threads = []  # prevent GC of running QThreads
         # 6.2.5: per-app update-available state cache. Populated by
         # check_game_update() on success. The badge/popover code
         # reads through get_game_update_state(). Keys are str(app_id).
@@ -205,7 +214,8 @@ class WebBridge(QObject):
         self._provider_cache_timer.timeout.connect(self._maybe_auto_refresh_provider_cache)
         self._provider_cache_timer.start()
         QTimer.singleShot(8000, self._maybe_auto_refresh_provider_cache)
-        self._library_image_cache: dict[str, str] = {}
+        self._library_image_cache: "_OrderedDict[str, str]" = _OrderedDict()
+        self._LIBRARY_IMAGE_CACHE_MAX = 500
 
         # Pre-cache installed games on a background thread so
         # get_installed_games (a sync @pyqtSlot) never blocks the main thread.
@@ -222,7 +232,15 @@ class WebBridge(QObject):
         self._preload_all_store_data()
 
     def _preload_all_store_data(self):
-        """Warm cached store metadata without forcing visible network work."""
+        """Warm cached store metadata without forcing visible network work.
+
+        Deferred 1.5s after construction onto the Qt event loop (not a
+        background thread) because ssl.create_default_context — called by
+        game_list_fallback — segfaults on Windows when run concurrently
+        with QtWebEngine's render process spawn during window.show().
+        """
+        from PyQt6.QtCore import QTimer as _QTimer
+
         def _do():
             try:
                 from sff.game_list_fallback import ensure_loaded
@@ -231,7 +249,7 @@ class WebBridge(QObject):
             except Exception as e:
                 logger.debug("Preload: store data preload failed: %s", e)
 
-        self._run_async(_do)
+        _QTimer.singleShot(1500, _do)
 
     # ── helpers ──────────────────────────────────────────────────
 
@@ -263,6 +281,8 @@ class WebBridge(QObject):
             thread.wait()
             if worker in self._workers:
                 self._workers.remove(worker)
+            if thread in self._threads:
+                self._threads.remove(thread)
             if on_done:
                 on_done(result)
 
@@ -271,6 +291,8 @@ class WebBridge(QObject):
             thread.wait()
             if worker in self._workers:
                 self._workers.remove(worker)
+            if thread in self._threads:
+                self._threads.remove(thread)
             if on_error:
                 on_error(msg)
             else:
@@ -282,6 +304,7 @@ class WebBridge(QObject):
         worker.error.connect(_on_error)
         thread.started.connect(worker.run)
         self._workers.append(worker)
+        self._threads.append(thread)
         thread.start()
 
     def _emit_task_result(self, task_name, success, message="", **extra):
@@ -294,6 +317,40 @@ class WebBridge(QObject):
         parent = self.parent()
         if parent and hasattr(parent, "dismiss_splash"):
             parent.dismiss_splash()
+
+    @pyqtSlot()
+    def window_minimize(self):
+        parent = self.parent()
+        if parent:
+            parent.showMinimized()
+
+    @pyqtSlot()
+    def window_maximize(self):
+        parent = self.parent()
+        if parent:
+            if parent.windowState() & Qt.WindowState.WindowMaximized:
+                parent.showNormal()
+            else:
+                parent.showMaximized()
+
+    @pyqtSlot(result=str)
+    def window_is_maximized(self):
+        parent = self.parent()
+        if parent:
+            return json.dumps({"maximized": bool(parent.windowState() & Qt.WindowState.WindowMaximized)})
+        return json.dumps({"maximized": False})
+
+    @pyqtSlot()
+    def window_close(self):
+        parent = self.parent()
+        if parent:
+            parent.close()
+
+    @pyqtSlot()
+    def toggle_ui(self):
+        parent = self.parent()
+        if parent and hasattr(parent, "_toggle_web_ui"):
+            parent._toggle_web_ui()
 
     def _maybe_auto_contribute_provider(self):
         try:
@@ -1860,14 +1917,13 @@ class WebBridge(QObject):
             # Anything that shows up in either of those is treated as
             # already unlocked even when the Steam web check is blind to it.
             from pathlib import Path as _Path
-            import re as _re
             lua_ids: set = set()
             try:
                 if self._steam_path:
                     lua_path = _Path(self._steam_path) / "config" / "stplug-in" / f"{base_id}.lua"
                     if lua_path.exists():
                         txt = lua_path.read_text(encoding="utf-8", errors="replace")
-                        for m in _re.finditer(r"addappid\s*\(\s*(\d+)", txt):
+                        for m in re.finditer(r"addappid\s*\(\s*(\d+)", txt):
                             try:
                                 lua_ids.add(int(m.group(1)))
                             except ValueError:
@@ -1888,12 +1944,12 @@ class WebBridge(QObject):
                     # InstalledDepots / MountedDepots blocks. Cheap regex
                     # is fine here; the file is small and the structure
                     # is stable enough.
-                    block = _re.search(
+                    block = re.search(
                         r'"(?:InstalledDepots|MountedDepots)"\s*\{([^}]*)\}',
-                        raw, _re.IGNORECASE | _re.DOTALL,
+                        raw, re.IGNORECASE | re.DOTALL,
                     )
                     if block:
-                        for m in _re.finditer(r'"(\d+)"', block.group(1)):
+                        for m in re.finditer(r'"(\d+)"', block.group(1)):
                             try:
                                 acf_depots.add(int(m.group(1)))
                             except ValueError:
@@ -3145,6 +3201,11 @@ class WebBridge(QObject):
             "cm_buildid": cm,
             "checked_at": int(_time.time()),
         }
+        if len(self._update_state_cache) > 1500:
+            oldest = sorted(self._update_state_cache.items(),
+                            key=lambda x: x[1].get("checked_at", 0))[:500]
+            for k, _ in oldest:
+                del self._update_state_cache[k]
         logger.info(
             "update-state: app_id=%s up_to_date=%s installed=%s cm=%s",
             app_id_str, up_to_date, installed, cm,
@@ -4625,13 +4686,11 @@ class WebBridge(QObject):
 
         def _do():
             import base64 as _b64
-            import re as _re
             from sff.utils import sff_data_dir
 
             staging = sff_data_dir() / ".bulk_import_drop"
             staging.mkdir(parents=True, exist_ok=True)
             paths: list[Path] = []
-            unsafe_re = _re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
             for blob in blobs:
                 if not isinstance(blob, dict):
@@ -4645,7 +4704,7 @@ class WebBridge(QObject):
                 lower = name.lower()
                 if not (lower.endswith(".lua") or lower.endswith(".zip") or lower.endswith(".rar") or lower.endswith(".7z") or lower.endswith(".manifest")):
                     continue
-                safe = unsafe_re.sub("_", name)
+                safe = _UNSAFE_FILENAME_RE.sub("_", name)
                 target = staging / safe
                 # Avoid overwriting a sibling drop with the same name in the
                 # same session; suffix by appending a counter.
@@ -5012,11 +5071,10 @@ class WebBridge(QObject):
 
                 # Fallback: parse game name from first short Lua comment line
                 if not game_name:
-                    import re as _re2
                     for _cl in lua_text.splitlines():
                         _cl = _cl.strip()
                         if _cl.startswith("--"):
-                            _cand = _re2.sub(r'^--\s*', '', _cl).strip()
+                            _cand = re.sub(r'^--\s*', '', _cl).strip()
                             if _cand and ':' not in _cand and "'" not in _cand and 'http' not in _cand and 2 < len(_cand) < 60 and not _cand[0].isdigit():
                                 game_name = _cand
                                 break
@@ -5122,7 +5180,6 @@ class WebBridge(QObject):
                 # actually moves instead of sticking at 35% the whole
                 # time. DDMod's own throttled output already caps at
                 # ~5 lines/sec via depot_downloader's reader.
-                _DDMOD_PCT_RE = re.compile(r"^\s*(\d{1,3}(?:\.\d+)?)%\s")
                 # Map DDMod's 0-100 onto the 35-95 slice the UI uses
                 # for "running download" so we don't snap back to 35
                 # mid-flight or pre-empt the 95% "Updating tracker" stage.
@@ -5131,8 +5188,8 @@ class WebBridge(QObject):
                 _last_pct = [-1.0]
 
                 def _print_fn(msg):
-                    import re as _re, time as _t
-                    clean = _re.sub(r'\x1b\[[0-9;]*m', '', msg).strip()
+                    import time as _t
+                    clean = _ANSI_RE.sub('', msg).strip()
                     if not clean:
                         return
                     now = _t.monotonic()
@@ -5496,7 +5553,6 @@ class WebBridge(QObject):
         those titles can still install them, so the fallback makes them
         addable from the home page filter.
         """
-        import re as _re
         from sff.utils import root_folder
         all_games_file = root_folder(outside_internal=True) / "all_games.txt"
         if not all_games_file.exists():
@@ -5508,12 +5564,13 @@ class WebBridge(QObject):
             # block a typed query like "lego batman".
             q_norm = _normalize_for_search(query)
             results = []
+            _id_re = re.compile(r"\[ID=(\d+)\]$")
             with all_games_file.open(encoding="utf-8", errors="ignore") as f:
                 for line in f:
                     line = line.strip()
                     if not line:
                         continue
-                    match = _re.search(r"\[ID=(\d+)\]$", line)
+                    match = _id_re.search(line)
                     if not match:
                         continue
                     name = line[:match.start()].strip()
@@ -5659,58 +5716,54 @@ class WebBridge(QObject):
 
         libs = list(get_steam_libs(self._steam_path))
         if os.name == 'nt':
-            from string import ascii_uppercase
-            for drive_letter in ascii_uppercase:
-                drive = Path(f"{drive_letter}:/")
-                if not drive.exists():
-                    continue
-                for subdir in ("SteamLibrary", "Steam", "Program Files (x86)/Steam",
-                               "Program Files/Steam", "Games/Steam"):
-                    candidate = drive / subdir
-                    steamapps = candidate / "steamapps"
-                    if steamapps.exists() and candidate not in libs:
-                        libs.append(candidate)
+            from sff.disk_utils import find_steam_libraries_on_disk
+            for lib in find_steam_libraries_on_disk():
+                if lib not in libs:
+                    libs.append(lib)
         games = []
         seen = set()
         skipped_missing_dir = 0
         for lib in libs:
-            steamapps = lib / "steamapps"
-            if not steamapps.exists():
-                continue
-            for acf in steamapps.glob("appmanifest_*.acf"):
-                try:
-                    text = acf.read_text(encoding="utf-8", errors="replace")
-                    app_id = ""
-                    name = ""
-                    installdir = ""
-                    for line in text.splitlines():
-                        line = line.strip()
-                        if '"appid"' in line:
-                            app_id = line.split('"')[-2] if '"' in line else ""
-                        elif '"name"' in line and not name:
-                            name = line.split('"')[-2] if '"' in line else ""
-                        elif '"installdir"' in line:
-                            installdir = line.split('"')[-2] if '"' in line else ""
-                    if not app_id or app_id in seen:
-                        continue
-                    if installdir:
-                        game_path = steamapps / "common" / installdir
-                        if not game_path.exists():
-                            skipped_missing_dir += 1
-                            continue
-                    seen.add(app_id)
-                    managed = managed_sources.get(app_id) or []
-                    games.append({
-                        "app_id": int(app_id) if app_id.isdigit() else 0,
-                        "name": name or f"App {app_id}",
-                        "installed": True,
-                        "path": str(steamapps / "common" / installdir) if installdir else "",
-                        "steamidra_managed": bool(managed),
-                        "steamidra_source": ",".join(sorted(managed)),
-                    })
-                except Exception as e:
-                    logger.debug("_scan_installed_games: skipped %s: %s", acf.name, e)
+            try:
+                steamapps = lib / "steamapps"
+                if not steamapps.exists():
                     continue
+                for acf in steamapps.glob("appmanifest_*.acf"):
+                    try:
+                        text = acf.read_text(encoding="utf-8", errors="replace")
+                        app_id = ""
+                        name = ""
+                        installdir = ""
+                        for line in text.splitlines():
+                            line = line.strip()
+                            if '"appid"' in line:
+                                app_id = line.split('"')[-2] if '"' in line else ""
+                            elif '"name"' in line and not name:
+                                name = line.split('"')[-2] if '"' in line else ""
+                            elif '"installdir"' in line:
+                                installdir = line.split('"')[-2] if '"' in line else ""
+                        if not app_id or app_id in seen:
+                            continue
+                        if installdir:
+                            game_path = steamapps / "common" / installdir
+                            if not game_path.exists():
+                                skipped_missing_dir += 1
+                                continue
+                        seen.add(app_id)
+                        managed = managed_sources.get(app_id) or []
+                        games.append({
+                            "app_id": int(app_id) if app_id.isdigit() else 0,
+                            "name": name or f"App {app_id}",
+                            "installed": True,
+                            "path": str(steamapps / "common" / installdir) if installdir else "",
+                            "steamidra_managed": bool(managed),
+                            "steamidra_source": ",".join(sorted(managed)),
+                        })
+                    except Exception as e:
+                        logger.debug("_scan_installed_games: skipped %s: %s", acf.name, e)
+                        continue
+            except OSError:
+                continue
         games.sort(key=lambda g: g.get("name", "").lower())
         if skipped_missing_dir:
             logger.info(
@@ -5835,6 +5888,9 @@ class WebBridge(QObject):
                 for app_id, url in fresh.items():
                     if url:
                         self._library_image_cache[str(app_id)] = url
+                        self._library_image_cache.move_to_end(str(app_id))
+                        while len(self._library_image_cache) > self._LIBRARY_IMAGE_CACHE_MAX:
+                            self._library_image_cache.popitem(last=False)
                 cached.update(fresh)
             return cached
 
@@ -6433,7 +6489,7 @@ def _fetch_steam_platforms(app_ids):
         if consecutive_failures >= 2:
             for aid in chunk:
                 cached = dict(blank_default)
-                _STEAM_PLATFORM_CACHE[aid] = cached
+                _platform_cache_put(aid, cached)
                 out[aid] = cached
             continue
         try:
@@ -6520,14 +6576,14 @@ def _fetch_steam_platforms(app_ids):
                     "parent_appid": parent_appid,
                     "delisted_blank": delisted_blank,
                 }
-                _STEAM_PLATFORM_CACHE[aid] = cached
+                _platform_cache_put(aid, cached)
                 out[aid] = cached
             # Anything we asked about that GetItems silently dropped
             # gets the unknown sentinel.
             for aid in chunk:
                 if aid not in seen:
                     cached = dict(blank_default)
-                    _STEAM_PLATFORM_CACHE[aid] = cached
+                    _platform_cache_put(aid, cached)
                     out[aid] = cached
             consecutive_failures = 0
         except Exception as e:
@@ -6535,7 +6591,7 @@ def _fetch_steam_platforms(app_ids):
             consecutive_failures += 1
             for aid in chunk:
                 cached = dict(blank_default)
-                _STEAM_PLATFORM_CACHE[aid] = cached
+                _platform_cache_put(aid, cached)
                 out[aid] = cached
     return out
 
@@ -6598,13 +6654,22 @@ _STEAM_APPLIST_CACHE_TIME = 0.0
 # no name and no type, the strongest "Steam removed all metadata"
 # signal we have). The DLC filter uses parent_appid + delisted_blank
 # as structural drop signals; no name keywords involved.
-_STEAM_PLATFORM_CACHE: "dict[int, dict]" = {}
+from collections import OrderedDict as _OrderedDict
+_STEAM_PLATFORM_CACHE: "_OrderedDict[int, dict]" = _OrderedDict()
+_STEAM_PLATFORM_CACHE_MAX = 2000
+
+def _platform_cache_put(aid: int, entry: dict) -> None:
+    _STEAM_PLATFORM_CACHE[aid] = entry
+    _STEAM_PLATFORM_CACHE.move_to_end(aid)
+    while len(_STEAM_PLATFORM_CACHE) > _STEAM_PLATFORM_CACHE_MAX:
+        _STEAM_PLATFORM_CACHE.popitem(last=False)
 
 _NONGAME_NAME_KW = ("soundtrack", "art book", "artbook", " ost", "music pack", "digital artbook")
 
 _NON_GAME_TYPES = frozenset({2, 4, 6, 7, 9, 10, 11, 12, 13})
 
 
+@lru_cache(maxsize=4096)
 def _normalize_for_search(text):
     """Strip trademark marks, registered marks, accents, and odd
     punctuation so a user typing 'lego batman' still matches a Steam
@@ -6614,7 +6679,6 @@ def _normalize_for_search(text):
     """
     if not text or not isinstance(text, str):
         return ""
-    import unicodedata as _ud
     # Drop the trademark / registered / copyright / sound-recording
     # marks before NFKD. NFKD turns ™ into the literal letters "TM"
     # (compatibility decomposition), which then sticks to the previous
@@ -6871,7 +6935,6 @@ def _alias_expanded_queries(query):
 
 def _load_steam_applist():
     global _STEAM_APPLIST_CACHE, _STEAM_APPLIST_CACHE_TIME
-    import re as _re
     import time as _time
     import json as _json
     import urllib.request as _req
@@ -6900,7 +6963,7 @@ def _load_steam_applist():
     if _all_games_file.is_file() and _all_games_file.stat().st_size > 0:
         try:
             _apps_from_txt = []
-            _line_re = _re.compile(r'^(.*)\s+\[ID=(\d+)\]$')
+            _line_re = re.compile(r'^(.*)\s+\[ID=(\d+)\]$')
             with _all_games_file.open(encoding="utf-8") as _f:
                 for _line in _f:
                     _line = _line.rstrip()

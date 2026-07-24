@@ -441,23 +441,26 @@ class CloudSaves:
             if steam_root not in libs:
                 libs = [steam_root] + list(libs)
             for lib in libs:
-                steamapps = lib / "steamapps"
-                if not steamapps.exists():
+                try:
+                    steamapps = lib / "steamapps"
+                    if not steamapps.exists():
+                        continue
+                    for acf in steamapps.glob("appmanifest_*.acf"):
+                        try:
+                            appid_str = acf.stem.split("_", 1)[1]
+                            if not appid_str.isdigit():
+                                continue
+                            appid = int(appid_str)
+                            if appid in name_map:
+                                continue
+                            data = vdf_load(acf)
+                            name = data.get("AppState", {}).get("name", "")
+                            if name:
+                                name_map[appid] = name
+                        except Exception:
+                            pass
+                except OSError:
                     continue
-                for acf in steamapps.glob("appmanifest_*.acf"):
-                    try:
-                        appid_str = acf.stem.split("_", 1)[1]
-                        if not appid_str.isdigit():
-                            continue
-                        appid = int(appid_str)
-                        if appid in name_map:
-                            continue
-                        data = vdf_load(acf)
-                        name = data.get("AppState", {}).get("name", "")
-                        if name:
-                            name_map[appid] = name
-                    except Exception:
-                        pass
         except Exception:
             pass
         # --- Layer 2: SteaMidra fix_game_cache (previously fixed games) ---
@@ -796,19 +799,22 @@ def scan_all_save_locations(steam_path=None, steam32_id=None):
                     if steam_root not in libs:
                         libs = [steam_root] + list(libs)
                     for lib in libs:
-                        for acf in (lib / "steamapps").glob("appmanifest_*.acf"):
-                            try:
-                                appid_str = acf.stem.split("_", 1)[1]
-                                if not appid_str.isdigit():
-                                    continue
-                                appid = int(appid_str)
-                                if appid not in name_map:
-                                    data = vdf_load(acf)
-                                    n = data.get("AppState", {}).get("name", "")
-                                    if n:
-                                        name_map[appid] = n
-                            except Exception:
-                                pass
+                        try:
+                            for acf in (lib / "steamapps").glob("appmanifest_*.acf"):
+                                try:
+                                    appid_str = acf.stem.split("_", 1)[1]
+                                    if not appid_str.isdigit():
+                                        continue
+                                    appid = int(appid_str)
+                                    if appid not in name_map:
+                                        data = vdf_load(acf)
+                                        n = data.get("AppState", {}).get("name", "")
+                                        if n:
+                                            name_map[appid] = n
+                                except Exception:
+                                    pass
+                        except OSError:
+                            continue
                 except Exception:
                     pass
                 for item in userdata_dir.iterdir():

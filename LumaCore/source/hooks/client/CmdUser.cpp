@@ -460,7 +460,6 @@ namespace CmdUser::Utils {
         HSteamPipe pipe, CUtlBuffer* pWrite, int iCallback, uint32_t cubCallback)
     {
         if (SteamCapture::ActiveRouteRealAppId() == 0) return false;
-        if (SteamCapture::StatsScopePipe() != pipe) return false;
         if (cubCallback < sizeof(uint64_t)) return false;
         const int32 minTotal = static_cast<int32>(2 + sizeof(uint64_t));
         if (pWrite->m_Put < minTotal) return false;

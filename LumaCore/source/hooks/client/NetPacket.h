@@ -75,6 +75,7 @@ namespace Handlers::UserStats {
                                          const uint8_t* pBody, uint32_t cbBody);
     bool HandleSend_ClientGetUserStats(const uint8_t* pBody, uint32_t cbBody);
     bool HandleRecv_ClientGetUserStatsResponse(const uint8_t* pBody, uint32_t cbBody);
+    bool HandleSend_ClientStoreUserStats2(const uint8_t* pBody, uint32_t cbBody);
 }
 
 namespace Handlers::ETicket {

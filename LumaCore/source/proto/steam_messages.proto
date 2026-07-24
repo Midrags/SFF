@@ -256,6 +256,29 @@ message CMsgClientGamesPlayed {
 	optional bool recent_reauthentication = 4;
 }
 
+// ============================================================
+// CMsgClientStoreUserStats2  (eMsg 5466)
+// ============================================================
+message CMsgClientStoreUserStats2 {
+	message Stats {
+		optional uint32 stat_id = 1;
+		optional uint32 stat_value = 2;
+	}
+
+	message Achievement {
+		optional uint32 achievement_id = 1;
+		optional uint32 unlock_time = 2;
+	}
+
+	optional fixed64 game_id = 1;
+	optional fixed64 settor_steam_id = 2;
+	optional fixed64 settee_steam_id = 3;
+	optional uint64 crc_stats = 4;
+	optional int32 schema_local_version = 5;
+	repeated .CMsgClientStoreUserStats2.Stats stats = 6;
+	repeated .CMsgClientStoreUserStats2.Achievement achievement_blocks = 7;
+}
+
 message CMsgClientPersonaState {
 	message Friend {
 		message ClanData {

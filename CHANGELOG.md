@@ -1,5 +1,47 @@
 # Changelog
 
+## 6.4.2
+
+### Home page
+
+- The Remove DRM button got renamed to Remove SteamStub DRM so people stop asking what "DRM" means. Same tool underneath, same achievement-safe Steamless unpack.
+- Home page hints got reformatted as an FAQ with actual answers instead of vague warnings. The SteamStub entry now tells you to look for the shipping.exe inside Binaries\Win64 instead of the root exe when Steamless says "Failed to unpack file". Content Still Encrypted now suggests re-adding the game from the store instead of just running Update All Games.
+- The UI switcher moved from a glitchy floating 3-dots button into a proper button at the bottom of the modern Home page. Classic UI gets a matching Switch to Modern UI button on the tab bar corner. Both work the same, the 3-dots overlay is gone.
+
+### UI
+
+- Title bar buttons on frameless Windows got a lot wider. Close, maximize, and minimize are now 130px across instead of the old cramped size. They were nearly invisible before on high-DPI screens.
+- The old floating UI toggle bar that sat on top of the title buttons and glitched through QWebEngine is completely removed. No more disappearing buttons behind the overlay.
+- Custom background images properly clear when you hit the Clear button now. The handler was racing with a deferred settings fetch that re-applied the old image before the clear could finish. Same fix applies to theme switching — the custom background fetch only fires when a custom background is actually set.
+- Game cards in the Store and Library got GPU layer hints so hover animations and scroll don't trigger full page re-flows. Cards promote to their own composite layer instead of invalidating the whole body.
+- The QWebEngineView now has hardware-accelerated 2D canvas and WebGL explicitly enabled. Scrollbars and error pages are disabled to reduce compositor overhead. Combined with the card layer hints, UI feels smoother on mid-range hardware.
+- The installed games library now scans both the root-folder and current-working-directory saved_lua paths when looking for SteaMidra-managed entries. Lua files saved by older installs sitting in Path.cwd()/saved_lua/ won't be invisible to the Managed filter anymore.
+- DDMod downloads now retry each depot once on transient failures. Socket errors, network hiccups, and Steam CDN refusals that used to kill the whole download with "Depot exited with code -6" now get a second attempt after a short wait.
+
+### Performance
+
+- Every "import re" that was buried inside hot functions got moved to module level. The ANSI escape stripper, DDMod progress regex, filename sanitizer, and the yaml config parser no longer recompile their patterns on every call.
+- The store search normalizer that strips trademark marks and Unicode accents now caches results. Searching the same game name twice hits the cache instead of running Unicode NFKD decomposition again.
+- File watcher dates cache doesn't load from disk at import time anymore. It waits until depot history actually needs date info.
+
+### Testing
+
+- A 136-test unit/integration suite landed covering every core module: utils, structs, updater, cache, download manager, cloud saves, Lua generators, VDF parsing, ACF parsing, zip, yaml config, preserver, provider, Steam client, and all the hoisted regex patterns.
+
+### Fixes
+
+- Access denied crashes when Steam's libraryfolders.vdf lists a drive that doesn't exist (BitLocker-locked, disconnected network drive, or a stale Q: that was never there) are now handled everywhere. The library scan, installed games dropdown, save watcher, launch options reader, manifest update passes, and library scanner all skip inaccessible drives instead of crashing the whole operation. Each library gets its own OSError guard so one bad entry stops killing the loop for the rest.
+- Drive scanning no longer blindly hits every letter from A to Z. A new disk_utils module classifies each drive before touching it, checks filesystem type (NTFS/FAT32/exFAT/ReFS only), detects BitLocker-locked volumes, and logs every skip with a reason so debug logs show exactly which drive failed and why instead of a generic PermissionError traceback.
+- Oureveryday-generated lua files now include the base app's decryption key and the depot manifest size. Before this, addappid(3527290) had no key even when the provider database had one, and setManifestid had no size field. Both now match the correct format.
+
+### Linux
+
+- Running from an AppImage no longer crashes with "Read-only file system" when the provider cache refreshes. fallback_depotkeys.json is now written to a writable user data directory instead of inside the squashfs mount.
+- DDMod downloads on Linux now find the bundled OpenSSL libraries automatically. Dotnet apps (DDMod) need libcrypto.so.3/libssl.so.3 for HTTPS depot fetches, and distros like CachyOS/Arch don't always ship them at the system level. The DDMod subprocess now gets LD_LIBRARY_PATH pointing at the runtime's shared libraries.
+- The DDMod choose modal on the Home tab hides the "Through Steam (Fastest)" button on Linux. LumaCore is Windows-only and the button led users to a path that silently didn't work like it does on Windows. Linux users only see "Via DepotDownloaderMod".
+- SLSsteam's config.yaml no longer gets reformatted when SteaMidra adds app IDs during a download. The old code did a full YAML parse/dump cycle that stripped all comments and reordered sections, which SLSsteam couldn't parse cleanly. Now it uses the same regex-based append that the rest of the yaml_config module uses, preserving every comment and setting.
+- The "Fallback data: games=0 entries" debug log line that sprayed hundreds of times when the game list fetch failed is now rate-limited to once per minute.
+
 ## 6.4.1
 
 ### Settings
@@ -9,6 +51,10 @@
 ### Store / download
 
 - The older-version picker can import one or more saved SteamDB depot pages into the selectable history list. Helps when the live history list is blocked or empty and you already have the depot pages saved.
+
+### Fix Game / Steamless
+
+- Bundled Steamless was refreshed to 3.1.0.5 with the matching plugin DLLs. Remove DRM uses the newer unpacker now, and the Steamless GUI build is included too for manual checks.
 
 ### UI
 

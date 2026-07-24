@@ -19,6 +19,7 @@
 """Windows Toast Notifications for SteaMidra"""
 
 import logging
+import threading
 import warnings
 from enum import Enum
 from typing import Optional
@@ -126,8 +127,14 @@ class NotificationService:
 _notification_service = None
 
 
+_notification_service = None
+_notif_lock = threading.Lock()
+
+
 def get_notification_service():
     global _notification_service
     if _notification_service is None:
-        _notification_service = NotificationService()
+        with _notif_lock:
+            if _notification_service is None:
+                _notification_service = NotificationService()
     return _notification_service

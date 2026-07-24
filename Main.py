@@ -448,7 +448,7 @@ if __name__ == "__main__":
 
     version_txt = f"Version: {VERSION}"
 
-    print(
+    banner = (
 
         Fore.GREEN
 
@@ -466,17 +466,20 @@ if __name__ == "__main__":
 
   SteaMidra
 
-
-
-┌────────────────────────────────────────┐
-
-│{version_txt.center(40)}│
-
-└────────────────────────────────────────┘ """
+  {version_txt}"""
 
         + Style.RESET_ALL
 
     )
+
+    try:
+        print(banner)
+    except UnicodeEncodeError:
+        # Fallback for Windows consoles that can't encode Unicode
+        plain = banner.encode("utf-8", errors="replace").decode(
+            "utf-8", errors="replace"
+        )
+        print(plain)
 
     sys.stdout.flush()
 

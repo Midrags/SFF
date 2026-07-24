@@ -734,8 +734,10 @@ namespace SteamCapture {
         }
         uint32_t queuedRemovals = 0;
         for (AppId_t id : removals) {
-            SteamUI::QueueLibraryRemoval(id);
-            ++queuedRemovals;
+            if (libraryRoots.count(id)) {
+                SteamUI::QueueLibraryRemoval(id);
+                ++queuedRemovals;
+            }
         }
         if (queuedTouches || queuedRemovals)
             HookStatus::SetStartupRefreshState("library-refresh-queued");

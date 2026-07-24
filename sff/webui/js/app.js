@@ -25,9 +25,12 @@ window.App = (function() {
 
     function applyCustomAppearance(backgroundPath, accentColor) {
         if (backgroundPath) {
-            document.body.style.backgroundImage = 'url("' + _pathToFileUrl(backgroundPath) + '")';
+            var url = _pathToFileUrl(backgroundPath) + '?t=' + Date.now();
+            document.body.style.backgroundImage = 'url("' + url + '")';
             document.body.style.backgroundSize = 'cover';
             document.body.style.backgroundPosition = 'center';
+        } else {
+            clearCustomAppearance(true);
         }
         if (accentColor && /^#[0-9a-fA-F]{6}$/.test(accentColor)) {
             document.documentElement.style.setProperty('--accent', accentColor);
@@ -68,6 +71,7 @@ window.App = (function() {
         _initEacGuideButton();
         _initHintToggle();
         _initGlobalListeners();
+        _initDepotEdit();
         if (window.DlcCheck) DlcCheck.init();
         window.addEventListener('live-log-limit-changed', function(ev) {
             _setLiveLogMaxLines(ev.detail);
@@ -133,6 +137,10 @@ window.App = (function() {
             setInterval(_populateGameDropdown, 10 * 60 * 1000);
 
             // Refresh button beside game dropdown
+            document.getElementById('home-toggle-ui').addEventListener('click', function() {
+                Bridge.call('toggle_ui');
+            });
+
             var homeRefreshBtn = document.getElementById('home-game-refresh');
             if (homeRefreshBtn) homeRefreshBtn.addEventListener('click', _populateGameDropdown);
             _initHomeProviderControls();
@@ -141,7 +149,7 @@ window.App = (function() {
             Bridge.on('task_finished', function(json) {
                 try {
                     var result = JSON.parse(json);
-                    // Steamless / Remove DRM: show a proper alert because the
+                    // Steamless / Remove SteamStub DRM: show a proper alert because the
                     // explanation is too long for a 4s toast and users need
                     // to read it (e.g. "wrapper variant Steamless cannot
                     // unpack yet — try SteamAutoCrack").
@@ -1184,6 +1192,16 @@ window.App = (function() {
 
         // 6.2.4: restart-after-dl-run handler dropped along with the modal.
         // LumaCore picks up new manifests / keys live, no restart needed.
+
+        // Keyboard navigation for game cards (Enter/Space triggers click on download button)
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            var target = e.target.closest('[role="listitem"]');
+            if (!target) return;
+            e.preventDefault();
+            var dlBtn = target.querySelector('.btn-download');
+            if (dlBtn) dlBtn.click();
+        });
     }
 
     function _startDdmodDownload(appId, source, luaPath, manifestFolder, targetOs, destinationPath) {
@@ -1500,6 +1518,7 @@ window.App = (function() {
         var manualInp = document.getElementById('version-manual-input');
         var dlBtn = document.getElementById('version-download');
         var session = _versionHistorySession;
+        window._versionGroupsData = [];
 
         if (loading) loading.classList.remove('hidden');
         if (table) table.classList.add('hidden');
@@ -1507,6 +1526,8 @@ window.App = (function() {
         if (manualBtn) manualBtn.dataset.appid = appId;
         if (importBtn) importBtn.dataset.appid = appId;
         if (manualInp) manualInp.value = '';
+        var editDiv = document.getElementById('version-depot-edit');
+        if (editDiv) editDiv.classList.add('hidden');
 
         var handler = function(json) {
             if (session !== _versionHistorySession) return;
@@ -1517,6 +1538,7 @@ window.App = (function() {
 
             try {
                 var groups = JSON.parse(json);
+                window._versionGroupsData = groups;
                 _renderVersionGroups(groups, { expanded: false });
             } catch(e) {
                 Components.showToast('error', 'Failed to load version history');
@@ -1533,10 +1555,17 @@ window.App = (function() {
         var tbody = document.getElementById('version-tbody');
         if (!tbody || !appId) return;
 
+        var editDiv = document.getElementById('version-depot-edit');
+        var editActive = editDiv && !editDiv.classList.contains('hidden');
+
         var manifest_override = {};
-        tbody.querySelectorAll('.version-check:checked').forEach(function(cb) {
-            manifest_override[cb.dataset.depot] = cb.dataset.manifest;
-        });
+        if (editActive) {
+            manifest_override = _getDepotEditOverrides();
+        } else {
+            tbody.querySelectorAll('.version-check:checked').forEach(function(cb) {
+                manifest_override[cb.dataset.depot] = cb.dataset.manifest;
+            });
+        }
         if (!Object.keys(manifest_override).length) {
             Components.showToast('warning', 'Select at least one depot or use Manual IDs.');
             return;
@@ -1627,6 +1656,98 @@ window.App = (function() {
             _renderVersionGroups(_versionImportedGroups, { expanded: true });
             Components.showToast('success', result.message || 'Imported depot manifest IDs');
         });
+    }
+
+    function _initDepotEdit() {
+        var editBtn = document.getElementById('version-edit-toggle');
+        var doneBtn = document.getElementById('version-edit-done');
+        var editDiv = document.getElementById('version-depot-edit');
+        var addDepot = document.getElementById('version-edit-add-depot');
+        var addManifest = document.getElementById('version-edit-add-manifest');
+        var addBtn = document.getElementById('version-edit-add-btn');
+        var tbody = document.getElementById('version-edit-tbody');
+        if (!editBtn || !editDiv) return;
+
+        editBtn.addEventListener('click', function() {
+            var groupsData = window._versionGroupsData || [];
+            _populateDepotEditTable(groupsData);
+            editDiv.classList.toggle('hidden');
+            editBtn.textContent = editDiv.classList.contains('hidden') ? 'Edit Depots' : 'Editing...';
+        });
+
+        if (doneBtn) {
+            doneBtn.addEventListener('click', function() {
+                editDiv.classList.add('hidden');
+                if (editBtn) editBtn.textContent = 'Edit Depots';
+            });
+        }
+
+        if (addBtn && addDepot && addManifest) {
+            addBtn.addEventListener('click', function() {
+                var depot = addDepot.value.trim();
+                var manifest = addManifest.value.trim();
+                if (!depot || !manifest) return;
+                _addDepotEditRow(tbody, depot, manifest);
+                addDepot.value = '';
+                addManifest.value = '';
+            });
+        }
+    }
+
+    function _populateDepotEditTable(groups) {
+        var tbody = document.getElementById('version-edit-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        var seen = {};
+        (groups || []).forEach(function(group) {
+            (group.entries || []).forEach(function(entry) {
+                var depot = entry && entry.depot_id ? String(entry.depot_id) : '';
+                var manifest = entry && entry.manifest_id ? String(entry.manifest_id) : '';
+                if (!depot || seen[depot]) return;
+                seen[depot] = true;
+                _addDepotEditRow(tbody, depot, manifest);
+            });
+        });
+    }
+
+    function _addDepotEditRow(tbody, depotId, manifestId) {
+        var tr = document.createElement('tr');
+        var depotTd = document.createElement('td');
+        depotTd.style.cssText = 'font-family:monospace;font-size:0.85em;padding:4px;';
+        depotTd.textContent = depotId;
+        var manifestTd = document.createElement('td');
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = manifestId || '';
+        inp.style.cssText = 'width:100%;box-sizing:border-box;font-family:monospace;font-size:12px;padding:4px;border:1px solid var(--border,rgba(255,255,255,0.15));border-radius:3px;background:var(--input-bg,rgba(0,0,0,0.2));color:var(--fg,#e8e8e8);';
+        manifestTd.appendChild(inp);
+        var removeTd = document.createElement('td');
+        removeTd.style.cssText = 'text-align:center;padding:4px;';
+        var rmBtn = document.createElement('button');
+        rmBtn.textContent = '✕';
+        rmBtn.style.cssText = 'background:none;border:none;color:#e81123;cursor:pointer;font-size:14px;padding:2px 6px;';
+        rmBtn.addEventListener('click', function() { tr.remove(); });
+        removeTd.appendChild(rmBtn);
+        tr.appendChild(depotTd);
+        tr.appendChild(manifestTd);
+        tr.appendChild(removeTd);
+        tbody.appendChild(tr);
+    }
+
+    function _getDepotEditOverrides() {
+        var tbody = document.getElementById('version-edit-tbody');
+        if (!tbody) return {};
+        var overrides = {};
+        tbody.querySelectorAll('tr').forEach(function(tr) {
+            var cells = tr.querySelectorAll('td');
+            if (cells.length < 2) return;
+            var depot = cells[0].textContent.trim();
+            var manifest = (cells[1].querySelector('input') || {}).value || '';
+            if (depot && manifest) {
+                overrides[depot] = manifest;
+            }
+        });
+        return overrides;
     }
 
     function _downloadVersionWithOverride(appId, manifest_override) {
@@ -2081,10 +2202,20 @@ window.App = (function() {
 
         if (action === 'download_games') {
             var homeAppId = _getSelectedGameId() || '';
-            var chooseSteamBtn = document.getElementById('ddmod-choose-steam');
-            var chooseDdmodBtn = document.getElementById('ddmod-choose-ddmod');
-            if (chooseSteamBtn) chooseSteamBtn.dataset.appid = homeAppId;
-            if (chooseDdmodBtn) chooseDdmodBtn.dataset.appid = homeAppId;
+            Bridge.callSync('get_platform', function(platform) {
+                var chooseSteamBtn = document.getElementById('ddmod-choose-steam');
+                var chooseDdmodBtn = document.getElementById('ddmod-choose-ddmod');
+                if (platform === 'linux') {
+                    if (chooseSteamBtn) chooseSteamBtn.style.display = 'none';
+                    if (chooseDdmodBtn) chooseDdmodBtn.dataset.appid = homeAppId;
+                } else {
+                    if (chooseSteamBtn) {
+                        chooseSteamBtn.style.display = '';
+                        chooseSteamBtn.dataset.appid = homeAppId;
+                    }
+                    if (chooseDdmodBtn) chooseDdmodBtn.dataset.appid = homeAppId;
+                }
+            });
             Components.showModal('ddmod-choose-modal');
             return;
         }
@@ -2120,7 +2251,7 @@ window.App = (function() {
                     }
                     var msg = 'Heads up — this will break Steam achievements.\n\n'
                         + 'Replacing the Steam API with an emulator means achievements you earn after this will only save locally. Cloud saves will also stop syncing.\n\n'
-                        + 'Prefer "Remove DRM (Steamless)" if the game uses Steam DRM — it keeps achievements working.\n\n'
+                        + 'Prefer "Remove SteamStub DRM (Steamless)" if the game uses Steam DRM — it keeps achievements working.\n\n'
                         + 'Continue anyway?';
                     if (window.confirm(msg)) {
                         Bridge.call('run_game_action_outside', gamePath, outsideName, outsideAppId || '0', action);
@@ -2171,7 +2302,7 @@ window.App = (function() {
                 var msg = (action === 'crack' || action === 'steam_auto')
                     ? 'Heads up — this will break Steam achievements.\n\n'
                       + 'Replacing the Steam API with an emulator means achievements you earn after this will only save locally and will not appear on your Steam profile. Cloud saves will also stop syncing.\n\n'
-                      + 'For Steam-DRM games (Teardown, Doom Eternal, etc.) prefer "Remove DRM (Steamless)" instead — it strips the DRM wrapper without touching the Steam API, so achievements keep working.\n\n'
+                      + 'For Steam-DRM games (Teardown, Doom Eternal, etc.) prefer "Remove SteamStub DRM (Steamless)" instead — it strips the DRM wrapper without touching the Steam API, so achievements keep working.\n\n'
                       + 'Continue anyway?'
                     : 'This action may break Steam achievements. Continue?';
                 if (window.confirm(msg)) {

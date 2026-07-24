@@ -714,7 +714,7 @@ window.CloudSaves = (function() {
     // ── Google Drive helpers ───────────────────────────────────────
 
     function _checkGdriveStatus() {
-        Bridge.call('gdrive_status', function(result) {
+        Bridge.callSync('gdrive_status', function(result) {
             try {
                 if (result) {
                     var status = JSON.parse(result);

@@ -13,12 +13,12 @@
 </head>
 <body>
     <!-- Sidebar Navigation -->
-    <nav id="sidebar" class="sidebar">
+    <nav id="sidebar" class="sidebar" role="navigation" aria-label="Main navigation">
         <div class="sidebar-logo">
             <img src="assets/SFF.png" alt="SteaMidra" class="sidebar-icon" onerror="this.style.display='none'">
             <span class="sidebar-title">SteaMidra</span>
         </div>
-        <div class="sidebar-nav">
+        <div class="sidebar-nav" role="tablist">
             <button class="nav-item active" data-page="home" data-tooltip="Overview dashboard with quick actions">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4"/></svg>
                 <span class="nav-label" data-i18n="Home">Home</span>
@@ -153,16 +153,17 @@
                 </div>
             </div>
 
-            <div class="hint-banner" id="home-hint-banner" data-tooltip="Steam DRM (SteamStub) protects some games like Teardown, Doom Eternal, Resident Evil, Lost Planet 2, and other older titles. LumaCore can fake ownership but the wrapper still does its own local check and the game refuses to launch.">
-                <svg class="hint-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div class="hint-banner" id="home-hint-banner" data-tooltip="Common issues and how to fix them. Read this before reporting bugs.">
+                <svg class="hint-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 <div class="hint-text" id="home-hint-text">
-                    <strong>Hitting Steam error 53 / 54 or "Application load error 6:0000065432" when launching a game?</strong>
-                    The game uses Steam DRM (SteamStub). The 6:0000065432 popup is the same root cause on older titles, just a different code. LumaCore can't bypass the wrapper's local check on its own. Use <em>Remove DRM (Steamless)</em> below to strip the wrapper. Achievement-safe. <br>
+                    <strong style="font-size:14px;display:block;margin-bottom:6px;">FAQ</strong>
+                    <strong>Hitting Steam error 53 / 54 or "Application load error 6:0000065432"?</strong>
+                    Steam DRM (SteamStub). Use <em>Remove SteamStub DRM (Steamless)</em> below. Important: the .exe you launch from the root folder is not always the one with SteamStub. For Unreal Engine games the correct .exe is usually at <em>...\Game\Binaries\Win64\Game-Win64-Shipping.exe</em>. Look for that shipping.exe if Steamless says "Failed to unpack file". Achievement-safe. <br>
                     <strong>Game says EAC isn't installed or won't launch with anti-cheat errors?</strong>
                     <button id="btn-eac-guide" class="hint-inline-btn" type="button">Show EAC fix steps</button>
                     <br>
                     <strong>Steam says "Content Still Encrypted" on update or download?</strong>
-                    The manifests for that game are missing or stale. Run <em>Update All Games</em> from the home page to redownload them through SteaMidra.
+                    The manifests for that game are missing or stale. Delete the game from your Steam library, then add it again using <em>Hubcap</em> as the source. Running Update All Games may also fix it.
                 </div>
                 <button id="home-hint-toggle" class="hint-toggle-btn" data-tooltip="Collapse / expand hints" aria-label="Toggle hints">&uarr;</button>
             </div>
@@ -175,7 +176,7 @@
                         <button class="modal-close" data-tooltip="Close">&times;</button>
                     </div>
                     <div class="modal-body">
-                        <p style="margin-top:0;">SteaMidra's tools (Goldberg, Remove DRM, SteamAutoCrack) do <strong>not</strong> fix EAC. EAC is a separate kernel-level service the game itself loads. Use one of the methods below. Methods are ranked easiest first. Try them in order.</p>
+                        <p style="margin-top:0;">SteaMidra's tools (Goldberg, Remove SteamStub DRM, SteamAutoCrack) do <strong>not</strong> fix EAC. EAC is a separate kernel-level service the game itself loads. Use one of the methods below. Methods are ranked easiest first. Try them in order.</p>
                         <p style="opacity:0.75;font-size:13px;">For competitive online games (Apex, Rust, Fortnite, Dead by Daylight) bypassing EAC will get you banned. Only use these for offline / single-player / modding.</p>
 
                         <div class="eac-page-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 0;">
@@ -287,7 +288,7 @@ start YourGame-Shipping.exe</pre>
                     </button>
                     <button class="action-card" data-action="steamstub" data-tooltip="Strip Valve's SteamStub DRM wrapper from a game executable using Steamless. Steam achievements stay working.">
                         <svg class="action-icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>
-                        <span class="action-title">Remove DRM</span>
+                        <span class="action-title">Remove SteamStub DRM</span>
                         <span class="action-desc safe-achievements">Achievements safe</span>
                     </button>
                     <button class="action-card" data-action="steam_auto" data-tooltip="Run SteamAutoCrack CLI. Choose between Steamless-only mode (achievement-safe) or full mode (Steamless + Goldberg).">
@@ -484,6 +485,9 @@ start YourGame-Shipping.exe</pre>
             </div><!-- /.home-log -->
 
             </div><!-- /.home-layout -->
+            <div style="text-align:center; padding:12px 0;">
+                <button id="home-toggle-ui" class="btn" data-tooltip="Switch between Modern (Web) UI and Classic (Qt) UI">Switch to Classic UI</button>
+            </div>
         </section>
 
         <!-- Page: Store -->
@@ -548,8 +552,8 @@ start YourGame-Shipping.exe</pre>
                     <button id="api-key-connect" class="btn btn-primary">Connect</button>
                 </div>
             </div>
-            <div id="store-grid" class="game-grid"></div>
-            <div id="store-list" class="game-list hidden"></div>
+            <div id="store-grid" class="game-grid" role="list"></div>
+            <div id="store-list" class="game-list hidden" role="list"></div>
             <div id="store-pagination" class="pagination hidden">
                 <button id="page-prev" class="btn" data-tooltip="Previous page">← Prev</button>
                 <span id="page-info" class="page-info">Page 1 of 1</span>
@@ -595,7 +599,7 @@ start YourGame-Shipping.exe</pre>
             <div class="info-callout" id="library-lure-info">
                 <strong>Lure Fix</strong> — updates the ACF file of a game to match the latest manifest IDs on Steam CM. No game files are downloaded or changed. Steam stops showing the update prompt because the ACF now reports the current manifests as installed. Use this after Steam shows an update for a game you downloaded with an older version.
             </div>
-            <div id="library-grid" class="game-grid"></div>
+            <div id="library-grid" class="game-grid" role="list"></div>
             <div id="library-empty" class="empty-state">
                 <span class="empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></span>
                 <p>No games found. Download games from the Store page.</p>
@@ -1472,18 +1476,18 @@ start YourGame-Shipping.exe</pre>
             </div>
             <div class="modal-body">
                 <p style="margin-bottom:14px;opacity:0.85;">Choose how to download this game.</p>
-                <button id="ddmod-choose-steam" class="download-option" data-tooltip="Uses Lua keys so Steam installs the game natively">
+                <button id="ddmod-choose-steam" class="download-option platform-win" data-tooltip="LumaCore handles ownership so Steam installs the game natively via manifest injection">
                     <svg class="dl-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                     <div class="dl-info">
-                        <span class="dl-title">Through Steam (Fastest)</span>
-                        <span class="dl-desc">Downloads manifests + keys so Steam installs the game natively.</span>
+                        <span class="dl-title">Through Steam (LumaCore)</span>
+                        <span class="dl-desc">Windows only. Steam installs the game after manifests and keys are injected.</span>
                     </div>
                 </button>
-                <button id="ddmod-choose-ddmod" class="download-option" data-tooltip="Download game files directly using DepotDownloaderMod">
+                <button id="ddmod-choose-ddmod" class="download-option" data-tooltip="DDMod pulls depot files directly from Steam CDN without needing Steam running">
                     <svg class="dl-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     <div class="dl-info">
-                        <span class="dl-title">Via DepotDownloaderMod</span>
-                        <span class="dl-desc">Downloads game files directly using DDMod. Requires .NET 9.</span>
+                        <span class="dl-title">Via DepotDownloaderMod (DDMod)</span>
+                        <span class="dl-desc">Downloads game files directly. Works on Windows and Linux. Needs .NET 9.</span>
                     </div>
                 </button>
             </div>
@@ -1711,10 +1715,30 @@ start YourGame-Shipping.exe</pre>
                         <tbody id="version-tbody"></tbody>
                     </table>
                 </div>
+                <div id="version-depot-edit" class="hidden" style="margin-top:8px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                        <label style="font-size:12px;font-weight:600;opacity:0.8;">Edit Depot Manifest IDs</label>
+                        <button id="version-edit-done" class="btn" style="padding:4px 10px;font-size:11px;">Done Editing</button>
+                    </div>
+                    <div class="data-table">
+                        <table>
+                            <thead><tr><th style="width:100px;">Depot ID</th><th>Manifest ID</th><th style="width:40px;"></th></tr></thead>
+                            <tbody id="version-edit-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div style="display:flex;gap:6px;margin-top:6px;">
+                        <input id="version-edit-add-depot" type="text" placeholder="Depot ID" style="width:100px;font-family:monospace;font-size:12px;padding:4px;">
+                        <input id="version-edit-add-manifest" type="text" placeholder="Manifest ID" style="flex:1;font-family:monospace;font-size:12px;padding:4px;">
+                        <button id="version-edit-add-btn" class="btn" style="padding:4px 10px;font-size:11px;">Add</button>
+                    </div>
+                </div>
                 <div style="margin-top:12px;border-top:1px solid var(--border,rgba(255,255,255,0.12));padding-top:10px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
                         <label style="font-size:12px;font-weight:600;opacity:0.8;">Manual Depot / Manifest IDs</label>
-                        <button id="version-import-html" class="btn" style="padding:6px 10px;font-size:12px;">Import HTML</button>
+                        <div style="display:flex;gap:6px;">
+                            <button id="version-edit-toggle" class="btn" style="padding:6px 10px;font-size:12px;">Edit Depots</button>
+                            <button id="version-import-html" class="btn" style="padding:6px 10px;font-size:12px;">Import HTML</button>
+                        </div>
                     </div>
                     <textarea id="version-manual-input" rows="4" placeholder="One per line, for example:&#10;939851=2233225956230312354&#10;939852 45510479311498930" style="width:100%;box-sizing:border-box;margin-top:6px;font-family:monospace;font-size:12px;"></textarea>
                     <div style="font-size:11px;opacity:0.65;margin-top:4px;">Use this when the history list is empty or SteamDB blocks the request. Format: depot ID, then manifest GID. Import HTML lists saved SteamDB depot pages above so you can select them.</div>

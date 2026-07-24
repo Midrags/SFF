@@ -18,6 +18,8 @@
 
 """Local Analytics Tracking for SteaMidra"""
 
+import threading
+
 import json
 import logging
 import time
@@ -221,10 +223,13 @@ class AnalyticsTracker:
 
 # Global analytics tracker instance
 _analytics_tracker = None
+_tracker_lock = threading.Lock()
 
 
 def get_analytics_tracker():
     global _analytics_tracker
     if _analytics_tracker is None:
-        _analytics_tracker = AnalyticsTracker()
+        with _tracker_lock:
+            if _analytics_tracker is None:
+                _analytics_tracker = AnalyticsTracker()
     return _analytics_tracker

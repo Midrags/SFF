@@ -32,6 +32,7 @@ class LuaDepot:
     parent_appid: str = ""
     parent_name: str = ""
     manifest_id: str = ""
+    manifest_size: int = 0
 
 
 @dataclass
@@ -66,6 +67,7 @@ def _depot_from_any(item, manifests: dict | None = None, provider: dict | None =
             parent_appid=str(item.get("parent_appid") or entry.get("parent_appid") or ""),
             parent_name=str(item.get("parent_name") or entry.get("parent_name") or ""),
             manifest_id=str(item.get("manifest_id") or (manifests or {}).get(depot_id) or ""),
+            manifest_size=int(item.get("manifest_size") or 0),
         )
     depot_id = str(getattr(item, "depot_id", ""))
     key = str(getattr(item, "decryption_key", "") or getattr(item, "key", ""))
@@ -77,6 +79,7 @@ def _depot_from_any(item, manifests: dict | None = None, provider: dict | None =
         parent_appid=str(entry.get("parent_appid") or ""),
         parent_name=str(entry.get("parent_name") or ""),
         manifest_id=str((manifests or {}).get(depot_id) or ""),
+        manifest_size=int(getattr(item, "manifest_size", 0) or 0),
     )
 
 
@@ -108,7 +111,15 @@ def render_grouped_lua(
             main_depots.append(depot)
 
     lines: list[str] = ["-- MAIN APPLICATION"]
-    lines.append(_line_with_comment(f"addappid({app_id_str})", app_name))
+    base_entry = provider.get(app_id_str, {})
+    base_key = str(base_entry.get("key") or "")
+    if base_key and is_valid_key(base_key):
+        lines.append(_line_with_comment(
+            f'addappid({app_id_str}, 1, "{base_key.lower()}")',
+            app_name,
+        ))
+    else:
+        lines.append(_line_with_comment(f"addappid({app_id_str})", app_name))
 
     if main_depots:
         lines.extend(["", "-- MAIN APP DEPOTS"])
@@ -118,7 +129,8 @@ def render_grouped_lua(
                 depot.name or f"Depot {depot.depot_id}",
             ))
             if depot.manifest_id:
-                lines.append(f'setManifestid({depot.depot_id}, "{depot.manifest_id}")')
+                size_part = f", {depot.manifest_size}" if depot.manifest_size else ""
+                lines.append(f'setManifestid({depot.depot_id}, "{depot.manifest_id}"{size_part})')
 
     if shared_depots:
         lines.extend(["", "-- SHARED DEPOTS (from other apps)"])
@@ -131,7 +143,8 @@ def render_grouped_lua(
                 label,
             ))
             if depot.manifest_id:
-                lines.append(f'setManifestid({depot.depot_id}, "{depot.manifest_id}")')
+                size_part = f", {depot.manifest_size}" if depot.manifest_size else ""
+                lines.append(f'setManifestid({depot.depot_id}, "{depot.manifest_id}"{size_part})')
 
     clean_dlcs: list[LuaDlc] = []
     seen_dlcs: set[str] = set()

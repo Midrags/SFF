@@ -108,6 +108,9 @@ static void RouteOutboundDispatch(EMsg eMsg, const uint8_t* pBody, uint32_t cbBo
     case k_EMsgClientGetUserStats:
         NetPacket::s_tx.PatchBody = NetPacket::Handlers::UserStats::HandleSend_ClientGetUserStats(pBody, cbBody);
         return;
+    case k_EMsgClientStoreUserStats2:
+        NetPacket::s_tx.PatchBody = NetPacket::Handlers::UserStats::HandleSend_ClientStoreUserStats2(pBody, cbBody);
+        return;
     case k_EMsgClientGetAppOwnershipTicket:
         return;
     }

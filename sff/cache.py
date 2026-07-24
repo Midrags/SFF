@@ -110,11 +110,16 @@ class APICache:
             self.save()
 
 
+import threading
+
 _cache_instance = None
+_cache_lock = threading.Lock()
 
 
 def get_cache():
     global _cache_instance
     if _cache_instance is None:
-        _cache_instance = APICache()
+        with _cache_lock:
+            if _cache_instance is None:
+                _cache_instance = APICache()
     return _cache_instance

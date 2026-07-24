@@ -35,6 +35,30 @@ KEYS_TMP = Path(tempfile.gettempdir()) / "mistwalker_keys.vdf"
 MANIFESTS_TMP = Path(tempfile.gettempdir()) / "mistwalker_manifests"
 
 
+def _find_openssl_lib_dir(dotnet_root: str) -> str:
+    """Return the directory containing libcrypto.so.3 / libssl.so.3
+    from the bundled .NET runtime, if present. DDMod needs these for
+    HTTPS depot downloads on distros that don't ship them system-wide.
+    """
+    import glob as _glob
+    pattern = os.path.join(dotnet_root, "shared", "Microsoft.NETCore.App", "*")
+    for runtime_dir in sorted(_glob.glob(pattern), reverse=True):
+        candidate = os.path.join(runtime_dir)
+        libcrypto = os.path.join(candidate, "libcrypto.so.3")
+        if os.path.isfile(libcrypto):
+            return candidate
+    return ""
+
+
+def _add_bundled_openssl_to_env(env: dict, dotnet_root: str) -> None:
+    lib_dir = _find_openssl_lib_dir(dotnet_root)
+    if not lib_dir:
+        return
+    existing = env.get("LD_LIBRARY_PATH", "")
+    if lib_dir not in existing.split(os.pathsep) if existing else True:
+        env["LD_LIBRARY_PATH"] = f"{lib_dir}{os.pathsep}{existing}" if existing else lib_dir
+
+
 def get_deps_dir() -> Path:
     return root_folder() / "third_party" / "DDMod"
 
@@ -81,12 +105,11 @@ def _copy_manifests_to_temp(steam_path: Path, manifests: dict) -> None:
 def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout=600) -> None:
     """Read subprocess stdout with a per-depot timeout (default 10 min).
 
-    Uses selectors for non-blocking reads so a hanging DDMod process
-    doesn't freeze the entire download chain. On timeout, kills the
-    process and returns (the caller checks returncode to surface the
-    failure).
+    Spawns a reader thread so a hanging DDMod process doesn't freeze the
+    entire download chain. On timeout, kills the process and returns.
     """
-    import selectors
+    import queue as _q
+    import threading as _t
     if not proc.stdout:
         return
     pre_alloc_count = 0
@@ -97,68 +120,82 @@ def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout=600) ->
     last_validate_t = 0.0
     last_progress_pct: float = -1.0
     _SUMMARY_INTERVAL = 2.0
-    sel = selectors.DefaultSelector()
-    sel.register(proc.stdout, selectors.EVENT_READ)
+    _lineq: _q.Queue = _q.Queue()
+    _stop = _t.Event()
+
+    def _reader():
+        try:
+            for raw_line in proc.stdout:
+                if _stop.is_set():
+                    break
+                _lineq.put(raw_line)
+        except ValueError:
+            pass
+        finally:
+            _lineq.put(None)
+
+    _reader_t = _t.Thread(target=_reader, daemon=True)
+    _reader_t.start()
+
     deadline = time.monotonic() + depot_timeout
-    buf = b''
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print_fn(Fore.RED + f"\n[timeout] Depot download exceeded {depot_timeout}s, killing process" + Style.RESET_ALL)
+            _stop.set()
             proc.kill()
             break
-        events = sel.select(timeout=min(remaining, 1.0))
-        if not events:
-            continue
-        chunk = proc.stdout.read1(65536)
-        if not chunk:
+        try:
+            raw_line = _lineq.get(timeout=min(remaining, 0.5))
+        except _q.Empty:
+            if proc.poll() is not None:
+                _stop.set()
+                raw_line = _lineq.get() if not _lineq.empty() else None
+                if raw_line is None:
+                    break
+            else:
+                continue
+        if raw_line is None:
             break
-        buf += chunk
-        while b'\n' in buf:
-            raw_line, buf = buf.split(b'\n', 1)
-            line = raw_line.decode("utf-8", errors="replace").strip()
-            if not line:
-                continue
-            now = time.monotonic()
+        line = raw_line.decode("utf-8", errors="replace").strip()
+        if not line:
+            continue
+        now = time.monotonic()
 
-            # File pre-allocation (one line per file, can be tens of thousands)
-            if line.startswith("Pre-allocating"):
-                pre_alloc_count += 1
-                if now - last_pre_alloc_t >= _SUMMARY_INTERVAL:
-                    print_fn(f"[Pre-allocating files... {pre_alloc_count} so far]")
-                    last_pre_alloc_t = now
-                continue
+        if line.startswith("Pre-allocating"):
+            pre_alloc_count += 1
+            if now - last_pre_alloc_t >= _SUMMARY_INTERVAL:
+                print_fn(f"[Pre-allocating files... {pre_alloc_count} so far]")
+                last_pre_alloc_t = now
+            continue
 
-            # Chunk validation (DDMod prints "Validated X out of Y chunks (Z%)"
-            # or "Validating chunk N / M" on every chunk; high-frequency)
-            lower = line.lower()
-            if "validating chunk" in lower or lower.startswith("validated "):
-                validate_count += 1
-                if now - last_validate_t >= _SUMMARY_INTERVAL:
-                    print_fn(f"[Validating chunks... {validate_count} so far]")
-                    last_validate_t = now
-                continue
+        lower = line.lower()
+        if "validating chunk" in lower or lower.startswith("validated "):
+            validate_count += 1
+            if now - last_validate_t >= _SUMMARY_INTERVAL:
+                print_fn(f"[Validating chunks... {validate_count} so far]")
+                last_validate_t = now
+            continue
 
-            # Per-percent progress lines.
-            m = _DDMOD_PROGRESS_RE.match(line)
-            if m:
-                progress_count += 1
-                try:
-                    pct = float(m.group(1))
-                except ValueError:
-                    pct = -1.0
-                crossed_pct = (pct >= 0 and (last_progress_pct < 0
-                                             or int(pct) != int(last_progress_pct)))
-                elapsed = now - last_progress_t >= _SUMMARY_INTERVAL
-                if crossed_pct or elapsed:
-                    print_fn(line)
-                    last_progress_pct = pct
-                    last_progress_t = now
-                continue
+        m = _DDMOD_PROGRESS_RE.match(line)
+        if m:
+            progress_count += 1
+            try:
+                pct = float(m.group(1))
+            except ValueError:
+                pct = -1.0
+            crossed_pct = (pct >= 0 and (last_progress_pct < 0
+                                         or int(pct) != int(last_progress_pct)))
+            elapsed = now - last_progress_t >= _SUMMARY_INTERVAL
+            if crossed_pct or elapsed:
+                print_fn(line)
+                last_progress_pct = pct
+                last_progress_t = now
+            continue
 
-            print_fn(line)
+        print_fn(line)
 
-    sel.close()
+    _reader_t.join(timeout=3)
 
     if pre_alloc_count > 0:
         print_fn(f"[Pre-allocation complete: {pre_alloc_count} file(s)]")
@@ -263,6 +300,9 @@ def run_download(
     if dotnet_root not in current_path.split(os.pathsep):
         env["PATH"] = dotnet_root + os.pathsep + current_path
 
+    if sys.platform.startswith("linux"):
+        _add_bundled_openssl_to_env(env, dotnet_root)
+
     download_dir = dest_path / "steamapps" / "common" / installdir
     download_dir.mkdir(parents=True, exist_ok=True)
 
@@ -306,54 +346,72 @@ def run_download(
         if sys.platform == "win32" and hasattr(subprocess, "CREATE_NO_WINDOW"):
             creation_flags = subprocess.CREATE_NO_WINDOW
 
-        try:
-            popen_kwargs = {
-                "stdout": subprocess.PIPE,
-                "stderr": subprocess.STDOUT,
-                "text": False,
-                "env": env,
-                "cwd": str(deps_dir),
-            }
-            if creation_flags:
-                popen_kwargs["creationflags"] = creation_flags
-
-            proc = subprocess.Popen(cmd, **popen_kwargs)
-            _read_process_output(proc, print_fn)
-            try:
-                proc.wait(timeout=30)
-            except subprocess.TimeoutExpired:
-                print_fn(
-                    Fore.RED + f"\n[timeout] Depot {depot_id_str} did not exit after output ended, killing"
-                    + Style.RESET_ALL
-                )
-                proc.kill()
-                proc.wait()
-
-            if proc.returncode != 0:
+        max_retries = 2
+        attempt = 0
+        depot_ok = False
+        while attempt <= max_retries and not depot_ok:
+            attempt += 1
+            if attempt > 1:
+                time.sleep(3)
                 print_fn(
                     Fore.YELLOW
-                    + f"Depot {depot_id_str} exited with code {proc.returncode}"
+                    + f"\n[retry] Depot {depot_id_str} attempt {attempt}/{max_retries + 1}"
+                    + Style.RESET_ALL
+                )
+            try:
+                popen_kwargs = {
+                    "stdout": subprocess.PIPE,
+                    "stderr": subprocess.STDOUT,
+                    "text": False,
+                    "env": env,
+                    "cwd": str(deps_dir),
+                }
+                if creation_flags:
+                    popen_kwargs["creationflags"] = creation_flags
+
+                proc = subprocess.Popen(cmd, **popen_kwargs)
+                _read_process_output(proc, print_fn)
+                try:
+                    proc.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    print_fn(
+                        Fore.RED + f"\n[timeout] Depot {depot_id_str} did not exit after output ended, killing"
+                        + Style.RESET_ALL
+                    )
+                    proc.kill()
+                    proc.wait()
+
+                if proc.returncode != 0:
+                    print_fn(
+                        Fore.YELLOW
+                        + f"Depot {depot_id_str} exited with code {proc.returncode}"
+                        + Style.RESET_ALL
+                    )
+                    if attempt <= max_retries:
+                        continue
+                    all_ok = False
+                else:
+                    depot_ok = True
+                    print_fn(
+                        Fore.GREEN
+                        + f"Depot {depot_id_str} downloaded successfully."
+                        + Style.RESET_ALL
+                    )
+
+            except FileNotFoundError:
+                print_fn(
+                    Fore.RED
+                    + f"ERROR: '{dotnet_path}' not found. Ensure .NET 9 is installed."
                     + Style.RESET_ALL
                 )
                 all_ok = False
-            else:
-                print_fn(
-                    Fore.GREEN
-                    + f"Depot {depot_id_str} downloaded successfully."
-                    + Style.RESET_ALL
-                )
-
-        except FileNotFoundError:
-            print_fn(
-                Fore.RED
-                + f"ERROR: '{dotnet_path}' not found. Ensure .NET 9 is installed."
-                + Style.RESET_ALL
-            )
-            all_ok = False
-            break
-        except (OSError, subprocess.SubprocessError) as e:
-            print_fn(Fore.RED + f"Error downloading depot {depot_id_str}: {e}" + Style.RESET_ALL)
-            all_ok = False
+                break
+            except (OSError, subprocess.SubprocessError) as e:
+                print_fn(Fore.RED + f"Error downloading depot {depot_id_str}: {e}" + Style.RESET_ALL)
+                if attempt <= max_retries:
+                    continue
+                all_ok = False
+                break
 
     try:
         KEYS_TMP.unlink(missing_ok=True)
@@ -385,7 +443,7 @@ def filter_depots_by_os(
     """
     if not app_info:
         return selected_depots
-    target_os = (os_name or ("linux" if sys.platform.startswith("linux") else "windows")).lower()
+    target_os = (os_name or ("all" if sys.platform.startswith("linux") else "windows")).lower()
     if target_os == "all":
         target_os = ""
     depots_section = app_info.get("depots", {}) if isinstance(app_info, dict) else {}

@@ -93,9 +93,9 @@ def _iter_real_libraries(folders):
 def _existing_library_path(library):
     try:
         path = Path(library["path"])
-    except Exception:
+        return path if path.exists() else None
+    except (OSError, Exception):
         return None
-    return path if path.exists() else None
 
 
 def get_steam_libs(steam_path):

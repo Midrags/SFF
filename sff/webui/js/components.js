@@ -75,6 +75,9 @@ window.Components = (function() {
         var lastUpdated = game.last_updated ? '<div class="game-card-meta">Updated: ' + game.last_updated + '</div>' : '';
         var drmBadge = game.drm ? '<span class="badge badge-drm">DRM</span>' : '';
 
+        card.setAttribute('role', 'listitem');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', game.name + ' - App ID ' + game.app_id);
         card.innerHTML =
             '<div class="game-card-img-wrap"></div>' +
             '<div class="game-card-badges">' + badgesHtml + '</div>' +
@@ -138,6 +141,9 @@ window.Components = (function() {
         if (game.platform_label) {
             listBadges += '<span class="badge badge-platform" style="margin-left:6px;">' + escapeHtml(game.platform_label) + '</span>';
         }
+        item.setAttribute('role', 'listitem');
+        item.setAttribute('tabindex', '0');
+        item.setAttribute('aria-label', game.name + ' - App ID ' + game.app_id);
         item.innerHTML =
             '<div class="game-list-thumb-wrap"></div>' +
             '<div class="game-list-info">' +

@@ -40,6 +40,16 @@ logger = logging.getLogger(__name__)
 BACKUP_SUFFIX = ".bak"
 DEFAULT_FAKE_APPID = "480"  # Spacewar
 
+_RE_ADDITIONAL_APPS = re.compile(r"^AdditionalApps:\s*$", re.MULTILINE)
+_RE_APP_TOKENS = re.compile(r"^AppTokens:\s*$", re.MULTILINE)
+_RE_DLC_DATA = re.compile(r"^DlcData:\s*$", re.MULTILINE)
+_RE_FAKE_APP_IDS = re.compile(r"^FakeAppIds:\s*$", re.MULTILINE)
+_RE_NEXT_KEY = re.compile(r"^[A-Za-z][A-Za-z0-9]*:\s*$", re.MULTILINE)
+_RE_NEXT_KEY_SIMPLE = re.compile(r"^[A-Za-z]", re.MULTILINE)
+_RE_MISALIGNED_ITEMS = re.compile(r"(^)(\s*)-(\s*)([^\n#]+?)(?=\s*(?:#|$))", re.MULTILINE)
+_RE_LAST_TOKEN = re.compile(r"^\s*\d+\s*:\s*[^\n]*$", re.MULTILINE)
+_RE_TOKEN = re.compile(r"(^)(\s*)(\d+)(\s*:\s*[^\n]*)", re.MULTILINE)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -159,16 +169,15 @@ def _remove_matching_entry(
 
 def _fix_additional_apps_indentation(content: str) -> Tuple[str, bool]:
     """Fix indentation of AdditionalApps list items to 2-space."""
-    pattern = re.compile(r"^AdditionalApps:\s*$", re.MULTILINE)
+    pattern = _RE_ADDITIONAL_APPS
     section_start = _get_section_start(content, pattern)
     if section_start is None:
         return content, False
 
-    next_key = re.compile(r"^[A-Za-z]", re.MULTILINE)
-    section_end = _get_section_end(content, section_start, next_key)
+    section_end = _get_section_end(content, section_start, _RE_NEXT_KEY_SIMPLE)
     section = content[section_start:section_end]
 
-    misaligned = re.compile(r"(^)(\s*)-(\s*)([^\n#]+?)(?=\s*(?:#|$))", re.MULTILINE)
+    misaligned = _RE_MISALIGNED_ITEMS
     fixed = misaligned.sub(r"\1  - \4", section)
 
     if fixed != section:
@@ -177,26 +186,26 @@ def _fix_additional_apps_indentation(content: str) -> Tuple[str, bool]:
 
 
 def _get_app_tokens_section(content: str) -> str:
-    pattern = re.compile(r"^AppTokens:\s*$", re.MULTILINE)
+    pattern = _RE_APP_TOKENS
     start = _get_section_start(content, pattern)
     if start is None:
         return ""
-    next_key = re.compile(r"^[A-Za-z][A-Za-z0-9]*:\s*$", re.MULTILINE)
+    next_key = _RE_NEXT_KEY
     end = _get_section_end(content, start, next_key)
     return content[start:end]
 
 
 def _fix_app_tokens_indentation(content: str) -> Tuple[str, bool]:
     """Fix indentation of AppTokens entries to 2-space."""
-    pattern = re.compile(r"^AppTokens:\s*$", re.MULTILINE)
+    pattern = _RE_APP_TOKENS
     start = _get_section_start(content, pattern)
     if start is None:
         return content, False
 
     after = content[start:]
-    next_key = re.compile(r"^[A-Za-z][A-Za-z0-9]*:\s*$", re.MULTILINE)
+    next_key = _RE_NEXT_KEY
 
-    last_token = re.compile(r"^\s*\d+\s*:\s*[^\n]*$", re.MULTILINE)
+    last_token = _RE_LAST_TOKEN
     matches = list(last_token.finditer(after))
     if matches:
         last_end = matches[-1].end()
@@ -211,7 +220,7 @@ def _fix_app_tokens_indentation(content: str) -> Tuple[str, bool]:
         section_end = start + nm.start() if nm else len(content)
 
     section = content[start:section_end]
-    token_re = re.compile(r"(^)(\s*)(\d+)(\s*:\s*[^\n]*)", re.MULTILINE)
+    token_re = _RE_TOKEN
     fixed = token_re.sub(r"\1  \3\4", section)
 
     if fixed != section:
@@ -374,7 +383,7 @@ def add_app_token(config_path: Path, app_id: str, token: str) -> bool:
         if content is None:
             return False
 
-        header = re.compile(r"^AppTokens:\s*$", re.MULTILINE)
+        header = _RE_APP_TOKENS
         if not header.search(content):
             new_entry = f"AppTokens:\n  {app_id}: {token}\n"
             _create_backup(config_path)
@@ -459,7 +468,7 @@ def add_dlc_data(
         if content is None:
             return False
 
-        dlc_header = re.compile(r"^DlcData:\s*$", re.MULTILINE)
+        dlc_header = _RE_DLC_DATA
         match = dlc_header.search(content)
 
         if not match:
@@ -479,7 +488,7 @@ def add_dlc_data(
 
         if not parent_match:
             remaining = content[dlc_data_end:]
-            next_key = re.compile(r"^[A-Za-z]", re.MULTILINE)
+            next_key = _RE_NEXT_KEY_SIMPLE
             nm = next_key.search(remaining)
             insert_pos = dlc_data_end + nm.start() if nm else len(content)
             new_entry = f"  {parent_app_id}:\n    {dlc_id}: {safe_name}\n"
@@ -501,7 +510,7 @@ def add_dlc_data(
             insert_pos = parent_line_end + nm.start()
         else:
             after_dlcdata = content[dlc_data_end:]
-            end_m = re.compile(r"^[A-Za-z]", re.MULTILINE).search(after_dlcdata)
+            end_m = _RE_NEXT_KEY_SIMPLE.search(after_dlcdata)
             if end_m:
                 limit = dlc_data_end + end_m.start() - parent_line_end
                 parent_section = remaining[:limit]
@@ -540,13 +549,13 @@ def get_fake_app_ids(config_path: Path, fake_appid: str = "") -> Set[str]:
             return ids
         with open(config_path, "r", encoding="utf-8") as f:
             content = f.read()
-        header = re.compile(r"^FakeAppIds:\s*$", re.MULTILINE)
+        header = _RE_FAKE_APP_IDS
         match = header.search(content)
         if not match:
             return ids
         start = match.end()
         after = content[start:]
-        next_key = re.compile(r"^[A-Za-z]", re.MULTILINE)
+        next_key = _RE_NEXT_KEY_SIMPLE
         nm = next_key.search(after)
         section = after[: nm.start()] if nm else after
         entry_re = re.compile(rf"^\s*(\d+)\s*:\s*{re.escape(fake_appid)}", re.MULTILINE)
@@ -564,13 +573,13 @@ def get_fake_appid(config_path: Path, app_id: str) -> Optional[str]:
             return None
         with open(config_path, "r", encoding="utf-8") as f:
             content = f.read()
-        header = re.compile(r"^FakeAppIds:\s*$", re.MULTILINE)
+        header = _RE_FAKE_APP_IDS
         match = header.search(content)
         if not match:
             return None
         start = match.end()
         after = content[start:]
-        next_key = re.compile(r"^[A-Za-z]", re.MULTILINE)
+        next_key = _RE_NEXT_KEY_SIMPLE
         nm = next_key.search(after)
         section = after[: nm.start()] if nm else after
         entry_re = re.compile(rf"^\s*{re.escape(app_id)}\s*:\s*(\d+)", re.MULTILINE)
@@ -608,7 +617,7 @@ def add_fake_app_id(
         if existing.search(content):
             return False
 
-        header = re.compile(r"^FakeAppIds:\s*$", re.MULTILINE)
+        header = _RE_FAKE_APP_IDS
         match = header.search(content)
 
         entry = f"  {app_id}: {fake_appid}"

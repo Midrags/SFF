@@ -111,11 +111,14 @@ def _appmanifest_paths(steam_path, app_id):
 
 def find_and_parse_acf(steam_path, app_id):
     for _, acf_path in _appmanifest_paths(steam_path, app_id):
-        if acf_path.exists():
-            try:
-                return ACFParser(acf_path), acf_path
-            except Exception as e:
-                logger.debug("ACF parse failed for %s: %s", acf_path, e)
+        try:
+            if not acf_path.exists():
+                continue
+            return ACFParser(acf_path), acf_path
+        except OSError:
+            continue
+        except Exception as e:
+            logger.debug("ACF parse failed for %s: %s", acf_path, e)
     return None, None
 
 

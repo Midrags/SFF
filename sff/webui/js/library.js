@@ -44,7 +44,7 @@ window.Library = (function() {
                 _updateDiskInfo(this.value);
             });
         }
-        new Components.CustomSelect('library-drive-select', 'library-drive-select-ui');
+        // library-drive-select CustomSelect is initialized globally in app.js
 
         Bridge.on('task_finished', function(json) {
             try {

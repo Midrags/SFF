@@ -19,6 +19,7 @@
 import functools
 import logging
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -89,6 +90,10 @@ from sff.utils import enter_path, root_folder
 from sff.zip import zip_folder
 
 logger = logging.getLogger(__name__)
+
+_MANIFEST_RE = re.compile(
+    r"setManifestid\s*\(\s*(\d+)\s*,\s*[\"']([0-9a-fA-F]+)[\"']\s*\)"
+)
 
 if sys.platform == "win32":
     from sff.registry_access import (
@@ -837,7 +842,6 @@ class UI:
             downloader.download_manifests_parallel(parsed_lua, auto_manifest=True)
         else:
             downloader.download_manifests(parsed_lua, auto_manifest=True)
-        import re as _re
         from sff.dotnet_utils import ensure_dotnet_9
         from sff.depot_downloader import run_download, filter_depots_by_os
         from pathvalidate import sanitize_filename
@@ -854,12 +858,9 @@ class UI:
         _download_size = 0
         _selected = []
         if ensure_dotnet_9():
-            _manifest_re = _re.compile(
-                r"setManifestid\s*\(\s*(\d+)\s*,\s*[\"']([0-9a-fA-F]+)[\"']\s*\)"
-            )
             _manifests = {
                 m.group(1): m.group(2)
-                for m in _manifest_re.finditer(parsed_lua.contents or "")
+                for m in _MANIFEST_RE.finditer(parsed_lua.contents or "")
             }
             _game_name_str = get_game_name(parsed_lua.app_id)
             _installdir = sanitize_filename(_game_name_str).replace("'", "").strip() or str(parsed_lua.app_id)
@@ -1442,8 +1443,12 @@ class UI:
         # picks the new GID up.
         print(Fore.CYAN + "\n=== Pass 1: refreshing installed games ===" + Style.RESET_ALL)
         for lib in steam_libs:
-            steamapps = lib / "steamapps"
-            acf_files = steamapps.glob("*.acf")
+            try:
+                steamapps = lib / "steamapps"
+                acf_files = list(steamapps.glob("*.acf"))
+            except OSError:
+                logger.warning(f"Skipping inaccessible library: {lib}")
+                continue
             for acf_file in acf_files:
                 acf = ACFParser(acf_file)
                 if acf.id not in applist_ids:
@@ -1694,8 +1699,12 @@ class UI:
         updated_count = 0
         explored_ids = []
         for lib in steam_libs:
-            steamapps = lib / "steamapps"
-            acf_files = steamapps.glob("*.acf")
+            try:
+                steamapps = lib / "steamapps"
+                acf_files = list(steamapps.glob("*.acf"))
+            except OSError:
+                logger.warning(f"Skipping inaccessible library: {lib}")
+                continue
             for acf_file in acf_files:
                 acf = ACFParser(acf_file)
                 if acf.id not in applist_ids:

@@ -173,9 +173,9 @@ class VersionPickerDialog(QDialog):
             version_groups = group_by_version(self.depot_history)
             total_rows = sum(2 + len(g.entries) for g in version_groups)  # +1 per group for the "+" row
             self._table = QTableWidget()
-            self._table.setColumnCount(7)
+            self._table.setColumnCount(8)
             self._table.setHorizontalHeaderLabels(
-                ["✓", "Depot ID", "Manifest ID", "Date", "Branch", "Source", "Key"]
+                ["✓", "Depot ID", "Manifest ID", "Date", "Branch", "Source", "Key", ""]
             )
             self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
             self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -223,7 +223,9 @@ class VersionPickerDialog(QDialog):
                     cl.setContentsMargins(2, 0, 2, 0)
                     self._table.setCellWidget(table_row, 0, cw)
                     self._table.setItem(table_row, 1, QTableWidgetItem(depot_id))
-                    self._table.setItem(table_row, 2, QTableWidgetItem(manifest_id))
+                    man_inp = QLineEdit(manifest_id)
+                    man_inp.setStyleSheet("QLineEdit { border: 1px solid #555; border-radius: 2px; padding: 2px 4px; font-family: monospace; }")
+                    self._table.setCellWidget(table_row, 2, man_inp)
                     date_val = entry.date if entry else "—"
                     self._table.setItem(table_row, 3, QTableWidgetItem(date_val))
                     branch_val = entry.branch if entry else group.branch
@@ -232,6 +234,11 @@ class VersionPickerDialog(QDialog):
                     self._table.setItem(table_row, 5, QTableWidgetItem(src_val))
                     key_str = "\u2713" if has_depot_key(depot_id) else "\u2013"
                     self._table.setItem(table_row, 6, QTableWidgetItem(key_str))
+                    rm_btn = QPushButton("✕")
+                    rm_btn.setToolTip("Remove this depot from the selection")
+                    rm_btn.setStyleSheet("QPushButton { background: transparent; border: none; color: #e81123; font-size: 14px; padding: 2px; } QPushButton:hover { color: #ff4444; }")
+                    rm_btn.clicked.connect(lambda checked=False, r=table_row: self._remove_depot_row(r))
+                    self._table.setCellWidget(table_row, 7, rm_btn)
                     self._checkboxes.append((depot_id, manifest_id, chk))
                     depot_idx += 1
                     group_count += 1
@@ -296,25 +303,53 @@ class VersionPickerDialog(QDialog):
             cl.setContentsMargins(2, 0, 2, 0)
             self._table.setCellWidget(add_row, 0, cw)
             self._table.setItem(add_row, 1, QTableWidgetItem(depot_id))
-            self._table.setItem(add_row, 2, QTableWidgetItem(manifest_id))
+            man_inp = QLineEdit(manifest_id)
+            man_inp.setStyleSheet("QLineEdit { border: 1px solid #555; border-radius: 2px; padding: 2px 4px; font-family: monospace; }")
+            self._table.setCellWidget(add_row, 2, man_inp)
             self._table.setItem(add_row, 3, QTableWidgetItem("—"))
             self._table.setItem(add_row, 4, QTableWidgetItem(group.branch))
             src_item = QTableWidgetItem("Manual")
             src_item.setForeground(QBrush(QColor("#ffaa44")))
             self._table.setItem(add_row, 5, src_item)
             self._table.setItem(add_row, 6, QTableWidgetItem("—"))
+            rm_btn = QPushButton("✕")
+            rm_btn.setToolTip("Remove this depot from the selection")
+            rm_btn.setStyleSheet("QPushButton { background: transparent; border: none; color: #e81123; font-size: 14px; padding: 2px; } QPushButton:hover { color: #ff4444; }")
+            rm_btn.clicked.connect(lambda checked=False, r=add_row: self._remove_depot_row(r))
+            self._table.setCellWidget(add_row, 7, rm_btn)
             self._checkboxes.append((depot_id, manifest_id, chk))
         return _handler
 
+    def _remove_depot_row(self, row):
+        if row < 0 or row >= self._table.rowCount():
+            return
+        self._table.removeRow(row)
+        self._checkboxes = [
+            (d, m, c) for d, m, c in self._checkboxes
+            if c is not None and c.isVisible()
+        ]
+
     def _get_checked(self):
-        """Return [(depot_id, manifest_id)] for checked rows."""
         if not hasattr(self, "_checkboxes"):
             return []
-        return [
-            (depot_id, manifest_id)
-            for depot_id, manifest_id, chk in self._checkboxes
-            if chk.isChecked()
-        ]
+        result = []
+        table = self._table
+        for row in range(table.rowCount()):
+            cw = table.cellWidget(row, 0)
+            chk = cw.findChild(QCheckBox) if cw else None
+            if chk is None or not chk.isChecked():
+                continue
+            depot_item = table.item(row, 1)
+            if depot_item is None:
+                continue
+            depot_id = depot_item.text()
+            man_widget = table.cellWidget(row, 2)
+            manifest_id = None
+            if isinstance(man_widget, QLineEdit):
+                manifest_id = man_widget.text().strip()
+            if depot_id and manifest_id:
+                result.append((depot_id, manifest_id))
+        return result
 
     def _start_download(self):
         selections = self._get_checked()

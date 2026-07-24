@@ -27,11 +27,14 @@ import os
 import sys
 import json
 import logging
+import re
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from sff.utils import sff_data_dir
 
 logger = logging.getLogger(__name__)
+
+_DLC_PATTERN = re.compile(r'["\']?(\d{4,})["\']?\s*[=:]\s*["\']([^"\']+)["\']')
 
 
 def _get_cache_dir():
@@ -184,11 +187,7 @@ class FixGameCache:
         This mirrors what Solus does when caching data from lua downloads.
         """
         info = CachedAppInfo(app_id=app_id)
-        # try to extract DLC list from lua
-        import re
-        # pattern: addDLC({dlc_id}, "{name}")  or similar
-        dlc_pattern = re.compile(r'["\']?(\d{4,})["\']?\s*[=:]\s*["\']([^"\']+)["\']')
-        for match in dlc_pattern.finditer(lua_content):
+        for match in _DLC_PATTERN.finditer(lua_content):
             dlc_id = match.group(1)
             dlc_name = match.group(2)
             info.dlc_list[dlc_id] = dlc_name

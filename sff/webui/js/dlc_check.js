@@ -168,7 +168,7 @@
                         // user's local manifests. DDMod resolves owned
                         // DLCs from the parent's depot map automatically;
                         // the checkbox list is informational here.
-                        Bridge.call('open_manifest_folder_dialog', function (folder) {
+                        Bridge.callSync('open_manifest_folder_dialog', function (folder) {
                             if (!folder) return;
                             Components.showToast('info',
                                 'Running DDMod (local) against parent ' + _currentAppId + '...');

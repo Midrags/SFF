@@ -43,7 +43,7 @@ def validate_steam_path(path):
         return False
     try:
         return (Path(path) / "steamapps").is_dir()
-    except TypeError:
+    except (TypeError, OSError):
         return False
 
 

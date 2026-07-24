@@ -58,3 +58,10 @@ inject_enabled = true
 # patterns can't load (new Steam build, network down, GitHub cache miss).
 # The popup data is what you need to report a missing build.
 diagnostic_popup = true
+
+[steamstub]
+# Automatically activate the SteamStub bypass route when launching a
+# Lua-tracked game that has SteamStub protection, is not owned, and
+# has no manual stub flag set. Set to false to disable automatic bypass
+# (manual flag override in the Lua pattern still works).
+auto_enabled = false

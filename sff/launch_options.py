@@ -96,22 +96,26 @@ def _active_steamid3(steam_path: Path) -> Optional[str]:
 
 def _find_localconfig(steam_path: Path) -> Optional[Path]:
     """Return localconfig.vdf for the active account, falling back to first folder."""
-    userdata = steam_path / "userdata"
-    if not userdata.is_dir():
+    try:
+        userdata = steam_path / "userdata"
+        if not userdata.is_dir():
+            return None
+
+        sid3 = _active_steamid3(steam_path)
+        if sid3:
+            cfg = userdata / sid3 / "config" / "localconfig.vdf"
+            if cfg.is_file():
+                return cfg
+            logger.warning("active SteamID3 %s has no localconfig.vdf, falling back", sid3)
+
+        for user_dir in sorted(userdata.iterdir()):
+            cfg = user_dir / "config" / "localconfig.vdf"
+            if cfg.is_file():
+                return cfg
         return None
-
-    sid3 = _active_steamid3(steam_path)
-    if sid3:
-        cfg = userdata / sid3 / "config" / "localconfig.vdf"
-        if cfg.is_file():
-            return cfg
-        logger.warning("active SteamID3 %s has no localconfig.vdf, falling back", sid3)
-
-    for user_dir in sorted(userdata.iterdir()):
-        cfg = user_dir / "config" / "localconfig.vdf"
-        if cfg.is_file():
-            return cfg
-    return None
+    except OSError:
+        logger.debug("Failed to read userdata at %s — drive may be inaccessible", steam_path)
+        return None
 
 
 def _get_ci(d: dict, key: str):

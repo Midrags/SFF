@@ -77,7 +77,7 @@ def _count_provider_matches(depots: list[str], keys_dict: dict[str, str]) -> int
     return sum(1 for d in depots if keys_dict.get(d))
 
 
-def _build_lua_from_provider(app_id: str, app_name: str, depots: list[str], keys_dict: dict[str, str], dlc_app_ids: list[str], manifest_map: dict[str, str] | None = None) -> str:
+def _build_lua_from_provider(app_id: str, app_name: str, depots: list[str], keys_dict: dict[str, str], dlc_app_ids: list[str], manifest_map: dict[str, str] | None = None, manifest_sizes: dict[str, int] | None = None) -> str:
     provider = _cached_provider()
     depot_entries = []
     for depot_id in depots:
@@ -94,6 +94,7 @@ def _build_lua_from_provider(app_id: str, app_name: str, depots: list[str], keys
             "parent_appid": meta.get("parent_appid") or str(app_id),
             "parent_name": meta.get("parent_name") or app_name,
             "manifest_id": (manifest_map or {}).get(depot_id, ""),
+            "manifest_size": (manifest_sizes or {}).get(depot_id, 0),
         })
     dlcs = [LuaDlc(str(dlc_id)) for dlc_id in dlc_app_ids]
     return render_grouped_lua(app_id, app_name, depot_entries, manifest_map or {}, dlcs)
@@ -153,6 +154,7 @@ def get_oureverday(dest, app_id):
     # Pull latest manifest GIDs from Steam app info so we can write
     # setManifestid lines into the generated Lua.
     manifest_map: dict[str, str] = {}
+    manifest_sizes: dict[str, int] = {}
     for depot_id in depots:
         depot_info = app_info.get("depots", {}).get(depot_id, {})
         manifests = depot_info.get("manifests", {})
@@ -160,6 +162,9 @@ def get_oureverday(dest, app_id):
         gid = str(public.get("gid", ""))
         if gid and gid.isdigit():
             manifest_map[depot_id] = gid
+            size = public.get("size")
+            if isinstance(size, (int, str)) and str(size).isdigit():
+                manifest_sizes[depot_id] = int(size)
 
     # Pull every DLC app id Steam reports for this game from extended.listofdlc.
     # These are DLCs with no depot of their own (cosmetic, soundtrack, in-game
@@ -254,7 +259,7 @@ def get_oureverday(dest, app_id):
                             # depots above.
                             lua_path = dest / f"{app_id}.lua"
                             lua_path.write_text(
-                                _build_lua_from_provider(app_id, app_info.get("common", {}).get("name", ""), depots, keys_dict, dlc_app_ids, manifest_map),
+                                _build_lua_from_provider(app_id, app_info.get("common", {}).get("name", ""), depots, keys_dict, dlc_app_ids, manifest_map, manifest_sizes),
                                 encoding="utf-8",
                             )
                             print(Fore.GREEN + f"\u2705 Built Lua for {app_id} using revobd.club keys ({found} depot(s))" + Style.RESET_ALL)
@@ -271,7 +276,7 @@ def get_oureverday(dest, app_id):
 
     lua_path = dest / f"{app_id}.lua"
     with lua_path.open("w", encoding="utf-8") as f:
-        f.write(_build_lua_from_provider(app_id, app_info.get("common", {}).get("name", ""), depots, keys_dict, dlc_app_ids, manifest_map))
+        f.write(_build_lua_from_provider(app_id, app_info.get("common", {}).get("name", ""), depots, keys_dict, dlc_app_ids, manifest_map, manifest_sizes))
 
     if appended_dlcs:
         print(Fore.GREEN + f"[OK] Built custom Lua for {app_id} (Resolved {found} keys natively, +{appended_dlcs} DLC appid(s))" + Style.RESET_ALL)

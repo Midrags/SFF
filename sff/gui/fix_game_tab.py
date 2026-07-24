@@ -58,14 +58,12 @@ def _scan_installed_games(steam_path = None):
         except Exception:
             pass
 
-    # Extend with all drives
+    # Extend with all accessible drives (NTFS/FAT32/exFAT/ReFS only)
     if os.name == "nt":
-        from string import ascii_uppercase
-        for dl in ascii_uppercase:
-            for sub in ("SteamLibrary", "Steam", "Games/Steam"):
-                p = Path(f"{dl}:/{sub}")
-                if p.exists() and p not in candidates:
-                    candidates.append(p)
+        from sff.disk_utils import find_steam_libraries_on_disk
+        for lib in find_steam_libraries_on_disk():
+            if lib not in candidates:
+                candidates.append(lib)
 
     # Read libraryfolders.vdf from each root
     try:

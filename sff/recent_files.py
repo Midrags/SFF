@@ -20,6 +20,7 @@
 
 import json
 import logging
+import threading
 from pathlib import Path
 
 from sff.utils import root_folder
@@ -105,8 +106,14 @@ class RecentFilesManager:
 _recent_files_manager = None
 
 
+_recent_files_manager = None
+_recent_lock = threading.Lock()
+
+
 def get_recent_files_manager():
     global _recent_files_manager
     if _recent_files_manager is None:
-        _recent_files_manager = RecentFilesManager()
+        with _recent_lock:
+            if _recent_files_manager is None:
+                _recent_files_manager = RecentFilesManager()
     return _recent_files_manager

@@ -51,11 +51,12 @@ class SLSManager(AppInjectionManager):
         if not self.sls_config_path.exists():
             print(
                 Fore.YELLOW
-                + "\n[SLSsteam] Config file not found at: "
+                + "\n[SLSsteam] Config not found at: "
                 + str(self.sls_config_path)
-                + "\n"
-                + "SLSsteam creates its config automatically the first time Steam runs with it active.\n"
-                + "Please launch Steam now, then close it and retry this action in SteaMidra."
+                + "\n\n"
+                + "Launch Steam once so SLSsteam creates its config file, then retry.\n"
+                + "If you already launched Steam, check that SLSsteam is installed:\n"
+                + "  Tools tab -> Linux Setup -> Auto-Install SLSsteam"
                 + Style.RESET_ALL
             )
             raise FileNotFoundError(
@@ -82,24 +83,19 @@ class SLSManager(AppInjectionManager):
     def add_ids(
         self, data: Union[int, list[int], LuaParsedInfo], skip_check: bool = False
     ):
-        parser = YAMLParser(self.sls_config_path)
-        yaml_data = parser.read() or {}
-        app_ids = yaml_data.get("AdditionalApps") or []
-        yaml_data["AdditionalApps"] = app_ids
-        changes = 0
+        from sff.linux.yaml_config import add_additional_app
         if isinstance(data, int):
             data = [data]
         elif isinstance(data, LuaParsedInfo):
             data = [int(data.app_id)]
+        changes = 0
         for new_app_id in data:
-            if new_app_id not in app_ids:
+            added = add_additional_app(self.sls_config_path, str(new_app_id))
+            if added:
                 print(f"{new_app_id} added to SLSSteam config.")
-                app_ids.append(new_app_id)
                 changes += 1
             else:
                 print(f"{new_app_id} already in SLSSteam config.")
-        if changes > 0:
-            parser.write(yaml_data)
 
     def _dlc_check_via_store(self, base_id):
         """DLC check using Steam Store API only (no Steam client login). Fallback when Steam API fails."""
@@ -164,17 +160,12 @@ class SLSManager(AppInjectionManager):
                 cancellable=True,
             )
             if to_delete:
-                parser = YAMLParser(self.sls_config_path)
-                data = parser.read() or {}
-                app_ids = data.get("AdditionalApps") or []
-                data["AdditionalApps"] = app_ids
+                from sff.linux.yaml_config import remove_additional_app
+                removed = 0
                 for id_ in to_delete:
-                    try:
-                        app_ids.remove(id_)
-                    except ValueError:
-                        pass
-                parser.write(data)
-                print(f"Removed {len(to_delete)} ID(s) from SLSSteam config.")
+                    if remove_additional_app(self.sls_config_path, str(id_)):
+                        removed += 1
+                print(f"Removed {removed} ID(s) from SLSSteam config.")
         return MainReturnCode.LOOP_NO_PROMPT
 
     def dlc_check(self, provider, base_id, auto_add_depot_dlcs: bool = False):

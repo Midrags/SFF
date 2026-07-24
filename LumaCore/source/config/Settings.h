@@ -106,6 +106,13 @@ namespace Settings {
     // only Lua-level decoy / ticket forging is needed (no multiplayer bridge).
     inline bool onlineFixInjectEnabled = true;
 
+    // [steamstub]
+    // When true, SteamStubAuto automatically activates the Spacewar route
+    // for Lua-tracked games that have SteamStub protection and aren't
+    // owned. Set to false to disable automatic bypass (manual stub flag
+    // override in the Lua pattern still works).
+    inline bool steamstubAutoEnabled = false;
+
     // [boot]
     // When true, BootDiag::ReportMissing shows a MessageBoxA popup with
     // Steam build ID and steamclient SHA256 when IPC specs cannot be

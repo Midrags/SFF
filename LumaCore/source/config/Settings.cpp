@@ -52,6 +52,7 @@ namespace Settings {
             processExtensionX86.clear();
             processExtensionX64.clear();
             onlineFixInjectEnabled = true;
+            steamstubAutoEnabled = true;
         }
 
         void RememberStamp(const std::filesystem::path& cfgPath)
@@ -197,6 +198,12 @@ namespace Settings {
                     diagnosticPopupEnabled = *v;
             }
 
+            // [steamstub]
+            if (auto stub = tbl["steamstub"].as_table()) {
+                if (auto v = (*stub)["auto_enabled"].value<bool>())
+                    steamstubAutoEnabled = *v;
+            }
+
             std::string urlsLog;
             for (const auto& u : manifestFetchUrls) {
                 if (!urlsLog.empty()) urlsLog += " | ";
@@ -215,7 +222,7 @@ namespace Settings {
                      "pattern_fetch.mirror={} manifest_fetch.urls=[{}] "
                      "manifest_fetch.timeout_sec={} manifest_fetch.trusted_hosts=[{}] "
                      "stats.enable_api={} process_extension.enabled={} "
-                     "onlinefix.inject_enabled={}",
+                     "onlinefix.inject_enabled={} steamstub.auto_enabled={}",
                      LevelName(logLevel), verbose ? "true" : "false",
                      static_cast<uint32_t>(luaPaths.size()),
                      patternMirror.empty() ? "<none>" : patternMirror,
@@ -224,7 +231,8 @@ namespace Settings {
                      trustedLog,
                      statsEnableApi ? "true" : "false",
                      processExtensionEnabled ? "true" : "false",
-                     onlineFixInjectEnabled ? "true" : "false");
+                     onlineFixInjectEnabled ? "true" : "false",
+                     steamstubAutoEnabled ? "true" : "false");
             RememberStamp(cfgPath);
 
         } catch (const toml::parse_error& e) {

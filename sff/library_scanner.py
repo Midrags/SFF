@@ -66,26 +66,12 @@ class LibraryScanner:
             logger.info(f"Found {len(configured_libs)} configured Steam libraries")
         except Exception as e:
             logger.warning(f"Failed to read Steam library config: {e}")
-        # Scan all drives for additional Steam libraries
-        if os.name == 'nt':  # Windows
-            from string import ascii_uppercase
-            for drive_letter in ascii_uppercase:
-                drive = Path(f"{drive_letter}:/")
-                if not drive.exists():
-                    continue
-                # Common Steam library locations
-                potential_paths = [
-                    drive / "SteamLibrary",
-                    drive / "Steam",
-                    drive / "Program Files (x86)" / "Steam",
-                    drive / "Program Files" / "Steam",
-                    drive / "Games" / "Steam",
-                ]
-                for path in potential_paths:
-                    steamapps = path / "steamapps"
-                    if steamapps.exists() and path not in steam_libs:
-                        steam_libs.append(path)
-                        logger.info(f"Discovered Steam library: {path}")
+        if os.name == 'nt':
+            from sff.disk_utils import find_steam_libraries_on_disk
+            for lib in find_steam_libraries_on_disk():
+                if lib not in steam_libs:
+                    steam_libs.append(lib)
+                    logger.info(f"Discovered Steam library: {lib}")
         return steam_libs
 
     def scan_all_games(self, scan_all_drives = True):
@@ -112,11 +98,15 @@ class LibraryScanner:
 
     def _scan_library(self, library_path, applist_ids, seen_app_ids):
         games = []
-        steamapps = library_path / "steamapps"
-        if not steamapps.exists():
-            logger.warning(f"Steamapps folder not found: {steamapps}")
+        try:
+            steamapps = library_path / "steamapps"
+            if not steamapps.exists():
+                logger.warning(f"Steamapps folder not found: {steamapps}")
+                return games
+            acf_files = list(steamapps.glob("appmanifest_*.acf"))
+        except OSError:
+            logger.warning(f"Library inaccessible: {library_path}")
             return games
-        acf_files = list(steamapps.glob("appmanifest_*.acf"))
         for acf_file in acf_files:
             try:
                 acf = ACFParser(acf_file)
