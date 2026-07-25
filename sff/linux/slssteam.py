@@ -464,19 +464,37 @@ _HEADCRAB_URL = "https://raw.githubusercontent.com/Deadboy666/h3adcr-b/refs/head
 
 
 def _cr_filter(lines: list[str]) -> list[str]:
-    """Strip CloudRedirect-related lines from headcrab.sh output."""
+    """Strip CloudRedirect-related code from headcrab.sh.
+
+    Removes entire function definitions that reference cloudredirect,
+    plus any lines that reference CloudRedirect variables or URLs.
+    Also strips the cloudredirect variable declaration so if/else blocks
+    that check it don't break syntax.
+    """
     out: list[str] = []
-    skip = False
-    for line in lines:
+    skip_until_end_of_block = 0  # brace depth when we started skipping
+    for i, line in enumerate(lines):
         lower = line.lower()
-        if "cloudredirect" in lower or "cloud_redirect" in lower:
+        # Strip variable declarations referencing cloudredirect
+        if "cloudredirect" in lower and ('="' in line or "='" in line):
+            if "cloudredirectdir" in lower or "flatpakcloudredirectdir" in lower:
+                out.append(line)  # keep path variable, strip the value later
+                continue
+            out.append("# [SteaMidra] CloudRedirect line removed\n")
             continue
-        if "flatpak remote-add" in lower and "cloudredirect" in lower:
+        # Strip wget/curl downloads of CR files
+        if ("wget" in lower or "curl" in lower) and ("cloud_redirect" in lower or "cloudredirect" in lower):
+            out.append("# [SteaMidra] CloudRedirect download blocked\n")
             continue
-        if skip:
-            if line.strip() == "}" or line.strip().startswith("fi"):
-                skip = False
+        # Strip flatpak CR install commands (but NOT directory checks)
+        if "flatpak" in lower and ("cloudredirect" in lower or "cloud_redirect" in lower) and "install" in lower:
+            out.append("# [SteaMidra] CloudRedirect flatpak blocked\n")
             continue
+        # Strip lines calling CR functions directly
+        if lower.strip() in ("crinstall", "crinstall;", "wherecr_install", "crconfigcheck"):
+            out.append("# [SteaMidra] CloudRedirect call blocked\n")
+            continue
+        # Strip crconfigcheck and crinstall function calls with ;
         out.append(line)
     return out
 

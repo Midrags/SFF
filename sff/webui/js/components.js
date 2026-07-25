@@ -251,19 +251,19 @@ window.Components = (function() {
         var title = document.getElementById('download-modal-title');
         if (title) title.textContent = 'Download: ' + gameName + ' (' + appId + ')';
 
-        // Update labels based on platform
-        var fastestTitle = document.getElementById('dl-fastest-title');
-        var fastestDesc = document.getElementById('dl-fastest-desc');
+        // Linux: hide fastest (through Steam needs LumaCore, Linux uses DDMod only)
+        var dlFastest = document.getElementById('dl-fastest');
         if (platform === 'linux') {
-            if (fastestTitle) fastestTitle.textContent = 'Fastest download (Latest version)';
-            if (fastestDesc) fastestDesc.textContent = 'Downloads the latest version right away using DepotDownloaderMod.';
+            if (dlFastest) dlFastest.style.display = 'none';
         } else {
+            if (dlFastest) dlFastest.style.display = '';
+            var fastestTitle = document.getElementById('dl-fastest-title');
+            var fastestDesc = document.getElementById('dl-fastest-desc');
             if (fastestTitle) fastestTitle.textContent = 'Download through Steam (Fastest)';
             if (fastestDesc) fastestDesc.textContent = 'Downloads manifests + keys so Steam installs the game natively. Fastest method.';
         }
 
         // Store the app ID for the download buttons
-        var dlFastest = document.getElementById('dl-fastest');
         var dlOlder = document.getElementById('dl-older');
         var dlDdmod = document.getElementById('dl-ddmod');
         var dlDdmodDest = document.getElementById('dl-ddmod-dest-path');

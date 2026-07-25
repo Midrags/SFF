@@ -18,9 +18,7 @@
 
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel
 from PyQt6.QtCore import Qt, QPoint, QTimer
-from PyQt6.QtGui import QPixmap, QCursor
-from pathlib import Path
-import sys
+from PyQt6.QtGui import QCursor
 
 
 class TitleBarWidget(QWidget):
@@ -41,15 +39,6 @@ class TitleBarWidget(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 0, 0, 0)
         layout.setSpacing(0)
-
-        logo_path = self._find_logo()
-        if logo_path:
-            pix = QPixmap(str(logo_path))
-            if not pix.isNull():
-                icon = QLabel()
-                icon.setPixmap(pix.scaled(18, 18, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-                layout.addWidget(icon)
-                layout.addSpacing(8)
 
         title = QLabel("SteaMidra")
         title.setObjectName("TitleBarLabel")
@@ -72,28 +61,6 @@ class TitleBarWidget(QWidget):
         layout.addWidget(self._min_btn)
         layout.addWidget(self._max_btn)
         layout.addWidget(self._close_btn)
-
-    def _find_logo(self):
-        candidates = []
-        try:
-            from sff.utils import root_folder
-            candidates.append(root_folder() / "SFF.png")
-            candidates.append(root_folder() / "SFF.ico")
-        except Exception:
-            pass
-        candidates.append(Path("SFF.png"))
-        candidates.append(Path("SFF.ico"))
-        if getattr(sys, 'frozen', False):
-            try:
-                base = Path(sys._MEIPASS)
-                candidates.insert(0, base / "SFF.png")
-                candidates.insert(0, base / "SFF.ico")
-            except Exception:
-                pass
-        for p in candidates:
-            if p.exists():
-                return p
-        return None
 
     def _apply_styles(self):
         c = self._colors

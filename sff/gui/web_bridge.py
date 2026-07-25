@@ -1406,19 +1406,12 @@ class WebBridge(QObject):
             # Surface a partial-success status, nudge Steam, and skip the bogus
             # Complete/100 emit instead of pretending the download finished.
             if result is MainReturnCode.LOOP_NO_PROMPT:
-                import webbrowser
-                try:
-                    webbrowser.open("steam://updateappinfo/" + str(app_id))
-                except Exception as exc:
-                    logger.warning("steam:// nudge failed: %s", exc)
                 self.download_progress.emit(json.dumps({
                     "app_id": app_id,
-                    "status": "Partial: ACF written, download not triggered. Opened Steam to nudge update.",
-                    "progress": 60,
-                    "partial": True,
+                    "status": "ACF written, starting DDMod download...",
+                    "progress": 50,
                 }))
-                self._show_linux_fastest_workflow_notice(app_id)
-                return False
+                return self._run_linux_ddmod_fallback(app_id, manifest_override, lib_override)
 
             self.download_progress.emit(json.dumps({
                 "app_id": app_id, "status": "Complete", "progress": 100
@@ -1427,6 +1420,41 @@ class WebBridge(QObject):
 
         except Exception as e:
             logger.exception("Linux fastest download failed: %s", e)
+            return False
+
+    def _run_linux_ddmod_fallback(self, app_id, manifest_override, lib_path):
+        """After writing the ACF, kick off DDMod to actually download files."""
+        try:
+            from sff.depot_downloader import get_ddmod_dll, run_download
+            from sff.dotnet_utils import ensure_dotnet_9, find_dotnet
+            dotnet = find_dotnet()
+            if dotnet is None:
+                return False
+            dll = get_ddmod_dll()
+            if not dll.exists():
+                return False
+
+            depots = list(manifest_override.keys()) if manifest_override else []
+            if not depots:
+                return False
+
+            self.download_progress.emit(json.dumps({
+                "app_id": str(app_id), "status": "Downloading via DDMod", "progress": 55
+            }))
+
+            game_data = {"appid": str(app_id), "name": f"App {app_id}"}
+            ok, _size = run_download(
+                game_data, depots, lib_path, lib_path,
+                print_fn=lambda msg: logger.debug("DDMod: %s", msg),
+            )
+            if ok:
+                self.download_progress.emit(json.dumps({
+                    "app_id": str(app_id), "status": "Complete", "progress": 100
+                }))
+                return True
+            return False
+        except Exception:
+            logger.exception("Linux DDMod fallback failed for app %s", app_id)
             return False
 
     def _show_linux_fastest_workflow_notice(self, app_id):
@@ -1712,7 +1740,7 @@ class WebBridge(QObject):
         self._run_async(_do, on_done=_on_done)
 
     @pyqtSlot(str, str)
-    def download_game_version(self, app_id, manifest_override_json):
+    def download_game_version(self, app_id, manifest_override_json, source='oureveryday'):
         """Download specific version via process_from_store().
         Emits download_progress + task_finished signals."""
         if not app_id or not app_id.strip().isdigit():
@@ -1731,12 +1759,16 @@ class WebBridge(QObject):
             }))
 
             from pathlib import Path as _Path
+            from sff.structs import LuaEndpoint
             lib_override = _Path(self._active_library) if self._active_library else self._steam_path
+            src_map = {"hubcap": LuaEndpoint.HUBCAP, "ryuu": LuaEndpoint.RYUU, "oureveryday": LuaEndpoint.OUREVERYDAY}
+            selected = src_map.get(source, LuaEndpoint.HUBCAP if self._api_key else LuaEndpoint.OUREVERYDAY)
             self._ui.process_from_store(
                 app_id=app_id,
                 manifest_override=manifest_override,
-                use_hubcap=bool(self._api_key),
+                use_hubcap=(selected == LuaEndpoint.HUBCAP),
                 lib_path=lib_override,
+                source_override=selected,
             )
 
             self.download_progress.emit(json.dumps({
@@ -1755,8 +1787,8 @@ class WebBridge(QObject):
 
         self._run_async(_do, on_done=_on_done)
 
-    @pyqtSlot(str, str)
-    def download_game_version_native(self, app_id, manifest_override_json):
+    @pyqtSlot(str, str, str)
+    def download_game_version_native(self, app_id, manifest_override_json, source='oureveryday'):
         """Download specific version via Steam Native flow.
         Downloads Lua, pins manifests with write_manifest_pins_to_lua,
         installs to Steam plugin folder, writes ACF. Steam downloads
@@ -1790,10 +1822,11 @@ class WebBridge(QObject):
 
             saved_lua_root = Path.cwd() / "saved_lua"
             saved_lua_root.mkdir(exist_ok=True)
-            source = LuaEndpoint.HUBCAP if self._api_key else LuaEndpoint.OUREVERYDAY
+            src_map = {"hubcap": LuaEndpoint.HUBCAP, "ryuu": LuaEndpoint.RYUU, "oureveryday": LuaEndpoint.OUREVERYDAY}
+            selected_source = src_map.get(source, LuaEndpoint.HUBCAP if self._api_key else LuaEndpoint.OUREVERYDAY)
             lua_path = download_lua_direct(
                 dest=saved_lua_root, app_id=app_id,
-                source=source, steam_path=steam_path,
+                source=selected_source, steam_path=steam_path,
             )
             if not lua_path:
                 self.download_progress.emit(json.dumps({

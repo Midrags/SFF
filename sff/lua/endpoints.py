@@ -278,6 +278,12 @@ def get_oureverday(dest, app_id):
     with lua_path.open("w", encoding="utf-8") as f:
         f.write(_build_lua_from_provider(app_id, app_info.get("common", {}).get("name", ""), depots, keys_dict, dlc_app_ids, manifest_map, manifest_sizes))
 
+    try:
+        from sff.lua.dlc_appid_enricher import append_depotless_dlcs
+        append_depotless_dlcs(lua_path, app_id)
+    except Exception:
+        pass
+
     if appended_dlcs:
         print(Fore.GREEN + f"[OK] Built custom Lua for {app_id} (Resolved {found} keys natively, +{appended_dlcs} DLC appid(s))" + Style.RESET_ALL)
     else:

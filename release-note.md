@@ -1,14 +1,15 @@
-SteaMidra v6.4.4
+SteaMidra v6.4.5
 
 What's new:
 
-* Fixed Linux Steam native downloads incorrectly showing **Update** instead of **Play**. The generated ACF files now include all of the metadata Steam expects, matching real Steam installs more closely.
-* Fixed the root cause of rare `settings.bin` corruption. Settings writes are now fully thread-safe, preventing simultaneous writes from corrupting the configuration file.
-* Steam Deck and SteamOS now handle game list downloads much more reliably. HTTPS requests automatically try multiple certificate sources before falling back to an unverified connection, eliminating common SSL certificate errors.
-* Fixed Linux AppImage installations failing during the .NET 9 bootstrap process with `rl_print_keybinding` symbol lookup errors. The installer now launches with a clean environment to avoid AppImage library conflicts.
+* Older-version downloads now respect the provider you selected. Choosing Hubcap or Ryuu now correctly fetches Lua files from that provider instead of always falling back to Oureveryday.
+* Depotless DLCs are now appended correctly to Oureveryday Lua files, bringing its behavior in line with Hubcap and Ryuu.
+* Fixed the Headcrab installer filter breaking Bash scripts. CloudRedirect and Flatpak sections are now commented out instead of removed, preserving valid shell syntax.
+* Window resize handles are now easier to grab, and the bottom corners correctly use diagonal resize cursors for smoother resizing.
 
-### UI improvements
+### Linux improvements
 
-* Title bar buttons have been enlarged again for better usability on high-resolution and high-DPI displays. Close, maximize, and minimize buttons are now significantly larger and easier to click.
+* The **Add to Library / Fastest** download option is now hidden on Linux since LumaCore is Windows-only. Linux users now see only the supported DDMod direct download and Older Version download options.
+* Linux downloads that generate an ACF now automatically fall back to DepotDownloaderMod instead of simply opening Steam, ensuring game files are actually downloaded to disk.
 
 Full detailed changelog is in CHANGELOG.md

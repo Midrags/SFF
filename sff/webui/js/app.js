@@ -772,6 +772,8 @@ window.App = (function() {
             dlOlder.addEventListener('click', function() {
                 var appId = this.dataset.appid;
                 Components.hideModal('download-modal');
+                var sourceEl = document.querySelector('input[name="dl-source"]:checked');
+                window._olderVersionSource = sourceEl ? sourceEl.value : 'oureveryday';
                 var saved = localStorage.getItem('older_version_method') || '';
                 if (saved) {
                     window._olderVersionMethod = saved;
@@ -1799,21 +1801,26 @@ window.App = (function() {
     function _downloadVersionWithOverride(appId, manifest_override) {
         Components.hideModal('version-modal');
         var method = window._olderVersionMethod || 'ddmod';
+        var source = window._olderVersionSource || 'oureveryday';
 
-        // Library selection + version download
+        var doDownload = function() {
+            if (method === 'steam_native') {
+                Bridge.call('download_game_version_native', appId, JSON.stringify(manifest_override), source);
+                Components.showToast('info', 'Setting up Steam Native download for App ' + appId + '...');
+            } else {
+                Bridge.call('download_game_version', appId, JSON.stringify(manifest_override), source);
+                Components.showToast('info', 'Downloading specific version of App ' + appId + '...');
+            }
+        };
+
+        if (method === 'steam_native') {
+            doDownload();
+            return;
+        }
+
         Bridge.callSync('get_steam_libraries', function(json) {
             var libs;
             try { libs = JSON.parse(json || '[]'); } catch(e) { libs = []; }
-
-            var doDownload = function() {
-                if (method === 'steam_native') {
-                    Bridge.call('download_game_version_native', appId, JSON.stringify(manifest_override));
-                    Components.showToast('info', 'Setting up Steam Native download for App ' + appId + '...');
-                } else {
-                    Bridge.call('download_game_version', appId, JSON.stringify(manifest_override));
-                    Components.showToast('info', 'Downloading specific version of App ' + appId + '...');
-                }
-            };
 
             if (libs.length <= 1) {
                 if (libs.length === 1) Bridge.call('set_active_library', libs[0]);

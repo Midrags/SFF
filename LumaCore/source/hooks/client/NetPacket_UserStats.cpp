@@ -12,6 +12,7 @@
 #include "runtime/Logger.h"
 
 #include <unordered_map>
+#include <unordered_set>
 #include <mutex>
 #include <chrono>
 #include <deque>
@@ -38,6 +39,9 @@ std::mutex g_PendingClientStatsSpoofMutex;
 std::mutex g_StatsPoolMutex;
 std::unordered_map<AppId_t, size_t> g_NextPoolIndexByApp;
 std::unordered_map<AppId_t, size_t> g_PreferredPoolIndexByApp;
+
+std::unordered_set<AppId_t> g_recentlyStored;
+std::mutex g_recentlyStoredMutex;
 
 constexpr auto kPlayerAttemptWindow = std::chrono::seconds(15);
 constexpr size_t kPlayerAttemptCap = 24;
@@ -462,8 +466,19 @@ bool HandleRecv_ClientGetUserStatsResponse(const uint8_t* pBody, uint32_t cbBody
         std::lock_guard<std::mutex> guard(g_PendingClientStatsSpoofMutex);
         auto it = g_PendingClientStatsSpoof.find(gameId);
         if (it != g_PendingClientStatsSpoof.end()) {
-            wasSpoofed = true;
-            attempt = it->second;
+            bool recentlyStored = false;
+            {
+                std::lock_guard<std::mutex> rlock(g_recentlyStoredMutex);
+                auto rs = g_recentlyStored.find(gameId);
+                if (rs != g_recentlyStored.end()) {
+                    g_recentlyStored.erase(rs);
+                    recentlyStored = true;
+                }
+            }
+            if (!recentlyStored) {
+                wasSpoofed = true;
+                attempt = it->second;
+            }
             g_PendingClientStatsSpoof.erase(it);
         }
     }
@@ -539,6 +554,10 @@ bool HandleSend_ClientStoreUserStats2(const uint8_t* pBody, uint32_t cbBody) {
 
     LOG_PKTRT_DEBUG("{{\"evt\":\"UserStats\",\"act\":\"send\",\"sub\":\"ClientStoreUserStats2\",\"modified\":{}}}", req.DebugString());
     SteamUI::QueueLibraryTouch(gameId);
+    {
+        std::lock_guard<std::mutex> lock(g_recentlyStoredMutex);
+        g_recentlyStored.insert(gameId);
+    }
     return true;
 }
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 6.4.5
+
+### Fixes
+
+- The older-version downloader now respects the provider you picked. Selecting Hubcap or Ryuu in the download modal and then picking an older version actually fetches the lua from that provider instead of silently falling back to Oureveryday. Depotless DLCs now get appended to Oureveryday lua files the same way Hubcap and Ryuu already do.
+- The headcrab installer filter no longer breaks bash syntax. CloudRedirect references and flatpak installs are replaced with comments instead of removed, so if/else blocks stay intact and the script runs without syntax errors.
+- Window resize handles are easier to grab now and the bottom corners correctly map to diagonal resize cursors instead of returning the wrong hit-test code.
+
+### Linux
+
+- Linux store downloads now hide the "Add to Library / Fastest" button. LumaCore is Windows-only and the button led to a broken path. Linux users see DDMod direct download and older version download as the only options.
+- When the Linux download path writes an ACF, it now automatically falls back to DDMod instead of just opening Steam and hoping it downloads. Files actually land on disk.
+
 ## 6.4.4
 
 ### Fixes

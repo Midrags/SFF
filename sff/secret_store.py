@@ -125,6 +125,7 @@ def _load_or_create_secret_key() -> bytes:
             return existing
 
     key = _create_secret_key()
+    _save_key_to_file(key)  # always save file fallback, even if keyring works
 
     if _KEYRING_WORKING and keyring is not None:
         try:

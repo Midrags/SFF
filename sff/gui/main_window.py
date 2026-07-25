@@ -1389,7 +1389,7 @@ class SFFMainWindow(QMainWindow):
                         ctypes.wintypes.HIWORD(msg.lParam),
                     ))
                     w, h = self.width(), self.height()
-                    margin = 8
+                    margin = 12
                     edge = 0
                     if pos.x() < margin:
                         edge |= 1
@@ -1401,7 +1401,7 @@ class SFFMainWindow(QMainWindow):
                         edge |= 8
                     if edge:
                         HT_map = {
-                            5: 13, 6: 14, 9: 10, 10: 11,
+                            5: 13, 6: 14, 9: 16, 10: 17,
                             4: 12, 8: 15, 1: 10, 2: 11,
                         }
                         return (True, ctypes.c_ulong(HT_map.get(edge, 12)))
