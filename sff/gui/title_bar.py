@@ -33,7 +33,7 @@ class TitleBarWidget(QWidget):
             "bg": "#1a1a1a", "fg": "#e8e8e8", "accent": "#4a9eff",
             "close": "#e81123", "border": "#444444",
         }
-        self.setFixedHeight(46)
+        self.setFixedHeight(56)
         self._build_ui()
         self._apply_styles()
 
@@ -61,7 +61,7 @@ class TitleBarWidget(QWidget):
         self._close_btn = QPushButton("✕")
 
         for btn in (self._min_btn, self._max_btn, self._close_btn):
-            btn.setFixedSize(130, 46)
+            btn.setFixedSize(170, 56)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             btn.setObjectName("TitleBarButton")
 
@@ -100,12 +100,12 @@ class TitleBarWidget(QWidget):
         self.setStyleSheet(
             f"TitleBarWidget {{ background-color: {c['bg']}; border-bottom: 1px solid {c['border']}; }}"
             f"QLabel#TitleBarLabel {{"
-            f"  color: {c['fg']}; font-size: 14px; font-weight: 600;"
+            f"  color: {c['fg']}; font-size: 16px; font-weight: 600;"
             f"  background: transparent;"
             f"}}"
             f"QPushButton#TitleBarButton {{"
             f"  background: transparent; border: none; border-radius: 0;"
-            f"  color: {c['fg']}; font-size: 20px; padding: 0;"
+            f"  color: {c['fg']}; font-size: 24px; padding: 0;"
             f"  min-width: 0;"
             f"}}"
             f"QPushButton#TitleBarButton:hover {{"
@@ -118,7 +118,7 @@ class TitleBarWidget(QWidget):
         self._close_btn.setStyleSheet(
             f"QPushButton#TitleBarButton {{"
             f"  background: transparent; border: none; border-radius: 0;"
-            f"  color: {c['fg']}; font-size: 20px; padding: 0;"
+            f"  color: {c['fg']}; font-size: 24px; padding: 0;"
             f"  min-width: 0;"
             f"}}"
             f"QPushButton#TitleBarButton:hover {{"

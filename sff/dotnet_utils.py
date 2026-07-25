@@ -170,6 +170,8 @@ def _install_dotnet_9_linux(print_fn=print) -> bool:
         script_path.chmod(0o755)
         env = os.environ.copy()
         env["DOTNET_ROOT"] = str(Path.home() / ".dotnet")
+        env.pop("LD_LIBRARY_PATH", None)
+        env.pop("LD_PRELOAD", None)
         print_fn("Installing .NET 9 runtime (this may take a minute)...")
         proc = subprocess.Popen(
             [str(script_path), "--channel", "9.0", "--runtime", "dotnet"],

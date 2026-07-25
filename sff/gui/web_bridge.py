@@ -4387,14 +4387,17 @@ class WebBridge(QObject):
             log_lines: list[str] = []
             try:
                 from pathlib import Path as _Path
-                from sff.linux.slssteam import detect_steam_type, install_from_github
+                from sff.linux.slssteam import detect_steam_type, install_from_github, setup_via_headcrab
                 from sff.dotnet_utils import ensure_dotnet_9
 
                 if detect_steam_type() == "flatpak":
                     steam_path = _Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam"
                 else:
                     steam_path = _Path.home() / ".steam" / "steam"
-                install_from_github(steam_path, log_lines.append)
+                ok = setup_via_headcrab(steam_path, log_lines.append)
+                if not ok:
+                    log_lines.append("headcrab failed, falling back to direct SLSsteam install...")
+                    install_from_github(steam_path, log_lines.append)
                 ensure_dotnet_9(print_fn=log_lines.append)
                 return (True, "\n".join(str(x) for x in log_lines) or "Linux setup completed.")
             except Exception as exc:

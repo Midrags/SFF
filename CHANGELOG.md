@@ -1,5 +1,18 @@
 # Changelog
 
+## 6.4.4
+
+### Fixes
+
+- The Linux ACF writer was missing key fields Steam uses to decide between "Update" and "Play". BytesToStage, BytesStaged, TargetBuildID, AutoUpdateBehavior, and ScheduledAutoUpdate are now all set, matching what a real Steam install writes. Games should show "Play" after downloading instead of flipping back to "Update".
+- Settings race condition finally fixed for real. Two threads hitting set_setting at the same time was the actual root cause of corrupted settings.bin. Now there's a proper threading lock around every write, not just better error recovery.
+- The game list fallback fetcher on Steam Deck and SteamOS no longer fails every HTTPS request with SSL certificate errors. It now tries certifi first, then the system CA bundle at /etc/ssl/certs/ca-certificates.crt, then /etc/ssl/cert.pem, and as a last resort falls back to unverified just like the Chrome downloader already does.
+- The .NET 9 bootstrapper on Linux AppImages no longer crashes bash with "symbol lookup error: rl_print_keybinding". The install subprocess now strips LD_LIBRARY_PATH and LD_PRELOAD from its environment so the script's own bash binary doesn't load the wrong libreadline from inside the AppImage mount.
+
+### UI
+
+- Title bar buttons got bigger again. Close, maximize, and minimize are now 170x56px with 24px font so nobody can complain they're too small on any screen.
+
 ## 6.4.3
 
 ### Fixes

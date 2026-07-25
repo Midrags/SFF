@@ -46,7 +46,18 @@ def _get_ssl_ctx():
         import certifi
         return ssl.create_default_context(cafile=certifi.where())
     except Exception:
+        pass
+    for candidate in ("/etc/ssl/certs/ca-certificates.crt", "/etc/ssl/cert.pem"):
+        if os.path.exists(candidate):
+            try:
+                return ssl.create_default_context(cafile=candidate)
+            except Exception:
+                pass
+    try:
         return ssl.create_default_context()
+    except Exception:
+        logger.warning("No CA certificates available, HTTPS verification disabled for game list fetches")
+        return ssl._create_unverified_context()
 
 logger = logging.getLogger(__name__)
 

@@ -179,6 +179,8 @@ SteaMidra’s GPL license applies to SteaMidra’s own source code only. It does
 
 **DDMod / DepotDownloaderMod** – The Direct Download via DDMod feature uses **DepotDownloaderMod** by **oureveryday**. License in `third_party_licenses/DDMod.license`.
 
+**headcrab / h3adcr-b** – The Linux SLSsteam auto-setup uses **headcrab** by **Deadboy666** (<https://github.com/Deadboy666/h3adcr-b>) as the primary installer. headcrab downloads and installs the latest SLSsteam release, patches Steam, and sets up the config. It is downloaded and run at setup time (not bundled). headcrab does not ship with a license; it remains owned by its original author.
+
 **ManifestHub** – The ManifestHub source uses the manifest archive/API maintained by **oureveryday**.
 
 **rclone** – Cloud Saves uses **rclone** for transfers to remote storage providers. License in `third_party_licenses/rclone.LICENSE`.

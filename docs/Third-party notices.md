@@ -151,6 +151,17 @@ Notes: Linux third-party tools remain owned by their original authors and are no
 
 ---
 
+## headcrab / h3adcr-b
+
+Author / maintainer: Deadboy666
+Repository: https://github.com/Deadboy666/h3adcr-b
+Bundled: No (downloaded at runtime)
+Modified: Yes (CloudRedirect references stripped before execution)
+Used for: Linux SLSsteam auto-setup. Downloads and installs the latest SLSsteam release, patches Steam's steam.sh with LD_AUDIT, and configures SLSsteam. Used as the primary Linux setup method with SteaMidra's own installer as fallback.
+License: None (no license file provided by upstream)
+
+---
+
 ## DLC unlocker components
 
 ### CreamAPI

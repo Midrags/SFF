@@ -114,12 +114,18 @@ class ACFWriter:
                 "name": app_name,
                 "StateFlags": "4",
                 "installdir": installdir,
-                "LastUpdated": "0",
+                "LastUpdated": str(int(time.time())),
                 "UpdateResult": "0",
                 "SizeOnDisk": str(size_on_disk),
                 "BytesToDownload": "0",
                 "BytesDownloaded": "0",
+                "BytesToStage": "0",
+                "BytesStaged": "0",
+                "TargetBuildID": str(buildid),
                 "buildid": str(buildid),
+                "AutoUpdateBehavior": "0",
+                "AllowOtherDownloadsWhileRunning": "0",
+                "ScheduledAutoUpdate": "0",
             }
             if manifest_map:
                 app_state["InstalledDepots"] = {

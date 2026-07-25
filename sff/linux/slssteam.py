@@ -460,6 +460,84 @@ def check_update_available(print_fn=print) -> dict:
     return result
 
 
+_HEADCRAB_URL = "https://raw.githubusercontent.com/Deadboy666/h3adcr-b/refs/heads/main/headcrab.sh"
+
+
+def _cr_filter(lines: list[str]) -> list[str]:
+    """Strip CloudRedirect-related lines from headcrab.sh output."""
+    out: list[str] = []
+    skip = False
+    for line in lines:
+        lower = line.lower()
+        if "cloudredirect" in lower or "cloud_redirect" in lower:
+            continue
+        if "flatpak remote-add" in lower and "cloudredirect" in lower:
+            continue
+        if skip:
+            if line.strip() == "}" or line.strip().startswith("fi"):
+                skip = False
+            continue
+        out.append(line)
+    return out
+
+
+def setup_via_headcrab(steam_path: Path, print_fn=print) -> bool:
+    """Download and run headcrab.sh to install SLSsteam. Primary method."""
+    if not _IS_LINUX:
+        return False
+    try:
+        import httpx
+    except ImportError:
+        print_fn(Fore.RED + "httpx not available." + Style.RESET_ALL)
+        return False
+
+    print_fn(Fore.CYAN + "\n[headcrab] Downloading headcrab installer..." + Style.RESET_ALL)
+    script_path = Path(tempfile.gettempdir()) / "headcrab_install.sh"
+    try:
+        resp = httpx.get(_HEADCRAB_URL, timeout=60, follow_redirects=True)
+        resp.raise_for_status()
+        lines = resp.text.splitlines(keepends=True)
+        filtered = _cr_filter(lines)
+        script_path.write_text("".join(filtered), encoding="utf-8")
+    except Exception as e:
+        print_fn(Fore.RED + f"headcrab download failed: {e}" + Style.RESET_ALL)
+        return False
+
+    try:
+        script_path.chmod(0o755)
+        env = os.environ.copy()
+        env.pop("LD_LIBRARY_PATH", None)
+        env.pop("LD_PRELOAD", None)
+        print_fn(Fore.CYAN + "[headcrab] Running installer (this may take a few minutes)..." + Style.RESET_ALL)
+        proc = subprocess.Popen(
+            ["bash", str(script_path)],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, env=env, cwd=str(script_path.parent),
+        )
+        for line in proc.stdout:
+            line = line.rstrip()
+            if line:
+                print_fn(line)
+        proc.wait()
+        ok = proc.returncode == 0
+        if ok:
+            print_fn(Fore.GREEN + "\n[headcrab] SLSsteam installation completed." + Style.RESET_ALL)
+            _setup_config_from_extracted(Path(tempfile.gettempdir()) / "headcrab_extract")
+            patch_steam_sh(steam_path, print_fn)
+            create_steam_cfg(steam_path, print_fn)
+        else:
+            print_fn(Fore.YELLOW + f"\n[headcrab] Installer exited with code {proc.returncode}" + Style.RESET_ALL)
+        return ok
+    except Exception as e:
+        print_fn(Fore.RED + f"headcrab failed: {e}" + Style.RESET_ALL)
+        return False
+    finally:
+        try:
+            script_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 def install_from_github(steam_path: Path, print_fn=print) -> bool:
     if not _IS_LINUX:
         return False
