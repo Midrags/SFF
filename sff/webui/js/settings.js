@@ -457,6 +457,7 @@ window.Settings = (function() {
 
         // Number inputs
         var numbers = {
+            'setting-download-concurrency': 'download_concurrency',
             'setting-parallel-workers': 'parallel_downloads',
             'setting-backup-retention': 'backup_retention',
             'setting-live-log-lines': 'live_log_max_lines',
@@ -689,6 +690,7 @@ window.Settings = (function() {
                 // Selects
                 _setSelectVal('setting-language', settings.language || 'en');
                 // Number inputs
+                _setInputVal('setting-download-concurrency', settings.download_concurrency || '32');
                 _setInputVal('setting-parallel-workers', settings.parallel_downloads || '5');
                 _setInputVal('setting-backup-retention', settings.backup_retention || '4');
                 _setInputVal('setting-live-log-lines', settings.live_log_max_lines || '100');

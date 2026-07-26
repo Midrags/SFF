@@ -4998,7 +4998,7 @@ class WebBridge(QObject):
             logger.warning("get_recent_lua_files failed: %s", e)
             return "[]"
 
-    @pyqtSlot(str, str, str, str, str, str, str)
+    @pyqtSlot(str, str, str, str, str)
     def download_game_ddmod(self, app_id, source, lua_path, manifest_folder='', target_os='', branch='', file_type=''):
         """Download a game using DepotDownloaderMod.
         source: 'hubcap' | 'oureveryday' | 'ryuu' | 'local'
@@ -5732,35 +5732,41 @@ class WebBridge(QObject):
         zero hits AND a Hubcap API key is configured. The Hubcap library
         carries delisted titles (San Andreas, LEGO 2K Drive) that the
         Steam IStoreService applist no longer surfaces; users who own
-        those titles can still install them, so the fallback makes them
-        addable from the home page filter.
+        those titles can still install them, so they are addable from
+        the home page filter.
         """
         from sff.utils import root_folder
         all_games_file = root_folder(outside_internal=True) / "all_games.txt"
         if not all_games_file.exists():
             self.update_games_file()
             return json.dumps([{"name": "Game list not found — downloading now. Please search again in a moment.", "appid": "0"}])
+
+        # Cache parsed lines in memory so subsequent searches skip file I/O
+        _cache = getattr(self, '_allgames_cache', None)
+        if _cache is None:
+            _id_re = re.compile(r"\[ID=(\d+)\]$")
+            _cache = []
+            try:
+                with all_games_file.open(encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        m = _id_re.search(line)
+                        if m:
+                            _cache.append((line[:m.start()].strip(), m.group(1)))
+            except Exception:
+                return "[]"
+            self._allgames_cache = _cache
+
         try:
-            # Match on the normalized form so trademark marks (™, ®),
-            # accents, and stray punctuation in the catalog name don't
-            # block a typed query like "lego batman".
             q_norm = _normalize_for_search(query)
             results = []
-            _id_re = re.compile(r"\[ID=(\d+)\]$")
-            with all_games_file.open(encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    match = _id_re.search(line)
-                    if not match:
-                        continue
-                    name = line[:match.start()].strip()
-                    appid = match.group(1)
-                    if _matches_normalized(q_norm, _normalize_for_search(name)):
-                        results.append({"name": name, "appid": appid})
-                    if len(results) >= 200:
-                        break
+            for name, appid in _cache:
+                if _matches_normalized(q_norm, _normalize_for_search(name)):
+                    results.append({"name": name, "appid": appid})
+                if len(results) >= 200:
+                    break
 
             # Hubcap fallback for delisted games. The Steam applist drops
             # titles that have been removed from the store (San Andreas,
@@ -5968,11 +5974,15 @@ class WebBridge(QObject):
 
     def get_installed_games(self):
         """Returns JSON array of installed games from ALL Steam library folders.
-        Relies on background cache (_prefetch_installed_games) so it never
-        blocks the main thread. Falls back to sync scan on first call."""
+        Returns cached data immediately, dispatches background refresh."""
         import time as _t
         _cached = getattr(self, '_installed_games_cache', None)
-        if _cached and (_t.monotonic() - _cached[0]) < 240.0:
+        if _cached:
+            age = _t.monotonic() - _cached[0]
+            if age < 3600.0:
+                return _cached[1]
+            # Stale: return cached immediately, dispatch background refresh
+            self._prefetch_installed_games()
             return _cached[1]
         try:
             payload = self._scan_installed_games()

@@ -270,6 +270,62 @@ def run_download(
         )
     game_data["manifests"] = manifests
 
+    # ── Linux native downloader (no .NET needed) ──────────────────
+    if sys.platform.startswith("linux"):
+        try:
+            from sff.native_downloader import download_depot as _native_dl
+            print_fn(Fore.CYAN + "\n[Native] Starting Steam CDN download (no .NET required)" + Style.RESET_ALL)
+            all_ok = True
+            total_size = 0
+            for depot_id in selected_depots:
+                depot_id_str = str(depot_id)
+                manifest_id = manifests.get(depot_id_str)
+                if not manifest_id:
+                    print_fn(Fore.YELLOW + f"Depot {depot_id_str}: no manifest, skipping" + Style.RESET_ALL)
+                    continue
+                key_data = depots.get(depot_id_str, {})
+                key = key_data.get("key", "") if isinstance(key_data, dict) else ""
+                if not key:
+                    print_fn(Fore.YELLOW + f"Depot {depot_id_str}: no key, skipping" + Style.RESET_ALL)
+                    continue
+                print_fn(
+                    Fore.CYAN
+                    + f"\n--- Downloading depot {depot_id_str} (native) ---"
+                    + Style.RESET_ALL
+                )
+                try:
+                    manifest_path = None
+                    if manifest_id:
+                        mf = MANIFESTS_TMP / f"{depot_id_str}_{manifest_id}.manifest"
+                        if mf.exists():
+                            manifest_path = mf
+                    ok, size = _native_dl(
+                        app_id, depot_id_str, manifest_id, key, download_dir,
+                        print_fn=print_fn, os_filter=os_name or "linux",
+                        steam_path=steam_path,
+                        manifest_path=manifest_path,
+                    )
+                    if ok:
+                        total_size += size
+                        print_fn(Fore.GREEN + f"Depot {depot_id_str} downloaded ({size:,} bytes)" + Style.RESET_ALL)
+                    else:
+                        all_ok = False
+                except Exception as e:
+                    print_fn(Fore.RED + f"Native download failed for depot {depot_id_str}: {e}" + Style.RESET_ALL)
+                    logger.exception("Native downloader: depot %s failed", depot_id_str)
+                    all_ok = False
+            try:
+                KEYS_TMP.unlink(missing_ok=True)
+            except Exception:
+                pass
+            total_size = _calculate_dir_size(download_dir)
+            print_fn(Fore.CYAN + f"Total size on disk: {total_size:,} bytes" + Style.RESET_ALL)
+            return all_ok, total_size
+        except ImportError:
+            print_fn(Fore.YELLOW + "[Native] Native downloader not available, falling back to DDMod" + Style.RESET_ALL)
+        except Exception as e:
+            print_fn(Fore.YELLOW + f"[Native] Init failed ({e}), falling back to DDMod" + Style.RESET_ALL)
+
     dotnet_path = get_dotnet_path()
     if not dotnet_path:
         print_fn(Fore.RED + ".NET 9 not available. Cannot download." + Style.RESET_ALL)
@@ -316,12 +372,20 @@ def run_download(
         depot_id_str = str(depot_id)
         manifest_id = manifests.get(depot_id_str)
 
+        try:
+            from sff.storage.settings import get_setting
+            from sff.structs import Settings
+            val = get_setting(Settings.DOWNLOAD_CONCURRENCY)
+            max_dl = str(min(max(int(val) if val else 32, 8), 64))
+        except Exception:
+            max_dl = "32"
+
         cmd = [
             dotnet_path, str(dll_path),
             "-app", appid,
             "-depot", depot_id_str,
             "-depotkeys", str(KEYS_TMP),
-            "-max-downloads", "32",
+            "-max-downloads", max_dl,
             "-validate",
             "-dir", str(download_dir),
         ]

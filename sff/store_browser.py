@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://hubcapmanifest.com/api/v1"
 
 # how long to cache game status responses (seconds)
-STATUS_CACHE_TTL = 300  # 5 minutes, same as Hubcap Bot
+STATUS_CACHE_TTL = 300
+_STATUS_CACHE_MAX = 500  # 5 minutes, same as Hubcap Bot
 
 
 @dataclass
@@ -325,6 +326,13 @@ class StoreApiClient:
                 _cached_at=time.time(),
             )
             self._status_cache[app_id] = status
+            if len(self._status_cache) > _STATUS_CACHE_MAX:
+                keys_to_drop = sorted(
+                    self._status_cache.keys(),
+                    key=lambda k: self._status_cache[k]._cached_at,
+                )[:len(self._status_cache) // 2]
+                for k in keys_to_drop:
+                    self._status_cache.pop(k, None)
             return status
         except Exception as e:
             logger.warning("Failed to get status for %d: %r", app_id, e)

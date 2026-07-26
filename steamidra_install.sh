@@ -167,7 +167,7 @@ install_dotnet9() {
     log_info "Installing .NET 9 runtime (needed for game downloads)..."
     local TMP
     TMP="$(mktemp)"
-    curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$TMP" || { log_error "Failed to download dotnet-install.sh"; rm -f "$TMP"; return 1; }
+    curl -fsSL --connect-timeout 30 --max-time 120 https://dot.net/v1/dotnet-install.sh -o "$TMP" || { log_error "Failed to download dotnet-install.sh"; rm -f "$TMP"; return 1; }
     chmod +x "$TMP"
     DOTNET_ROOT="$HOME/.dotnet" bash "$TMP" --channel 9.0 --runtime dotnet || { log_error ".NET 9 install failed"; rm -f "$TMP"; return 1; }
     rm -f "$TMP"

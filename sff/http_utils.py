@@ -413,6 +413,7 @@ def download_to_path(
     path: Path,
     headers = None,
     chunk_size = (1024**2) // 2,
+    timeout: float | None = 60.0,
 ):
     try:
         path = Path(path)
@@ -422,7 +423,7 @@ def download_to_path(
             url,
             headers=headers or {},
             follow_redirects=True,
-            timeout=None,
+            timeout=httpx.Timeout(connect=30.0, read=timeout, write=30.0, pool=30.0) if timeout else None,
         ) as response:
             response.raise_for_status()
             try:

@@ -175,11 +175,11 @@ class SFFMainWindow(QMainWindow):
         self._qt_log_dropped = 0
         from PyQt6.QtCore import QTimer as _QTimer
         self._web_log_flush_timer = _QTimer(self)
-        self._web_log_flush_timer.setInterval(100)
+        self._web_log_flush_timer.setInterval(250)
         self._web_log_flush_timer.timeout.connect(self._flush_web_log_buffer)
         self._web_log_flush_timer.start()
         self._qt_log_flush_timer = _QTimer(self)
-        self._qt_log_flush_timer.setInterval(100)
+        self._qt_log_flush_timer.setInterval(250)
         self._qt_log_flush_timer.timeout.connect(self._flush_qt_log_buffer)
         self._qt_log_flush_timer.start()
         self._game_list = []
@@ -2027,6 +2027,7 @@ class SFFMainWindow(QMainWindow):
                 installed = []
             now = time.time()
             queued: list[str] = []
+            MAX_BATCH = 50
             for game in installed:
                 app_id = str(game.get("app_id") or "").strip()
                 if not app_id or app_id == "0":
@@ -2037,6 +2038,8 @@ class SFFMainWindow(QMainWindow):
                 if now - last < interval_sec:
                     continue
                 queued.append(app_id)
+                if len(queued) >= MAX_BATCH:
+                    break
             if not queued:
                 return
             logger.info(

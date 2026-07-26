@@ -87,7 +87,7 @@ class Updater:
     def get_latest_prerelease():
         url = Updater._RELEASES_URL
         while True:
-            resp = httpx.get(url, headers=Updater._HEADERS)
+            resp = httpx.get(url, headers=Updater._HEADERS, timeout=30.0)
             releases = json.loads(resp.text)
             for release in releases:
                 tag = release.get("tag_name")
