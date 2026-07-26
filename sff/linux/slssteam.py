@@ -54,6 +54,11 @@ _SYSTEM_TOOL_ENV_DROP = (
     "PYTHONPATH",
     "QT_PLUGIN_PATH",
     "QML2_IMPORT_PATH",
+    "APPIMAGE",
+    "APPDIR",
+    "OWD",
+    "ARGV0",
+    "APPIMAGE_UUID",
 )
 
 
@@ -499,6 +504,15 @@ def _cr_filter(lines: list[str]) -> list[str]:
     return out
 
 
+def _cleanup_headcrab_zombies():
+    """Kill leftover headcrab child processes (dlm, dgsc, wget) that survive script exit."""
+    for name in ("dlm", "dgsc", "wget"):
+        try:
+            subprocess.run(["pkill", "-f", name], timeout=5, capture_output=True)
+        except Exception:
+            pass
+
+
 def setup_via_headcrab(steam_path: Path, print_fn=print) -> bool:
     """Download and run headcrab.sh to install SLSsteam. Primary method."""
     if not _IS_LINUX:
@@ -538,6 +552,7 @@ def setup_via_headcrab(steam_path: Path, print_fn=print) -> bool:
                 print_fn(line)
         proc.wait()
         ok = proc.returncode == 0
+        _cleanup_headcrab_zombies()
         if ok:
             print_fn(Fore.GREEN + "\n[headcrab] SLSsteam installation completed." + Style.RESET_ALL)
             _setup_config_from_extracted(Path(tempfile.gettempdir()) / "headcrab_extract")

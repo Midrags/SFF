@@ -1382,6 +1382,18 @@ class SFFMainWindow(QMainWindow):
             try:
                 import ctypes.wintypes
                 msg = ctypes.wintypes.MSG.from_address(message.__int__())
+                if msg.message == 0x0083 and msg.wParam:
+                    rect = ctypes.cast(
+                        msg.lParam, ctypes.POINTER(ctypes.wintypes.RECT)
+                    )
+                    rimmed = ctypes.wintypes.RECT.from_address(
+                        ctypes.addressof(rect.contents)
+                    )
+                    rect.contents.top = rimmed.top + 1
+                    rect.contents.left = rimmed.left + 1
+                    rect.contents.right = rimmed.right - 1
+                    rect.contents.bottom = rimmed.bottom - 1
+                    return (True, 0)
                 if msg.message == 0x0084:
                     from PyQt6.QtCore import QPoint
                     pos = self.mapFromGlobal(QPoint(
@@ -1792,6 +1804,24 @@ class SFFMainWindow(QMainWindow):
     def showEvent(self, event):
         super().showEvent(event)
         self._restore_webview_gpu()
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                hwnd = int(self.winId())
+                GWL_STYLE = -16
+                WS_THICKFRAME = 0x00040000
+                style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_STYLE)
+                ctypes.windll.user32.SetWindowLongW(hwnd, GWL_STYLE, style | WS_THICKFRAME)
+                SWP_FRAMECHANGED = 0x0020
+                SWP_NOMOVE = 0x0002
+                SWP_NOSIZE = 0x0001
+                SWP_NOZORDER = 0x0004
+                ctypes.windll.user32.SetWindowPos(
+                    hwnd, 0, 0, 0, 0, 0,
+                    SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
+                )
+            except Exception:
+                pass
 
     def _release_webview_gpu(self):
         if not self._web_ui_active or not hasattr(self, '_web_view'):

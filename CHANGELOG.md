@@ -1,5 +1,22 @@
 # Changelog
 
+## 6.4.6
+
+### Fixes
+
+- The encryption key that protects API keys and passwords is now always saved to a file fallback, even when the system keyring works. On Maintool and some Linux distros the keyring would work once then fail on the next launch, regenerating the key and making every saved API key unreadable. Settings stopped vanishing between restarts.
+- The Linux ACF prompt when re-adding a game now says "Update" and "New" instead of the old paragraph-long button labels that nobody read.
+- Depot OS filtering was completely disabled on Linux. Every depot passed through unfiltered because the default target was set to "all" which skipped the oslist check entirely. Linux downloads now correctly filter out Windows-only and Mac-only depots, matching the DDMod -os flag behavior.
+- Every ACF file SteaMidra writes is now set read-only immediately after writing. Steam would sometimes overwrite StateFlags back to "Update" if the ACF stayed writable between launches. This covers DDMod downloads, workshop ACF patches, error state fixes, and DLC depot updates.
+- The restart Steam button now shows live progress in the Web UI on Windows instead of writing invisible print() calls to a console nobody sees. Errors are caught and reported properly on both platforms.
+
+### Linux
+
+- The headcrab installer filter was accidentally removing `if [ -d "$FlatpakCloudRedirectDir" ]` lines because they contained "flatpak" and "cloudredirect" in the same string. Now only actual `flatpak install` commands get blocked, directory checks stay intact, and the script no longer fails with a syntax error at line 664.
+- Steam restarted through SteaMidra no longer inherits AppImage environment variables like APPIMAGE, APPDIR, OWD, and LD_LIBRARY_PATH. These leaked into the Steam process and caused silent launch failures on Fedora and CachyOS. The environment is cleaned before spawning Steam, matching the existing system-tool sanitizer.
+- The Steam Native older-version downloader was running Windows-only VDF writer and plugin folder operations on Linux, crashing SteaMidra on CachyOS. The native path is now gated to Windows only, and the DDMod fallback passes proper depot key data so the download actually starts instead of sitting there doing nothing.
+- The SteamAutoCrack config writer no longer crashes with Errno 30 on AppImage. Config files that need to be written temporarily now fall back to the SteaMidra data directory when the CLI directory is inside the read-only AppImage mount. The API key is injected directly into the generated config so the NO LICENSE error does not appear even when the base config.json cannot be patched.
+
 ## 6.4.5
 
 ### Fixes

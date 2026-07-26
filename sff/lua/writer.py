@@ -17,6 +17,7 @@
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
 
+import os
 import shutil
 import time
 
@@ -91,9 +92,8 @@ class ACFWriter:
             do_write_acf = not prompt_confirm(
                 ".acf file found. Are you updating a game you already have installed"
                 " or is this a new installation?",
-                true_msg="I'm updating a game",
-                false_msg="This is a new installation (Overwrites the .acf file, i.e., "
-                "resets the status of the game)",
+                true_msg="Update",
+                false_msg="New",
             )
         if do_write_acf:
             app_name = get_game_name(lua.app_id)
@@ -145,6 +145,10 @@ class ACFWriter:
                 )
             acf_contents = {"AppState": app_state}
             vdf_dump(acf_file, acf_contents)
+            try:
+                os.chmod(acf_file, 0o444)
+            except OSError:
+                pass
             print(f"Wrote .acf file to {acf_file}")
         else:
             # Clear stale error state so Steam doesn't keep retrying a
@@ -217,6 +221,10 @@ class ACFWriter:
             )
         acf_contents = {"AppState": app_state}
         vdf_dump(acf_file, acf_contents)
+        try:
+            os.chmod(acf_file, 0o444)
+        except OSError:
+            pass
         print(f"Wrote .acf file to {acf_file}")
 
     @staticmethod
@@ -249,6 +257,10 @@ class ACFWriter:
                 pass
             if patched:
                 vdf_dump(acf_file, data)
+                try:
+                    os.chmod(acf_file, 0o444)
+                except OSError:
+                    pass
                 print("Patched .acf error state (cleared UpdateResult / validation flags)")
             else:
                 print("Skipped writing to .acf file (no stale error state)")
@@ -284,6 +296,10 @@ class ACFWriter:
             if "WorkshopItemDetails" in ws:
                 ws["WorkshopItemDetails"] = {}
             vdf_dump(ws_acf, data)
+            try:
+                os.chmod(ws_acf, 0o444)
+            except OSError:
+                pass
             print(
                 f"Patched workshop ACF — cleared NeedsDownload to prevent "
                 f"'NO INTERNET CONNECTION' ({ws_acf.name})"
@@ -326,6 +342,10 @@ class ACFWriter:
                     app_state[key] = clean_val
             data["AppState"] = app_state
             vdf_dump(acf_file, data)
+            try:
+                os.chmod(acf_file, 0o444)
+            except OSError:
+                pass
             print(
                 f"Patched InstalledDepots for {len(manifest_map)} depot(s) in {acf_file.name}"
             )

@@ -190,7 +190,26 @@ def load_provider() -> dict[str, dict]:
             logger.warning("provider load failed for %s: %s", path, exc)
             continue
         merged.update(data)
-    return dict(sorted(merged.items(), key=lambda kv: int(kv[0])))
+    return _strip_provider_metadata(merged)
+
+
+_PROVIDER_KEY_FIELDS = frozenset({"key"})
+
+
+def _strip_provider_metadata(data: dict[str, dict]) -> dict[str, dict]:
+    """Drop non-essential fields from provider entries to save RAM.
+    Each entry normally has ~5 keys (key, name, kind, parent_appid, parent_name).
+    After stripping, only the 'key' field is kept per entry, saving ~80% memory
+    for the 364K-entry provider dict.
+    """
+    stripped: dict[str, dict] = {}
+    for appid, entry in data.items():
+        if isinstance(entry, dict):
+            slim = {k: v for k, v in entry.items() if k in _PROVIDER_KEY_FIELDS}
+            stripped[appid] = slim
+        else:
+            stripped[appid] = entry
+    return stripped
 
 
 def get_key(item_id: str) -> str:

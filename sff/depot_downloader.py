@@ -409,6 +409,7 @@ def run_download(
             except (OSError, subprocess.SubprocessError) as e:
                 is_winsock = sys.platform == "win32" and isinstance(e, OSError) and getattr(e, "winerror", 0) == 10038
                 if is_winsock and attempt <= max_retries:
+                    creation_flags = 0
                     time.sleep(5)
                     print_fn(
                         Fore.YELLOW
@@ -452,9 +453,7 @@ def filter_depots_by_os(
     """
     if not app_info:
         return selected_depots
-    target_os = (os_name or ("all" if sys.platform.startswith("linux") else "windows")).lower()
-    if target_os == "all":
-        target_os = ""
+    target_os = (os_name or ("linux" if sys.platform.startswith("linux") else "windows")).lower()
     depots_section = app_info.get("depots", {}) if isinstance(app_info, dict) else {}
 
     # Build set of Steam China depot IDs from depots-level and top-level steamchina sections

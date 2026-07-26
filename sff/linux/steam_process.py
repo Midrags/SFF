@@ -205,7 +205,17 @@ def start_steam(print_fn=print, steam_path: str | Path | None = None) -> str:
 
         # Fall back to plain steam launch
         try:
-            subprocess.Popen(["steam"])
+            try:
+                from sff.linux.slssteam import _clean_system_tool_env
+                env = _clean_system_tool_env()
+            except ImportError:
+                env = os.environ.copy()
+                for k in ("LD_LIBRARY_PATH", "LD_PRELOAD", "LD_AUDIT",
+                          "PYTHONHOME", "PYTHONPATH", "QT_PLUGIN_PATH",
+                          "QML2_IMPORT_PATH", "APPIMAGE", "APPDIR", "OWD",
+                          "ARGV0", "APPIMAGE_UUID"):
+                    env.pop(k, None)
+            subprocess.Popen(["steam"], env=env)
             print_fn(Fore.GREEN + "Steam started (without SLSteam)." + Style.RESET_ALL)
             return "SUCCESS"
         except FileNotFoundError:
@@ -240,9 +250,18 @@ def start_steam_with_slssteam(
         return "NEEDS_USER_PATH"
 
     try:
+        from sff.linux.slssteam import _clean_system_tool_env
+        env = _clean_system_tool_env()
+    except ImportError:
         env = os.environ.copy()
-        env["LD_AUDIT"] = f"{library_inject_path}:{slssteam_path}"
-        logger.info(f"Starting Steam with LD_AUDIT={env['LD_AUDIT']}")
+        for k in ("LD_LIBRARY_PATH", "LD_PRELOAD", "LD_AUDIT",
+                  "PYTHONHOME", "PYTHONPATH", "QT_PLUGIN_PATH",
+                  "QML2_IMPORT_PATH", "APPIMAGE", "APPDIR", "OWD",
+                  "ARGV0", "APPIMAGE_UUID"):
+            env.pop(k, None)
+    env["LD_AUDIT"] = f"{library_inject_path}:{slssteam_path}"
+    logger.info(f"Starting Steam with LD_AUDIT={env['LD_AUDIT']}")
+    try:
         subprocess.Popen(["steam"], env=env)
         print_fn(Fore.GREEN + "Steam started with SLSteam injection." + Style.RESET_ALL)
         return "SUCCESS"

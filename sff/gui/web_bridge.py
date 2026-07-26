@@ -1442,7 +1442,12 @@ class WebBridge(QObject):
                 "app_id": str(app_id), "status": "Downloading via DDMod", "progress": 55
             }))
 
-            game_data = {"appid": str(app_id), "name": f"App {app_id}"}
+            game_data = {
+                "appid": str(app_id),
+                "name": f"App {app_id}",
+                "depots": {d: {} for d in depots},
+                "manifests": manifest_override or {},
+            }
             ok, _size = run_download(
                 game_data, depots, lib_path, lib_path,
                 print_fn=lambda msg: logger.debug("DDMod: %s", msg),
@@ -1708,6 +1713,10 @@ class WebBridge(QObject):
                             _state["MountedDepots"] = _mounted
                         _data["AppState"] = _state
                         _vd(_acf, _data)
+                        try:
+                            os.chmod(_acf, 0o444)
+                        except OSError:
+                            pass
                         logger.info(
                             "download_dlc_oureveryday: patched %s with %d DLC depot(s)",
                             _acf.name, len(dlc_depots),
@@ -1763,13 +1772,17 @@ class WebBridge(QObject):
             lib_override = _Path(self._active_library) if self._active_library else self._steam_path
             src_map = {"hubcap": LuaEndpoint.HUBCAP, "ryuu": LuaEndpoint.RYUU, "oureveryday": LuaEndpoint.OUREVERYDAY}
             selected = src_map.get(source, LuaEndpoint.HUBCAP if self._api_key else LuaEndpoint.OUREVERYDAY)
-            self._ui.process_from_store(
-                app_id=app_id,
-                manifest_override=manifest_override,
-                use_hubcap=(selected == LuaEndpoint.HUBCAP),
-                lib_path=lib_override,
-                source_override=selected,
-            )
+            try:
+                self._ui.process_from_store(
+                    app_id=app_id,
+                    manifest_override=manifest_override,
+                    use_hubcap=(selected == LuaEndpoint.HUBCAP),
+                    lib_path=lib_override,
+                    source_override=selected,
+                )
+            except Exception:
+                logger.exception("download_game_version: process_from_store failed for %s", app_id)
+                return False
 
             self.download_progress.emit(json.dumps({
                 "app_id": app_id, "status": "Complete", "progress": 100
@@ -1785,14 +1798,22 @@ class WebBridge(QObject):
                 app_id=app_id,
             )
 
-        self._run_async(_do, on_done=_on_done)
+        def _on_error(error_msg):
+            self._emit_task_result(
+                "download_version", False, error_msg, app_id=app_id
+            )
+
+        self._run_async(_do, on_done=_on_done, on_error=_on_error)
 
     @pyqtSlot(str, str, str)
     def download_game_version_native(self, app_id, manifest_override_json, source='oureveryday'):
         """Download specific version via Steam Native flow.
         Downloads Lua, pins manifests with write_manifest_pins_to_lua,
         installs to Steam plugin folder, writes ACF. Steam downloads
-        the actual content."""
+        the actual content. Windows-only."""
+        if sys.platform != "win32":
+            logger.debug("download_game_version_native: skipped on Linux (Windows-only)")
+            return
         if not app_id or not app_id.strip().isdigit():
             return
         def _do():
@@ -1905,7 +1926,12 @@ class WebBridge(QObject):
                 app_id=app_id,
             )
 
-        self._run_async(_do, on_done=_on_done)
+        def _on_error(error_msg):
+            self._emit_task_result(
+                "download_version_native", False, error_msg, app_id=app_id
+            )
+
+        self._run_async(_do, on_done=_on_done, on_error=_on_error)
 
     @pyqtSlot(str)
     def dlc_check_get_list(self, app_id):
@@ -2309,7 +2335,15 @@ class WebBridge(QObject):
                     if result is MainReturnCode.EXIT:
                         return f"Action '{action}' is not supported on this platform or configuration."
                     if action == "check_updates":
-                        return "__check_updates_done__"
+                        self.task_finished.emit(json.dumps({"task":"app_update","status":"downloading","progress":10,"message":"Downloading update..."}))
+                        from PyQt6.QtWidgets import QApplication
+                        QApplication.processEvents()
+                        try:
+                            result = non_game_actions[action]()
+                            return "__check_updates_done__"
+                        except Exception as e:
+                            self._emit_task_result("app_update", False, str(e))
+                            return str(e)
                     return None
                 except Exception as e:
                     return str(e)
@@ -3614,9 +3648,10 @@ class WebBridge(QObject):
 
                 steam_proc = SteamProcess(self._steam_path)
 
-                # Kill Steam if running
                 if is_proc_running(steam_proc.exe_name):
-                    print("Killing Steam...", end="", flush=True)
+                    self.download_progress.emit(json.dumps({
+                        "status": "Stopping Steam", "progress": 30, "restart": True
+                    }))
                     steam_proc.kill()
                     max_wait = 10
                     waited = 0
@@ -3625,10 +3660,11 @@ class WebBridge(QObject):
                         waited += 0.5
                     if is_proc_running(steam_proc.exe_name):
                         return (False, "Steam did not close in time — try again")
-                    print(" Done!")
 
+                self.download_progress.emit(json.dumps({
+                    "status": "Starting Steam", "progress": 60, "restart": True
+                }))
                 injector = self._steam_path / "steam.exe"
-                print("Launching Steam...")
                 ok, msg = launch_steam_unelevated(injector, self._steam_path)
                 return (ok, msg)
 
@@ -3647,7 +3683,10 @@ class WebBridge(QObject):
                 success, msg = bool(result), "Steam restarted" if result else "Failed to restart Steam"
             self._emit_task_result("restart_steam", success, msg)
 
-        self._run_async(_do, on_done=_on_done)
+        def _on_error(error_msg):
+            self._emit_task_result("restart_steam", False, error_msg)
+
+        self._run_async(_do, on_done=_on_done, on_error=_on_error)
 
     @pyqtSlot()
     def open_log_window(self):

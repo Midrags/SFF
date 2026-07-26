@@ -214,10 +214,45 @@ def _write_run_config(cli_dir: Path, mode: str) -> Path | None:
             "GenerateCrackOnly": False,
             "Restore": False,
         }
+
+    _inject_api_key(base)
+
     out_name = "config.steamless_only.json" if mode == "steamless_only" else "config.steamidra.json"
     out = cli_dir / out_name
+    try:
+        out.write_text(json.dumps(base, indent=2), encoding="utf-8")
+        return out
+    except OSError:
+        pass
+
+    from sff.utils import sff_data_dir
+    writable = sff_data_dir() / "sac_config"
+    writable.mkdir(parents=True, exist_ok=True)
+    seed = writable / "config.json"
+    base_cfg = cli_dir / "config.json"
+    if not seed.exists() and base_cfg.exists():
+        try:
+            shutil.copy2(base_cfg, seed)
+        except Exception:
+            pass
+    out = writable / out_name
     out.write_text(json.dumps(base, indent=2), encoding="utf-8")
     return out
+
+
+def _inject_api_key(config: dict) -> None:
+    from sff.storage.settings import get_setting
+    from sff.structs import Settings
+
+    api_key = (get_setting(Settings.STEAM_WEB_API_KEY) or "").strip() or STEAM_WEB_API_KEY
+    if not api_key:
+        return
+    emu_info = config.get("EMUGameInfoConfigs", {})
+    if not isinstance(emu_info, dict):
+        emu_info = {}
+    if not emu_info.get("SteamWebAPIKey"):
+        emu_info["SteamWebAPIKey"] = api_key
+        config["EMUGameInfoConfigs"] = emu_info
 
 
 def run_steamauto(

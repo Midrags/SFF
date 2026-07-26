@@ -353,6 +353,16 @@ window.Settings = (function() {
                     } else {
                         Components.showToast('error', 'Ryuu premium rejected: ' + (data.status || '?'));
                     }
+                } else if (data.task === 'app_update') {
+                    var upBtn = document.getElementById('about-update');
+                    if (data.status === 'downloading') {
+                        if (upBtn) { upBtn.disabled = true; upBtn.innerHTML = data.progress + '%'; }
+                    } else if (data.status === 'installing') {
+                        if (upBtn) upBtn.innerHTML = 'Installing...';
+                    } else {
+                        if (upBtn) { upBtn.disabled = false; upBtn.innerHTML = 'Update'; }
+                        Components.showToast(data.success ? 'success' : 'error', data.message || '');
+                    }
                 }
             } catch(e) {}
         });

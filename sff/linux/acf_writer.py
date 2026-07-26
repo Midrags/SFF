@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with SteaMidra.  If not, see <https://www.gnu.org/licenses/>.
 
+import os
 import re
 from pathlib import Path
 
@@ -118,6 +119,7 @@ def create_acf(
 
     try:
         acf_path.write_text(acf_content, encoding="utf-8")
+        os.chmod(acf_path, 0o444)
         print_fn(Fore.GREEN + f"ACF written: {acf_path}" + Style.RESET_ALL)
         return True
     except Exception as e:
