@@ -4999,6 +4999,7 @@ class WebBridge(QObject):
             return "[]"
 
     @pyqtSlot(str, str, str, str, str)
+    @pyqtSlot(str, str, str, str, str, str, str)
     def download_game_ddmod(self, app_id, source, lua_path, manifest_folder='', target_os='', branch='', file_type=''):
         """Download a game using DepotDownloaderMod.
         source: 'hubcap' | 'oureveryday' | 'ryuu' | 'local'

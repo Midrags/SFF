@@ -656,12 +656,15 @@ window.App = (function() {
         if (ryuuRefreshBtn) {
             ryuuRefreshBtn.addEventListener('click', function(e) {
                 e.preventDefault();
+                if (ryuuRefreshBtn.disabled) return;
+                ryuuRefreshBtn.disabled = true;
                 var appId = (document.getElementById('dl-fastest') || {}).dataset.appid || '';
-                if (!appId) return;
+                if (!appId) { ryuuRefreshBtn.disabled = false; return; }
                 var sel = document.getElementById('ryuu-branch-select');
                 if (sel) sel.innerHTML = '<option value="public">public (fetching...)</option>';
                 Bridge.callWithCallback('refresh_game_branches', appId, function(json) {
                     Components._populateRyuuBranches(json);
+                    ryuuRefreshBtn.disabled = false;
                 });
             });
         }

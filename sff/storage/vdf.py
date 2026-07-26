@@ -28,11 +28,16 @@ def vdf_dump(vdf_file, obj):
     from pathlib import Path as _P
     import tempfile
     target = _P(vdf_file)
-    tmp_fd, tmp_name = tempfile.mkstemp(prefix=target.name + ".", suffix=".tmp", dir=target.parent)
+    try:
+        tmp_fd, tmp_name = tempfile.mkstemp(prefix=target.name + ".", suffix=".tmp", dir=target.parent)
+    except (FileNotFoundError, PermissionError, OSError):
+        return False
     try:
         with open(tmp_fd, "w", encoding="utf-8") as handle:
             vdf.dump(obj, handle, pretty=True)  # type: ignore
         _P(tmp_name).replace(target)
+    except (FileNotFoundError, PermissionError, OSError):
+        pass
     finally:
         try:
             _P(tmp_name).unlink(missing_ok=True)

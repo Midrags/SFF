@@ -451,7 +451,12 @@ def _extract_zip(archive: Path, steam_path: Path,
                 if member is None:
                     logger.error("DLL not found in ZIP: %s (names=%s)", dll, names)
                     return False
-                (steam_path / dll).write_bytes(zf.read(member))
+                try:
+                    (steam_path / dll).write_bytes(zf.read(member))
+                except (PermissionError, OSError) as e:
+                    logger.error("Cannot write %s: %s", dll, e)
+                    _progress(f"Permission denied writing {dll} — Steam may be running. Close Steam completely and try again.", callback)
+                    return False
                 _progress(f"Installed {dll}", callback)
         return True
     except Exception as exc:
@@ -470,7 +475,12 @@ def _extract_rar(archive: Path, steam_path: Path,
                 if member is None:
                     logger.error("DLL not found in RAR: %s", dll)
                     return False
-                (steam_path / dll).write_bytes(rf.read(member))
+                try:
+                    (steam_path / dll).write_bytes(rf.read(member))
+                except (PermissionError, OSError) as e:
+                    logger.error("Cannot write %s: %s", dll, e)
+                    _progress(f"Permission denied writing {dll} — Steam may be running. Close Steam completely and try again.", callback)
+                    return False
                 _progress(f"Installed {dll}", callback)
         return True
     except Exception as exc:
@@ -510,15 +520,20 @@ def install_lumacore(
                 _progress("Closing Steam...", progress_callback)
                 steam_proc.kill()
                 waited = 0
-                while is_proc_running(steam_proc.exe_name) and waited < 15:
+                max_wait = 30
+                while is_proc_running(steam_proc.exe_name) and waited < max_wait:
                     _time.sleep(0.5)
                     waited += 0.5
                 if is_proc_running(steam_proc.exe_name):
-                    _progress("Warning: Steam did not close in time — DLLs may be locked.", progress_callback)
-                else:
-                    _progress("Steam closed.", progress_callback)
+                    msg = "Steam is still running after 30 seconds. Close it manually and try again."
+                    _progress(msg, progress_callback)
+                    logger.error(msg)
+                    return False, msg
+                _time.sleep(3)  # Windows may hold file locks briefly after exit
+                _progress("Steam closed.", progress_callback)
         except Exception as exc:
             _progress(f"Could not close Steam: {exc}", progress_callback)
+            return False, f"Failed to close Steam: {exc}"
 
     # Migrate legacy marker out of <steam>/lumacore/ before we look at it.
     # Older builds wrote .gl_cleaned into LumaCore's log folder, which on first

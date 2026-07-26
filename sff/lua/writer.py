@@ -362,7 +362,10 @@ class ConfigVDFWriter:
     def add_decryption_keys_to_config(self, lua: LuaParsedInfo):
 
         vdf_file = self.steam_path / "config/config.vdf"
-        shutil.copyfile(vdf_file, (self.steam_path / "config/config.vdf.backup"))
+        try:
+            shutil.copyfile(vdf_file, (self.steam_path / "config/config.vdf.backup"))
+        except (FileNotFoundError, PermissionError, OSError) as e:
+            logger.warning("Could not back up config.vdf (Steam may be running): %s", e)
         with VDFLoadAndDumper(vdf_file) as vdf_data:
             for pair in lua.depots:
                 depot_id = pair.depot_id

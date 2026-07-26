@@ -36,17 +36,31 @@ MANIFESTS_TMP = Path(tempfile.gettempdir()) / "mistwalker_manifests"
 
 
 def _find_openssl_lib_dir(dotnet_root: str) -> str:
-    """Return the directory containing libcrypto.so.3 / libssl.so.3
-    from the bundled .NET runtime, if present. DDMod needs these for
-    HTTPS depot downloads on distros that don't ship them system-wide.
+    """Return the directory containing libcrypto.so.3 / libssl.so.3.
+
+    Checks bundled .NET runtime first, then system library paths so
+    DDMod can find OpenSSL on distros where the .NET runtime doesn't
+    ship its own copy (Arch, CachyOS, etc.).
     """
-    import glob as _glob
+    import glob as _glob, shutil
+    # 1. Bundled .NET runtime
     pattern = os.path.join(dotnet_root, "shared", "Microsoft.NETCore.App", "*")
     for runtime_dir in sorted(_glob.glob(pattern), reverse=True):
         candidate = os.path.join(runtime_dir)
-        libcrypto = os.path.join(candidate, "libcrypto.so.3")
-        if os.path.isfile(libcrypto):
+        if os.path.isfile(os.path.join(candidate, "libcrypto.so.3")):
             return candidate
+    # 2. System library paths
+    for system_dir in (
+        "/usr/lib", "/usr/lib64", "/lib", "/lib64",
+        "/usr/local/lib", "/usr/local/lib64",
+    ):
+        if os.path.isfile(os.path.join(system_dir, "libcrypto.so.3")):
+            return system_dir
+    # 3. which-based fallback
+    for soname in ("libcrypto.so.3", "libcrypto.so"):
+        found = shutil.which(soname)
+        if found:
+            return os.path.dirname(found)
     return ""
 
 
@@ -54,9 +68,9 @@ def _add_bundled_openssl_to_env(env: dict, dotnet_root: str) -> None:
     lib_dir = _find_openssl_lib_dir(dotnet_root)
     if not lib_dir:
         return
-    existing = env.get("LD_LIBRARY_PATH", "")
-    if lib_dir not in existing.split(os.pathsep) if existing else True:
-        env["LD_LIBRARY_PATH"] = f"{lib_dir}{os.pathsep}{existing}" if existing else lib_dir
+    existing_ld = env.get("LD_LIBRARY_PATH", "")
+    if lib_dir not in existing_ld.split(os.pathsep) if existing_ld else True:
+        env["LD_LIBRARY_PATH"] = f"{lib_dir}{os.pathsep}{existing_ld}" if existing_ld else lib_dir
 
 
 def get_deps_dir() -> Path:

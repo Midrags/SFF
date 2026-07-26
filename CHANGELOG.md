@@ -1,30 +1,49 @@
 # Changelog
 
-## 6.4.7
+## 6.4.8
 
-### Fixes
+### Store / download
 
-- Depot OS filtering was completely disabled on Linux. Every depot passed through unfiltered because the default target was set to "all" which skipped the oslist check entirely. Linux downloads now correctly filter out Windows-only and Mac-only depots, matching the DDMod -os flag behavior.
-- Every ACF file SteaMidra writes is now set read-only immediately. Steam would overwrite StateFlags back to "Update" if the ACF stayed writable between launches. This covers DDMod downloads, workshop ACF patches, error state fixes, and DLC depot updates across all seven ACF write locations.
-- The restart Steam button now shows live progress in the Web UI on Windows instead of writing invisible print() calls to nowhere. Errors are caught and reported properly on both platforms with the new on-error handler.
-- Self-updating no longer hangs forever on slow connections. Downloads now use a 60-second read timeout per chunk and the updater HTTP calls have a 30-second timeout. The installer script's curl call for .NET gained connect and max-time flags so the whole update pipeline has proper timeout coverage from end to end.
-- DDMod downloads on Linux were completely broken after the method signature was extended with branch and file-type parameters. The bridge decorator now matches the 5 arguments JavaScript sends, restoring Linux downloads.
-- The store status cache is now capped at 500 entries with oldest-first eviction instead of growing without bound every time you browse a game in the store.
-- A native Python Steam CDN downloader replaces DepotDownloaderMod on Linux. Depots are fetched directly from Steam CDN servers over HTTPS with 32 concurrent chunk downloads, AES-256-CBC decryption, protobuf manifest parsing, LZMA/Zstd decompression, and HTTP keep-alive connection pooling. No .NET runtime is needed at all on Linux. DDMod remains the fallback if the native path encounters an error.
-- The native downloader supports incremental updates. A pre-verify phase SHA1-checks every existing chunk on disk before downloading, skipping any that are already valid. Re-downloading a game after a manifest update only fetches the chunks that actually changed instead of pulling everything again.
-- CDN server selection now weights servers by their NumEntries capacity and cycles through them on retry with exponential backoff, matching how DepotDownloaderMod picks the fastest route to the content servers.
-- Download concurrency is now user-configurable in the Download Settings tab. The slider ranges from 8 to 64 concurrent chunk downloads, letting users with fast connections crank the speed up while those on slower Wi-Fi can dial it back. The same setting controls DDMod's max-downloads flag so both downloaders respect the preference.
+- Native Python downloader ships on Linux so depot files come straight from Steam CDN with zero .NET dependency. 32 concurrent chunk downloads with keep-alive, AES decryption, LZMA/Zstd decompression, and SHA1 verification all happen in-process. DDMod stays as the fallback if anything goes wrong.
+- The native downloader skips chunks already on disk. SHA1-verifying every existing chunk before downloading means updating a game to a new manifest only pulls what changed instead of everything all over again.
+- Download concurrency slider in Settings from 8 to 64 threads. Same knob controls both the native downloader and DDMod so fast connections can max out.
+- DDMod downloads on Linux no longer crash with "No candidates found for download_game_ddmod with 5 arguments". The bridge now accepts both 5 and 7 argument calls.
+- Adding games to the library no longer crashes when Steam is running. The config.vdf backup and vdf_dump operations handle locked files without taking down the worker thread.
+- DDMod's crypto error on Arch and CachyOS is gone. The bundled OpenSSL finder now checks system paths like /usr/lib when the .NET runtime doesn't ship its own libcrypto.
 
 ### Linux
 
-- Steam restarted through SteaMidra no longer inherits AppImage environment variables like APPIMAGE, APPDIR, OWD, and LD_LIBRARY_PATH. These leaked into the Steam process and caused silent launch failures on Fedora and CachyOS. The environment is cleaned before spawning Steam.
-- The Steam Native older-version downloader was running Windows-only VDF writer and plugin folder operations on Linux, crashing SteaMidra on CachyOS. The native path is now gated to Windows only. The DDMod fallback passes proper depot key data so the download actually starts instead of doing nothing.
-- The SteamAutoCrack config writer no longer crashes with Errno 30 on AppImage. Temporary config files fall back to the SteaMidra data directory when the CLI directory is inside the read-only AppImage mount. The API key is injected directly into the generated config.
+- Steam restarted through the app no longer inherits AppImage environment variables. APPIMAGE, APPDIR, and LD_LIBRARY_PATH are stripped before launch so Steam starts clean on Fedora and CachyOS.
+- Self-updates work again. The install script launches with a clean environment, uses start_new_session so it survives SteaMidra closing, and the headless fallback runs the script directly when no terminal is found.
+- Depot OS filtering defaults to linux instead of all. Windows and Mac depots get skipped correctly now.
 
 ### Windows
 
-- Window resize handles are functional again after adding the WS_THICKFRAME style. The frameless window was missing the style Windows requires to initiate resize operations, so the nativeEvent hit-test responses were ignored.
-- DDMod downloads that hit the Windows socket handle leak error 10038 now retry without the CREATE_NO_WINDOW flag, giving the process a fresh handle table instead of reusing the corrupted one.
+- Window resize handles are back. The frameless window was missing the style Windows needs to start a resize, so the edge hit-test responses did nothing. WS_THICKFRAME is applied in showEvent.
+- LumaCore installer waits longer for Steam to close and pauses three extra seconds for Windows to release file handles before writing DLLs. Locked DLLs get a clear "close Steam and try again" message instead of a crash.
+
+### Home page
+
+- Library and search are faster. Installed games cache lasts an hour with background refresh, and the game catalog gets parsed into memory once instead of on every keystroke.
+
+### Performance
+
+- Log flush timers run at 250ms instead of 100ms. Update check batches cap at 50 apps. Store status cache evicts old entries at 500. Together these cut the timer and allocation overhead that made the UI feel sticky under load.
+
+## 6.4.7
+
+### In-place updater
+
+- Download timeouts prevent infinite hangs. Chunk downloads have 60-second read timeouts, HTTP calls have 30-second timeouts, and the installer's curl got connect and max-time flags.
+
+### Fixes
+
+- The restart Steam button shows live progress in the web UI on Windows and has proper error handling on both platforms.
+- ACF files SteaMidra writes stay read-only so Steam cannot flip StateFlags back to "Update" between launches.
+- The store page native downloader path no longer runs Windows-only VDF operations on Linux.
+- SteamAutoCrack config writes fall back to the data directory when the CLI folder is inside the read-only AppImage mount.
+- DDMod socket error 10038 retries without the CREATE_NO_WINDOW flag so the process gets a fresh handle table.
+- Ryuu branch dropdown in the download modal no longer blows up the window with empty space from rapid refresh clicks.
 
 ## 6.4.6
 

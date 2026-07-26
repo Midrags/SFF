@@ -87,11 +87,12 @@
             var typeTag = dlc.type === 'depot'
                 ? '<span class="dlc-tag">depot</span>'
                 : '<span class="dlc-tag">app id</span>';
-            // Checkbox per DLC. Default: only missing rows are checked
-            // and unlocked rows are pre-skipped. Depots are disabled
-            // because the bulk providers can't ship them as standalone.
-            var disabled = (dlc.type === 'depot') ? 'disabled' : '';
-            var checked = (!dlc.in_applist && dlc.type !== 'depot') ? 'checked' : '';
+            // Checkbox per DLC. Missing rows are pre-checked.
+            // Depot-type DLCs are checkable so the user can review them
+            // even though bulk providers may skip depots. The download
+            // buttons handle depots separately through DDMod.
+            var disabled = '';
+            var checked = (!dlc.in_applist) ? 'checked' : '';
             var cb = '<input type="checkbox" class="dlc-row-cb" data-appid="' + _escape(dlc.id) + '" ' + checked + ' ' + disabled + '>';
             return (
                 '<tr>' +

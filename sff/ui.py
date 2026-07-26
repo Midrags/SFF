@@ -1356,34 +1356,53 @@ class UI:
                 logger.warning("Linux update: steamidra_install.sh missing from %s", tmp_update)
                 return
             install_sh.chmod(0o755)
-            install_cmd = f"cd {shlex.quote(str(tmp_update))} && bash steamidra_install.sh; exec bash"
+
+            # Clean env before launching so Steam doesn't inherit AppImage vars
+            clean_env = os.environ.copy()
+            for k in ("LD_LIBRARY_PATH", "LD_PRELOAD", "PYTHONHOME", "PYTHONPATH",
+                      "QT_PLUGIN_PATH", "QML2_IMPORT_PATH", "APPIMAGE", "APPDIR",
+                      "OWD", "ARGV0", "APPIMAGE_UUID"):
+                clean_env.pop(k, None)
+
+            # Try terminal launch first, fall back to headless
+            install_cmd = f"cd {shlex.quote(str(tmp_update))} && bash steamidra_install.sh; echo; echo 'Press Enter to close...'; read"
             terminals = [
                 ["x-terminal-emulator", "-e", "bash", "-c", install_cmd],
                 ["gnome-terminal", "--", "bash", "-c", install_cmd],
                 ["konsole", "-e", "bash", "-c", install_cmd],
                 ["xterm", "-e", "bash", "-c", install_cmd],
+                ["xfce4-terminal", "-e", "bash -c " + shlex.quote(install_cmd)],
+                ["lxterminal", "-e", "bash", "-c", install_cmd],
             ]
             launched = False
             for term_cmd in terminals:
                 if shutil.which(term_cmd[0]):
                     try:
-                        subprocess.Popen(term_cmd)
+                        subprocess.Popen(term_cmd, env=clean_env, start_new_session=True)
                         launched = True
                         break
                     except Exception as _te:
                         logger.warning("Linux update: terminal %s failed: %s", term_cmd[0], _te)
+
             if not launched:
+                print(Fore.YELLOW + "No terminal found. Running install script headless..." + Style.RESET_ALL)
                 try:
-                    subprocess.Popen(["bash", str(install_sh)], cwd=str(tmp_update))
+                    subprocess.Popen(
+                        ["bash", str(install_sh)],
+                        cwd=str(tmp_update), env=clean_env,
+                        start_new_session=True,
+                    )
                     launched = True
                 except Exception as _be:
                     logger.warning("Linux update: headless bash fallback failed: %s", _be)
+
             if launched:
                 print(Fore.GREEN + "Install script launched. SteaMidra will close now." + Style.RESET_ALL)
+                time.sleep(0.5)
                 sys.exit(0)
             else:
-                print(Fore.RED + "Could not launch a terminal. Run steamidra_install.sh manually from:" + Style.RESET_ALL)
-                print(f"  {tmp_update}")
+                print(Fore.RED + "Could not launch installer. Run manually:" + Style.RESET_ALL)
+                print(f"  cd {tmp_update} && bash steamidra_install.sh")
                 logger.warning("Linux update: no terminal could be launched; update not applied")
 
         if not is_frozen:

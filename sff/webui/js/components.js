@@ -292,10 +292,14 @@ window.Components = (function() {
         sel.innerHTML = '<option value="public">public (default)</option>';
         try {
             var branches = JSON.parse(json || '[]');
+            if (!Array.isArray(branches)) return;
             branches.forEach(function(b) {
-                if (b.name === 'public') return;
+                if (!b || !b.name || b.name === 'public') return;
                 var label = b.name + (b.description ? ' - ' + b.description : '');
-                sel.innerHTML += '<option value="' + b.name + '">' + label + '</option>';
+                var opt = document.createElement('option');
+                opt.value = b.name;
+                opt.textContent = label;
+                sel.appendChild(opt);
             });
         } catch(e) {}
     }

@@ -1,27 +1,31 @@
-SteaMidra v6.4.7
+SteaMidra v6.4.8
 
 What's new:
 
-* Added a brand-new **native Python Steam CDN downloader for Linux**. Downloads now come directly from Steam's CDN using parallel chunk downloads, manifest parsing, AES decryption, and automatic decompression—no .NET runtime required. DepotDownloaderMod remains available as a fallback if needed.
-* Native Linux downloads now support **incremental updates**. Existing game files are verified first, so only changed chunks are downloaded after a manifest update instead of re-downloading the entire game.
-* Added a **download concurrency** setting to Download Settings. Choose anywhere from **8 to 64** concurrent chunk downloads, and the same setting is also applied to DepotDownloaderMod.
-* Improved CDN server selection with smarter server weighting, retry rotation, exponential backoff, and HTTP connection reuse for more reliable and consistent download performance.
-* Fixed Linux depot OS filtering. Downloads now correctly exclude Windows-only and macOS-only depots, matching DepotDownloaderMod's operating system filtering.
-* Every ACF file written by SteaMidra is now marked read-only immediately, preventing Steam from reverting installed games back to the **Update** state.
-* Restart Steam now displays live progress directly in the Web UI on Windows, with improved error reporting on both Windows and Linux.
-* Self-updating is now much more reliable on slow connections. Added proper download and installer timeouts throughout the entire update pipeline.
-* Fixed Linux downloads after the download bridge signature changed. The Web UI and backend now use matching arguments again.
-* Store status cache now has automatic eviction, preventing memory usage from growing indefinitely while browsing games.
+* Added a built-in **native Python Steam CDN downloader for Linux**. Game files are downloaded directly from Steam's CDN with no .NET dependency, using parallel chunk downloads, AES decryption, LZMA/Zstd decompression, SHA1 verification, and HTTP keep-alive. DepotDownloaderMod remains available as a fallback.
+* Native Linux downloads now support **incremental updates**. Existing chunks are verified before downloading, so only changed data is fetched when updating to a newer manifest.
+* Added a **download concurrency** setting (8–64 threads). The same setting controls both the native downloader and DepotDownloaderMod, making it easy to tune performance for your connection.
+* Fixed Linux DDMod downloads failing with bridge argument mismatch errors. The download bridge now supports both the old and new call signatures.
+* Adding games to the Steam library no longer crashes when Steam has `config.vdf` locked. Locked files are now handled gracefully during backup and update operations.
+* Fixed DepotDownloaderMod OpenSSL detection on Arch, CachyOS, and similar distributions by searching common system library locations when the .NET runtime does not provide its own OpenSSL libraries.
 
 ### Linux improvements
 
-* Steam launched through SteaMidra no longer inherits AppImage environment variables, fixing silent launch failures on Fedora, CachyOS, and similar distributions.
-* Fixed the Steam Native older-version downloader attempting Windows-only operations on Linux. The native path is now correctly limited to Windows, while the DepotDownloaderMod fallback starts downloads with the proper depot key data.
-* SteamAutoCrack now works correctly from AppImages by writing temporary configuration files to the SteaMidra data directory and injecting API keys without triggering `Errno 30` errors.
+* Steam launched through SteaMidra no longer inherits AppImage environment variables, improving compatibility on Fedora, CachyOS, and other AppImage-based systems.
+* Self-updates work reliably again. The installer now launches in a clean environment, survives SteaMidra closing, and automatically falls back to a headless update when no terminal is available.
+* Depot OS filtering now defaults to **Linux**, correctly skipping Windows and macOS depots during downloads.
 
 ### Windows improvements
 
-* Restored proper window resizing by enabling the required native Windows resize frame for the frameless window.
-* DDMod downloads that encounter the Windows socket handle leak (`10038`) now automatically retry without `CREATE_NO_WINDOW`, greatly improving download reliability.
+* Restored native window resize support for the frameless window by applying the required Windows resize frame.
+* LumaCore installer now waits longer for Steam to fully exit before replacing DLLs. If files remain locked, SteaMidra now shows a clear **"Close Steam and try again"** message instead of failing unexpectedly.
+
+### Home page
+
+* Library browsing and searching are faster. Installed games are cached for one hour with background refresh, and the game catalog is parsed once into memory instead of being reloaded on every search.
+
+### Performance improvements
+
+* Reduced UI overhead by lowering log flush frequency, batching update checks more efficiently, and automatically limiting the store status cache size. Together these changes make the interface feel smoother during heavy workloads.
 
 Full detailed changelog is in CHANGELOG.md
