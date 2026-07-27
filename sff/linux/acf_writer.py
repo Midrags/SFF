@@ -69,10 +69,14 @@ def create_acf(
         manifest_gid = manifests.get(depot_id_str, "")
         if manifest_gid:
             depot_size = _depot_size(depots, depot_id_str)
+            depot_info = depots.get(depot_id_str) or depots.get(int(depot_id_str) if depot_id_str.isdigit() else depot_id_str) or {}
+            dlcappid = depot_info.get("dlcappid", "") if isinstance(depot_info, dict) else ""
+            dlc_line = f'\t\t\t"dlcappid"\t\t"{dlcappid}"\n' if dlcappid else ""
             installed_depots_lines.append(
                 f'\t\t"{depot_id_str}"\n\t\t{{\n'
                 f'\t\t\t"manifest"\t\t"{manifest_gid}"\n'
                 f'\t\t\t"size"\t\t"{depot_size}"\n'
+                f'{dlc_line}'
                 f'\t\t}}'
             )
             mounted_depots_lines.append(f'\t\t"{depot_id_str}"\t\t"{manifest_gid}"')

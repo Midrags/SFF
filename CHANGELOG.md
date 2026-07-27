@@ -1,5 +1,24 @@
 # Changelog
 
+## 6.5.0
+
+### UI
+
+- Title bar removed. Min/max/close buttons now float at the top-right corner over the UI, 64x56px with 22px font. Drag the window by clicking the top of the sidebar area. Web UI content has 56px top padding so buttons stay clear of the logs.
+
+### Fixes
+
+- DLCs now show in Steam properties on Linux. SLSsteam's config gets DLC app IDs added to AdditionalApps and the DlcData section, not just the base game ID. DLC check downloads also register DLCs in SLSsteam after updating the parent ACF.
+- Startup no longer freezes while the Steam applist builds. The first load returns empty immediately and the build happens without blocking the UI.
+- Download location is respected when you pick one instead of being silently overridden to wherever an existing ACF lives.
+- Download Older Version works again. The DDMod path was crashing silently because it passed a parameter that did not exist. The slot decorator now accepts the third source argument so Hubcap and Ryuu selections are honoured. The lua is pinned with the user's chosen old manifest IDs before installing.
+- The ACF always gets the latest manifest IDs and buildid from Steam appinfo so Steam shows Play instead of Update even when the files on disk are an older version.
+
+### Linux
+
+- Depot keys written to config.vdf on Linux, matching Windows behaviour. Steam killed before config writes on both platforms so config files are never locked.
+- DLC depots in ACF files include the dlcappid field from Steam appinfo.
+
 ## 6.4.9
 
 ### Fixes

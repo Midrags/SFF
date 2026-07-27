@@ -83,11 +83,32 @@ class SLSManager(AppInjectionManager):
     def add_ids(
         self, data: Union[int, list[int], LuaParsedInfo], skip_check: bool = False
     ):
-        from sff.linux.yaml_config import add_additional_app
+        from sff.linux.yaml_config import add_additional_app, add_dlc_data
         if isinstance(data, int):
             data = [data]
         elif isinstance(data, LuaParsedInfo):
-            data = [int(data.app_id)]
+            ids = [int(data.app_id)]
+            # Also add DLC app IDs from the lua so they show in Steam properties
+            try:
+                from sff.steam_client import create_provider_for_current_thread
+                provider = create_provider_for_current_thread()
+                app_info = provider.get_single_app_info(int(data.app_id))
+                depots = app_info.get("depots", {})
+                if isinstance(depots, dict):
+                    for depot_id, depot_meta in depots.items():
+                        if not isinstance(depot_meta, dict):
+                            continue
+                        dlcappid = depot_meta.get("dlcappid")
+                        if dlcappid:
+                            dlc_id = int(dlcappid)
+                            if dlc_id not in ids:
+                                ids.append(dlc_id)
+                            # Register DLC relationship in DlcData
+                            dlc_name = depot_meta.get("name", "") or app_info.get("common", {}).get("name", "")
+                            add_dlc_data(self.sls_config_path, str(data.app_id), str(dlc_id), dlc_name)
+            except Exception as e:
+                logger.debug("add_ids: DLC lookup failed for %s: %s", data.app_id, e)
+            data = ids
         changes = 0
         for new_app_id in data:
             added = add_additional_app(self.sls_config_path, str(new_app_id))

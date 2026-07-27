@@ -138,8 +138,6 @@ class ACFWriter:
                     depot_size = str(size_on_disk) if i == 0 and size_on_disk else "0"
                     installed[str(depot_id)] = {"manifest": str(manifest_id), "size": depot_size}
                     mounted[str(depot_id)] = str(manifest_id)
-                    installed[str(depot_id)] = {"manifest": str(manifest_id), "size": depot_size}
-                    mounted[str(depot_id)] = str(manifest_id)
                 app_state["InstalledDepots"] = installed
                 app_state["MountedDepots"] = mounted
                 print(

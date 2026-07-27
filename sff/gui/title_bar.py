@@ -29,7 +29,7 @@ class TitleBarWidget(QWidget):
         self._maximized = False
         self._colors = {
             "bg": "#1a1a1a", "fg": "#e8e8e8", "accent": "#4a9eff",
-            "close": "#e81123", "border": "#444444",
+            "close": "#e81123", "border": "#333333",
         }
         self.setFixedHeight(56)
         self._build_ui()
@@ -37,7 +37,7 @@ class TitleBarWidget(QWidget):
 
     def _build_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 0, 0, 0)
+        layout.setContentsMargins(16, 0, 0, 0)
         layout.setSpacing(0)
 
         title = QLabel("SteaMidra")
@@ -45,12 +45,19 @@ class TitleBarWidget(QWidget):
         layout.addWidget(title)
         layout.addStretch()
 
-        self._min_btn = QPushButton("─")
-        self._max_btn = QPushButton("□")
-        self._close_btn = QPushButton("✕")
+        self._min_btn = QPushButton("\u2013")
+        self._max_btn = QPushButton("\u25a1")
+        self._close_btn = QPushButton("\u2715")
 
+        button_size = (64, 56)
         for btn in (self._min_btn, self._max_btn, self._close_btn):
-            btn.setFixedSize(170, 56)
+            btn.setFixedSize(*button_size)
+            btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            btn.setObjectName("TitleBarButton")
+
+        button_size = (64, 48)
+        for btn in (self._min_btn, self._max_btn, self._close_btn):
+            btn.setFixedSize(*button_size)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             btn.setObjectName("TitleBarButton")
 
@@ -67,32 +74,32 @@ class TitleBarWidget(QWidget):
         self.setStyleSheet(
             f"TitleBarWidget {{ background-color: {c['bg']}; border-bottom: 1px solid {c['border']}; }}"
             f"QLabel#TitleBarLabel {{"
-            f"  color: {c['fg']}; font-size: 16px; font-weight: 600;"
-            f"  background: transparent;"
+            f"  color: {c['fg']}; font-size: 15px; font-weight: 600;"
+            f"  background: transparent; padding-left: 2px;"
             f"}}"
             f"QPushButton#TitleBarButton {{"
             f"  background: transparent; border: none; border-radius: 0;"
-            f"  color: {c['fg']}; font-size: 24px; padding: 0;"
-            f"  min-width: 0;"
+            f"  color: {c['fg']}; font-size: 16px; padding: 0;"
+            f"  min-width: 0; max-width: 64px;"
             f"}}"
             f"QPushButton#TitleBarButton:hover {{"
-            f"  background-color: {c['accent']}; color: #ffffff;"
+            f"  background-color: rgba(255,255,255,15);"
             f"}}"
             f"QPushButton#TitleBarButton:pressed {{"
-            f"  background-color: rgba(255,255,255,30);"
+            f"  background-color: rgba(255,255,255,25);"
             f"}}"
         )
         self._close_btn.setStyleSheet(
             f"QPushButton#TitleBarButton {{"
             f"  background: transparent; border: none; border-radius: 0;"
-            f"  color: {c['fg']}; font-size: 24px; padding: 0;"
-            f"  min-width: 0;"
+            f"  color: {c['fg']}; font-size: 16px; padding: 0;"
+            f"  min-width: 0; max-width: 64px;"
             f"}}"
             f"QPushButton#TitleBarButton:hover {{"
             f"  background-color: {c['close']}; color: #ffffff;"
             f"}}"
             f"QPushButton#TitleBarButton:pressed {{"
-            f"  background-color: rgba(200,20,20,150);"
+            f"  background-color: rgba(200,20,20,180);"
             f"}}"
         )
 
@@ -108,7 +115,7 @@ class TitleBarWidget(QWidget):
 
     def set_maximized(self, maximized):
         self._maximized = maximized
-        self._max_btn.setText("❐" if maximized else "□")
+        self._max_btn.setText("\u29c9" if maximized else "\u25a1")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

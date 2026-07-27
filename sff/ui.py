@@ -1008,6 +1008,16 @@ class UI:
                 shutil.copyfile(lua_path, backup_target)
         except Exception:
             pass
+        # Pin the user's chosen manifest IDs into the lua before installing
+        # so Steam downloads the correct older version, not the latest.
+        if manifest_override:
+            try:
+                from sff.lua.manager import write_manifest_pins_to_lua
+                pinned = write_manifest_pins_to_lua(backup_target, manifest_override)
+                if pinned:
+                    print(Fore.GREEN + f"Pinned {len(manifest_override)} older manifest(s) into lua" + Style.RESET_ALL)
+            except Exception as _pe:
+                print(Fore.YELLOW + f"Could not pin manifest IDs into lua: {_pe}" + Style.RESET_ALL)
         from sff.auto_update_defaults import steam_game_has_pins, apply_new_game_update_default
         _auto_update_was_registered = steam_game_has_pins(self.steam_path, parsed_lua.app_id)
         install_lua_to_steam(
@@ -1082,6 +1092,8 @@ class UI:
             else:
                 print(Fore.YELLOW + "Could not resolve buildid from Steam API — using 0" + Style.RESET_ALL)
             all_depots = app_data.get("depots", {})
+            # Always write latest manifest GIDs into the ACF so Steam thinks
+            # the game is up to date even when older files are on disk.
             for depot_id in list(acf_manifest_map.keys()):
                 mani_pub = all_depots.get(str(depot_id), {}).get("manifests", {}).get("public", {})
                 latest_gid = mani_pub.get("gid") if isinstance(mani_pub, dict) else mani_pub

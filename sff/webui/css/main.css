@@ -11,8 +11,8 @@ body {
     background-color: var(--bg, #141414);
     background-size: cover;
     background-position: center;
-
     background-repeat: no-repeat;
+    padding-top: 56px;
     color: var(--fg);
     display: flex;
     min-height: 100vh;

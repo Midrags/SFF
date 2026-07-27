@@ -53,7 +53,6 @@ from PyQt6.QtWidgets import (
 
 from sff.gui.log_window import GlobalLogWindow, QtLogHandler
 from sff.gui.themes import THEMES, theme_background, titlebar_colors
-from sff.gui.title_bar import TitleBarWidget
 from sff.i18n import T
 from sff.structs import MainMenu, MainReturnCode
 
@@ -218,12 +217,49 @@ class SFFMainWindow(QMainWindow):
         root_layout.setSpacing(0)
         central.installEventFilter(self)
 
-        # ── Custom title bar (Windows only) ──────────────────────
+        # ── Title bar buttons (Windows only, overlay top-right) ──
         if sys.platform == "win32":
-            self._title_bar = TitleBarWidget(self)
-            root_layout.addWidget(self._title_bar)
+            from PyQt6.QtWidgets import QPushButton as _PB
+            from PyQt6.QtCore import Qt as _Qt
+
+            self._tb_maximized = False
+            self._tb_buttons = []
+
+            _btn_style = (
+                "QPushButton { background: transparent; border: none; color: #e8e8e8; font-size: 22px; padding: 0; }"
+                "QPushButton:hover { background-color: rgba(255,255,255,15); }"
+            )
+            _close_style = (
+                "QPushButton { background: transparent; border: none; color: #e8e8e8; font-size: 22px; padding: 0; }"
+                "QPushButton:hover { background-color: #e81123; color: #ffffff; }"
+            )
+
+            for _text, _slot, _style in [
+                ("\u2013", self.showMinimized, _btn_style),
+                ("\u25a1", self._tb_toggle_max, _btn_style),
+                ("\u2715", self.close, _close_style),
+            ]:
+                _b = _PB(_text, central)
+                _b.setFixedSize(64, 56)
+                _b.setFocusPolicy(_Qt.FocusPolicy.NoFocus)
+                _b.setStyleSheet(_style)
+                _b.clicked.connect(_slot)
+                _b.show()
+                self._tb_buttons.append(_b)
+            self._tb_max_btn = self._tb_buttons[1]
+
+            def _position_buttons():
+                w = self.width()
+                x = w - 4
+                for _b in reversed(self._tb_buttons):
+                    x -= 64
+                    _b.move(x, 0)
+
+            self._position_tb_buttons = _position_buttons
+            self._tb_drag_pos = None
         else:
-            self._title_bar = None
+            self._tb_buttons = None
+            self._tb_max_btn = None
 
         # ── LumaCore status banner (hidden until a poll finds missing TOML) ──
         self._lumacore_banner = QLabel()
@@ -990,6 +1026,20 @@ class SFFMainWindow(QMainWindow):
             splash = getattr(self, "_web_splash", None)
             if splash is not None and splash.isVisible():
                 splash.resize(self._web_view.size())
+        # Drag window by clicking empty area at top (sidebar logo region)
+        if sys.platform == "win32" and obj is self.centralWidget():
+            if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+                y = event.position().y()
+                if y < 50:
+                    self._tb_drag_pos = event.globalPosition().toPoint()
+                    return True
+            elif event.type() == QEvent.Type.MouseMove and self._tb_drag_pos is not None:
+                delta = event.globalPosition().toPoint() - self._tb_drag_pos
+                self.move(self.pos() + delta)
+                self._tb_drag_pos = event.globalPosition().toPoint()
+                return True
+            elif event.type() == QEvent.Type.MouseButtonRelease:
+                self._tb_drag_pos = None
         return super().eventFilter(obj, event)
 
     # ── LumaCore status banner ───────────────────────────────────
@@ -1362,9 +1412,18 @@ class SFFMainWindow(QMainWindow):
         self.setStyleSheet(style)
         if hasattr(self, 'game_combo') and self.game_combo is not None:
             self.game_combo._update_arrow()
-        if self._title_bar is not None:
+        if hasattr(self, '_tb_buttons') and self._tb_buttons:
             c = titlebar_colors(key)
-            self._title_bar.set_colors(c["bg"], c["fg"], c["accent"], c["close"], c["border"])
+            _s = (
+                f"QPushButton {{ background: transparent; border: none; color: {c['fg']}; font-size: 22px; padding: 0; }}"
+                f"QPushButton:hover {{ background-color: rgba(255,255,255,15); }}"
+            )
+            for _b in self._tb_buttons[:-1]:
+                _b.setStyleSheet(_s)
+            self._tb_buttons[-1].setStyleSheet(
+                f"QPushButton {{ background: transparent; border: none; color: {c['fg']}; font-size: 22px; padding: 0; }}"
+                f"QPushButton:hover {{ background-color: {c['close']}; color: #ffffff; }}"
+            )
         if save:
             from sff.storage.settings import set_setting
             from sff.structs import Settings as _S
@@ -1373,8 +1432,9 @@ class SFFMainWindow(QMainWindow):
     def changeEvent(self, event):
         if event.type() == QEvent.Type.WindowStateChange:
             maximized = self.windowState() & Qt.WindowState.WindowMaximized
-            if getattr(self, '_title_bar', None) is not None:
-                self._title_bar.set_maximized(bool(maximized))
+            if self._tb_max_btn is not None:
+                self._tb_maximized = bool(maximized)
+                self._tb_max_btn.setText("\u29c9" if maximized else "\u25a1")
         super().changeEvent(event)
 
     if sys.platform == "win32":
@@ -1801,9 +1861,24 @@ class SFFMainWindow(QMainWindow):
             except Exception:
                 logger.exception("SHOW_UPDATE_PROMPTS apply_setting raised")
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, '_position_tb_buttons'):
+            self._position_tb_buttons()
+
+    def _tb_toggle_max(self):
+        if self._tb_maximized:
+            self.showNormal()
+        else:
+            self.showMaximized()
+
     def showEvent(self, event):
         super().showEvent(event)
         self._restore_webview_gpu()
+        if hasattr(self, '_position_tb_buttons'):
+            self._position_tb_buttons()
+            for _b in self._tb_buttons:
+                _b.raise_()
         if sys.platform == "win32":
             try:
                 import ctypes

@@ -1725,6 +1725,14 @@ class WebBridge(QObject):
             except Exception as e:
                 logger.exception("download_dlc_oureveryday: ACF update failed: %s", e)
 
+            # Register DLC in SLSsteam on Linux so it shows in Steam properties
+            if sys.platform == "linux":
+                try:
+                    if hasattr(self._ui, "sls_man") and self._ui.sls_man:
+                        self._ui.sls_man.add_ids([int(dlc_appid)])
+                except Exception as e:
+                    logger.warning("download_dlc_oureveryday: SLSsteam DLC registration failed: %s", e)
+
             self.download_progress.emit(_json.dumps({
                 "app_id": dlc_appid, "status": "Complete", "progress": 100
             }))
@@ -1748,7 +1756,7 @@ class WebBridge(QObject):
 
         self._run_async(_do, on_done=_on_done)
 
-    @pyqtSlot(str, str)
+    @pyqtSlot(str, str, str)
     def download_game_version(self, app_id, manifest_override_json, source='oureveryday'):
         """Download specific version via process_from_store().
         Emits download_progress + task_finished signals."""
@@ -1778,7 +1786,6 @@ class WebBridge(QObject):
                     manifest_override=manifest_override,
                     use_hubcap=(selected == LuaEndpoint.HUBCAP),
                     lib_path=lib_override,
-                    source_override=selected,
                 )
             except Exception:
                 logger.exception("download_game_version: process_from_store failed for %s", app_id)
@@ -5036,19 +5043,19 @@ class WebBridge(QObject):
                 dest = _Path(self._active_library) if self._active_library else steam_path
                 if dest is None:
                     return (False, "No Steam library selected. Please select a download location.")
-                # Resolve the library where the game's ACF lives (or will live)
-                # so downloads land on the correct SSD when the game already
-                # has an .acf in a non-default library.
-                try:
-                    from sff.storage.vdf import get_steam_libs
-                    libs = get_steam_libs(steam_path) if steam_path else []
-                    for lib in libs:
-                        acf = lib / "steamapps" / f"appmanifest_{app_id}.acf"
-                        if acf.is_file():
-                            dest = lib
-                            break
-                except Exception:
-                    pass
+                # If user didn't pick a library, auto-resolve to the one where
+                # an existing ACF lives. If they DID pick one, respect it.
+                if not self._active_library:
+                    try:
+                        from sff.storage.vdf import get_steam_libs
+                        libs = get_steam_libs(steam_path) if steam_path else []
+                        for lib in libs:
+                            acf = lib / "steamapps" / f"appmanifest_{app_id}.acf"
+                            if acf.is_file():
+                                dest = lib
+                                break
+                    except Exception:
+                        pass
 
                 # Download the source lua into per-user saved_lua/, not
                 # <steam>/config/. The final copy step below moves the
@@ -7184,6 +7191,12 @@ def _load_steam_applist():
     if _STEAM_APPLIST_CACHE is not None and (_now - _STEAM_APPLIST_CACHE_TIME) < 86400:
         return _STEAM_APPLIST_CACHE
 
+    # Cache not ready and already being built? Return empty, don't block.
+    _building = getattr(_load_steam_applist, '_building', False)
+    if _building:
+        return None
+    _load_steam_applist._building = True
+
     from sff.utils import root_folder
     _all_games_file = root_folder(outside_internal=True) / "all_games.txt"
     _all_games_file.parent.mkdir(parents=True, exist_ok=True)
@@ -7334,11 +7347,13 @@ def _load_steam_applist():
             pass
         _STEAM_APPLIST_CACHE = _result
         _STEAM_APPLIST_CACHE_TIME = _now
+        _load_steam_applist._building = False
         _result.sort(key=lambda x: x.get('appid', 0))
         logger.info("Steam applist built — %s total apps", len(_result))
         return _result
 
     _STEAM_APPLIST_CACHE = []
+    _load_steam_applist._building = False
     _STEAM_APPLIST_CACHE_TIME = _now
     return []
 
