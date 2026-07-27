@@ -95,6 +95,8 @@ def create_acf(
         '\t}\n'
     )
 
+    import time as _time
+    _now = str(int(_time.time()))
     acf_content = (
         '"AppState"\n'
         '{\n'
@@ -103,8 +105,21 @@ def create_acf(
         f'\t"name"\t\t"{game_name}"\n'
         f'\t"StateFlags"\t\t"4"\n'
         f'\t"installdir"\t\t"{installdir}"\n'
+        f'\t"LastUpdated"\t\t"{_now}"\n'
+        f'\t"lastupdated"\t\t"{_now}"\n'
         f'\t"SizeOnDisk"\t\t"{size_on_disk}"\n'
+        f'\t"StagingSize"\t\t"0"\n'
         f'\t"buildid"\t\t"{buildid}"\n'
+        f'\t"UpdateResult"\t\t"0"\n'
+        f'\t"BytesToDownload"\t\t"{size_on_disk}"\n'
+        f'\t"BytesDownloaded"\t\t"{size_on_disk}"\n'
+        f'\t"BytesToStage"\t\t"0"\n'
+        f'\t"BytesStaged"\t\t"0"\n'
+        f'\t"TargetBuildID"\t\t"{buildid}"\n'
+        f'\t"AutoUpdateBehavior"\t\t"0"\n'
+        f'\t"AllowOtherDownloadsWhileRunning"\t\t"0"\n'
+        f'\t"ScheduledAutoUpdate"\t\t"0"\n'
+        f'\t"DownloadType"\t\t"1"\n'
         f'\t"InstalledDepots"\n'
         f'\t{{\n'
         f'{installed_depots_block}\n'

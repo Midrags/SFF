@@ -3584,7 +3584,7 @@ class WebBridge(QObject):
                 state = acf_data.get("AppState", {})
                 state["buildid"] = cm_buildid
                 state["StateFlags"] = "4"
-                state["TargetBuildID"] = "0"
+                state["TargetBuildID"] = cm_buildid
                 state["DownloadType"] = "0"
                 state["UpdateResult"] = "0"
                 state["ScheduledAutoUpdate"] = "0"
@@ -3592,6 +3592,20 @@ class WebBridge(QObject):
                 state["BytesDownloaded"] = "0"
                 state["BytesToStage"] = "0"
                 state["BytesStaged"] = "0"
+                state["AutoUpdateBehavior"] = "0"
+                # Update SizeOnDisk from actual files if possible
+                try:
+                    installdir = state.get("installdir", "")
+                    if installdir and lib_path:
+                        common = lib_path / "steamapps" / "common" / installdir
+                        if common.exists():
+                            total = sum(
+                                f.stat().st_size for f in common.rglob("*")
+                                if f.is_file()
+                            )
+                            state["SizeOnDisk"] = str(total)
+                except Exception:
+                    pass
                 acf_data["AppState"] = state
                 vdf_dump(acf_path, acf_data)
                 try:
@@ -5094,6 +5108,21 @@ class WebBridge(QObject):
                 # learns about the install. Mirror _run_windows_fastest on win32
                 # and process_from_store on linux. LumaCore is Windows-only so
                 # the stplug-in copy never runs on Linux (requirement 2.33).
+                # Kill Steam before writing config files — Steam locks
+                # config.vdf while running, which blocks depot key writes and
+                # causes "Content Still Encrypted" on launch.
+                try:
+                    from sff.processes import SteamProcess, is_proc_running
+                    _sp = SteamProcess(steam_path)
+                    if is_proc_running(_sp.exe_name):
+                        _sp.kill()
+                        import time as _t3
+                        _w = 0
+                        while is_proc_running(_sp.exe_name) and _w < 20:
+                            _t3.sleep(0.5); _w += 0.5
+                except Exception:
+                    pass
+
                 if sys.platform == "win32":
                     # Calls install_lua_to_steam, ConfigVDFWriter.add_decryption_keys_to_config,
                     # set_stats_and_achievements, app_list_man.add_ids,
@@ -5150,6 +5179,12 @@ class WebBridge(QObject):
                             self._ui.sls_man.add_ids(parsed)
                     except Exception as _sle:
                         logger.warning("sls_man.add_ids failed (non-fatal): %s", _sle)
+
+                    try:
+                        from sff.lua.writer import ConfigVDFWriter as _CVF2
+                        _CVF2(steam_path).add_decryption_keys_to_config(parsed)
+                    except Exception as _kwe2:
+                        logger.warning("add_decryption_keys_to_config failed (non-fatal): %s", _kwe2)
 
                     try:
                         from sff.lua.writer import ACFWriter
@@ -5410,6 +5445,19 @@ class WebBridge(QObject):
                     del depots_dict[_sk]
 
                 ok, _size = run_download(game_data, selected_depots, dest, steam_path, print_fn=_print_fn, os_name=_target_os)
+
+                # Write ACF so Steam recognises the install
+                try:
+                    from sff.linux.acf_writer import create_acf
+                    create_acf(
+                        game_data=game_data,
+                        dest_path=dest,
+                        selected_depots=selected_depots,
+                        size_on_disk=_size,
+                        print_fn=_print_fn,
+                    )
+                except Exception as _ae:
+                    logger.warning("ACF write failed (non-fatal): %s", _ae)
 
                 # Write ACF so Steam recognises the install
                 try:

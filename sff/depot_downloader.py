@@ -566,6 +566,29 @@ def filter_depots_by_os(
                 + Style.RESET_ALL
             )
             continue
+        # Fallback: when oslist is empty, check depot name for [WINDOWS]/[LINUX]/[Mac OSX] tags
+        if target_os and not oslist and depot_name:
+            name_lo = depot_name.lower()
+            plat_tags = {
+                "windows": ["[windows]", "[win]"],
+                "linux": ["[linux]", "[steamos]"],
+                "macos": ["[mac osx]", "[macosx]", "[macos]", "[mac]"],
+            }
+            tags = plat_tags.get(target_os, [])
+            other_tags = set()
+            for k, v in plat_tags.items():
+                if k != target_os:
+                    other_tags.update(v)
+            # If the name has tags for OTHER platforms but NOT our tag, skip
+            has_other = any(t in name_lo for t in other_tags)
+            has_ours = any(t in name_lo for t in tags)
+            if has_other and not has_ours:
+                print_fn(
+                    Fore.YELLOW
+                    + f"Skipping depot {depot_id} (name tag doesn't match {target_os}: {depot_name!r})"
+                    + Style.RESET_ALL
+                )
+                continue
         sc_flag = (
             str(depot_id) in steamchina_ids
             or "steamchina" in category.lower()

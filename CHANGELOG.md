@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.4.9
+
+### Fixes
+
+- ACF files now match the exact format Steam writes. Missing fields like lastupdated, StagingSize, DownloadType, BytesToDownload, and BytesDownloaded are all set the way Steam expects. Depot sizes use the actual download size instead of zero. This applies across all three ACF writers so games show the right size and Play button.
+- "Content Still Encrypted" on game launch is fixed on both platforms. Steam now gets killed before registration so config.vdf is never locked when depot keys are written. Depot keys are written to config.vdf on Linux, which was missing from the download flow.
+- Lure fix sets TargetBuildID to the latest value from Steam CM and recalculates SizeOnDisk from actual game files. AutoUpdateBehavior is zeroed.
+- Depot OS filtering checks the depot name for platform tags when Steam's oslist field is empty. Hubcap lua files label depots with [WINDOWS], [LINUX], and [Mac OSX], and the filter uses those tags as a fallback.
+- DLC checkboxes are no longer disabled for depot-type DLCs. Missing DLCs auto-check and present ones stay unchecked.
+- DDMod crypto errors on Arch and CachyOS are fixed. The OpenSSL finder now checks system paths like /usr/lib when the .NET runtime ships without its own libcrypto.
+- Linux self-updates work. The install script launches with a clean environment, start_new_session keeps it alive after SteaMidra exits, and the headless fallback runs the script directly.
+
 ## 6.4.8
 
 ### Store / download

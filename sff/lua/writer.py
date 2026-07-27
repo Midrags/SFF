@@ -115,27 +115,33 @@ class ACFWriter:
                 "StateFlags": "4",
                 "installdir": installdir,
                 "LastUpdated": str(int(time.time())),
-                "UpdateResult": "0",
+                "lastupdated": str(int(time.time())),
                 "SizeOnDisk": str(size_on_disk),
-                "BytesToDownload": "0",
-                "BytesDownloaded": "0",
+                "StagingSize": "0",
+                "buildid": str(buildid),
+                "UpdateResult": "0",
+                "BytesToDownload": str(size_on_disk),
+                "BytesDownloaded": str(size_on_disk),
                 "BytesToStage": "0",
                 "BytesStaged": "0",
                 "TargetBuildID": str(buildid),
-                "buildid": str(buildid),
                 "AutoUpdateBehavior": "0",
                 "AllowOtherDownloadsWhileRunning": "0",
                 "ScheduledAutoUpdate": "0",
+                "DownloadType": "1",
             }
             if manifest_map:
-                app_state["InstalledDepots"] = {
-                    depot_id: {"manifest": manifest_id, "size": "0"}
-                    for depot_id, manifest_id in manifest_map.items()
-                }
-                app_state["MountedDepots"] = {
-                    depot_id: manifest_id
-                    for depot_id, manifest_id in manifest_map.items()
-                }
+                depot_list = list(manifest_map.items())
+                installed = {}
+                mounted = {}
+                for i, (depot_id, manifest_id) in enumerate(depot_list):
+                    depot_size = str(size_on_disk) if i == 0 and size_on_disk else "0"
+                    installed[str(depot_id)] = {"manifest": str(manifest_id), "size": depot_size}
+                    mounted[str(depot_id)] = str(manifest_id)
+                    installed[str(depot_id)] = {"manifest": str(manifest_id), "size": depot_size}
+                    mounted[str(depot_id)] = str(manifest_id)
+                app_state["InstalledDepots"] = installed
+                app_state["MountedDepots"] = mounted
                 print(
                     f"InstalledDepots set for {len(manifest_map)} depot(s) -> "
                     + ", ".join(
@@ -187,22 +193,34 @@ class ACFWriter:
             "StateFlags": "4",
             "installdir": installdir,
             "LastUpdated": str(int(time.time())),
-            "UpdateResult": "0",
+            "lastupdated": str(int(time.time())),
             "SizeOnDisk": str(size_on_disk),
+            "StagingSize": "0",
             "buildid": str(buildid),
+            "UpdateResult": "0",
+            "BytesToDownload": str(size_on_disk),
+            "BytesDownloaded": str(size_on_disk),
+            "BytesToStage": "0",
+            "BytesStaged": "0",
+            "TargetBuildID": str(buildid),
+            "AutoUpdateBehavior": "0",
+            "AllowOtherDownloadsWhileRunning": "0",
+            "ScheduledAutoUpdate": "0",
+            "DownloadType": "1",
         }
         if manifest_map:
             if empty_depots:
                 app_state["InstalledDepots"] = {}
             else:
-                app_state["InstalledDepots"] = {
-                    depot_id: {"manifest": manifest_id, "size": "0"}
-                    for depot_id, manifest_id in manifest_map.items()
-                }
-                app_state["MountedDepots"] = {
-                    depot_id: manifest_id
-                    for depot_id, manifest_id in manifest_map.items()
-                }
+                depot_list = list(manifest_map.items())
+                installed = {}
+                mounted = {}
+                for i, (depot_id, manifest_id) in enumerate(depot_list):
+                    depot_size = str(size_on_disk) if i == 0 and size_on_disk else "0"
+                    installed[str(depot_id)] = {"manifest": str(manifest_id), "size": depot_size}
+                    mounted[str(depot_id)] = str(manifest_id)
+                app_state["InstalledDepots"] = installed
+                app_state["MountedDepots"] = mounted
             if sys.platform != "win32":
                 app_state["UserConfig"] = {
                     "platform_override_dest": "linux",
