@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.5.4
+
+### Fixes
+
+- SLSsteam config files now include all fields SLSsteam expects. Old configs get patched with missing fields when adding a game. The "Missing FakeName" and "Missing SteamIdOverride" notifications are gone.
+- CreamAPI ini no longer writes a broken orgapi path. The original DLL name was being appended instead of replaced, producing steam_api.dll_o.dll instead of steam_api_o.dll.
+- Chinese language options added to settings. Simplified and Traditional Chinese are now in the language dropdown.
+
 ## 6.5.3
 
 ### Fixes

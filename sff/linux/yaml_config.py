@@ -292,12 +292,47 @@ def ensure_slssteam_api_enabled(config_path: Path) -> bool:
 # ---------------------------------------------------------------------------
 
 def _init_config_with_app(config_path: Path, app_id: str, comment: str) -> bool:
-    """Create a brand-new config file with a single AdditionalApps entry."""
+    """Create a brand-new config file with all required SLSsteam fields."""
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    entry = f"AdditionalApps:\n  - {app_id}"
+    entry = (
+        "DisableFamilyShareLock: yes\n"
+        "UseWhitelist: no\n"
+        "AppIds:\n"
+        "AdditionalApps:\n"
+        f"  - {app_id}"
+    )
     if comment:
         entry += f"   # {comment}"
-    entry += "\n"
+    entry += (
+        "\n"
+        "DlcData:\n"
+        "AppTokens:\n"
+        "FakeOffline:\n"
+        "FakeAppIds:\n"
+        "ManifestIds:\n"
+        "DepotBlacklist:\n"
+        "IdleStatus:\n"
+        "  AppId: 0\n"
+        "  Title: \"\"\n"
+        "GameTitles:\n"
+        "SubscriptionTimestamps:\n"
+        "DenuvoGames:\n"
+        "SteamIdOverride:\n"
+        "MaxSchemaTries: 10\n"
+        "SafeMode: no\n"
+        "Notifications: yes\n"
+        "WarnHashMissmatch: no\n"
+        "NotifyInit: yes\n"
+        "API: no\n"
+        "DisableCloud: yes\n"
+        "DisableUpdates: yes\n"
+        'FakeName: ""\n'
+        'FakeEmail: ""\n'
+        "FakeWalletBalance: 0\n"
+        "LogLevel: 2\n"
+        "DumpClientInterfaces: no\n"
+        "ExtendedLogging: no\n"
+    )
     if _atomic_write(config_path, entry):
         logger.info(f"Created config with AppID '{app_id}' in {config_path}")
         return True
@@ -327,6 +362,43 @@ def _append_to_additional_apps(content: str, app_id: str, comment: str, match: r
     return content[:last_item_end] + entry + content[last_item_end:]
 
 
+_SLSSTEAM_REQUIRED_FIELDS = (
+    "FakeName: \"\"\n"
+    "FakeEmail: \"\"\n"
+    "FakeWalletBalance: 0\n"
+    "DisableFamilyShareLock: yes\n"
+    "UseWhitelist: no\n"
+    "DisableCloud: yes\n"
+    "DisableUpdates: yes\n"
+    "SteamIdOverride:\n"
+    "MaxSchemaTries: 10\n"
+    "SafeMode: no\n"
+    "Notifications: yes\n"
+    "NotifyInit: yes\n"
+    "LogLevel: 2\n"
+)
+
+
+def _patch_missing_slssteam_fields(config_path: Path, content: str) -> str | None:
+    """Append missing required SLSsteam fields to an existing config."""
+    missing: list[str] = []
+    for field in _SLSSTEAM_REQUIRED_FIELDS:
+        key = field.split(":", 1)[0]
+        if key + ":" not in content and key + " " not in content:
+            missing.append(field)
+    if not missing:
+        return content
+    new_content = content.rstrip("\n") + "\n" + "".join(missing)
+    try:
+        _create_backup(config_path)
+        if _atomic_write(config_path, new_content):
+            logger.info(f"Patched {len(missing)} missing SLSsteam field(s) in {config_path}")
+            return new_content
+    except OSError:
+        pass
+    return content
+
+
 def add_additional_app(config_path: Path, app_id: str, comment: str = "") -> bool:
     """Add an AppID to AdditionalApps in SLSsteam config.yaml."""
     try:
@@ -339,7 +411,16 @@ def add_additional_app(config_path: Path, app_id: str, comment: str = "") -> boo
         existing = re.compile(rf"^\s*-\s*{re.escape(app_id)}\s*(?:#.*)?$", re.MULTILINE)
         if existing.search(fixed):
             logger.debug(f"AppID '{app_id}' already in AdditionalApps")
+            # Patch missing SLSsteam fields even when app already exists
+            if "FakeName:" not in fixed:
+                _patch_missing_slssteam_fields(config_path, fixed)
             return False
+
+        # Patch missing fields before adding new apps
+        if "FakeName:" not in fixed:
+            fixed = _patch_missing_slssteam_fields(config_path, fixed)
+            if fixed is None:
+                fixed = _read_config(config_path) or ""
 
         header = re.compile(r"^AdditionalApps:\s*$", re.MULTILINE)
         match = header.search(fixed)

@@ -193,8 +193,8 @@ class CreamAPIUnlocker(UnlockerBase):
             "app_id": app_id,
             "dlc_ids": dlc_ids,
             "unlockall": False,
-            "orgapi": f"{self.STEAM_API_32}{self.BACKUP_SUFFIX}",
-            "orgapi64": f"{self.STEAM_API_64}{self.BACKUP_SUFFIX}",
+            "orgapi": self.STEAM_API_32.replace(".dll", self.BACKUP_SUFFIX),
+            "orgapi64": self.STEAM_API_64.replace(".dll", self.BACKUP_SUFFIX),
             "extraprotection": False,
             "forceoffline": False,
             "disableuserinterface": False
