@@ -12,6 +12,8 @@
 #include <filesystem>
 #include <string>
 
+#include <spdlog/sinks/rotating_file_sink.h>
+
 namespace {
     std::atomic_bool g_mainReady{false};
 
@@ -36,7 +38,11 @@ namespace {
     std::shared_ptr<spdlog::logger> MakeLogger(const std::string& dir,
                                                 const std::string& name) {
         auto path = std::filesystem::path(dir) / (name + ".log");
-        auto logger = spdlog::basic_logger_mt(name, path.string(), /*truncate=*/true);
+        constexpr size_t kMaxFileSize = 5ull * 1024ull * 1024ull;
+        constexpr size_t kMaxFiles = 3;
+        auto sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+            path.string(), kMaxFileSize, kMaxFiles);
+        auto logger = std::make_shared<spdlog::logger>(name, std::move(sink));
         logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [tid=%t] [%s:%# %!()] %v");
         logger->flush_on(spdlog::level::trace);
         return logger;

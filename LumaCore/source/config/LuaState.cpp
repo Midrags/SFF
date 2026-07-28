@@ -49,6 +49,7 @@ namespace LuaLoader::Internal {
     std::unordered_map<AppId_t, uint32_t> g_statsRefCount;
     std::vector<AppId_t> g_pendingRemovals;
     std::vector<AppId_t> g_pendingAdditions;
+    std::unordered_set<AppId_t> g_pendingLibraryRemovals;
     ParseSession* g_activeSession = nullptr;
     std::string g_eticketUrl;
     std::unordered_set<AppId_t> g_forcedDenuvoApps;

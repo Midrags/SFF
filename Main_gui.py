@@ -137,6 +137,21 @@ try:
 except Exception:
     logging.basicConfig(level=logging.DEBUG)
 
+# Global crash hook — any unhandled exception anywhere in the app
+# gets written to crash.log so the user can report it.
+def _global_excepthook(exc_type, exc_value, exc_tb):
+    import traceback
+    msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    logger.critical("Unhandled exception:\n%s", msg)
+    try:
+        log_path = sff_data_dir() / "crash.log"
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(msg)
+    except Exception:
+        pass
+    sys.__excepthook__(exc_type, exc_value, exc_tb)
+sys.excepthook = _global_excepthook
+
 if _LINUX_CHROMIUM_FALLBACK_APPLIED:
     logger.info("Linux: applying Chromium GPU fallback flags")
 
@@ -368,13 +383,9 @@ def main():
             pass
 
     from sff.tray_icon import TrayIcon
-    # Parent the tray to the QApplication, not the window. The tray
-    # must outlive any single window destroy/create cycle. The window
-    # later calls set_tray() so it can use the icon for notifications.
     tray = TrayIcon(parent=app)
     tray.setup(_app_icon if not _app_icon.isNull() else app.windowIcon())
     window.set_tray(tray)
-    # Keep a reference on app to prevent garbage collection
     app._tray = tray
 
     # Explorer can crash and re-broadcast TaskbarCreated; Qt does not

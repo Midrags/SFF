@@ -1,23 +1,17 @@
-SteaMidra v6.5.0
+SteaMidra v6.5.1
 
 What's new:
 
 ### UI improvements
 
-* Refreshed the window chrome with a cleaner, more modern layout. The traditional title bar has been removed, and the minimize, maximize, and close buttons now float neatly in the top-right corner.
-* Window dragging is now done from the top of the sidebar, and the Web UI layout has been adjusted so the floating controls never overlap page content or logs.
+* Window dragging now works properly. An invisible 56px strip at the top of the window lets you drag the app or double-click to maximize, without adding a visible title bar or wasting screen space.
+* The Web UI now starts below the window controls, preventing the minimize, maximize, and close buttons from overlapping logs or page content.
+* SteaMidra now automatically writes a `crash.log` file to the data directory whenever the application encounters an unexpected crash, making it much easier to diagnose and report issues.
 
 ### Fixes
 
-* DLCs now appear correctly in Steam Properties on Linux. SteaMidra now registers DLC app IDs in SLSsteam's configuration, including both `AdditionalApps` and `DlcData`, and DLC Check updates automatically register newly added DLCs.
-* Startup is much more responsive. Building the Steam app list now happens in the background instead of blocking the UI during launch.
-* Fixed download location selection being ignored. When you choose a download directory, SteaMidra now respects it instead of silently using an existing ACF location.
-* **Download Older Version** is working again. Older-version downloads now correctly honor the selected provider (Hubcap or Ryuu), install using the chosen manifest IDs, and no longer fail because of an invalid backend parameter.
-* ACF files now always use the latest manifest IDs and Build ID from Steam appinfo, helping Steam correctly recognize installations and display **Play** instead of **Update**, even when you've intentionally installed an older version.
-
-### Linux improvements
-
-* Depot keys are now written to `config.vdf` on Linux, bringing the workflow in line with Windows. Steam is stopped before configuration updates on both platforms to avoid locked configuration files.
-* DLC depot entries written to ACF files now include the correct `dlcappid` metadata from Steam appinfo, improving Steam's handling of installed DLC.
+* **Download Older Version** now works correctly with DepotDownloaderMod. The backend now accepts the required arguments, preventing crashes and ensuring your selected manifest IDs are correctly pinned before installation.
+* DLCs now appear correctly in Steam Properties on Linux through proper SLSsteam registration using both `AdditionalApps` and `DlcData`.
+* Startup is more efficient. SteaMidra no longer builds the Steam application list twice during launch, reducing unnecessary work and improving startup performance.
 
 Full detailed changelog is in CHANGELOG.md

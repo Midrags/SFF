@@ -257,6 +257,9 @@ class SFFMainWindow(QMainWindow):
 
             self._position_tb_buttons = _position_buttons
             self._tb_drag_pos = None
+
+            self._position_tb_buttons = _position_buttons
+            self._tb_drag_pos = None
         else:
             self._tb_buttons = None
             self._tb_max_btn = None
@@ -309,6 +312,33 @@ class SFFMainWindow(QMainWindow):
             except Exception:
                 pass
         root_layout.addWidget(self._web_view)
+
+        # Invisible drag strip above web view — captures mouse for window move
+        if sys.platform == "win32":
+            class _DragStrip(QWidget):
+                def mousePressEvent(self, ev):
+                    if ev.button() == Qt.MouseButton.LeftButton:
+                        self._drag_pos = ev.globalPosition().toPoint()
+                def mouseMoveEvent(self, ev):
+                    if ev.buttons() == Qt.MouseButton.LeftButton and hasattr(self, '_drag_pos') and self._drag_pos is not None:
+                        if self.window().isMaximized():
+                            self.window().showNormal()
+                        delta = ev.globalPosition().toPoint() - self._drag_pos
+                        self.window().move(self.window().pos() + delta)
+                        self._drag_pos = ev.globalPosition().toPoint()
+                def mouseReleaseEvent(self, ev):
+                    self._drag_pos = None
+                def mouseDoubleClickEvent(self, ev):
+                    if ev.button() == Qt.MouseButton.LeftButton:
+                        w = self.window()
+                        if w.isMaximized(): w.showNormal()
+                        else: w.showMaximized()
+            _ds = _DragStrip(central)
+            _ds._drag_pos = None
+            _ds.setStyleSheet("background: transparent;")
+            _ds.setCursor(Qt.CursorShape.ArrowCursor)
+            self._drag_strip = _ds
+
         self._web_channel = QWebChannel()
         from sff.gui.web_bridge import WebBridge
         self._web_bridge = WebBridge(ui=ui, steam_path=steam_path, parent=self)
@@ -1026,11 +1056,12 @@ class SFFMainWindow(QMainWindow):
             splash = getattr(self, "_web_splash", None)
             if splash is not None and splash.isVisible():
                 splash.resize(self._web_view.size())
-        # Drag window by clicking empty area at top (sidebar logo region)
-        if sys.platform == "win32" and obj is self.centralWidget():
+        # Drag window by clicking the top 56px (where buttons are).
+        # The web view intercepts mouse events so we handle it here.
+        if sys.platform == "win32" and obj is getattr(self, "_web_view", None):
             if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
                 y = event.position().y()
-                if y < 50:
+                if y < 56:
                     self._tb_drag_pos = event.globalPosition().toPoint()
                     return True
             elif event.type() == QEvent.Type.MouseMove and self._tb_drag_pos is not None:
@@ -1865,6 +1896,9 @@ class SFFMainWindow(QMainWindow):
         super().resizeEvent(event)
         if hasattr(self, '_position_tb_buttons'):
             self._position_tb_buttons()
+        if hasattr(self, '_drag_strip'):
+            self._drag_strip.setGeometry(0, 0, self.width(), 56)
+            self._drag_strip.raise_()
 
     def _tb_toggle_max(self):
         if self._tb_maximized:

@@ -688,6 +688,8 @@ namespace SteamCapture {
 
         // ── Phase 1a: drop removals from the package vector ──
         std::vector<AppId_t> removals = LuaLoader::TakePendingRemovals();
+
+        std::unordered_set<AppId_t> removedLibraryRoots = LuaLoader::TakePendingLibraryRemovals();
         uint32_t removedCount = 0;
         for (AppId_t id : removals) {
             if (pPkg->AppIdVec.FindAndFastRemove(id)) {
@@ -734,7 +736,7 @@ namespace SteamCapture {
         }
         uint32_t queuedRemovals = 0;
         for (AppId_t id : removals) {
-            if (libraryRoots.count(id)) {
+            if (removedLibraryRoots.count(id)) {
                 SteamUI::QueueLibraryRemoval(id);
                 ++queuedRemovals;
             }

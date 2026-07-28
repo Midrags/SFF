@@ -558,5 +558,65 @@
     "dest_path": "",
     "error": "No download function provided",
     "timestamp": 1785166500.3846924
+  },
+  {
+    "app_id": 480,
+    "game_name": "Test",
+    "status": "failed",
+    "mode": "LumaCore",
+    "size": 0,
+    "dest_path": "",
+    "error": "No download function provided",
+    "timestamp": 1785173046.7870307
+  },
+  {
+    "app_id": 480,
+    "game_name": "Test",
+    "status": "failed",
+    "mode": "LumaCore",
+    "size": 0,
+    "dest_path": "",
+    "error": "No download function provided",
+    "timestamp": 1785174092.456764
+  },
+  {
+    "app_id": 480,
+    "game_name": "Test",
+    "status": "failed",
+    "mode": "LumaCore",
+    "size": 0,
+    "dest_path": "",
+    "error": "No download function provided",
+    "timestamp": 1785174467.337437
+  },
+  {
+    "app_id": 480,
+    "game_name": "Test",
+    "status": "failed",
+    "mode": "LumaCore",
+    "size": 0,
+    "dest_path": "",
+    "error": "No download function provided",
+    "timestamp": 1785175499.399011
+  },
+  {
+    "app_id": 480,
+    "game_name": "Test",
+    "status": "failed",
+    "mode": "LumaCore",
+    "size": 0,
+    "dest_path": "",
+    "error": "No download function provided",
+    "timestamp": 1785175839.97519
+  },
+  {
+    "app_id": 480,
+    "game_name": "Test",
+    "status": "failed",
+    "mode": "LumaCore",
+    "size": 0,
+    "dest_path": "",
+    "error": "No download function provided",
+    "timestamp": 1785175897.8907773
   }
 ]

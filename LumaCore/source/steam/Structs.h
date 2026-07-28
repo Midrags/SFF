@@ -129,13 +129,14 @@ struct AppOwnership
         bool bFamilyShared;
 };
 
+#pragma pack(push,1)
 struct CSteamApp{
 	void** vfptr;
-	int32 StateFlags;
-	AppId_t AppID;
-	// Tail members past AppID are not consumed by LumaCore; leave them
-	// off the layout to keep this header lean.
+	uint8  _pad0[20];
+	EAppOwnershipFlags OwnershipFlags;
+	EAppState AppStateFlags;
 };
+#pragma pack(pop)
 
 // One depot record (32 bytes) emitted by the depot dependency builder.
 // LumaCore reads these out of the resolved dependency vector and feeds

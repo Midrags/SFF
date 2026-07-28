@@ -63,6 +63,11 @@ enum class EAppReleaseState
 	Released = 4
 };
 
+enum EAppOwnershipFlags
+{
+	k_EAppOwnershipFlags_None = 0
+};
+
 enum class EGameIDType
 {
 	k_EGameIDTypeApp = 0,

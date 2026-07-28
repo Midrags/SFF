@@ -1,5 +1,19 @@
 # Changelog
 
+## 6.5.1
+
+### UI
+
+- Window drag works. An invisible 56px strip at the top captures mouse for moving the window and double-click to maximize. No visible bar, no layout gap.
+- Buttons no longer cover the logs. Web UI content has 56px top padding so it starts below the minimize/maximize/close buttons.
+- Crashes anywhere in the app now write a crash.log to the SteaMidra data directory so the cause can be reported.
+
+### Fixes
+
+- Older version downloads work through DDMod. The source_override crash is gone, the slot accepts three arguments, and user-chosen manifest IDs are pinned into the lua before Steam installation.
+- DLCs show in Steam properties on Linux via SLSsteam AdditionalApps and DlcData.
+- Startup no longer double-builds the Steam applist.
+
 ## 6.5.0
 
 ### UI

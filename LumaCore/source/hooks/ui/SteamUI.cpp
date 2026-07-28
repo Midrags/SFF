@@ -227,19 +227,17 @@ namespace {
             {
                 for (AppId_t appId : drainingRemovals)
                 {
-                    if (LuaLoader::IsSteamProvidedApp(appId))
+                    if (LuaLoader::IsOwned(appId))
                     {
-                        LOG_STEAMUICH_DEBUG("RunFrame: appId {} is Steam-provided again, skipping removal", appId);
+                        LOG_STEAMUICH_DEBUG("RunFrame: appId {} is owned again, skipping removal", appId);
                         continue;
                     }
-                    if (void* pApp = oGetAppByID(pController, appId, false))
+                    if (CSteamApp* pApp = static_cast<CSteamApp*>(oGetAppByID(pController, appId, false)))
                     {
-                        // Clear ownership flags so the full snapshot excludes it
-                        *reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(pApp) + 28) = 0;
-                        std::lock_guard<std::mutex> lock(g_removalMutex);
-                        // only add to removed set when the app is uninstalled
-                        auto* cs = static_cast<CSteamApp*>(pApp);
-                        if (cs->StateFlags == k_EAppStateUninstalled) {
+                        pApp->OwnershipFlags = k_EAppOwnershipFlags_None;
+                        if (pApp->AppStateFlags == k_EAppStateUninstalled)
+                        {
+                            std::lock_guard<std::mutex> lock(g_removalMutex);
                             g_removedAppIds.insert(appId);
                         }
                     }

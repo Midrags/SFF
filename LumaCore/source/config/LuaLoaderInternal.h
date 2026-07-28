@@ -73,6 +73,7 @@ namespace LuaLoader::Internal {
     extern std::unordered_map<AppId_t, uint32_t> g_statsRefCount;
     extern std::vector<AppId_t> g_pendingRemovals;
     extern std::vector<AppId_t> g_pendingAdditions;
+    extern std::unordered_set<AppId_t> g_pendingLibraryRemovals;
     extern std::string g_eticketUrl;  // set via seteticketurl() Lua binding
 
     constexpr uint64_t kDefaultStatSteamId = 76561198028121353ULL;

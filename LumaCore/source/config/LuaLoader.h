@@ -10,6 +10,7 @@
 #include <cstdint>
 #include "Steam/Types.h"
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <vector>
 
@@ -59,8 +60,9 @@ namespace LuaLoader {
 
     void ParseFile(const std::string& filePath);
     void UnloadFile(const std::string& filePath);
-    // Returns and clears the list of depot IDs removed/added since last call.
+
     std::vector<AppId_t> TakePendingRemovals();
+    std::unordered_set<AppId_t> TakePendingLibraryRemovals();
     std::vector<AppId_t> TakePendingAdditions();
     void ParseDirectory(const std::string& directory);
 

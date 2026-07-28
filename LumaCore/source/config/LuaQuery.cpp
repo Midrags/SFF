@@ -235,6 +235,7 @@ namespace LuaLoader {
                     g_libraryRefCount.erase(refIt);
                     LibraryAppIdSet.erase(id);
                     LuaMtimeMap.erase(id);
+                    g_pendingLibraryRemovals.insert(id);
                 }
             }
             g_fileLibraryApps.erase(libraryIt);
@@ -274,6 +275,12 @@ namespace LuaLoader {
     std::vector<AppId_t> TakePendingRemovals() {
         std::vector<AppId_t> out;
         out.swap(Internal::g_pendingRemovals);
+        return out;
+    }
+
+    std::unordered_set<AppId_t> TakePendingLibraryRemovals() {
+        std::unordered_set<AppId_t> out;
+        out.swap(Internal::g_pendingLibraryRemovals);
         return out;
     }
 
