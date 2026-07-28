@@ -38,7 +38,7 @@ namespace {
     std::shared_ptr<spdlog::logger> MakeLogger(const std::string& dir,
                                                 const std::string& name) {
         auto path = std::filesystem::path(dir) / (name + ".log");
-        constexpr size_t kMaxFileSize = 5ull * 1024ull * 1024ull;
+        constexpr size_t kMaxFileSize = 50ull * 1024ull * 1024ull;
         constexpr size_t kMaxFiles = 3;
         auto sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
             path.string(), kMaxFileSize, kMaxFiles);

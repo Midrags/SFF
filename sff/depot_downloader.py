@@ -192,7 +192,8 @@ def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout: float 
             if now - last_pre_alloc_t >= _SUMMARY_INTERVAL:
                 print_fn(f"[Pre-allocating files... {pre_alloc_count} so far]")
                 last_pre_alloc_t = now
-            deadline = time.monotonic() + depot_timeout
+            if depot_timeout is not None:
+                deadline = time.monotonic() + depot_timeout
             continue
 
         lower = line.lower()
@@ -201,7 +202,8 @@ def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout: float 
             if now - last_validate_t >= _SUMMARY_INTERVAL:
                 print_fn(f"[Validating chunks... {validate_count} so far]")
                 last_validate_t = now
-            deadline = time.monotonic() + depot_timeout
+            if depot_timeout is not None:
+                deadline = time.monotonic() + depot_timeout
             continue
 
         m = _DDMOD_PROGRESS_RE.match(line)
@@ -218,8 +220,7 @@ def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout: float 
                 print_fn(line)
                 last_progress_pct = pct
                 last_progress_t = now
-            # Extend deadline when download is making progress
-            if crossed_pct:
+            if crossed_pct and depot_timeout is not None:
                 deadline = time.monotonic() + depot_timeout
             continue
 

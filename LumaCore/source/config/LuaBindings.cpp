@@ -322,6 +322,7 @@ int Bind_fetchManifestCodeEx(lua_State* L) {
         if (g_activeSession) {
             g_activeSession->recordDepot(depotId);
         }
+        LOG_LUA_INFO("addappid: depot={} argc={}", depotId, argc);
         return 0;
     }
 
@@ -362,7 +363,13 @@ int Bind_fetchManifestCodeEx(lua_State* L) {
     // when the size doesn't line up with what the depot reports, so we force
     // 0 and let Steam fill it in.
     int Bind_setManifestid(lua_State* L) {
-        if (lua_gettop(L) < 2) {
+        int top = lua_gettop(L);
+        LOG_LUA_INFO("setManifestid ENTER top={} t1={} t2={} t3={}",
+            top,
+            lua_typename(L, lua_type(L, 1)),
+            top >= 2 ? lua_typename(L, lua_type(L, 2)) : "-",
+            top >= 3 ? lua_typename(L, lua_type(L, 3)) : "-");
+        if (top < 2) {
             return luaL_error(L, "setManifestid: need depotId, gid");
         }
 
@@ -370,6 +377,7 @@ int Bind_fetchManifestCodeEx(lua_State* L) {
         const uint64_t depotId = static_cast<uint64_t>(depotIdRaw);
 
         std::string_view gid = CheckString(L, 2, "setManifestid");
+        LOG_LUA_INFO("setManifestid CHECK gid={} depot={}", TruncForLog(gid), depotId);
         uint64_t parsedGid = 0;
         if (!TryParseUInt64Decimal(gid, parsedGid)) {
             LOG_LUA_WARN("setManifestid: rejected gid '{}' (must be decimal uint64)",
@@ -378,6 +386,7 @@ int Bind_fetchManifestCodeEx(lua_State* L) {
         }
 
         ManifestOverrides[depotId] = { parsedGid, 0 };
+        LOG_LUA_INFO("setManifestid: depot={} gid={}", depotId, parsedGid);
         return 0;
     }
 

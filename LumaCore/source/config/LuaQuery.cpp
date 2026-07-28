@@ -18,11 +18,15 @@
 
 #include <lua.hpp>
 #include <algorithm>
+#include <cctype>
 #include <charconv>
 #include <chrono>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <unordered_set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -386,10 +390,65 @@ namespace LuaLoader {
             LOG_WARN("{}: {}", chunkName, err ? err : "unknown");
             lua_pop(g_lua_state, 1);
         }
+
+        // Fallback: scan raw file text for setManifestid(depot, "gid")
+        // when the Lua VM silently skips those calls.
+        {
+            // Depots that must always auto-update to latest version.
+            // Runtime redistributables (VC++, DX, .NET, XNA, OpenAL, PhysX,
+            // Steamworks shared) are never pinned to a specific manifest.
+            static const std::unordered_set<uint64_t> kAutoUpdateDepots = {
+                228981, 228982, 228983, 228984, 228985, 228986, 228987,
+                228988, 228989, 228990, 229000, 229001, 229002, 229003,
+                229004, 229005, 229006, 229007, 229010, 229011, 229012,
+                229020, 229030, 229031, 229032, 229033, 220211,
+            };
+            auto depotIdFromStr = [](const char*& p, const char* e) -> uint64_t {
+                while (p < e && (*p == ' ' || *p == '\t' || *p == '(')) ++p;
+                if (p >= e || !std::isdigit(static_cast<unsigned char>(*p))) return 0;
+                char* ne = nullptr;
+                uint64_t v = std::strtoull(p, &ne, 10);
+                p = ne;
+                return v;
+            };
+            auto gidFromStr = [](const char*& p, const char* e) -> std::string_view {
+                while (p < e && (*p == ' ' || *p == '\t' || *p == ',')) ++p;
+                if (p >= e || *p != '"') return {};
+                ++p;
+                const char* s = p;
+                while (p < e && *p != '"') ++p;
+                if (p >= e) return {};
+                return { s, static_cast<size_t>(p - s) };
+            };
+
+            const char* pos = body.data();
+            const char* end = body.data() + body.size();
+            while (pos < end) {
+                const char* hit = std::strstr(pos, "setManifestid");
+                if (!hit) hit = std::strstr(pos, "setmanifestid");
+                if (!hit) break;
+                pos = hit + 13;
+                if (pos >= end || *pos != '(') continue;
+                ++pos;
+
+            uint64_t depotId = depotIdFromStr(pos, end);
+            if (!depotId || depotId > UINT32_MAX) continue;
+
+            if (kAutoUpdateDepots.count(depotId)) continue;
+
+            std::string_view gidStr = gidFromStr(pos, end);
+                if (gidStr.empty()) continue;
+
+                uint64_t parsedGid = 0;
+                if (TryParseUInt64Decimal(gidStr, parsedGid)) {
+                    ManifestOverrides[depotId] = { parsedGid, 0 };
+                    LOG_PACKAGE_INFO("setManifestid(fallback): depot={} gid={}", depotId, parsedGid);
+                }
+            }
+        }
+
         PublishLuaCounts();
     }
-
-    // ── directory scanner ────────────────────────────────────────────────
     void ParseDirectory(const std::string& directory) {
         using namespace Internal;
         if (!Initialize()) return;

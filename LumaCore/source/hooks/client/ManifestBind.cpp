@@ -7,6 +7,7 @@
 #include "hooks/Macros.h"
 #include "core/entry.h"
 #include <format>
+#include <mutex>
 #include <string>
 
 // hook that patches depot gid/size in the output vector after Steam builds it.
@@ -54,9 +55,18 @@ namespace ManifestBind::Internal {
         if (!bank.HasEntries()) return;
         const auto& overrides = LuaLoader::GetManifestOverrides();
         if (overrides.empty()) return;
+
+        static std::once_flag s_once;
+        std::call_once(s_once, [&]() {
+            LOG_MANBND_INFO("manifest-map-dump size={}", static_cast<uint32_t>(overrides.size()));
+            for (const auto& [k, v] : overrides)
+                LOG_MANBND_INFO("manifest-map-entry depot={} gid={}", k, v.gid);
+        });
+
         uint32_t idx = 0;
         while (idx < bank.Len()) {
-            auto it = overrides.find(bank.Get(idx).DepotId);
+            uint64_t key = static_cast<uint64_t>(bank.Get(idx).DepotId);
+            auto it = overrides.find(key);
             if (it != overrides.end()) {
                 uint64_t newSz = it->second.size ? it->second.size : bank.Get(idx).ManifestSize;
                 LOG_MANBND_INFO("manifest-override depot={} gid={}->{} size={}->{}",
@@ -64,6 +74,11 @@ namespace ManifestBind::Internal {
                     bank.Get(idx).ManifestSize, newSz);
                 bank.Mut(idx).ManifestGid  = it->second.gid;
                 bank.Mut(idx).ManifestSize = newSz;
+            } else {
+                LOG_MANBND_INFO("manifest-scan depot={} gid={} appid={} size={} mapSize={}",
+                    bank.Get(idx).DepotId, bank.Get(idx).ManifestGid,
+                    bank.Get(idx).AppId, bank.Get(idx).ManifestSize,
+                    static_cast<uint32_t>(overrides.size()));
             }
             ++idx;
         }
