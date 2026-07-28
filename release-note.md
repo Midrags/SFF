@@ -1,11 +1,11 @@
-SteaMidra v6.5.2
+SteaMidra v6.5.3
 
 What's new:
 
 ### Fixes
 
-* Shared depots such as **VC Redist** are now organized into their own **Shared Depots** section in Oureveryday-generated Lua files instead of being mixed with the game's main depots. SteaMidra now recognizes all known shared redistributable depot IDs using the built-in master list.
-* DepotDownloaderMod timeout is now **disabled by default**, preventing long downloads from being interrupted unnecessarily.
-* Added a new **Download Settings** option that lets you configure an optional per-depot timeout anywhere from **10 to 1440 minutes** when you want downloads to expire automatically.
+* Fixed a crash that could occur during startup or when switching themes because of a missing title bar button reference.
+* Improved OpenSSL detection for DepotDownloaderMod on Linux. Additional search paths now cover Debian/Ubuntu multiarch installations and source-built OpenSSL, reducing crypto-related errors across more distributions.
+* Oureveryday-generated Lua files now include DLC names, authentication tokens, dedicated **Shared Depots** sections, and commented-out empty depots, bringing their format much closer to Hubcap-generated Lua files.
 
 Full detailed changelog is in CHANGELOG.md

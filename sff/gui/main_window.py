@@ -1463,9 +1463,10 @@ class SFFMainWindow(QMainWindow):
     def changeEvent(self, event):
         if event.type() == QEvent.Type.WindowStateChange:
             maximized = self.windowState() & Qt.WindowState.WindowMaximized
-            if self._tb_max_btn is not None:
+            _mb = getattr(self, '_tb_max_btn', None)
+            if _mb is not None:
                 self._tb_maximized = bool(maximized)
-                self._tb_max_btn.setText("\u29c9" if maximized else "\u25a1")
+                _mb.setText("\u29c9" if maximized else "\u25a1")
         super().changeEvent(event)
 
     if sys.platform == "win32":

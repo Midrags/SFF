@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.5.3
+
+### Fixes
+
+- App no longer crashes on theme change or startup from a missing title bar button reference.
+- DDMod OpenSSL finder covers Debian/Ubuntu multiarch paths and source-built OpenSSL so crypto errors don't appear on those distros.
+- Oureveryday lua files now include DLC names, tokens, shared depot sections, and commented-out empty depots matching the Hubcap format.
+
 ## 6.5.2
 
 ### Fixes

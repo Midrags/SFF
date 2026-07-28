@@ -53,6 +53,13 @@ def _find_openssl_lib_dir(dotnet_root: str) -> str:
     for system_dir in (
         "/usr/lib", "/usr/lib64", "/lib", "/lib64",
         "/usr/local/lib", "/usr/local/lib64",
+        # Debian/Ubuntu multiarch
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/lib/aarch64-linux-gnu",
+        "/usr/lib/arm-linux-gnueabihf",
+        "/usr/lib/i386-linux-gnu",
+        # Fedora-style alternatives
+        "/usr/local/ssl/lib",
     ):
         if os.path.isfile(os.path.join(system_dir, "libcrypto.so.3")):
             return system_dir
