@@ -37,8 +37,8 @@ bool HandleSend(const uint8_t* pBody, uint32_t cbBody) {
                 LOG_PKTRT_WARN("{{{{\"evt\":\"OnlineFix\",\"act\":\"send\",\"err\":\"no-realid\"}}}}");
                 continue;
             }
-            if (!LuaLoader::HasDepot(realAppId)) {
-                LOG_PKTRT_WARN("{{\"evt\":\"OnlineFix\",\"act\":\"send\",\"err\":\"no-depot\",\"appId\":{}}}", realAppId);
+            if (realAppId == kOnlineFixAppId) {
+                LOG_PKTRT_WARN("{{{{\"evt\":\"OnlineFix\",\"act\":\"send\",\"err\":\"already-480\",\"appId\":{}}}}}", realAppId);
                 continue;
             }
             std::string name = SteamCapture::GetGameNameByAppID(realAppId);

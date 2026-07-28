@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from sff.lua.provider import get_entry, is_valid_key, load_provider
+from sff.lua.update_pins import _REDIST_DEPOTS
 
 
 @dataclass
@@ -106,6 +107,9 @@ def render_grouped_lua(
         depot.manifest_id = depot.manifest_id or manifests.get(depot.depot_id, "")
         seen_depots.add(depot.depot_id)
         if depot.parent_appid and depot.parent_appid != app_id_str:
+            shared_depots.append(depot)
+        elif int(depot.depot_id) in _REDIST_DEPOTS:
+            depot.parent_appid = "1007" if int(depot.depot_id) in (1004, 1005, 1006) else "228980"
             shared_depots.append(depot)
         else:
             main_depots.append(depot)

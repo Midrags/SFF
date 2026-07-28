@@ -86,4 +86,11 @@ namespace SteamCapture {
     // Safe late retry for Package 0 capture misses. It only mutates package 0
     // when Steam already exposed the same pointers the startup path uses.
     void TryStartupPackageInjection(const char* reason);
+
+    // Called when the game process first uses IClientNetworkingSockets (iface 46).
+    // Once active, GetAppID reports 480 so P2P session certs match.
+    void NotifyNetworkingSocketsUsed();
+
+    // True once P2P is active — GetAppID should report 480, not the real app.
+    bool ShouldReportOnlineFixAppId();
 }

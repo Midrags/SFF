@@ -116,11 +116,12 @@ def _copy_manifests_to_temp(steam_path: Path, manifests: dict) -> None:
                 shutil.copy2(src, dst)
 
 
-def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout=600) -> None:
-    """Read subprocess stdout with a per-depot timeout (default 10 min).
+def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout: float | None = None) -> None:
+    """Read subprocess stdout with an optional per-depot timeout (in seconds).
 
     Spawns a reader thread so a hanging DDMod process doesn't freeze the
-    entire download chain. On timeout, kills the process and returns.
+    entire download chain. If depot_timeout is None, no timeout is enforced.
+    Progress extends the deadline so active downloads are never killed.
     """
     import queue as _q
     import threading as _t
@@ -151,16 +152,19 @@ def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout=600) ->
     _reader_t = _t.Thread(target=_reader, daemon=True)
     _reader_t.start()
 
-    deadline = time.monotonic() + depot_timeout
+    deadline = None if depot_timeout is None else (time.monotonic() + depot_timeout)
     while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            print_fn(Fore.RED + f"\n[timeout] Depot download exceeded {depot_timeout}s, killing process" + Style.RESET_ALL)
-            _stop.set()
-            proc.kill()
-            break
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                print_fn(Fore.RED + f"\n[timeout] Depot download exceeded {depot_timeout:.0f}s, killing process" + Style.RESET_ALL)
+                _stop.set()
+                proc.kill()
+                break
+        else:
+            remaining = 0.5
         try:
-            raw_line = _lineq.get(timeout=min(remaining, 0.5))
+            raw_line = _lineq.get(timeout=min(remaining, 0.5) if deadline is not None else 0.5)
         except _q.Empty:
             if proc.poll() is not None:
                 _stop.set()
@@ -181,6 +185,7 @@ def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout=600) ->
             if now - last_pre_alloc_t >= _SUMMARY_INTERVAL:
                 print_fn(f"[Pre-allocating files... {pre_alloc_count} so far]")
                 last_pre_alloc_t = now
+            deadline = time.monotonic() + depot_timeout
             continue
 
         lower = line.lower()
@@ -189,6 +194,7 @@ def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout=600) ->
             if now - last_validate_t >= _SUMMARY_INTERVAL:
                 print_fn(f"[Validating chunks... {validate_count} so far]")
                 last_validate_t = now
+            deadline = time.monotonic() + depot_timeout
             continue
 
         m = _DDMOD_PROGRESS_RE.match(line)
@@ -205,6 +211,9 @@ def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout=600) ->
                 print_fn(line)
                 last_progress_pct = pct
                 last_progress_t = now
+            # Extend deadline when download is making progress
+            if crossed_pct:
+                deadline = time.monotonic() + depot_timeout
             continue
 
         print_fn(line)
@@ -448,7 +457,16 @@ def run_download(
                     popen_kwargs["creationflags"] = creation_flags
 
                 proc = subprocess.Popen(cmd, **popen_kwargs)
-                _read_process_output(proc, print_fn)
+                _timeout = None
+                try:
+                    from sff.storage.settings import get_setting
+                    from sff.structs import Settings
+                    val = get_setting(Settings.DEPOT_DOWNLOAD_TIMEOUT)
+                    if val:
+                        _timeout = float(val) * 60.0  # stored in minutes
+                except Exception:
+                    pass
+                _read_process_output(proc, print_fn, depot_timeout=_timeout)
                 try:
                     proc.wait(timeout=30)
                 except subprocess.TimeoutExpired:

@@ -16,6 +16,7 @@
 #include "core/entry.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <string_view>
 #include <thread>
@@ -661,6 +662,18 @@ namespace SteamCapture {
 
     void TryStartupPackageInjection(const char* reason) {
         TryStartupInjection(reason);
+    }
+
+    static std::atomic_bool g_networkingSocketsActive{false};
+
+    void NotifyNetworkingSocketsUsed() {
+        bool expected = false;
+        if (OnlineFixRealAppId() && g_networkingSocketsActive.compare_exchange_strong(expected, true))
+            LOG_MISC_INFO("NetworkingSockets active: GetAppID now reports 480 for cert match");
+    }
+
+    bool ShouldReportOnlineFixAppId() {
+        return OnlineFixRealAppId() != 0 && g_networkingSocketsActive.load(std::memory_order_acquire);
     }
 
     void NotifyLicenseChanged() {

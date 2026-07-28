@@ -7186,16 +7186,20 @@ def _load_steam_applist():
     import time as _time
     import json as _json
     import urllib.request as _req
+    import threading as _thr
 
     _now = _time.time()
     if _STEAM_APPLIST_CACHE is not None and (_now - _STEAM_APPLIST_CACHE_TIME) < 86400:
         return _STEAM_APPLIST_CACHE
 
-    # Cache not ready and already being built? Return empty, don't block.
-    _building = getattr(_load_steam_applist, '_building', False)
-    if _building:
-        return None
-    _load_steam_applist._building = True
+    _lock = getattr(_load_steam_applist, '_lock', None)
+    if _lock is None:
+        _lock = _thr.Lock()
+        _load_steam_applist._lock = _lock
+
+    with _lock:
+        if _STEAM_APPLIST_CACHE is not None and (_time.time() - _STEAM_APPLIST_CACHE_TIME) < 86400:
+            return _STEAM_APPLIST_CACHE
 
     from sff.utils import root_folder
     _all_games_file = root_folder(outside_internal=True) / "all_games.txt"
@@ -7347,13 +7351,11 @@ def _load_steam_applist():
             pass
         _STEAM_APPLIST_CACHE = _result
         _STEAM_APPLIST_CACHE_TIME = _now
-        _load_steam_applist._building = False
         _result.sort(key=lambda x: x.get('appid', 0))
         logger.info("Steam applist built — %s total apps", len(_result))
         return _result
 
     _STEAM_APPLIST_CACHE = []
-    _load_steam_applist._building = False
     _STEAM_APPLIST_CACHE_TIME = _now
     return []
 

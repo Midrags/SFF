@@ -153,19 +153,18 @@ namespace {
 
         if (policy.block) {
             constexpr const char* closeState = "disabled";
-            const bool original = oIsCloudEnabledForApp(pRemoteStorage, appId);
             HookStatus::RecordCloudCloseState(appId, closeState, false, false);
             HookStatus::RecordCloudDecision(appId, policy.tracked, policy.managed,
                                             policy.owned, policy.familyShared,
-                                            original, false,
+                                            true, false,
                                             "managed-block");
             {
                 std::lock_guard<std::mutex> hold(g_cloudLogLock);
                 if (g_cloudBlockedLoggedApps.insert(appId).second) {
                     LOG_LICENSECH_INFO(
-                        "IsCloudEnabledForApp: appid={} tracked={} managed=true owned=false familyShared={} ownershipClass={} native-cloud={} final=false reason=managed-block closeAppCloud={}",
+                        "IsCloudEnabledForApp: appid={} tracked={} managed=true owned=false familyShared={} ownershipClass={} native-cloud=true final=false reason=managed-block closeAppCloud={}",
                         appId, policy.tracked, policy.familyShared,
-                        policy.ownershipClass, original,
+                        policy.ownershipClass,
                         closeState);
                 }
             }

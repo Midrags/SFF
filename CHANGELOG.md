@@ -1,5 +1,12 @@
 # Changelog
 
+## 6.5.2
+
+### Fixes
+
+- Shared depots like VC Redist (228989) now appear under their own `-- SHARED DEPOTS` section in oureveryday lua files instead of being mixed into main app depots. All known redistributable depot IDs are checked against the master list.
+- DDMod timeout is off by default. A setting in Download Settings lets you pick a per-depot timeout from 10 to 1440 minutes if you want one.
+
 ## 6.5.1
 
 ### UI

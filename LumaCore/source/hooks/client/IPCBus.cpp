@@ -135,6 +135,15 @@ namespace {
               void* pServer, HSteamPipe hPipe,
               CUtlBuffer* pRead, CUtlBuffer* pWrite)
     {
+        if (pRead->TellPut() >= IPC_HEADER_SIZE) {
+            const auto* raw = pRead->Base();
+            if (raw[OFFSET_CMD] == static_cast<uint8_t>(EIPCCommand::InterfaceCall)) {
+                const auto iface = static_cast<EIPCInterface>(raw[OFFSET_INTERFACE_ID]);
+                if (iface == EIPCInterface::IClientNetworkingSocketsSerialized)
+                    SteamCapture::NotifyNetworkingSocketsUsed();
+            }
+        }
+
         auto f = SetupFrame(pServer, hPipe, pRead);
         StatsGuard guard(f.statsCall, hPipe);
 

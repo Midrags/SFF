@@ -80,9 +80,11 @@ def _count_provider_matches(depots: list[str], keys_dict: dict[str, str]) -> int
 def _build_lua_from_provider(app_id: str, app_name: str, depots: list[str], keys_dict: dict[str, str], dlc_app_ids: list[str], manifest_map: dict[str, str] | None = None, manifest_sizes: dict[str, int] | None = None) -> str:
     provider = _cached_provider()
     depot_entries = []
+    empty_depots = []
     for depot_id in depots:
         key = keys_dict.get(depot_id)
         if not key:
+            empty_depots.append(depot_id)
             continue
         meta = provider.get(depot_id) or {}
         if isinstance(meta, str):
@@ -96,8 +98,36 @@ def _build_lua_from_provider(app_id: str, app_name: str, depots: list[str], keys
             "manifest_id": (manifest_map or {}).get(depot_id, ""),
             "manifest_size": (manifest_sizes or {}).get(depot_id, 0),
         })
-    dlcs = [LuaDlc(str(dlc_id)) for dlc_id in dlc_app_ids]
-    return render_grouped_lua(app_id, app_name, depot_entries, manifest_map or {}, dlcs)
+    dlcs: list[LuaDlc] = []
+    _dlc_names: dict[str, str] = {}
+    _dlc_tokens: dict[str, str] = {}
+    try:
+        depots_info = app_info.get("depots", {})
+        if isinstance(depots_info, dict):
+            for _did, _dmeta in depots_info.items():
+                if not isinstance(_dmeta, dict):
+                    continue
+                _da = _dmeta.get("dlcappid")
+                if _da:
+                    _name = str(_dmeta.get("name") or "")
+                    _token = str(_dmeta.get("apptoken") or "")
+                    _dlc_names[str(_da)] = _name
+                    if _token:
+                        _dlc_tokens[str(_da)] = _token
+    except Exception:
+        pass
+    for dlc_id in dlc_app_ids:
+        dlcs.append(LuaDlc(
+            str(dlc_id),
+            name=_dlc_names.get(dlc_id, ""),
+            token=_dlc_tokens.get(dlc_id, ""),
+        ))
+    result = render_grouped_lua(app_id, app_name, depot_entries, manifest_map or {}, dlcs)
+    if empty_depots:
+        result += "\n-- EMPTY DEPOTS (no content on any branch)\n"
+        for ed in sorted(empty_depots):
+            result += f"-- addappid({ed}) -- Depot {ed} (empty depot)\n"
+    return result
 
 
 def get_oureverday(dest, app_id):

@@ -458,6 +458,7 @@ window.Settings = (function() {
         // Number inputs
         var numbers = {
             'setting-download-concurrency': 'download_concurrency',
+            'setting-depot-download-timeout': 'depot_download_timeout',
             'setting-parallel-workers': 'parallel_downloads',
             'setting-backup-retention': 'backup_retention',
             'setting-live-log-lines': 'live_log_max_lines',
@@ -691,6 +692,7 @@ window.Settings = (function() {
                 _setSelectVal('setting-language', settings.language || 'en');
                 // Number inputs
                 _setInputVal('setting-download-concurrency', settings.download_concurrency || '32');
+                _setInputVal('setting-depot-download-timeout', settings.depot_download_timeout || '0');
                 _setInputVal('setting-parallel-workers', settings.parallel_downloads || '5');
                 _setInputVal('setting-backup-retention', settings.backup_retention || '4');
                 _setInputVal('setting-live-log-lines', settings.live_log_max_lines || '100');
