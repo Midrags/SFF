@@ -50,6 +50,8 @@ namespace LuaLoader::Internal {
     std::vector<AppId_t> g_pendingRemovals;
     std::vector<AppId_t> g_pendingAdditions;
     std::unordered_set<AppId_t> g_pendingLibraryRemovals;
+    std::unordered_set<AppId_t> g_manifestDoneByLua;
+    std::unordered_set<AppId_t> g_manifestAutoUpdate;
     ParseSession* g_activeSession = nullptr;
     std::string g_eticketUrl;
     std::unordered_set<AppId_t> g_forcedDenuvoApps;
@@ -139,6 +141,7 @@ namespace LuaLoader::Internal {
             {"getdecryptionkey",     &Bind_getDecryptionKey},
             {"seteticketurl",        &Bind_seteticketurl},
             {"forcedenuvo",          &Bind_forcedenuvo},
+            {"skipmanifestpin",      &Bind_skipManifestPin},
             {"addprocess",           &Bind_addprocess},
         };
 
@@ -267,6 +270,7 @@ namespace LuaLoader::Internal {
             {"getDecryptionKey",     "getdecryptionkey"},
             {"setEticketUrl",        "seteticketurl"},
             {"forceDenuvo",          "forcedenuvo"},
+            {"skipManifestPin",      "skipmanifestpin"},
             {"addProcess",           "addprocess"},
         };
         for (const auto& alias : kCamelAliases) {

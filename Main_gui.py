@@ -359,6 +359,15 @@ def main():
     from sff.gui.gui_prompts import install as install_gui_prompts
     install_gui_prompts()
 
+    # Only fix format of 00_LetUpdate_override.lua if it's the old version.
+    # Don't touch per-game lua files or depot lists — those are managed
+    # by the Steam Updates modal in the Home tab.
+    try:
+        from sff.update_prompt_override import migrate_old_format
+        migrate_old_format(steam_path)
+    except Exception:
+        pass
+
     from steam.client import SteamClient
     from sff.steam_client import SteamInfoProvider
     from sff.ui import UI

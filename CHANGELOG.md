@@ -1,5 +1,24 @@
 # Changelog
 
+## 6.5.5
+
+### Store
+
+- Store search results show the required BuildID when crack files exist for a game.
+- Older version downloads can exclude depots by unchecking them in the version picker. Excluded depots get their addappid and setManifestid lines removed from the lua before download.
+
+### Fixes
+
+- 00_LetUpdate_override.lua format updated to match the new LumaCore skipManifestPin architecture. Checked games auto-update, unchecked stay pinned. Old files auto-migrate on launch. Redist depots always excluded.
+- Steam Updates modal no longer inverts checked/unchecked state between opens.
+- Auto-update system gated to Windows only. Linux always returns off.
+- Newly downloaded games are not auto-enabled for updates unless the setting is on.
+- Depot OS filtering checks depot name tags when Steam's oslist is empty.
+- CreamAPI ini no longer writes broken orgapi paths.
+- Chinese languages added to settings.
+- SLSsteam config includes all required fields so notifications don't show errors.
+- Duplicate ACF write removed from DDMod download flow.
+
 ## 6.5.4
 
 ### Fixes

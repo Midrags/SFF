@@ -84,6 +84,7 @@ window.Components = (function() {
             '<div class="game-card-body">' +
                 '<div class="game-card-name">' + escapeHtml(game.name) + '</div>' +
                 '<div class="game-card-appid">App ID: ' + game.app_id + drmBadge + '</div>' +
+                (game.crack_buildid ? '<div class="game-card-buildid" style="color:#ff9800;font-size:11px;margin-top:1px;">Crack BuildID: ' + escapeHtml(String(game.crack_buildid)) + '</div>' : '') +
                 lastUpdated +
             '</div>' +
             '<div class="game-card-actions">' +

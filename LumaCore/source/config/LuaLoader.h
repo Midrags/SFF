@@ -63,6 +63,7 @@ namespace LuaLoader {
 
     std::vector<AppId_t> TakePendingRemovals();
     std::unordered_set<AppId_t> TakePendingLibraryRemovals();
+    std::unordered_set<AppId_t> TakeManifestDoneByLua();
     std::vector<AppId_t> TakePendingAdditions();
     void ParseDirectory(const std::string& directory);
 

@@ -43,7 +43,7 @@ _REDIST_DEPOTS: frozenset[int] = frozenset({
     228500, 228980, 228981, 228982, 228983, 228984, 228985, 228986,
     228987, 228988, 228989, 228990, 229000, 229001, 229002, 229003,
     229004, 229005, 229006, 229007, 229010, 229011, 229012, 229020,
-    229030, 229031, 229032, 229033,
+    229021, 229030, 229031, 229032, 229033, 229040, 229060, 229080,
 })
 
 
@@ -206,7 +206,7 @@ def discover_games(steam_path: str | os.PathLike[str] | None) -> list[dict]:
             continue
         allow_update = active == 0 and commented > 0
         if global_excluded:
-            allow_update = not bool(pin_depots & global_excluded)
+            allow_update = bool(pin_depots & global_excluded)
         seen.add(app_id)
         games.append(
             {
@@ -295,15 +295,15 @@ def apply_selection(
     try:
         from sff.update_prompt_override import install_with_exclusions
 
-        excluded_depots: set[str] = set()
+        auto_update_depots: set[str] = set()
         for game in games:
             app_id = str(game.get("app_id") or "")
-            if app_id not in allowed:
-                excluded_depots.update(
+            if app_id in allowed:
+                auto_update_depots.update(
                     str(x) for x in game.get("pin_depots") or []
                     if str(x).isdigit() and int(x) not in _REDIST_DEPOTS
                 )
-        global_ok = install_with_exclusions(steam_path, excluded_depots)
+        global_ok = install_with_exclusions(steam_path, auto_update_depots)
     except Exception as exc:
         errors.append({"app_id": "", "path": "00_LetUpdate_override.lua", "error": str(exc)})
 

@@ -165,6 +165,30 @@ def write_manifest_pins_to_lua(path: Path, manifest_map: dict) -> int:
     return len(written)
 
 
+def remove_depots_from_lua(path: Path, depot_ids: set[str]) -> int:
+    """Remove addappid and setManifestid lines for given depot IDs from a lua file.
+
+    Returns the number of lines removed."""
+    if not depot_ids or not path.exists():
+        return 0
+    text = path.read_text(encoding="utf-8", errors="replace")
+    lines = text.split("\n")
+    _depot_re = re.compile(
+        r"^\s*(?:set[Mm]anifestid|addappid)\s*\(\s*(\d+)\b"
+    )
+    kept = []
+    removed = 0
+    for line in lines:
+        m = _depot_re.search(line)
+        if m and m.group(1) in depot_ids:
+            removed += 1
+            continue
+        kept.append(line)
+    if removed:
+        path.write_text("\n".join(kept).rstrip() + "\n", encoding="utf-8")
+    return removed
+
+
 class LuaManager:
     def __init__(
         self, os_type: OSType

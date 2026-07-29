@@ -386,6 +386,7 @@ int Bind_fetchManifestCodeEx(lua_State* L) {
         }
 
         ManifestOverrides[depotId] = { parsedGid, 0 };
+        g_manifestDoneByLua.insert(depotIdRaw);
         LOG_LUA_INFO("setManifestid: depot={} gid={}", depotId, parsedGid);
         return 0;
     }
@@ -558,6 +559,13 @@ int Bind_fetchManifestCodeEx(lua_State* L) {
     int Bind_forcedenuvo(lua_State* L) {
         AppId_t appId = CheckAppId(L, 1, "forcedenuvo");
         g_forcedDenuvoApps.insert(appId);
+        return 0;
+    }
+
+    int Bind_skipManifestPin(lua_State* L) {
+        if (lua_gettop(L) < 1) return 0;
+        AppId_t id = CheckAppId(L, 1, "skipManifestPin");
+        if (id) g_manifestAutoUpdate.insert(id);
         return 0;
     }
 

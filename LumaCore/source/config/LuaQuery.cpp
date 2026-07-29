@@ -288,6 +288,12 @@ namespace LuaLoader {
         return out;
     }
 
+    std::unordered_set<AppId_t> TakeManifestDoneByLua() {
+        std::unordered_set<AppId_t> out;
+        out.swap(Internal::g_manifestDoneByLua);
+        return out;
+    }
+
     std::vector<AppId_t> TakePendingAdditions() {
         std::vector<AppId_t> out;
         out.swap(Internal::g_pendingAdditions);
@@ -391,34 +397,17 @@ namespace LuaLoader {
             lua_pop(g_lua_state, 1);
         }
 
-        // Fallback: scan raw file text for setManifestid(depot, "gid")
-        // when the Lua VM silently skips those calls.
+        // Pin setManifestid calls dropped by the Lua filter.
+        // Depots already handled by Bind_setManifestid or marked
+        // via skipManifestPin are skipped — they stay auto-update.
         {
-            // Depots that must always auto-update to latest version.
-            // Runtime redistributables (VC++, DX, .NET, XNA, OpenAL, PhysX,
-            // Steamworks shared) are never pinned to a specific manifest.
+            std::unordered_set<AppId_t> doneByLua = TakeManifestDoneByLua();
+
             static const std::unordered_set<uint64_t> kAutoUpdateDepots = {
-                228981, 228982, 228983, 228984, 228985, 228986, 228987,
-                228988, 228989, 228990, 229000, 229001, 229002, 229003,
-                229004, 229005, 229006, 229007, 229010, 229011, 229012,
-                229020, 229030, 229031, 229032, 229033, 220211,
-            };
-            auto depotIdFromStr = [](const char*& p, const char* e) -> uint64_t {
-                while (p < e && (*p == ' ' || *p == '\t' || *p == '(')) ++p;
-                if (p >= e || !std::isdigit(static_cast<unsigned char>(*p))) return 0;
-                char* ne = nullptr;
-                uint64_t v = std::strtoull(p, &ne, 10);
-                p = ne;
-                return v;
-            };
-            auto gidFromStr = [](const char*& p, const char* e) -> std::string_view {
-                while (p < e && (*p == ' ' || *p == '\t' || *p == ',')) ++p;
-                if (p >= e || *p != '"') return {};
-                ++p;
-                const char* s = p;
-                while (p < e && *p != '"') ++p;
-                if (p >= e) return {};
-                return { s, static_cast<size_t>(p - s) };
+                228981,228982,228983,228984,228985,228986,228987,
+                228988,228989,228990,229000,229001,229002,229003,
+                229004,229005,229006,229007,229010,229011,229012,
+                229020,229030,229031,229032,229033,220211,
             };
 
             const char* pos = body.data();
@@ -431,24 +420,39 @@ namespace LuaLoader {
                 if (pos >= end || *pos != '(') continue;
                 ++pos;
 
-            uint64_t depotId = depotIdFromStr(pos, end);
-            if (!depotId || depotId > UINT32_MAX) continue;
+                while (pos < end && (*pos == ' ' || *pos == '\t')) ++pos;
+                if (pos >= end || !std::isdigit(static_cast<unsigned char>(*pos))) continue;
+                char* ne = nullptr;
+                uint64_t depotId = std::strtoull(pos, &ne, 10);
+                if (!depotId || depotId > UINT32_MAX || !ne) continue;
+                pos = ne;
 
-            if (kAutoUpdateDepots.count(depotId)) continue;
+                AppId_t depotKey = static_cast<AppId_t>(depotId);
 
-            std::string_view gidStr = gidFromStr(pos, end);
-                if (gidStr.empty()) continue;
+                if (kAutoUpdateDepots.count(depotId)) continue;
+                if (doneByLua.count(depotKey)) continue;
+                if (Internal::g_manifestAutoUpdate.count(depotKey)) continue;
+
+                while (pos < end && (*pos == ' ' || *pos == '\t' || *pos == ',')) ++pos;
+                if (pos >= end || *pos != '"') continue;
+                ++pos;
+                const char* gs = pos;
+                while (pos < end && *pos != '"') ++pos;
+                if (pos >= end || pos == gs) continue;
+                std::string_view gidStr(gs, static_cast<size_t>(pos - gs));
 
                 uint64_t parsedGid = 0;
                 if (TryParseUInt64Decimal(gidStr, parsedGid)) {
                     ManifestOverrides[depotId] = { parsedGid, 0 };
                     LOG_PACKAGE_INFO("setManifestid(fallback): depot={} gid={}", depotId, parsedGid);
                 }
+                ++pos;
             }
         }
 
         PublishLuaCounts();
     }
+
     void ParseDirectory(const std::string& directory) {
         using namespace Internal;
         if (!Initialize()) return;

@@ -169,6 +169,37 @@ def _collect_steamidra_managed_sources(steam_path, saved_lua_root=None) -> dict[
     return {appid: sorted(sources) for appid, sources in managed_sources.items()}
 
 
+_CRACK_BUILDID_CACHE: dict[str, str] | None = None
+_CRACK_BUILDID_TIME = 0.0
+
+
+def _get_crack_buildid_map() -> dict[str, str]:
+    global _CRACK_BUILDID_CACHE, _CRACK_BUILDID_TIME
+    import time as _t
+    if _CRACK_BUILDID_CACHE is not None and (_t.time() - _CRACK_BUILDID_TIME) < 3600:
+        return _CRACK_BUILDID_CACHE
+    try:
+        import httpx
+        resp = httpx.get(
+            "https://raw.githubusercontent.com/KoriaPolis/CrakFiles/main/crackfiles.json",
+            follow_redirects=True, timeout=10,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            out = {}
+            for g in data:
+                name = str(g.get("name", "") or "").strip().lower()
+                bid = str(g.get("buildid", "") or "").strip()
+                if name and bid:
+                    out[name] = bid
+            _CRACK_BUILDID_CACHE = out
+            _CRACK_BUILDID_TIME = _t.time()
+            return out
+    except Exception:
+        pass
+    return _CRACK_BUILDID_CACHE or {}
+
+
 class WebBridge(QObject):
     """QObject subclass registered via QWebChannel.
     JS accesses this as ``channel.objects.bridge``.
@@ -403,6 +434,8 @@ class WebBridge(QObject):
             return False
 
     def _apply_auto_update_default(self, app_id, was_registered=False):
+        if sys.platform != "win32":
+            return
         try:
             from sff.auto_update_defaults import apply_new_game_update_default
 
@@ -944,6 +977,17 @@ class WebBridge(QObject):
                 result['fallback_source'] = 'hubcap'
             result['games'] = page_games
             result['total'] = total
+
+            # Annotate with crack file BuildIDs so users know which version
+            # to download for crack compatibility
+            try:
+                _cr_buildids = _get_crack_buildid_map()
+                for g in page_games:
+                    name = str(g.get('name', '') or '').strip().lower()
+                    if name and name in _cr_buildids:
+                        g['crack_buildid'] = _cr_buildids[name]
+            except Exception:
+                pass
 
             result['has_fallback_data'] = True
             # User searched for something specific but nothing matched.
@@ -5452,19 +5496,6 @@ class WebBridge(QObject):
                     del depots_dict[_sk]
 
                 ok, _size = run_download(game_data, selected_depots, dest, steam_path, print_fn=_print_fn, os_name=_target_os)
-
-                # Write ACF so Steam recognises the install
-                try:
-                    from sff.linux.acf_writer import create_acf
-                    create_acf(
-                        game_data=game_data,
-                        dest_path=dest,
-                        selected_depots=selected_depots,
-                        size_on_disk=_size,
-                        print_fn=_print_fn,
-                    )
-                except Exception as _ae:
-                    logger.warning("ACF write failed (non-fatal): %s", _ae)
 
                 # Write ACF so Steam recognises the install
                 try:

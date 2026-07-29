@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from typing import Callable
 
 from sff.storage.settings import get_setting
@@ -29,6 +30,10 @@ logger = logging.getLogger(__name__)
 
 
 def auto_enable_new_games_enabled() -> bool:
+    # LumaCore is Windows-only. The LetUpdate override has no effect on
+    # Linux where SLSsteam handles update blocking through its own config.
+    if sys.platform != "win32":
+        return False
     raw = get_setting(Settings.AUTO_ENABLE_UPDATES_NEW_GAMES)
     if isinstance(raw, bool):
         return raw

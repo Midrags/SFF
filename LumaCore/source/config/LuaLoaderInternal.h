@@ -74,6 +74,8 @@ namespace LuaLoader::Internal {
     extern std::vector<AppId_t> g_pendingRemovals;
     extern std::vector<AppId_t> g_pendingAdditions;
     extern std::unordered_set<AppId_t> g_pendingLibraryRemovals;
+    extern std::unordered_set<AppId_t> g_manifestDoneByLua;
+    extern std::unordered_set<AppId_t> g_manifestAutoUpdate;
     extern std::string g_eticketUrl;  // set via seteticketurl() Lua binding
 
     constexpr uint64_t kDefaultStatSteamId = 76561198028121353ULL;
@@ -102,6 +104,7 @@ namespace LuaLoader::Internal {
     int Bind_getDecryptionKey(lua_State* L);
     int Bind_seteticketurl(lua_State* L);
     int Bind_forcedenuvo(lua_State* L);
+    int Bind_skipManifestPin(lua_State* L);
     int Bind_addprocess(lua_State* L);
 
     extern std::unordered_set<AppId_t> g_forcedDenuvoApps;

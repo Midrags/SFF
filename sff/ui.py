@@ -979,6 +979,21 @@ class UI:
         if parsed_lua is None:
             print(Fore.RED + "Failed to parse Lua file (no app ID or decryption keys)." + Style.RESET_ALL)
             return MainReturnCode.LOOP_NO_PROMPT
+        # Remove depots the user excluded from manifest_override selection
+        if manifest_override:
+            try:
+                from sff.lua.manager import remove_depots_from_lua
+                all_depot_ids = {str(d.depot_id) for d in (parsed_lua.depots or [])}
+                selected = set(manifest_override.keys())
+                excluded = all_depot_ids - selected
+                if excluded:
+                    removed = remove_depots_from_lua(lua_path, excluded)
+                    if removed:
+                        print(Fore.YELLOW + f"Excluded {removed} depot line(s) from lua: {sorted(excluded)}" + Style.RESET_ALL)
+                        lua_contents = lua_path.read_text(encoding="utf-8")
+                        parsed_lua = parse_lua_contents(lua_contents, lua_path)
+            except Exception:
+                pass
         provider = self._steam_provider()
         downloader = ManifestDownloader(provider, self.steam_path)
         downloader.use_hubcap = False

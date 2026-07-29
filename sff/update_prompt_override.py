@@ -36,28 +36,32 @@ def _render_override_body(excluded_depots=()) -> str:
         depot_lines = "    -- empty means every setManifestid call is skipped"
     return f"""\
 -- 00_LetUpdate_override.lua
--- Lets games show the "Update" prompt in the Steam library when Steam
--- pushes a newer manifest than the one our .lua pinned.
+-- Tells LumaCore which depots auto-update. Depots IN this list
+-- call skipmanifestpin so the fallback scanner skips them and
+-- Steam pulls the latest manifest. Depots NOT in this list keep
+-- their setManifestid pins (locked to a specific version).
 --
 -- STEAMIDRA_EXCLUDED_DEPOTS: {depot_json}
 --
--- Managed by SteaMidra. Toggle "Show in-Steam 'Update available' prompts"
--- in Settings to remove this file. Editing it by hand is fine but the
--- toggle will rewrite or delete it on next change.
+-- Managed by SteaMidra. Toggle in Settings to remove.
 
 local original_setManifestid = _originals and (_originals.setManifestid or _originals.setmanifestid) or setManifestid
 
-local pinned_depots = {{
+local auto_update_depots = {{
 {depot_lines}
 }}
 
-local function should_keep_pin(depot_id)
+local function should_auto_update(depot_id)
     local numeric_id = tonumber(depot_id)
-    return numeric_id ~= nil and pinned_depots[numeric_id] == true
+    return numeric_id ~= nil and auto_update_depots[numeric_id] == true
 end
 
 local function route_set_manifest(depot_id, manifest_id, size)
-    if should_keep_pin(depot_id) and original_setManifestid then
+    if should_auto_update(depot_id) then
+        if skipmanifestpin then skipmanifestpin(depot_id) end
+        return nil
+    end
+    if original_setManifestid then
         return original_setManifestid(depot_id, manifest_id, size)
     end
     return nil
@@ -90,8 +94,10 @@ def install(steam_path: Path) -> bool:
 def install_with_exclusions(steam_path: Path, excluded_depots=()) -> bool:
     """Install the global LetUpdate override.
 
-    Depots in *excluded_depots* keep their setManifestid pins. Every other
-    depot skips setManifestid, which lets Steam resolve the latest manifest.
+    Depots in *excluded_depots* go into auto_update_depots, which calls
+    skipmanifestpin so LumaCore marks them for auto-update (fallback
+    scanner skips them, Steam pulls latest). Depots NOT in the list
+    keep their setManifestid pins (locked to specific version).
     """
     if steam_path is None:
         logger.warning("update_prompt_override.install: no steam_path")
@@ -131,6 +137,34 @@ def apply_setting(steam_path: Path, enabled: bool) -> bool:
     if enabled:
         return install(steam_path)
     return remove(steam_path)
+
+
+def migrate_old_format(steam_path: Path) -> bool:
+    """Rewrite old-format 00_LetUpdate_override.lua to the new skipManifestPin format.
+
+    Old format called original_setManifestid for checked games (pinned them).
+    New format calls skipManifestPin for checked games (auto-update).
+    Returns True if a migration was performed, False if already correct or
+    the file doesn't exist."""
+    if steam_path is None:
+        return False
+    target = _override_path(Path(steam_path))
+    if not target.exists():
+        return False
+    try:
+        text = target.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    # Old format: "should_keep_pin(depot_id) and original_setManifestid"
+    # Old variable name: "local pinned_depots = {"
+    is_old = ("skipmanifestpin" not in text
+              and "should_keep_pin(depot_id) and original_setManifestid" in text)
+    has_old_name = "pinned_depots" in text and "auto_update_depots" not in text
+    if not is_old and not has_old_name:
+        return False
+    logger.info("Migrating old-format 00_LetUpdate_override.lua to new template")
+    # Don't preserve old depot list — it had inverted logic. Use empty list.
+    return install_with_exclusions(steam_path, [])
 
 
 def get_excluded_depots(steam_path: Path) -> set[str]:
