@@ -82,7 +82,9 @@ class _Worker(QObject):
         try:
             result = self._func(*self._args, **self._kwargs)
             self.finished.emit(result)
-        except Exception as e:
+        except BaseException as e:
+            if isinstance(e, (SystemExit, KeyboardInterrupt)):
+                raise
             logger.exception("Worker error: %s", e)
             self.error.emit(str(e))
             self.finished.emit(None)
@@ -1131,6 +1133,8 @@ class WebBridge(QObject):
                         for d, m in group.entries
                     ],
                 })
+                if len(result) >= 200:
+                    break
             return result
 
         def _on_done(data):
