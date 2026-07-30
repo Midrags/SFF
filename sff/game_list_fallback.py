@@ -209,6 +209,7 @@ def _load_games_json(force=False):
         except Exception as e:
             logger.debug("Fetching games.json failed: %s", e)
             if _load_cached_games_json():
+                _games_cache_time = now
                 return True
             _games_cache_time = now
             return False

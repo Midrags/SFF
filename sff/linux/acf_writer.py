@@ -63,7 +63,6 @@ def create_acf(
     acf_path = steamapps_dir / f"appmanifest_{appid}.acf"
 
     installed_depots_lines = []
-    mounted_depots_lines = []
     for depot_id in selected_depots:
         depot_id_str = str(depot_id)
         manifest_gid = manifests.get(depot_id_str, "")
@@ -79,25 +78,12 @@ def create_acf(
                 f'{dlc_line}'
                 f'\t\t}}'
             )
-            mounted_depots_lines.append(f'\t\t"{depot_id_str}"\t\t"{manifest_gid}"')
 
     if selected_depots and not installed_depots_lines:
         print_fn(Fore.RED + "Refusing to write ACF: no manifest IDs for selected depots." + Style.RESET_ALL)
         return False
 
     installed_depots_block = "\n".join(installed_depots_lines)
-    mounted_depots_block = "\n".join(mounted_depots_lines)
-
-    user_config = (
-        '\t"UserConfig"\n\t{\n'
-        '\t\t"platform_override_source"\t\t"windows"\n'
-        '\t\t"platform_override_dest"\t\t"linux"\n'
-        '\t}\n'
-        '\t"MountedConfig"\n\t{\n'
-        '\t\t"platform_override_source"\t\t"windows"\n'
-        '\t\t"platform_override_dest"\t\t"linux"\n'
-        '\t}\n'
-    )
 
     import time as _time
     _now = str(int(_time.time()))
@@ -105,12 +91,11 @@ def create_acf(
         '"AppState"\n'
         '{\n'
         f'\t"appid"\t\t"{appid}"\n'
-        f'\t"Universe"\t\t"1"\n'
+        f'\t"universe"\t\t"1"\n'
         f'\t"name"\t\t"{game_name}"\n'
         f'\t"StateFlags"\t\t"4"\n'
         f'\t"installdir"\t\t"{installdir}"\n'
         f'\t"LastUpdated"\t\t"{_now}"\n'
-        f'\t"lastupdated"\t\t"{_now}"\n'
         f'\t"SizeOnDisk"\t\t"{size_on_disk}"\n'
         f'\t"StagingSize"\t\t"0"\n'
         f'\t"buildid"\t\t"{buildid}"\n'
@@ -128,11 +113,6 @@ def create_acf(
         f'\t{{\n'
         f'{installed_depots_block}\n'
         f'\t}}\n'
-        f'\t"MountedDepots"\n'
-        f'\t{{\n'
-        f'{mounted_depots_block}\n'
-        f'\t}}\n'
-        f'{user_config}'
         '}\n'
     )
 

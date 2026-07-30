@@ -301,6 +301,8 @@ def run_download(
         )
     game_data["manifests"] = manifests
 
+    _copy_manifests_to_temp(steam_path, manifests)
+
     # ── Linux native downloader (no .NET needed) ──────────────────
     if sys.platform.startswith("linux"):
         try:
@@ -377,8 +379,6 @@ def run_download(
     except Exception as e:
         print_fn(Fore.RED + f"Failed to write depot keys: {e}" + Style.RESET_ALL)
         return False, 0
-
-    _copy_manifests_to_temp(steam_path, manifests)
 
     dotnet_root = os.path.dirname(dotnet_path)
     env = os.environ.copy()

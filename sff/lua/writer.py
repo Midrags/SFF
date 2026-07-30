@@ -110,12 +110,11 @@ class ACFWriter:
             print(f"installdir will be set to: {installdir}")
             app_state: dict = {
                 "appid": app_id_str,
-                "Universe": "1",
+                "universe": "1",
                 "name": app_name,
                 "StateFlags": "4",
                 "installdir": installdir,
                 "LastUpdated": str(int(time.time())),
-                "lastupdated": str(int(time.time())),
                 "SizeOnDisk": str(size_on_disk),
                 "StagingSize": "0",
                 "buildid": str(buildid),
@@ -133,13 +132,10 @@ class ACFWriter:
             if manifest_map:
                 depot_list = list(manifest_map.items())
                 installed = {}
-                mounted = {}
                 for i, (depot_id, manifest_id) in enumerate(depot_list):
                     depot_size = str(size_on_disk) if i == 0 and size_on_disk else "0"
                     installed[str(depot_id)] = {"manifest": str(manifest_id), "size": depot_size}
-                    mounted[str(depot_id)] = str(manifest_id)
                 app_state["InstalledDepots"] = installed
-                app_state["MountedDepots"] = mounted
                 print(
                     f"InstalledDepots set for {len(manifest_map)} depot(s) -> "
                     + ", ".join(
@@ -186,12 +182,11 @@ class ACFWriter:
         acf_file.parent.mkdir(parents=True, exist_ok=True)
         app_state: dict = {
             "appid": app_id_str,
-            "Universe": "1",
+            "universe": "1",
             "name": app_name,
             "StateFlags": "4",
             "installdir": installdir,
             "LastUpdated": str(int(time.time())),
-            "lastupdated": str(int(time.time())),
             "SizeOnDisk": str(size_on_disk),
             "StagingSize": "0",
             "buildid": str(buildid),
@@ -212,22 +207,10 @@ class ACFWriter:
             else:
                 depot_list = list(manifest_map.items())
                 installed = {}
-                mounted = {}
                 for i, (depot_id, manifest_id) in enumerate(depot_list):
                     depot_size = str(size_on_disk) if i == 0 and size_on_disk else "0"
                     installed[str(depot_id)] = {"manifest": str(manifest_id), "size": depot_size}
-                    mounted[str(depot_id)] = str(manifest_id)
                 app_state["InstalledDepots"] = installed
-                app_state["MountedDepots"] = mounted
-            if sys.platform != "win32":
-                app_state["UserConfig"] = {
-                    "platform_override_dest": "linux",
-                    "platform_override_source": "windows",
-                }
-                app_state["MountedConfig"] = {
-                    "platform_override_dest": "linux",
-                    "platform_override_source": "windows",
-                }
             print(
                 f"InstalledDepots set for {len(manifest_map)} depot(s) -> "
                 + ", ".join(

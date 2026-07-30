@@ -12,7 +12,6 @@ body {
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    padding-top: 56px;
     color: var(--fg);
     display: flex;
     min-height: 100vh;
@@ -142,7 +141,7 @@ a:hover { text-decoration: underline; }
     height: 100vh;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 24px 32px;
+    padding: 24px 32px 48px 32px;
 }
 
 /* ── Pages ──────────────────────────────────────────── */

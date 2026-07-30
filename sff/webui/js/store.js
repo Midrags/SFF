@@ -23,6 +23,7 @@ window.Store = (function() {
     var _lastGames = [];
     var _requestSeq = 0;
     var _activeRequestId = '';
+    var _initialFetchDone = false;
 
     function init() {
         if (_initialized) return;
@@ -90,9 +91,31 @@ window.Store = (function() {
             disconnectHubcapBtn.addEventListener('click', function() {
                 Bridge.call('store_disconnect');
                 _apiKeyConnected = false;
+                disconnectHubcapBtn.classList.add('hidden');
+                var connectBtn = document.getElementById('store-connect-hubcap');
+                if (connectBtn) connectBtn.classList.remove('hidden');
                 _showConnectBanner();
                 Components.showToast('info', 'Hubcap disconnected — using Steam fallback search.');
                 _fetchGames();
+            });
+        }
+
+        var connectHubcapBtn = document.getElementById('store-connect-hubcap');
+        if (connectHubcapBtn) {
+            connectHubcapBtn.addEventListener('click', function() {
+                var input = document.getElementById('api-key-input');
+                var key = input ? input.value.trim() : '';
+                if (!key) {
+                    Components.showToast('warning', 'Please enter an API key above');
+                    return;
+                }
+                Bridge.call('connect_store', key);
+                _apiKeyConnected = true;
+                connectHubcapBtn.classList.add('hidden');
+                if (disconnectHubcapBtn) disconnectHubcapBtn.classList.remove('hidden');
+                _hideConnectBanner();
+                _fetchGames();
+                Components.showToast('success', 'API key saved. Loading store...');
             });
         }
 
@@ -151,6 +174,7 @@ window.Store = (function() {
             try {
                 var data = JSON.parse(json);
                 if (data.request_id && data.request_id !== _activeRequestId) return;
+                _initialFetchDone = true;
                 _hideLoading();
                 var games = data.games || [];
                 if (_blockNsfw) {
@@ -163,7 +187,9 @@ window.Store = (function() {
                 if (data.has_hubcap || data.has_fallback_data) {
                     _hideConnectBanner();
                     var discBtn = document.getElementById('store-disconnect-hubcap');
+                    var connBtn = document.getElementById('store-connect-hubcap');
                     if (discBtn) discBtn.classList.remove('hidden');
+                    if (connBtn) connBtn.classList.add('hidden');
                 } else {
                     _showConnectBanner();
                     var msgEl = document.getElementById('store-banner-msg');
@@ -195,7 +221,7 @@ window.Store = (function() {
 
     function onApiKeyAvailable(key) {
         _apiKeyConnected = true;
-        if (_initialized) {
+        if (_initialized && !_initialFetchDone) {
             _fetchGames();
         }
     }
@@ -224,6 +250,7 @@ window.Store = (function() {
         _active = false;
         _activeRequestId = '';
         _lastGames = [];
+        _initialFetchDone = false;
         _releaseStoreImages();
         var grid = document.getElementById('store-grid');
         var list = document.getElementById('store-list');

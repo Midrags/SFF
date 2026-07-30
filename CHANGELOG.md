@@ -1,5 +1,40 @@
 # Changelog
 
+## 6.5.6
+
+### Performance
+
+- Store no longer freezes on startup. The game list builder now uses a sentinel flag so multiple threads never build the same list in parallel. Duplicate searches from the Store tab are deduplicated — results arrive from the first query instead of bouncing between competing request IDs.
+- The games.json network retry loop no longer fires endlessly when the connection drops. A failed fetch that falls back to stale cache properly timestamps the retry so the next call waits the full cache period.
+- The custom frameless title bar has been removed on Windows. Minimize, maximize, and close buttons are now handled by the native Windows title bar. Window resize, taskbar auto-hide, and button hover highlights work correctly again.
+- Tab content longer than the viewport now scrolls properly. Scrollbars are visible so users can tell when more content exists below the fold.
+
+### Linux
+
+- Downloading DLCs now downloads the actual depot files, not just the manifests. Previously the ACF listed the DLC depots with zero size and no content on disk, so Steam showed the DLCs but the game could not load them.
+- The DLC ACF patch no longer writes MountedDepots or platform-override blocks. Real Steam ACFs do not include either section.
+- Downloading a game no longer overwrites the downloaded depot manifest GIDs with the latest ones from Steam CM. This was making Steam think every install was corrupt, deleting all game files and re-staging content when the user clicked Update.
+- Duplicate ACF writes removed from the DDMod download path. The ACF is now written once after the depot files finish downloading, with correct size information.
+
+### Localization
+
+- Complete Simplified Chinese locale added for both the classic and modern Web UIs courtesy of the community. The language selector now uses zh_CN to match the locale filenames and the internal language enum.
+- Dynamic UI text in modals, status banners, tooltips, and placeholders is now localized through a MutationObserver so translations apply to content loaded after the page finishes rendering.
+- Technical terms are preserved in English across all locales.
+
+### Fixes
+
+- The game list update no longer crashes with a stack trace when the Steam Web API key is rejected. A clear message explains that the built-in key may have been revoked and directs users to set their own key in Settings.
+
+### Notes
+
+- Store download modal no longer crashes on Linux. Crack buildid data is fetched in the background 5 seconds after startup instead of blocking search results. Search never waits for the network.
+
+### Tools
+
+- File validation button added for library games. Runs DDMod's validator against installed depot manifests to verify game file integrity without re-downloading.
+- Storage paths for luas, manifests, and depotcache are exposed through the bridge so users can find files for manual cleanup.
+
 ## 6.5.5
 
 ### Store

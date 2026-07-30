@@ -157,6 +157,7 @@ namespace HookStatus {
 #endif
 
         constexpr const char* kLumaCoreBuildStamp = __DATE__ " " __TIME__;
+        constexpr const char* kLumaCoreVersion = "V29";
         constexpr const char* kStartupCaptureRevision = "package0-early-capture-v1";
 
         // Conservative escaper for JSON string literals. The values we emit are
@@ -201,6 +202,9 @@ namespace HookStatus {
             out += "\",\n";
             out += "  \"lumacore_build_stamp\": \"";
             out += JsonEscape(kLumaCoreBuildStamp);
+            out += "\",\n";
+            out += "  \"lumacore_version\": \"";
+            out += JsonEscape(kLumaCoreVersion);
             out += "\",\n";
             out += "  \"build_config\": \"";
             out += JsonEscape(kBuildConfig);

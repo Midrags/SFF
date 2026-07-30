@@ -1107,9 +1107,15 @@ class UI:
             else:
                 print(Fore.YELLOW + "Could not resolve buildid from Steam API — using 0" + Style.RESET_ALL)
             all_depots = app_data.get("depots", {})
-            # Always write latest manifest GIDs into the ACF so Steam thinks
-            # the game is up to date even when older files are on disk.
+            # Only fill in manifest GIDs that weren't resolved during the
+            # download phase (e.g. redist depots). Never overwrite the
+            # GIDs that were actually downloaded — doing so makes the ACF
+            # claim manifest GIDs that do not exist in depotcache, which
+            # Steam validates and treats as a corrupt install, deleting
+            # all game files and re-staging the entire depot content.
             for depot_id in list(acf_manifest_map.keys()):
+                if acf_manifest_map.get(depot_id):
+                    continue  # already resolved during download, keep it
                 mani_pub = all_depots.get(str(depot_id), {}).get("manifests", {}).get("public", {})
                 latest_gid = mani_pub.get("gid") if isinstance(mani_pub, dict) else mani_pub
                 if latest_gid:

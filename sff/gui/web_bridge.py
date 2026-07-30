@@ -171,13 +171,17 @@ def _collect_steamidra_managed_sources(steam_path, saved_lua_root=None) -> dict[
 
 _CRACK_BUILDID_CACHE: dict[str, str] | None = None
 _CRACK_BUILDID_TIME = 0.0
+_CRACK_BUILDID_FETCHING = False
 
 
-def _get_crack_buildid_map() -> dict[str, str]:
-    global _CRACK_BUILDID_CACHE, _CRACK_BUILDID_TIME
+def _prefetch_crack_buildids():
+    global _CRACK_BUILDID_CACHE, _CRACK_BUILDID_TIME, _CRACK_BUILDID_FETCHING
     import time as _t
     if _CRACK_BUILDID_CACHE is not None and (_t.time() - _CRACK_BUILDID_TIME) < 3600:
-        return _CRACK_BUILDID_CACHE
+        return
+    if _CRACK_BUILDID_FETCHING:
+        return
+    _CRACK_BUILDID_FETCHING = True
     try:
         import httpx
         resp = httpx.get(
@@ -194,9 +198,14 @@ def _get_crack_buildid_map() -> dict[str, str]:
                     out[name] = bid
             _CRACK_BUILDID_CACHE = out
             _CRACK_BUILDID_TIME = _t.time()
-            return out
     except Exception:
         pass
+    finally:
+        _CRACK_BUILDID_FETCHING = False
+
+
+def _get_crack_buildid_map() -> dict[str, str]:
+    """Return cached crack buildid map. Never blocks — returns empty if not ready."""
     return _CRACK_BUILDID_CACHE or {}
 
 
@@ -245,6 +254,9 @@ class WebBridge(QObject):
         self._provider_cache_timer.timeout.connect(self._maybe_auto_refresh_provider_cache)
         self._provider_cache_timer.start()
         QTimer.singleShot(8000, self._maybe_auto_refresh_provider_cache)
+        # Prefetch crack buildids in background so store search never blocks
+        from sff.gui.web_bridge import _prefetch_crack_buildids
+        QTimer.singleShot(5000, _prefetch_crack_buildids)
         self._library_image_cache: "_OrderedDict[str, str]" = _OrderedDict()
         self._LIBRARY_IMAGE_CACHE_MAX = 500
 
@@ -404,26 +416,94 @@ class WebBridge(QObject):
             if not provider_update_due():
                 return
             self._provider_cache_refreshing = True
+        except Exception:
+            return
 
-            def _do():
-                return download_provider_update()
+        def _do():
+            return download_provider_update()
 
-            def _on_done(result):
-                self._provider_cache_refreshing = False
-                result = result or {"ok": False, "errors": ["unknown"]}
-                ok = bool(result.get("ok"))
-                msg = (
-                    f"Provider updated from {result.get('url', '')} ({result.get('count', 0)} entries)"
-                    if ok else
-                    "Provider update failed: " + "; ".join(result.get("errors") or [])
-                )
-                logger.info("provider cache auto-refresh: %s", msg)
-                self._emit_task_result("provider_update", ok, msg, background=True, **result)
-
-            self._run_async(_do, on_done=_on_done)
-        except Exception as exc:
+        def _on_done(result):
             self._provider_cache_refreshing = False
-            logger.debug("provider cache auto-refresh check failed: %s", exc)
+            result = result or {"ok": False, "errors": ["unknown"]}
+            ok = bool(result.get("ok"))
+            msg = (
+                f"Provider updated from {result.get('url', '')} ({result.get('count', 0)} entries)"
+                if ok else
+                "Provider update failed: " + "; ".join(result.get("errors") or [])
+            )
+            logger.info("provider cache auto-refresh: %s", msg)
+            self._emit_task_result("provider_update", ok, msg, background=True, **result)
+
+        self._run_async(_do, on_done=_on_done)
+
+    @pyqtSlot(str)
+    def validate_game_files(self, app_id):
+        """Validate game files using DDMod without downloading. Linux only."""
+        if not app_id or not app_id.strip().isdigit():
+            return
+        def _do():
+            try:
+                from sff.storage.vdf import get_steam_libs, vdf_load
+                libs = get_steam_libs(self._steam_path) if self._steam_path else []
+                for lib in libs:
+                    acf_path = lib / "steamapps" / f"appmanifest_{app_id}.acf"
+                    if not acf_path.exists():
+                        continue
+                    acf_data = vdf_load(acf_path)
+                    state = acf_data.get("AppState", {})
+                    installdir = state.get("installdir", "")
+                    installed = state.get("InstalledDepots", {})
+                    if not installdir or not installed:
+                        continue
+                    game_dir = lib / "steamapps" / "common" / installdir
+                    if not game_dir.exists():
+                        continue
+                    self.download_progress.emit(json.dumps({
+                        "app_id": app_id, "status": "Validating game files...", "progress": 10
+                    }))
+                    from sff.depot_downloader import run_download, MANIFESTS_TMP
+                    import shutil, os
+                    for depot_id, info in installed.items():
+                        manifest_id = info.get("manifest", "") if isinstance(info, dict) else str(info)
+                        if not manifest_id:
+                            continue
+                        mf_src = lib / "depotcache" / f"{depot_id}_{manifest_id}.manifest"
+                        if not mf_src.exists():
+                            mf_src = lib / "steamapps" / "depotcache" / f"{depot_id}_{manifest_id}.manifest"
+                        if not mf_src.exists():
+                            continue
+                        MANIFESTS_TMP.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(mf_src, MANIFESTS_TMP / mf_src.name)
+                    # Write depot keys from lua
+                    keys_dir = Path(os.environ.get("TEMP", "/tmp")) / "mistwalker_keys.vdf"
+                    with keys_dir.open("w") as f:
+                        from sff.lua.manager import parse_lua_contents
+                        for depot_id in installed:
+                            f.write(f"{depot_id};\n")
+                    game_data = {
+                        "appid": str(app_id),
+                        "depots": {str(d): {} for d in installed},
+                        "manifests": {},
+                        "installdir": installdir,
+                    }
+                    selected = list(installed.keys())
+                    ok, _size = run_download(
+                        game_data, selected, game_dir, lib,
+                        print_fn=lambda m: None,
+                    )
+                    if ok:
+                        return (True, f"Validation complete — no issues found")
+                    return (False, f"Validation found issues — check logs")
+                return (False, "No ACF found for this game")
+            except Exception as e:
+                logger.exception("validate_game_files failed: %s", e)
+                return (False, str(e))
+
+        def _on_done(result):
+            ok, msg = result if isinstance(result, tuple) else (False, str(result))
+            self._emit_task_result("validate_files", ok, msg, app_id=app_id)
+
+        self._run_async(_do, on_done=_on_done)
 
     def _auto_update_was_registered(self, app_id) -> bool:
         try:
@@ -473,7 +553,7 @@ class WebBridge(QObject):
             from sff.storage.settings import get_setting
             from sff.structs import Settings
             key = get_setting(Settings.HUBCAP_KEY)
-            if key and isinstance(key, str) and key.strip() and key.strip() != (self._api_key or ""):
+            if key and isinstance(key, str) and key.strip():
                 self._api_key = key.strip()
                 self._store_client = None
                 self._hubcap_unavailable = False
@@ -521,6 +601,16 @@ class WebBridge(QObject):
 
         When tag is set with no query, uses games.json tag search instead.
         """
+        import time as _d_time
+        _cache_key = (query, offset, per_page, sort_by, tag)
+        _cached = getattr(self, '_search_dedup_cache', {})
+        _now = _d_time.time()
+        if _cached:
+            _stale = [k for k, (_r, _t) in list(_cached.items()) if _now - _t > 2.0]
+            for k in _stale:
+                _cached.pop(k, None)
+        if _cache_key in _cached:
+            return _cached[_cache_key][0]
         def _do():
             block_nsfw = _store_blocks_nsfw()
             if block_nsfw and _looks_nsfw_by_name(query):
@@ -598,10 +688,18 @@ class WebBridge(QObject):
                                 logger.debug("Hubcap /search failed for %r: %s", q, e)
                 except Exception as e:
                     logger.warning("Hubcap merge step crashed: %s", e)
-                # Hubcap was hit but returned nothing — key is invalid or expired.
+                # Hubcap was hit but returned nothing — key may be invalid.
+                # Only disable after two consecutive empty queries to avoid
+                # bricking the session on a single transient API hiccup.
                 if hubcap_queried and not hubcap_hits:
-                    self._hubcap_unavailable = True
-                    logger.debug("Hubcap disabled for session (no results from valid query)")
+                    _ec = getattr(self, '_hubcap_empty_count', 0) + 1
+                    self._hubcap_empty_count = _ec
+                    if _ec >= 2:
+                        self._hubcap_unavailable = True
+                        self._hubcap_empty_count = 0
+                        logger.debug("Hubcap disabled for session (no results from valid query)")
+                else:
+                    self._hubcap_empty_count = 0
             if not hubcap_hits:
                 logger.debug(
                     "search_games: query=%r yielded no Hubcap hits across %d variant(s)",
@@ -998,7 +1096,12 @@ class WebBridge(QObject):
             return result
 
         def _on_done(data):
-            self.search_results.emit(json.dumps(_attach_store_request_id(data, request_id)))
+            _cache_key = (query, offset, per_page, sort_by, tag)
+            _cached = getattr(self, '_search_dedup_cache', {})
+            _rjson = json.dumps(_attach_store_request_id(data, request_id))
+            _cached[_cache_key] = (_rjson, _d_time.time())
+            self._search_dedup_cache = _cached
+            self.search_results.emit(_rjson)
 
         self._run_async(_do, on_done=_on_done)
 
@@ -1719,10 +1822,12 @@ class WebBridge(QObject):
                     logger.exception("download_dlc_oureveryday: lua write failed: %s", e)
                     return (False, f"Failed to write parent lua: {e}")
 
-            # Step 5: update parent ACF with DLC depot entries so Steam
+             # Step 5: update parent ACF with DLC depot entries so Steam
             # routes DLC content to the game's library folder, not a random
             # place.  Without this the ACF lacks InstalledDepots for the DLC
             # depots and Steam may put downloaded content in a default library.
+            game_installdir = None
+            game_library = None
             try:
                 from sff.storage.vdf import get_steam_libs as _gsl, vdf_load as _vl, vdf_dump as _vd
                 _libs = _gsl(steam_path) if steam_path else []
@@ -1734,8 +1839,9 @@ class WebBridge(QObject):
                     _state = _data.get("AppState", {})
                     if not isinstance(_state, dict):
                         break
+                    game_installdir = str(_state.get("installdir", ""))
+                    game_library = _lib
                     _installed = _state.setdefault("InstalledDepots", {})
-                    _mounted = _state.get("MountedDepots", {})
                     _changed = False
                     for _did, _gid in dlc_depots:
                         _ds = str(_did)
@@ -1748,13 +1854,9 @@ class WebBridge(QObject):
                         else:
                             _installed[_ds] = {"manifest": _gs, "size": "0"}
                             _changed = True
-                        if isinstance(_mounted, dict) and _mounted.get(_ds) != _gs:
-                            _mounted[_ds] = _gs
-                            _changed = True
                     if _changed:
                         _state["InstalledDepots"] = _installed
-                        if isinstance(_mounted, dict):
-                            _state["MountedDepots"] = _mounted
+                        _state.pop("MountedDepots", None)
                         _data["AppState"] = _state
                         _vd(_acf, _data)
                         try:
@@ -1769,6 +1871,39 @@ class WebBridge(QObject):
             except Exception as e:
                 logger.exception("download_dlc_oureveryday: ACF update failed: %s", e)
 
+            # Step 6: download actual DLC depot files so the content
+            # exists on disk (not just manifest + ACF entries with 0 MB).
+            dlc_downloaded = 0
+            if dlc_depots and game_installdir and game_library and saved > 0:
+                game_dir = _Path(game_library) / "steamapps" / "common" / game_installdir
+                self.download_progress.emit(_json.dumps({
+                    "app_id": dlc_appid, "status": "Downloading DLC files", "progress": 65
+                }))
+                for _did, _gid in dlc_depots:
+                    _key = keys_dict.get(_did)
+                    if not _key or not _gid:
+                        continue
+                    try:
+                        from sff.native_downloader import download_depot as _ndl
+                        _mf = _Path(steam_path) / "depotcache" / f"{_did}_{_gid}.manifest"
+                        if not _mf.exists():
+                            _mf = _Path(steam_path) / "config" / "depotcache" / f"{_did}_{_gid}.manifest"
+                        _ok, _sz = _ndl(
+                            parent_appid, _did, _gid, _key, game_dir,
+                            print_fn=lambda m: logger.debug("  [DLC ndl] %s", m),
+                            os_filter=("linux" if sys.platform.startswith("linux") else "windows"),
+                            steam_path=steam_path,
+                            manifest_path=_mf if _mf.exists() else None,
+                        )
+                        if _ok:
+                            dlc_downloaded += 1
+                            logger.debug("download_dlc_oureveryday: DLC depot %s downloaded (%s bytes)", _did, _sz)
+                    except ImportError:
+                        logger.debug("download_dlc_oureveryday: native downloader not available, skipping depot download")
+                        break
+                    except Exception as _e:
+                        logger.debug("download_dlc_oureveryday: DLC depot %s download failed: %s", _did, _e)
+
             # Register DLC in SLSsteam on Linux so it shows in Steam properties
             if sys.platform == "linux":
                 try:
@@ -1781,10 +1916,11 @@ class WebBridge(QObject):
                 "app_id": dlc_appid, "status": "Complete", "progress": 100
             }))
             if dlc_depots:
+                _extras = f", {dlc_downloaded} depot(s) downloaded" if dlc_downloaded else ""
                 msg = (
                     f"DLC {dlc_appid} added to {parent_appid}.lua "
                     f"({saved} manifest(s) saved, {appended} key line(s) appended, "
-                    f"ACF patched with {len(dlc_depots)} DLC depot(s))"
+                    f"ACF patched with {len(dlc_depots)} DLC depot(s){_extras})"
                 )
             else:
                 state = "already present" if appended == 0 else "appid line appended"
@@ -5221,10 +5357,6 @@ class WebBridge(QObject):
 
                 elif sys.platform == "linux":
                     # SLSSteam consumes ~/.config/SLSsteam/config.yaml.
-                    # Calls sls_man.add_ids(parsed), ACFWriter.write_acf(parsed),
-                    # ACFWriter.patch_workshop_acf(parsed),
-                    # ensure_library_has_app(steam_path, dest, app_id).
-                    # No stplug-in drop on Linux (LumaCore is Windows-only).
                     try:
                         if hasattr(self._ui, 'sls_man') and self._ui.sls_man:
                             self._ui.sls_man.add_ids(parsed)
@@ -5236,15 +5368,6 @@ class WebBridge(QObject):
                         _CVF2(steam_path).add_decryption_keys_to_config(parsed)
                     except Exception as _kwe2:
                         logger.warning("add_decryption_keys_to_config failed (non-fatal): %s", _kwe2)
-
-                    try:
-                        from sff.lua.writer import ACFWriter
-                        _acf = ACFWriter(dest)
-                        _acf.write_acf(parsed)
-                        if hasattr(_acf, 'patch_workshop_acf'):
-                            _acf.patch_workshop_acf(parsed)
-                    except Exception as _we:
-                        logger.warning("ACFWriter.write_acf / patch_workshop_acf failed (non-fatal): %s", _we)
 
                     try:
                         from sff.storage.vdf import ensure_library_has_app
@@ -5655,6 +5778,21 @@ class WebBridge(QObject):
             logger.debug("get_games_file_info failed: %s", e)
             return json.dumps({"exists": True, "mtime_str": "", "count": 0})
 
+    @pyqtSlot(result=str)
+    def get_storage_paths(self):
+        """Return paths where luas and manifests are stored for manual cleanup."""
+        try:
+            steam = str(self._steam_path) if self._steam_path else ""
+            from sff.utils import sff_data_dir, manifests_staging_dir
+            return json.dumps({
+                "lua_plugin": f"{steam}/config/stplug-in/" if steam else "",
+                "depotcache": f"{steam}/depotcache/" if steam else "",
+                "config_depotcache": f"{steam}/config/depotcache/" if steam else "",
+                "staging": str(manifests_staging_dir()),
+            })
+        except Exception:
+            return json.dumps({})
+
     @pyqtSlot()
     def update_games_file(self):
         """Download full Steam app list and write all_games.txt. Emits task_finished('update_games_file')."""
@@ -5705,6 +5843,18 @@ class WebBridge(QObject):
                     f.write("\n".join(games_str))
                 print(f"Game list updated: {len(games_str)} games written.")
                 return len(games_str)
+            except urllib.error.HTTPError as e:
+                if e.code == 403:
+                    msg = (
+                        "Steam Web API key rejected (403 Forbidden). "
+                        "The default API key may have been revoked by Valve. "
+                        "Set your own Steam Web API key in Settings > Developer "
+                        "or wait for the next update."
+                    )
+                    logger.warning(msg)
+                    return (False, msg)
+                logger.exception("update_games_file failed: %s", e)
+                return (False, str(e))
             except Exception as e:
                 logger.exception("update_games_file failed: %s", e)
                 return (False, str(e))
@@ -7231,8 +7381,17 @@ def _load_steam_applist():
     with _lock:
         if _STEAM_APPLIST_CACHE is not None and (_time.time() - _STEAM_APPLIST_CACHE_TIME) < 86400:
             return _STEAM_APPLIST_CACHE
+        if getattr(_load_steam_applist, '_building', False):
+            while getattr(_load_steam_applist, '_building', False):
+                _lock.release()
+                _time.sleep(0.05)
+                _lock.acquire()
+            if _STEAM_APPLIST_CACHE is not None and (_time.time() - _STEAM_APPLIST_CACHE_TIME) < 86400:
+                return _STEAM_APPLIST_CACHE
+        _load_steam_applist._building = True
 
     from sff.utils import root_folder
+
     _all_games_file = root_folder(outside_internal=True) / "all_games.txt"
     _all_games_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -7384,10 +7543,12 @@ def _load_steam_applist():
         _STEAM_APPLIST_CACHE_TIME = _now
         _result.sort(key=lambda x: x.get('appid', 0))
         logger.info("Steam applist built — %s total apps", len(_result))
+        _load_steam_applist._building = False
         return _result
 
     _STEAM_APPLIST_CACHE = []
     _STEAM_APPLIST_CACHE_TIME = _now
+    _load_steam_applist._building = False
     return []
 
 

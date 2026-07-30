@@ -433,7 +433,12 @@ namespace {
                     LOG_MISC_INFO("SpawnProcess: 480 route active reason={} routeMode={} appid {} -> {}, real stored",
                                   routeReason, SteamCapture::OnlineFixRouteModeName(routeMode),
                                   appId, kOnlineFixAppId);
-                    SteamStubAuto::Clear();
+                    if (detectedSteamStub) {
+                        SteamStubAuto::Arm(appId, exePath, probeSteamStub ? steamStubProbe.imagePath : "");
+                        LOG_MISC_INFO("SpawnProcess: -onlinefix with SteamStub DRM, armed ticket handler");
+                    } else {
+                        SteamStubAuto::Clear();
+                    }
                     OnlineFixInject::QueueInjection(exePath, appId);
                 } else if (steamStubAuto) {
                     SetOnlineFixRoute(0, SteamCapture::OnlineFixRouteMode::None);
@@ -505,7 +510,10 @@ namespace SteamCapture {
 
         if (auto* _sp_ = ByteSearch(diversion_hModule, "SpawnProcess")) {
             g_spawnProcessTarget = static_cast<uint8_t*>(_sp_);
+            LOG_MISC_INFO("SpawnProcess: VEH trap armed @ 0x{:X}", reinterpret_cast<uintptr_t>(_sp_));
             VehUtil::ArmInt3(_sp_);
+        } else {
+            LOG_MISC_WARN("SpawnProcess: ByteSearch returned null, VEH trap NOT armed");
         }
 
         if (!g_captures.empty() || g_spawnProcessTarget)
