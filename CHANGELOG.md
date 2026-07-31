@@ -1,5 +1,22 @@
 # Changelog
 
+## 6.5.7
+
+### Removed
+
+- HyperVisor (HV/HVAuto) bypass support removed. The third-party host serving HV fix downloads (buzzheavier.com) became unsafe. Utility functions used by crack fixes have been inlined.
+- Workshop Items, Import Subscribed Mods, Workshop bypass download, and auto-import removed.
+- Achievement Data (UserGameStats) / achievement schema download removed.
+- Mod Updates check removed — LumaCore handles game updates.
+- Tools tab removed (GBE Token Generator, VDF Key Extractor). These tools relied on deprecated Steam Web API endpoints.
+- Buzzheavier download support removed from Crack Fixes. Cracks now use exclusively pixeldrain via proxy bypass.
+
+### Improved
+
+- Startup time significantly faster: removed drive-letter scanning (A-Z) during init. Only Steam VDF-configured library folders are scanned.
+- Cache disk writes debounced to at most once per 5 seconds instead of every set. Invalidate and cleanup force-save immediately.
+- Steam API diagnostic messages converted from print() to debug-level logging.
+
 ## 6.5.6
 
 ### Performance

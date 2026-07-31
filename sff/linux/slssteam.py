@@ -386,7 +386,8 @@ def _setup_config_from_extracted(extract_dir: Path, steam_type: str = "native") 
 
 def patch_slssteam_config(steam_type: str, print_fn=print) -> bool:
     """Patch SLSsteam config.yaml to enable PlayNotOwnedGames, SafeMode, and notifications.
-    Mirrors h3adcr-b's editconfig() function. Skips if .headcrabd marker exists."""
+    Also ensures all required SLSsteam fields exist. Mirrors h3adcr-b's editconfig() function.
+    Skips if .headcrabd marker exists."""
     config_dir = get_slssteam_config_dir(steam_type)
     config_path = config_dir / "config.yaml"
     marker = config_dir / ".headcrabd"
@@ -401,15 +402,21 @@ def patch_slssteam_config(steam_type: str, print_fn=print) -> bool:
         text = config_path.read_text(encoding="utf-8")
         patches = {
             r"^PlayNotOwnedGames:.*": "PlayNotOwnedGames: yes",
-            r"^SafeMode:.*":         "SafeMode: yes",
+            r"^SafeMode:.*":         "SafeMode: no",
+            r"^WarnHashMissmatch:.*": "WarnHashMissmatch: yes",
             r"^NotifyInit:.*":       "NotifyInit: yes",
             r"^Notifications:.*":    "Notifications: yes",
         }
         for pattern, replacement in patches.items():
             text = re.sub(pattern, replacement, text, flags=re.MULTILINE)
+        # Ensure all required SLSsteam fields exist in the config
+        from sff.linux.yaml_config import _patch_missing_slssteam_fields
+        patched = _patch_missing_slssteam_fields(config_path, text)
+        if patched is not None:
+            text = patched
         config_path.write_text(text, encoding="utf-8")
         marker.write_text("patched by SteaMidra\n", encoding="utf-8")
-        print_fn(Fore.GREEN + "SLSsteam config.yaml patched (PlayNotOwnedGames, SafeMode, Notifications enabled)." + Style.RESET_ALL)
+        print_fn(Fore.GREEN + "SLSsteam config.yaml patched (PlayNotOwnedGames, SafeMode off / WarnHashMissmatch on, Notifications enabled, missing fields filled)." + Style.RESET_ALL)
         return True
     except Exception as e:
         print_fn(Fore.YELLOW + f"Could not patch SLSsteam config.yaml: {e}" + Style.RESET_ALL)
@@ -555,7 +562,9 @@ def setup_via_headcrab(steam_path: Path, print_fn=print) -> bool:
         _cleanup_headcrab_zombies()
         if ok:
             print_fn(Fore.GREEN + "\n[headcrab] SLSsteam installation completed." + Style.RESET_ALL)
-            _setup_config_from_extracted(Path(tempfile.gettempdir()) / "headcrab_extract")
+            steam_type = detect_steam_type()
+            _setup_config_from_extracted(Path(tempfile.gettempdir()) / "headcrab_extract", steam_type)
+            patch_slssteam_config(steam_type, print_fn)
             patch_steam_sh(steam_path, print_fn)
             create_steam_cfg(steam_path, print_fn)
         else:

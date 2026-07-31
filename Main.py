@@ -200,11 +200,7 @@ def main(ui, args: argparse.Namespace):
 
             MainMenu.REMOVE_DRM,
 
-            MainMenu.DL_USER_GAME_STATS,
-
             MainMenu.STEAM_AUTO,
-
-            MainMenu.HV_FIX,
 
         ]
 

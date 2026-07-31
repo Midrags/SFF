@@ -350,21 +350,6 @@ class SFFMainWindow(QMainWindow):
         self._save_watcher_timer = QTimer(self)
         self._save_watcher_timer.timeout.connect(self._run_background_save_watcher)
         self._start_save_watcher()
-        # 6.2.5: per-app update-available periodic timer. The tick runs
-        # every 5 minutes, walks app_list_man, applies per-app overrides
-        # and the global gate, and dispatches at most one
-        # check_game_update call per app per UPDATE_CHECK_INTERVAL_MIN.
-        # Cross-app dispatches are paced one per 2 seconds via
-        # QTimer.singleShot chaining.
-        self._update_check_timer = QTimer(self)
-        self._update_check_timer.timeout.connect(self._run_update_check_tick)
-        self._update_check_dispatched_at: dict[str, float] = {}
-        self._update_check_pending_queue: list[str] = []
-        self._update_check_dispatching = False
-        self._update_check_timer.start(5 * 60 * 1000)
-        # First tick after a short delay so the UI settles before the
-        # initial sweep fires.
-        QTimer.singleShot(15 * 1000, self._run_update_check_tick)
 
         # 6.2.6: surface a leftover updater log if the previous launch's
         # in-place update bat hit an error. The bat runs headless, so a
@@ -386,7 +371,6 @@ class SFFMainWindow(QMainWindow):
         from sff.gui.store_tab import StoreTab
         from sff.gui.downloads_tab import DownloadsTab
         from sff.gui.fix_game_tab import FixGameTab
-        from sff.gui.tools_tab import ToolsTab
         from sff.gui.cloud_saves_tab import CloudSavesTab
 
         self.store_tab = StoreTab(steam_path=steam_path, ui=self.ui, run_tool_fn=self._run_tool)
@@ -395,8 +379,6 @@ class SFFMainWindow(QMainWindow):
         self.tabs.addTab(self.downloads_tab, "Download Tracking")
         self.fix_game_tab = FixGameTab(steam_path=steam_path)
         self.tabs.addTab(self.fix_game_tab, "Fix Game")
-        self.tools_tab = ToolsTab(steam_path)
-        self.tabs.addTab(self.tools_tab, "Tools")
         self.cloud_saves_tab = CloudSavesTab(steam_path)
         self.tabs.addTab(self.cloud_saves_tab, "Cloud Saves")
 
@@ -418,12 +400,7 @@ class SFFMainWindow(QMainWindow):
             "    Emulator so the game runs without Steam ownership.\n"
             "  - Remove SteamStub: Strip Valve's SteamStub DRM wrapper from\n"
             "    a game executable using Steamless.\n"
-            "  - UserGameStats: Download achievement data for the selected game.\n"
             "  - DLC check: See which DLCs exist and which are unlocked.\n"
-            "  - Workshop item: Download a Steam Workshop mod by ID.\n"
-            "  - Open Workshop: Browse the Workshop for the selected game.\n"
-            "  - Check mod updates: See if downloaded Workshop mods have\n"
-            "    newer versions available.\n"
             "  - Multiplayer fix: Apply online-fix.me multiplayer patches.\n"
             "  - Fixes & Bypasses: Apply community-maintained fixes.\n"
             "  - DLC Unlockers: Manage CreamAPI / SmokeAPI / other DLC\n"
@@ -505,11 +482,7 @@ class SFFMainWindow(QMainWindow):
         _TOOLTIPS = {
             T("Crack game (gbe_fork)"): "Replace steam_api DLLs with Goldberg Emulator. Breaks Steam achievements and cloud saves.",
             T("Remove SteamStub (Steamless)"): "Strip Valve's SteamStub DRM from a game executable. Achievements stay working.",
-            T("UserGameStats"): "Download achievement / stats data for this game",
             T("DLC check"): "See which DLCs exist and which are unlocked",
-            T("Workshop item"): "Download a Steam Workshop mod by its ID",
-            T("Open Workshop"): "Browse the Steam Workshop for this game",
-            T("Check mod updates"): "Check if downloaded Workshop mods have newer versions",
             T("Multiplayer fix"): "Apply online-fix.me multiplayer patches",
             T("Fixes & Bypasses"): "Apply community-maintained fixes and bypasses (CrakFiles repo). Achievement-safe.",
             T("DLC Unlockers"): "Manage CreamAPI / SmokeAPI / other DLC unlocker DLLs",
@@ -520,7 +493,6 @@ class SFFMainWindow(QMainWindow):
         for label, choice in [
             (T("Crack game (gbe_fork)"), MainMenu.CRACK_GAME),
             (T("Remove SteamStub (Steamless)"), MainMenu.REMOVE_DRM),
-            (T("UserGameStats"), MainMenu.DL_USER_GAME_STATS),
             (T("DLC check"), MainMenu.DLC_CHECK),
         ]:
             btn = QPushButton(label)
@@ -532,12 +504,8 @@ class SFFMainWindow(QMainWindow):
         row2 = QHBoxLayout()
         row2.setSpacing(4)
         for label, choice in [
-            (T("Workshop item"), MainMenu.DL_WORKSHOP_ITEM),
-            (T("Open Workshop"), None),
-            (T("Check mod updates"), MainMenu.CHECK_MOD_UPDATES),
             (T("Multiplayer fix"), MainMenu.MULTIPLAYER_FIX),
             (T("Fixes & Bypasses"), MainMenu.CRACK_FIX),
-            (T("HyperVisor (HVAuto)"), MainMenu.HV_FIX),
             (T("DLC Unlockers"), MainMenu.MANAGE_DLC_UNLOCKERS),
             (T("SteamAutoCrack"), None),
         ]:
@@ -547,8 +515,6 @@ class SFFMainWindow(QMainWindow):
                 btn.clicked.connect(lambda checked=False, c=choice: self._run_game_action(c))
             elif label == T("SteamAutoCrack"):
                 btn.clicked.connect(self._run_steam_auto_gui)
-            else:
-                btn.clicked.connect(self._open_workshop)
             row2.addWidget(btn)
         row2.addStretch()
         ga_layout.addLayout(row2)
@@ -651,9 +617,6 @@ class SFFMainWindow(QMainWindow):
         )
         help_menu.addAction(T("Analytics dashboard")).triggered.connect(
             lambda: self._run_tool(lambda: self.ui.analytics_dashboard_menu())
-        )
-        help_menu.addAction(T("Dump Achievement Diagnostic")).triggered.connect(
-            self._dump_achievement_diagnostic
         )
         logs_action = menubar.addAction("Logs")
         logs_action.triggered.connect(self._show_log_window)
@@ -1060,22 +1023,6 @@ class SFFMainWindow(QMainWindow):
         self._worker_thread.started.connect(self._worker.run)
         self._worker_thread.start()
 
-    def _open_workshop(self):
-        acf = self._get_selected_acf()
-        if acf is None:
-            QMessageBox.warning(
-                self,
-                "No game selected",
-                "Select a Steam game from the list or set a path for a game outside of Steam.",
-            )
-            return
-        app_id = acf.app_id
-        if not app_id:
-            QMessageBox.warning(self, "No app ID", "Could not determine the game's App ID.")
-            return
-        from sff.gui.workshop_browser import open_workshop_browser
-        open_workshop_browser(app_id, self)
-
     def _run_steamless_for_acf(self, acf):
         """Web UI entry point for Remove DRM (Steamless).
 
@@ -1131,38 +1078,6 @@ class SFFMainWindow(QMainWindow):
 
         self._start_worker(_runner, "Remove SteamStub (Steamless)", on_done=_show_result)
 
-    def _confirm_achievement_break(self, action_label: str) -> bool:
-        """Warn before running an action that breaks Steam achievements.
-
-        Returns True to proceed, False to cancel.
-        Setting `WARN_BEFORE_BREAKING_ACHIEVEMENTS` is treated as opt-OUT:
-        unset / True means warn, False means skip warning.
-        """
-        from sff.storage.settings import get_setting
-        from sff.structs import Settings as _S
-        try:
-            val = get_setting(_S.WARN_BEFORE_BREAKING_ACHIEVEMENTS)
-        except Exception:
-            val = None
-        # Only skip the warning when the user has explicitly opted out.
-        if val is False:
-            return True
-        reply = QMessageBox.warning(
-            self,
-            f"{action_label} — breaks Steam achievements",
-            f"Heads up — {action_label} will break Steam achievements.\n\n"
-            "Replacing Steam's API with an emulator means achievements you earn after this "
-            "will only save locally and will not appear on your Steam profile. Cloud saves "
-            "will also stop syncing.\n\n"
-            "For Steam-DRM games (Teardown, Doom Eternal, etc.) prefer "
-            "Remove SteamStub (Steamless) instead — it strips the DRM wrapper without "
-            "touching the Steam API, so achievements keep working.\n\n"
-            "Continue anyway?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Cancel,
-        )
-        return reply == QMessageBox.StandardButton.Yes
-
     def _run_game_action(self, choice):
         from sff.structs import MainMenu
         acf = self._get_selected_acf()
@@ -1173,10 +1088,6 @@ class SFFMainWindow(QMainWindow):
                 "Select a Steam game from the list or set a path for a game outside of Steam.",
             )
             return
-        # Achievement-breakage gate — only for the gbe_fork crack path.
-        if choice == MainMenu.CRACK_GAME:
-            if not self._confirm_achievement_break("Crack game (gbe_fork)"):
-                return
         label = str(getattr(choice, "value", choice))
         # Steamless: ask user to pick the exe directly so we never touch the Steam API
         # on a background thread (that's what causes WinError 2)
@@ -1275,11 +1186,6 @@ class SFFMainWindow(QMainWindow):
         mode = self._ask_steamauto_mode()
         if mode is None:
             return
-        # Steamless-only is achievement-safe, skip the warning. Full mode
-        # still goes through the standard "this will break achievements"
-        # confirmation.
-        if mode == "full" and not self._confirm_achievement_break("SteamAutoCrack"):
-            return
         game_path = acf.path
         app_id = acf.app_id or "0"
         def _job():
@@ -1300,13 +1206,6 @@ class SFFMainWindow(QMainWindow):
             mode = self._ask_steamauto_mode()
             if mode is None:
                 return
-        # The web UI shows its own confirmation dialog before calling here, so we
-        # set _skip_next_achievement_warn from web_bridge to suppress the Qt prompt
-        # and avoid double-warning. Classic UI calls _run_steam_auto_gui instead.
-        if mode == "full" and not getattr(self, '_skip_next_achievement_warn', False):
-            if not self._confirm_achievement_break("SteamAutoCrack"):
-                return
-        self._skip_next_achievement_warn = False
         game_path = acf.path
         app_id = acf.app_id or "0"
         result_box: dict = {"code": None}
@@ -1392,6 +1291,8 @@ class SFFMainWindow(QMainWindow):
         # Remove the leading HH:MM:SS timestamp already embedded by QtLogHandler
         # to avoid double-timestamps when the JS log panel adds its own.
         text = re.sub(r'^\d{2}:\d{2}:\d{2}\s*', '', text)
+        # QtLogHandler embeds level name — strip to avoid double prefix
+        text = re.sub(r'^\[[A-Z]{4}\]\s*', '', text)
         if not text:
             return
         # Hard-drop list for known-spammy debug patterns. These fire per
@@ -1410,6 +1311,15 @@ class SFFMainWindow(QMainWindow):
                 'Loaded app ',
                 'Cached data for key:',
                 'Saved cache with',
+                'Logging in anonymously',
+                'Anonymous login done',
+                'Getting app info...',
+                'Getting info for ',
+                'Product info request took:',
+                'Reading app info from cache',
+                'Cache hit for key:',
+                'Cache expired for key:',
+                'Cache miss for key:',
             )
             for needle in _SPAM_NEEDLES:
                 if needle in text:
@@ -1923,113 +1833,6 @@ class SFFMainWindow(QMainWindow):
         if backed_up:
             logger.debug('Save watcher (local): backed up %d game(s)', backed_up)
 
-    # ── 6.2.5: per-game update-available periodic check ──────────
-
-    def _run_update_check_tick(self):
-        """Walk installed apps and queue update checks under the gates.
-
-        Reads GLOBAL_UPDATE_CHECK plus UPDATE_CHECK_INTERVAL_MIN on
-        every tick so settings changes apply on the next sweep. Per-app
-        overrides come from UPDATE_CHECK_OVERRIDES. Apps already
-        dispatched within the last interval are skipped. The actual
-        bridge calls fire one per 2 seconds across all apps via
-        QTimer.singleShot chaining so the Steam CM provider is not
-        hammered.
-        """
-        import time
-        from sff.storage.settings import get_setting
-        from sff.structs import Settings as _S
-        try:
-            global_on = get_setting(_S.GLOBAL_UPDATE_CHECK)
-            if global_on is None or global_on == "":
-                global_on = False
-            if isinstance(global_on, str):
-                global_on = global_on.lower() in ("true", "1", "yes", "on")
-            if not global_on:
-                # silenced — fires every 5 minutes and the user already
-                # knows the toggle is off because they set it that way
-                return
-            try:
-                interval_min = int(get_setting(_S.UPDATE_CHECK_INTERVAL_MIN) or 60)
-            except (TypeError, ValueError):
-                interval_min = 60
-            if interval_min <= 0:
-                return
-            interval_sec = interval_min * 60
-            raw = get_setting(_S.UPDATE_CHECK_OVERRIDES) or "{}"
-            try:
-                import json as _json
-                overrides = _json.loads(raw) if isinstance(raw, str) else (raw or {})
-            except Exception:
-                overrides = {}
-            if not isinstance(overrides, dict):
-                overrides = {}
-            bridge = getattr(self, "_web_bridge", None)
-            if bridge is None or not hasattr(bridge, "check_game_update"):
-                return
-            try:
-                installed = _json.loads(bridge.get_installed_games() or "[]")
-            except Exception:
-                installed = []
-            now = time.time()
-            queued: list[str] = []
-            MAX_BATCH = 50
-            for game in installed:
-                app_id = str(game.get("app_id") or "").strip()
-                if not app_id or app_id == "0":
-                    continue
-                if app_id in overrides and not bool(overrides[app_id]):
-                    continue
-                last = self._update_check_dispatched_at.get(app_id, 0.0)
-                if now - last < interval_sec:
-                    continue
-                queued.append(app_id)
-                if len(queued) >= MAX_BATCH:
-                    break
-            if not queued:
-                return
-            logger.info(
-                "update-check tick: queued %d app(s) (interval=%dmin)",
-                len(queued), interval_min,
-            )
-            self._update_check_pending_queue.extend(queued)
-            if not self._update_check_dispatching:
-                self._update_check_dispatching = True
-                QTimer.singleShot(0, self._drain_update_check_queue)
-        except Exception:
-            logger.debug("update-check tick crashed", exc_info=True)
-
-    def _drain_update_check_queue(self):
-        """Pop one app off the pending queue and dispatch.
-
-        Re-arms a 2-second singleShot until the queue empties. Errors
-        from the bridge call propagate through the existing
-        check_game_update path and never break the chain.
-        """
-        import time
-        try:
-            if not self._update_check_pending_queue:
-                self._update_check_dispatching = False
-                return
-            app_id = self._update_check_pending_queue.pop(0)
-            bridge = getattr(self, "_web_bridge", None)
-            if bridge is not None and hasattr(bridge, "check_game_update"):
-                try:
-                    bridge.check_game_update(str(app_id))
-                    self._update_check_dispatched_at[str(app_id)] = time.time()
-                except Exception:
-                    logger.debug(
-                        "update-check dispatch failed for app_id=%s",
-                        app_id, exc_info=True,
-                    )
-            if self._update_check_pending_queue:
-                QTimer.singleShot(2000, self._drain_update_check_queue)
-            else:
-                self._update_check_dispatching = False
-        except Exception:
-            self._update_check_dispatching = False
-            logger.debug("update-check drain crashed", exc_info=True)
-
     def _cloud_save_backup(self, cfg, steam_path, steam32_id):
         from sff.cloud_saves import (
             scan_all_save_locations,
@@ -2107,39 +1910,6 @@ class SFFMainWindow(QMainWindow):
             f"SteaMidra\nVersion {VERSION}\n\n"
             "https://github.com/Midrags/SFF/releases",
         )
-
-    def _dump_achievement_diagnostic(self):
-        """A16: read the LumaCore achievement diagnostic ring and surface
-        it in a QMessageBox. LumaCore writes the file on detach, so a
-        running session may see it empty until Steam restarts."""
-        try:
-            from sff.utils import sff_data_dir
-            path = sff_data_dir() / "lumacore_diag.txt"
-            if not path.exists():
-                QMessageBox.information(
-                    self,
-                    T("Dump Achievement Diagnostic"),
-                    T("No diagnostic captured yet (LumaCore writes on detach)"),
-                )
-                return
-            data = path.read_bytes()
-            tail = data[-16384:] if len(data) > 16384 else data
-            text = tail.decode("utf-8", errors="replace") or T(
-                "No diagnostic captured yet (LumaCore writes on detach)"
-            )
-            box = QMessageBox(self)
-            box.setWindowTitle(T("Dump Achievement Diagnostic"))
-            box.setText(f"{path}")
-            box.setDetailedText(text)
-            box.setStandardButtons(QMessageBox.StandardButton.Ok)
-            box.exec()
-        except Exception as exc:
-            logger.exception("dump achievement diagnostic failed: %s", exc)
-            QMessageBox.warning(
-                self,
-                T("Dump Achievement Diagnostic"),
-                str(exc),
-            )
 
     # ── LumaCore Setup helpers ────────────────────────────────────
 

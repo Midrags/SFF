@@ -408,6 +408,17 @@ a:hover { text-decoration: underline; }
 
 /* ── EAC fix modal tabs ─────────────────────────────── */
 
+#eac-guide-modal {
+    align-items: flex-start;
+    overflow-y: auto;
+    padding: 24px 0;
+}
+#eac-guide-modal .modal-content {
+    max-width: min(760px, 95vw);
+    max-height: none;
+    margin: auto;
+}
+
 .eac-tab {
     padding: 6px 11px;
     border: 1px solid var(--border);

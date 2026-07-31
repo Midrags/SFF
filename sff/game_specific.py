@@ -33,17 +33,6 @@ from colorama import Fore, Style
 from sff.app_injector.base import AppInjectionManager
 from sff.manifest.collections import get_collection_children
 from sff.manifest.downloader import ManifestDownloader
-from sff.manifest.workshop_tracker import add as tracker_add
-from sff.manifest.workshop_tracker import get_all as tracker_get_all
-from sff.manifest.workshop_tracker import update_time as tracker_update_time
-from sff.manifest.ugc_resolver import (
-    DirectDownloadUrl,
-    IUgcIdStrategy,
-    StandardUgcIdStrategy,
-    UgcIDResolver,
-    WorkshopItemContext,
-    get_workshop_time_updated,
-)
 from sff.online_fix import apply_multiplayer_fix as apply_online_fix
 from sff.prompts import (
     prompt_confirm,
@@ -103,32 +92,6 @@ class GameHandler:
         try:
             from sff.storage.vdf import get_steam_libs
             steam_libs = get_steam_libs(self.steam_root)
-            # Also scan all drives for additional libraries
-            if os.name == 'nt':  # Windows
-                from string import ascii_uppercase
-                for drive_letter in ascii_uppercase:
-                    if drive_letter in ("A", "B"):
-                        continue
-                    drive = Path(f"{drive_letter}:/")
-                    try:
-                        if not drive.exists():
-                            continue
-                    except OSError:
-                        continue
-                    potential_paths = [
-                        drive / "SteamLibrary",
-                        drive / "Steam",
-                        drive / "Program Files (x86)" / "Steam",
-                        drive / "Program Files" / "Steam",
-                        drive / "Games" / "Steam",
-                    ]
-                    for path in potential_paths:
-                        try:
-                            steamapps = path / "steamapps"
-                            if steamapps.exists() and path not in steam_libs:
-                                steam_libs.append(path)
-                        except OSError:
-                            continue
             for lib in steam_libs:
                 try:
                     steamapps = lib / "steamapps"
@@ -612,108 +575,6 @@ class GameHandler:
         chosen = prompt_select("Choose the exe:", windows_exes)
         return app_info.path / chosen
 
-    def download_workshop_manifest(self, app_id):
-        strats = [StandardUgcIdStrategy()]
-        ugc_resolver = UgcIDResolver(strats)
-        regex = re.compile(
-            r"(?<=steamcommunity.com\/sharedfiles\/filedetails\/\?id=)\d+|^\d+$"
-        )
-        def validate(x):
-            return bool(regex.search(x))
-        def filter_id(x):
-            match = regex.search(x)
-            assert match is not None
-            return int(match.group())
-        workshop_id = prompt_text(
-            "Paste workshop item or collection URL, or item ID:",
-            validator=validate,
-            filter=filter_id,
-        )
-        api_key = get_setting(Settings.STEAM_WEB_API_KEY) or STEAM_WEB_API_KEY
-        children = get_collection_children(workshop_id, api_key or "")
-        if children:
-            print(f"Collection with {len(children)} items. Downloading...")
-            downloader = ManifestDownloader(self.provider, self.steam_root)
-            ok = 0
-            for i, child_id in enumerate(children, 1):
-                try:
-                    ctx = WorkshopItemContext(self.provider.client, child_id)
-                    content, method, details = ugc_resolver.resolve_with_details(ctx)
-                    if isinstance(content, DirectDownloadUrl):
-                        print(
-                            f"  [{i}/{len(children)}] Item {child_id}: legacy (direct URL) - skip"
-                        )
-                        continue
-                    downloader.download_workshop_item(app_id, str(content.ugc_id))
-                    if details and hasattr(details, "time_updated"):
-                        tracker_add(app_id, child_id, details.time_updated)
-                    ok += 1
-                    print(f"  [{i}/{len(children)}] Item {child_id}: OK")
-                except Exception as e:
-                    print(f"  [{i}/{len(children)}] Item {child_id}: {e}")
-            print(
-                Fore.GREEN
-                + f"Collection download complete. {ok}/{len(children)} items."
-                + Style.RESET_ALL
-            )
-        else:
-            ctx = WorkshopItemContext(self.provider.client, workshop_id)
-            content, method, details = ugc_resolver.resolve_with_details(ctx)
-            if isinstance(content, DirectDownloadUrl):
-                print(
-                    "This is a legacy workshop item. "
-                    "It can be directly downloaded through"
-                    " the following URL. It's just a ZIP file:\n"
-                    f"{Fore.BLUE + content.url + Style.RESET_ALL}"
-                )
-            else:
-                print(f"Found UGC ID via {method} method: {content.ugc_id}")
-                downloader = ManifestDownloader(self.provider, self.steam_root)
-                downloader.download_workshop_item(app_id, str(content.ugc_id))
-                if details and hasattr(details, "time_updated"):
-                    tracker_add(app_id, workshop_id, details.time_updated)
-                print(
-                    Fore.GREEN
-                    + "Workshop item manifest downloaded! Try downloading it now."
-                    + Style.RESET_ALL
-                )
-
-    def check_mod_updates(self, app_id):
-        items = [(a, w, t) for a, w, t in tracker_get_all() if a == app_id]
-        if not items:
-            print("No tracked workshop items for this game. Download items first to track them.")
-            return
-        print(f"Checking {len(items)} tracked workshop item(s) for updates...")
-        downloader = ManifestDownloader(self.provider, self.steam_root)
-        ugc_resolver = UgcIDResolver([StandardUgcIdStrategy()])
-        updated = 0
-        for _app_id, workshop_id, stored_time in items:
-            ctx = WorkshopItemContext(self.provider.client, workshop_id)
-            current = get_workshop_time_updated(ctx)
-            if current is None:
-                print(f"  Item {workshop_id}: could not fetch (skip)")
-                continue
-            if current <= stored_time:
-                print(f"  Item {workshop_id}: up to date")
-                continue
-            try:
-                content, _method, details = ugc_resolver.resolve_with_details(ctx)
-                if isinstance(content, DirectDownloadUrl):
-                    print(f"  Item {workshop_id}: legacy item (skip)")
-                    continue
-                downloader.download_workshop_item(app_id, str(content.ugc_id))
-                if details and hasattr(details, "time_updated"):
-                    tracker_update_time(app_id, workshop_id, details.time_updated)
-                updated += 1
-                print(f"  Item {workshop_id}: updated")
-            except Exception as e:
-                print(f"  Item {workshop_id}: {e}")
-        print(
-            Fore.GREEN
-            + f"Done. {updated} item(s) updated."
-            + Style.RESET_ALL
-        )
-
     def _resolve_game_name(self, app_info):
         """Helper: resolve game name from ACF or Steam Store fallback."""
         game_name = "Unknown"
@@ -761,81 +622,6 @@ class GameHandler:
         else:
             print("\n" + Fore.RED + "Failed to apply fix." + Style.RESET_ALL)
             print("Check the error messages above for details.")
-
-    def apply_hv_fix(self, app_info):
-        # 6.2.4 hotfix: HV Auto temporarily disabled. HVAuto's downloads
-        # are hosted on buzzheavier, which is currently serving malware
-        # ad pop-ups and fake download buttons. Bail before any prompt
-        # or temp-dir activity so users can't accidentally hit the bad
-        # ads. Re-enable once HVAuto switches to a safer host.
-        print("\n" + Fore.CYAN + "HyperVisor Bypasses (HVAuto)" + Style.RESET_ALL)
-        print(Fore.YELLOW
-              + "HV Auto is temporarily disabled.\n"
-              + "  HVAuto's downloads are hosted on buzzheavier, which "
-              + "is currently serving malware ads and fake download "
-              + "buttons. We've blocked the integration in SteaMidra "
-              + "until the fixes move to a safer host (pixeldrain, "
-              + "mediafire, or similar). Sorry for the inconvenience."
-              + Style.RESET_ALL)
-        return
-
-    def _apply_hv_fix_real(self, app_info):
-        import time
-        if not get_setting(Settings.HV_FIRST_USE_WARNED):
-            warning = (
-                "=" * 60 + "\n"
-                " HYPERVISOR CRACKS — READ BEFORE CONTINUING\n"
-                "=" * 60 + "\n\n"
-                "HyperVisor (HV) cracks bypass Denuvo by running a custom driver\n"
-                "that sits below Windows and intercepts CPU-level checks.\n\n"
-                "TO USE THEM YOU MUST:\n"
-                "  1. Disable Memory Integrity (HVCI)\n"
-                "  2. Disable Virtualization-based Security (VBS)\n"
-                "  3. Disable Credential Guard\n"
-                "  4. Disable Driver Signature Enforcement for one boot cycle\n"
-                "  5. Run VBS.cmd (bundled in the game folder after install)\n"
-                "  6. Reboot when prompted, press F7 / 7 at Startup Settings\n\n"
-                "SECURITY IMPLICATIONS:\n"
-                "  - These changes lower Windows kernel protections.\n"
-                "  - Only do this on a personal PC you control.\n"
-                "  - Revert changes after each play session using VBS.cmd > Revert Changes.\n"
-                "  - Scan your system with an AV before running the crack.\n"
-                "  - Most kernel anti-cheats (FACEIT, Vanguard) will not work while DSE is off.\n\n"
-                "The included VBS.cmd handles all security setting changes\n"
-                "and includes a Revert Changes option. Run it as Administrator.\n\n"
-                "For full details, read the cs.rin.ru guide:\n"
-                "  https://cs.rin.ru/forum/viewtopic.php?f=10&t=156407\n"
-            )
-            print(Fore.RED + warning + Style.RESET_ALL)
-            print(Fore.YELLOW + "This dialog closes in 20 seconds..." + Style.RESET_ALL)
-            for i in range(20, 0, -1):
-                print(f"\r  {i}s remaining ", end="", flush=True)
-                time.sleep(1)
-            print()
-            set_setting(Settings.HV_FIRST_USE_WARNED, True)
-
-        game_name = self._resolve_game_name(app_info)
-        print("\n" + Fore.CYAN + "HyperVisor Bypasses (HVAuto)" + Style.RESET_ALL)
-        print(f"Game:   {Fore.YELLOW}{game_name}{Style.RESET_ALL}")
-        print(f"Folder: {Fore.YELLOW}{app_info.path}{Style.RESET_ALL}\n")
-
-        build_id = None
-        if app_info.app_id and str(app_info.app_id).strip() != "0":
-            steamapps_dir = app_info.path.parent.parent
-            acf_path = steamapps_dir / f"appmanifest_{app_info.app_id}.acf"
-            if acf_path.exists():
-                try:
-                    acf_data = vdf_load(acf_path)
-                    build_id = acf_data.get("AppState", {}).get("buildid")
-                except Exception:
-                    pass
-
-        from sff.hv_fix import apply_hv_fix as _apply_hv
-        success = _apply_hv(game_name, app_info.path, build_id=build_id)
-        if success:
-            print("\n" + Fore.GREEN + "HV fix applied. Run VBS.cmd as Administrator before launching the game." + Style.RESET_ALL)
-        else:
-            print("\n" + Fore.RED + "HV fix not applied. Check the output above." + Style.RESET_ALL)
 
     def manage_dlc_unlockers(self, app_info):
         from sff.dlc_unlockers.manager import UnlockerManager
@@ -998,20 +784,12 @@ class GameHandler:
             else:
                 print("\n" + Fore.RED + msg + Style.RESET_ALL)
             return MainReturnCode.LOOP
-        elif choice == MainMenu.DL_USER_GAME_STATS:
-            self.run_gen_emu(app_info.app_id, GenEmuMode.USER_GAME_STATS)
         elif choice == MainMenu.DLC_CHECK:
             self.injection_manager.dlc_check(self.provider, int(app_info.app_id))
-        elif choice == MainMenu.DL_WORKSHOP_ITEM:
-            self.download_workshop_manifest(app_info.app_id)
-        elif choice == MainMenu.CHECK_MOD_UPDATES:
-            self.check_mod_updates(app_info.app_id)
         elif choice == MainMenu.MULTIPLAYER_FIX:
             self.apply_multiplayer_fix(app_info)
         elif choice == MainMenu.CRACK_FIX:
             self.apply_crack_fix(app_info)
-        elif choice == MainMenu.HV_FIX:
-            self.apply_hv_fix(app_info)
         elif choice == MainMenu.MANAGE_DLC_UNLOCKERS:
             self.manage_dlc_unlockers(app_info)
         return MainReturnCode.LOOP

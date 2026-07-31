@@ -316,7 +316,7 @@ def _save_app_depot_cache(app_id: str, result: dict):
         data = {
             "version": _APP_CACHE_VERSION,
             "app_id": app_id,
-            "cached_at": datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "cached_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "depots": {
                 depot_id: [
                     {

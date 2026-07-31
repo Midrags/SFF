@@ -298,6 +298,18 @@ def ensure_loaded(force=False):
     return _has
 
 
+def ensure_loaded_cached():
+    """Load fallback data from disk cache only — never hit the network."""
+    global _games_cache, _games_cache_time, _loaded
+    if _loaded and _games_cache:
+        return bool(_games_cache)
+    if _load_cached_games_json():
+        _loaded = True
+        _games_cache_time = time.time()
+    _load_name_cache(force=False)
+    return bool(_games_cache)
+
+
 def metadata_counts() -> dict:
     ensure_loaded()
     return {

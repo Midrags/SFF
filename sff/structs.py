@@ -49,16 +49,12 @@ class MainMenu(Enum):
         DL_MANIFEST_ONLY = "Download manifests ONLY from a .lua file"
     else:
         DL_MANIFEST_ONLY = "Download manifests"
-    DL_WORKSHOP_ITEM = "Download workshop item manifest"
-    CHECK_MOD_UPDATES = "Check for mod updates"
     DLC_CHECK = "Check DLC status of a game"
     MANAGE_DLC_UNLOCKERS = "DLC Unlockers (CreamInstaller)"
     CRACK_GAME = "Crack a game (gbe_fork)"
     REMOVE_DRM = "Remove SteamStub DRM (Steamless)"
-    DL_USER_GAME_STATS = "Download UserGameStatsSchema (achievements w/o gbe_fork)"
     MULTIPLAYER_FIX = "Apply multiplayer fix (online-fix.me)"
     CRACK_FIX = "Fixes & Bypasses"
-    HV_FIX = "HyperVisor bypasses (HVAuto)"
     if sys.platform == "win32":
         MANAGE_INJECTION = "Manage Injected IDs"
         REMOVE_GAME = "Remove a game from library (stplug-in)"
@@ -81,26 +77,18 @@ class MainMenu(Enum):
 GameSpecificChoices = Literal[
     MainMenu.CRACK_GAME,
     MainMenu.REMOVE_DRM,
-    MainMenu.DL_USER_GAME_STATS,
     MainMenu.DLC_CHECK,
-    MainMenu.DL_WORKSHOP_ITEM,
-    MainMenu.CHECK_MOD_UPDATES,
     MainMenu.MULTIPLAYER_FIX,
     MainMenu.CRACK_FIX,
-    MainMenu.HV_FIX,
     MainMenu.MANAGE_DLC_UNLOCKERS
 ]
 
 GAME_SPECIFIC_CHOICES = (
     MainMenu.CRACK_GAME,
     MainMenu.REMOVE_DRM,
-    MainMenu.DL_USER_GAME_STATS,
     MainMenu.DLC_CHECK,
-    MainMenu.DL_WORKSHOP_ITEM,
-    MainMenu.CHECK_MOD_UPDATES,
     MainMenu.MULTIPLAYER_FIX,
     MainMenu.CRACK_FIX,
-    MainMenu.HV_FIX,
     MainMenu.MANAGE_DLC_UNLOCKERS
 )
 
@@ -233,7 +221,6 @@ class Settings(Enum):
     MANIFESTHUB_KEY_EXPIRY = SettingItem("manifesthub_key_expiry", "ManifestHub Key Expiry (UTC epoch, managed automatically)", False, str)
     LANGUAGE = SettingItem("language", "Language (Requires Restart)", False, list(SupportedLanguages))
     MANIFEST_UPDATE_EXCLUDES = SettingItem("manifest_update_excludes", "Manifest Update Excluded Games", False, str)
-    HV_FIRST_USE_WARNED = SettingItem("hv_first_use_warned", "HyperVisor First Use Warning Shown", False, bool)
     SAVE_WATCHER_INTERVAL = SettingItem("save_watcher_interval", "Background Save Watcher Interval (minutes, 0=off)", False, str)
     LAST_BACKUP_PROVIDER_CONFIG = SettingItem("last_backup_provider_config", "Last Cloud Save Provider Config (managed automatically)", False, str)
     CLOUD_PROVIDER = SettingItem("cloud_provider", "Cloud Save Provider", False, str)
@@ -256,12 +243,6 @@ class Settings(Enum):
         False, str,
     )
     CLOSE_TO_TRAY = SettingItem("close_to_tray", "Close button hides to tray (off = quit)", False, bool)
-    WARN_BEFORE_BREAKING_ACHIEVEMENTS = SettingItem(
-        "warn_before_breaking_achievements",
-        "Warn before running actions that break Steam achievements",
-        False,
-        bool,
-    )
     # SteamAutoCrack default mode. When set, skips the "Apply Both vs
     # Steamless Only" picker dialog and runs that mode directly. Empty
     # string means ask every time (the default behaviour). Valid values:

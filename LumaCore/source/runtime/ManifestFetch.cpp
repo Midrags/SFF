@@ -291,4 +291,9 @@ namespace ManifestFetch {
         std::lock_guard<std::mutex> lock(g_lock);
         g_pending.erase(jobId);
     }
+
+    void ClearCache() {
+        std::lock_guard<std::mutex> lock(g_lock);
+        g_cache.clear();
+    }
 }

@@ -18,36 +18,31 @@
 
 import shutil
 import tempfile
+import zipfile
 from pathlib import Path
 
 import httpx
 from colorama import Fore, Style
 
-from sff.hv_fix import (
-    _download_buzzheavier,
-    _extract_file_id_from_url,
-    _extract_to_game_folder,
-)
-from sff.pixeldrain import download_pixeldrain
+from sff.online_fix import _extract_archive_with_backup, _detect_archiver
+from sff.pixeldrain import _extract_pixeldrain_id, download_pixeldrain
 from sff.prompts import prompt_select
 
 CRACK_JSON_URL = "https://raw.githubusercontent.com/KoriaPolis/CrakFiles/main/crackfiles.json"
 
 
 def fetch_crack_games() -> list[dict]:
-    """Fetch the crackfiles.json list from GitHub. Returns a list of game dicts."""
     try:
-        print(Fore.CYAN + "Fetching fixes list from GitHub..." + Style.RESET_ALL)
+        print(Fore.CYAN + "Fetching cracks list from GitHub..." + Style.RESET_ALL)
         resp = httpx.get(CRACK_JSON_URL, follow_redirects=True, timeout=15)
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
-        print(Fore.RED + f"Error fetching fixes list: {e}" + Style.RESET_ALL)
+        print(Fore.RED + f"Error fetching cracks list: {e}" + Style.RESET_ALL)
         return []
 
 
 def search_crack_games(query: str, all_games: list[dict]) -> list[dict]:
-    """Search for a game by name. Exact matches first, then contains matches."""
     q = query.lower().strip()
     exact = [g for g in all_games if g.get("name", "").lower() == q]
     contains = [
@@ -66,8 +61,31 @@ def _badge_summary(game: dict) -> str:
     return ", ".join(sorted(badges)) if badges else ""
 
 
+def _extract_to_game_folder(archive_path: Path, game_folder: Path, game_name: str) -> bool:
+    ext = archive_path.suffix.lower()
+    try:
+        if ext == ".zip":
+            print(Fore.CYAN + "Extracting archive..." + Style.RESET_ALL)
+            with zipfile.ZipFile(archive_path, "r") as zf:
+                zf.extractall(game_folder, pwd=b"cs.rin.ru")
+            print(Fore.GREEN + "Extraction complete." + Style.RESET_ALL)
+            return True
+        else:
+            archiver_type, archiver_path = _detect_archiver()
+            if not archiver_type:
+                print(Fore.RED + "No archiver found. Install 7-Zip or WinRAR." + Style.RESET_ALL)
+                return False
+            return _extract_archive_with_backup(
+                str(archive_path), str(game_folder), archiver_type, archiver_path, game_name, pwd="cs.rin.ru"
+            )
+    finally:
+        try:
+            archive_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 def apply_crack_fix(game_name: str, game_folder) -> bool:
-    """Fetch list, let user pick, download from buzzheavier, extract into game folder."""
     game_folder = Path(game_folder)
 
     all_games = fetch_crack_games()
@@ -100,7 +118,7 @@ def apply_crack_fix(game_name: str, game_folder) -> bool:
         ]
 
     chosen_game = prompt_select(
-        "Select fix to download:",
+        "Select crack to download:",
         options,
         fuzzy=True,
         max_height=15,
@@ -133,20 +151,15 @@ def apply_crack_fix(game_name: str, game_folder) -> bool:
         print(Fore.RED + "No download URL." + Style.RESET_ALL)
         return False
 
-    host_type, file_id = _extract_file_id_from_url(href)
+    file_id = _extract_pixeldrain_id(href)
+    if not file_id:
+        print(Fore.RED + f"Could not parse pixeldrain ID from: {href}" + Style.RESET_ALL)
+        return False
 
     temp_dir = Path(tempfile.mkdtemp(prefix="sff_crack_fix_"))
     try:
-        if host_type == "buzzheavier":
-            archive_path = _download_buzzheavier(file_id, temp_dir)
-            if archive_path is None:
-                return False
-        elif host_type == "pixeldrain":
-            archive_path = download_pixeldrain(file_id, temp_dir)
-            if archive_path is None:
-                return False
-        else:
-            print(Fore.YELLOW + f"Unknown host '{host_type}'. Cannot auto-download." + Style.RESET_ALL)
+        archive_path = download_pixeldrain(file_id, temp_dir)
+        if archive_path is None:
             return False
 
         if not archive_path.exists() or archive_path.stat().st_size == 0:
@@ -164,7 +177,7 @@ def apply_crack_fix(game_name: str, game_folder) -> bool:
 
         print()
         print(Fore.GREEN + "=" * 60 + Style.RESET_ALL)
-        print(Fore.GREEN + "  FIX APPLIED!" + Style.RESET_ALL)
+        print(Fore.GREEN + "  CRACK APPLIED!" + Style.RESET_ALL)
         print(Fore.GREEN + "=" * 60 + Style.RESET_ALL)
         print(f"Game:   {game_name}")
         print(f"Folder: {game_folder}")
@@ -172,7 +185,7 @@ def apply_crack_fix(game_name: str, game_folder) -> bool:
         return True
 
     except Exception as e:
-        print(Fore.RED + f"Error applying fix: {e}" + Style.RESET_ALL)
+        print(Fore.RED + f"Error applying crack: {e}" + Style.RESET_ALL)
         return False
     finally:
         try:

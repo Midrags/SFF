@@ -38,6 +38,8 @@ class APICache:
 
     def __init__(self):
         self.cache: dict[str, dict[str, Any]] = {}
+        self._last_save = 0.0
+        self._dirty = False
         self.load()
 
     def load(self):
@@ -53,13 +55,23 @@ class APICache:
             logger.error(f"Failed to load cache: {e}", exc_info=True)
             self.cache = {}
 
-    def save(self):
+    def _save_if_dirty(self, force=False):
+        if not self._dirty:
+            return
+        if not force and time.time() - self._last_save < 5.0:
+            return
         try:
             with CACHE_FILE.open("w", encoding="utf-8") as f:
                 json.dump(self.cache, f)
+            self._last_save = time.time()
+            self._dirty = False
             logger.debug(f"Saved cache with {len(self.cache)} entries")
         except Exception as e:
             logger.error(f"Failed to save cache: {e}", exc_info=True)
+
+    def save(self, force=False):
+        self._dirty = True
+        self._save_if_dirty(force=force)
 
     def get(self, key):
         if key not in self.cache:
@@ -87,13 +99,12 @@ class APICache:
 
     def invalidate(self, key = None):
         if key is None:
-            # Clear entire cache
             self.cache = {}
             logger.info("Invalidated entire cache")
         elif key in self.cache:
             del self.cache[key]
             logger.info(f"Invalidated cache for key: {key}")
-        self.save()
+        self.save(force=True)
 
     def cleanup_expired(self):
         current_time = time.time()
@@ -107,7 +118,7 @@ class APICache:
             del self.cache[key]
         if expired_keys:
             logger.info(f"Cleaned up {len(expired_keys)} expired cache entries")
-            self.save()
+            self.save(force=True)
 
 
 import threading

@@ -39,10 +39,6 @@
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
                 <span class="nav-label" data-i18n="Fix Game">Fix Game</span>
             </button>
-            <button class="nav-item" data-page="tools" data-tooltip="GBE Token Generator, VDF Key Extractor, Workshop">
-                <svg class="nav-icon" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 3l-4 4-4-4"/></svg>
-                <span class="nav-label" data-i18n="Tools">Tools</span>
-            </button>
             <button class="nav-item" data-page="cloudsaves" data-tooltip="Backup & restore Steam cloud saves">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/></svg>
                 <span class="nav-label" data-i18n="Cloud Saves">Cloud Saves</span>
@@ -159,7 +155,7 @@
                 <svg class="hint-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 <div class="hint-text" id="home-hint-text">
                     <strong style="font-size:14px;display:block;margin-bottom:6px;">FAQ</strong>
-                    <strong>Hitting Steam error 53 / 54 or "Application load error 6:0000065432"?</strong>
+                    <strong>Hitting Steam error 53 / 54 / 86 or "Application load error 6:0000065432"?</strong>
                     Steam DRM (SteamStub). Use <em>Remove SteamStub DRM (Steamless)</em> below. Important: the .exe you launch from the root folder is not always the one with SteamStub. For Unreal Engine games the correct .exe is usually at <em>...\Game\Binaries\Win64\Game-Win64-Shipping.exe</em>. Look for that shipping.exe if Steamless says "Failed to unpack file". Achievement-safe. <br>
                     <strong>Game says EAC isn't installed or won't launch with anti-cheat errors?</strong>
                     <button id="btn-eac-guide" class="hint-inline-btn" type="button">Show EAC fix steps</button>
@@ -172,7 +168,7 @@
 
             <div id="eac-guide-modal" class="modal hidden">
                 <div class="modal-overlay"></div>
-                <div class="modal-content" style="max-width:760px;">
+                <div class="modal-content">
                     <div class="modal-header">
                         <h2>EAC fixes — disable EAC for offline / performance</h2>
                         <button class="modal-close" data-tooltip="Close">&times;</button>
@@ -427,23 +423,6 @@ start YourGame-Shipping.exe</pre>
                     <button class="action-card compact platform-linux" data-action="linux_setup" data-tooltip="Set up or update Linux tools: SLSsteam and .NET 9">
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M5 9h14"/><path d="M5 15h14"/><path d="M17 3a9 9 0 010 18"/><path d="M7 3a9 9 0 000 18"/></svg>
                         <span class="action-title">Set Up Linux Tools</span>
-                    </button>
-                    <button class="action-card compact" data-action="workshop" data-tooltip="Download a Steam Workshop mod by entering its Workshop ID">
-                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
-                        <span class="action-title">Workshop Item</span>
-                    </button>
-                    <button class="action-card compact" data-action="workshop_import" id="action-workshop-import" data-tooltip="Scan steamapps/workshop/content/<appid>/ and queue every not-yet-downloaded subscribed mod">
-                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        <span class="action-title">Import Subscribed Mods</span>
-                    </button>
-                    <button class="action-card compact platform-win" data-action="hv_fix" data-tooltip="Temporarily disabled — HVAuto's host (buzzheavier) is serving malware ads. Will be re-enabled when fixes move to a safer host.">
-                        <svg class="action-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="2" x2="9" y2="4"/><line x1="15" y1="2" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="22"/><line x1="15" y1="20" x2="15" y2="22"/><line x1="2" y1="9" x2="4" y2="9"/><line x1="2" y1="15" x2="4" y2="15"/><line x1="20" y1="9" x2="22" y2="9"/><line x1="20" y1="15" x2="22" y2="15"/></svg>
-                        <span class="action-title">HyperVisor (HVAuto)</span>
-                    </button>
-                    <button class="action-card compact" data-action="achievements" data-tooltip="Downloads UserGameStats_*.bin and the achievement schema for use with the Goldberg / GBE emulator. NOT needed when LumaCore is installed — achievements work through Steam natively. Only use this with games that have been cracked with Goldberg.">
-                        <svg class="action-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
-                        <span class="action-title">Achievement Data</span>
-                        <span class="action-desc warn-achievements">For Goldberg only — not needed with LumaCore</span>
                     </button>
                     <button class="action-card compact" data-action="mute_toggle" data-tooltip="Toggle Steam game mute/unmute">
                         <svg class="action-icon" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
@@ -834,17 +813,6 @@ start YourGame-Shipping.exe</pre>
                 </div>
             </div>
 
-            <div class="tool-card">
-                <h2 class="section-title">Workshop Browser</h2>
-                <p class="tool-desc">Browse and download Steam Workshop items for any game.</p>
-                <div class="input-group">
-                    <label>App ID:</label>
-                    <div class="input-with-btn">
-                        <input type="text" id="tool-workshop-appid" placeholder="Enter App ID" data-tooltip="Steam App ID for Workshop browsing">
-                        <button id="tool-workshop-open" class="btn btn-primary" data-tooltip="Open the Workshop browser for this game">Open Workshop</button>
-                    </div>
-                </div>
-            </div>
         </section>
 
         <!-- Page: Cloud Saves -->
@@ -1898,33 +1866,6 @@ start YourGame-Shipping.exe</pre>
         </div>
     </div>
 
-    <!-- Workshop Item download modal (Home tab) -->
-    <div id="workshop-item-modal" class="modal hidden">
-        <div class="modal-overlay"></div>
-        <div class="modal-content" style="max-width:540px;">
-            <div class="modal-header">
-                <h2>Download Workshop Item</h2>
-                <button class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p style="margin-top:0;opacity:0.85;font-size:13px;">Paste a Steam Workshop URL or just the item ID. Tries SteamWebAPI direct, then GGNetwork mirror, then SteamCMD anonymous, then SteamCMD with your saved Steam credentials if you set them in Settings.</p>
-                <div class="input-group" style="margin-bottom:10px;">
-                    <label style="font-size:12px;font-weight:600;opacity:0.8;">App ID (game the item belongs to):</label>
-                    <input type="text" id="workshop-item-appid" placeholder="e.g. 1167630" style="width:100%;">
-                </div>
-                <div class="input-group">
-                    <label style="font-size:12px;font-weight:600;opacity:0.8;">Workshop URL or item ID:</label>
-                    <input type="text" id="workshop-item-url" placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=..." style="width:100%;">
-                </div>
-                <div id="workshop-item-status" style="margin-top:10px;font-size:12px;opacity:0.75;"></div>
-            </div>
-            <div class="modal-footer">
-                <button id="workshop-item-download" class="btn btn-primary">Download</button>
-                <button class="btn modal-cancel">Cancel</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Auto LC Setup Modal -->
     <div id="lc-setup-modal" class="modal hidden">
         <div class="modal-overlay"></div>
@@ -2006,54 +1947,6 @@ start YourGame-Shipping.exe</pre>
         </div>
     </div>
 
-    <!-- HyperVisor First-Use Warning Modal -->
-    <div id="hv-warning-modal" class="modal hidden">
-        <div class="modal-overlay" data-no-close></div>
-        <div class="modal-content" style="max-width:580px;">
-            <div class="modal-header" style="background:rgba(220,38,38,0.15);border-bottom:1px solid rgba(220,38,38,0.4);">
-                <h2 style="color:#f87171;">&#9888; HyperVisor Cracks &mdash; Read Before Continuing</h2>
-            </div>
-            <div class="modal-body" style="max-height:420px;overflow-y:auto;font-size:13px;line-height:1.6;">
-                <p style="margin-bottom:10px;opacity:0.9;">HyperVisor (HV) cracks bypass Denuvo by running a custom kernel driver that intercepts CPU-level checks from below Windows. <strong style="color:#f87171;">This requires lowering Windows security protections.</strong></p>
-
-                <p style="font-weight:700;color:#fbbf24;margin-bottom:4px;">TO USE HV CRACKS YOU MUST:</p>
-                <ol style="margin:0 0 12px 18px;padding:0;">
-                    <li>Disable Memory Integrity (HVCI) in Windows Security</li>
-                    <li>Disable Virtualization-Based Security (VBS)</li>
-                    <li>Disable Credential Guard</li>
-                    <li>Disable Driver Signature Enforcement for one boot cycle</li>
-                    <li>Run <strong>VBS.cmd</strong> (copied to your game folder) as Administrator</li>
-                    <li>Reboot when prompted &mdash; press <strong>F7</strong> or <strong>7</strong> at Startup Settings</li>
-                </ol>
-
-                <p style="font-weight:700;color:#f87171;margin-bottom:4px;">SECURITY IMPLICATIONS:</p>
-                <ul style="margin:0 0 12px 18px;padding:0;">
-                    <li>These changes lower Windows kernel protections significantly</li>
-                    <li>Only do this on a personal PC you fully control</li>
-                    <li>Revert all changes after each play session using <strong>VBS.cmd &rarr; Revert Changes</strong></li>
-                    <li>Scan the crack files with an antivirus before running</li>
-                    <li>Kernel anti-cheats (FACEIT, Vanguard, Easy Anti-Cheat) will <strong>not work</strong> while DSE is off</li>
-                    <li>Do not use on a work or school machine</li>
-                </ul>
-
-                <p style="opacity:0.85;margin-bottom:8px;">The bundled <strong>VBS.cmd</strong> handles all security setting changes and includes a <em>Revert Changes</em> option. Always run it as Administrator.</p>
-
-                <p style="opacity:0.7;font-size:12px;">Full setup guide: <span style="color:#60a5fa;">cs.rin.ru/forum/viewtopic.php?f=10&amp;t=156407</span></p>
-            </div>
-            <div class="modal-footer" style="flex-direction:column;gap:8px;align-items:stretch;">
-                <a id="hv-discord-btn" href="#" style="display:block;text-align:center;padding:9px 16px;background:rgba(88,101,242,0.25);border:1px solid rgba(88,101,242,0.5);border-radius:6px;color:#818cf8;font-weight:600;text-decoration:none;font-size:13px;">
-                    &#128172; Join the Discord Community (denuvowo)
-                </a>
-                <div style="display:flex;gap:8px;justify-content:flex-end;">
-                    <button id="hv-warning-cancel" class="btn">Cancel</button>
-                    <button id="hv-warning-ok" class="btn btn-primary" disabled style="min-width:240px;">
-                        I Understand &mdash; Continue (<span id="hv-countdown">20</span>s)
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- DLC Check Modal -->
     <div id="dlc-check-modal" class="modal hidden">
         <div class="modal-overlay"></div>
@@ -2095,7 +1988,6 @@ start YourGame-Shipping.exe</pre>
     <script src="js/library.js"></script>
     <script src="js/downloads.js"></script>
     <script src="js/fixgame.js"></script>
-    <script src="js/tools.js"></script>
     <script src="js/cloudsaves.js"></script>
     <script src="js/settings.js"></script>
     <script src="js/bulk_import.js"></script>

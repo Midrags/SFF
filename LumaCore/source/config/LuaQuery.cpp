@@ -13,6 +13,7 @@
 // available through luaL_loadbuffer's chunk name.
 
 #include "config/LuaLoaderInternal.h"
+#include "runtime/ManifestFetch.h"
 #include "runtime/HookStatus.h"
 #include "runtime/Logger.h"
 
@@ -400,6 +401,8 @@ namespace LuaLoader {
         // Pin setManifestid calls dropped by the Lua filter.
         // Depots already handled by Bind_setManifestid or marked
         // via skipManifestPin are skipped — they stay auto-update.
+        // Only processes lines that are NOT comments and have literal
+        // string arguments (not variables/expressions).
         {
             std::unordered_set<AppId_t> doneByLua = TakeManifestDoneByLua();
 
@@ -416,6 +419,15 @@ namespace LuaLoader {
                 const char* hit = std::strstr(pos, "setManifestid");
                 if (!hit) hit = std::strstr(pos, "setmanifestid");
                 if (!hit) break;
+
+                const char* lineStart = hit;
+                while (lineStart > body.data() && lineStart[-1] != '\n') --lineStart;
+                while (lineStart < hit && (*lineStart == ' ' || *lineStart == '\t')) ++lineStart;
+                if (lineStart[0] == '-' && lineStart[1] == '-') {
+                    pos = hit + 1;
+                    continue;
+                }
+
                 pos = hit + 13;
                 if (pos >= end || *pos != '(') continue;
                 ++pos;
@@ -450,6 +462,7 @@ namespace LuaLoader {
             }
         }
 
+        ManifestFetch::ClearCache();
         PublishLuaCounts();
     }
 

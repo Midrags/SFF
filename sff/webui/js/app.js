@@ -214,22 +214,6 @@ window.App = (function() {
                             result.success ? ('Branch requested: ' + (result.message || 'OK')) : (result.message || result.error || 'Request failed')
                         );
                     }
-                    if (result.task === 'workshop_auto_import') {
-                        var wsBtn = document.getElementById('action-workshop-import');
-                        if (wsBtn) { wsBtn.disabled = false; wsBtn.classList.remove('is-busy'); }
-                    }
-                    if (result.task === 'workshop_download') {
-                        var wsiBtn = document.getElementById('workshop-item-download');
-                        if (wsiBtn) wsiBtn.disabled = false;
-                        var wsiStatus = document.getElementById('workshop-item-status');
-                        if (result.success) {
-                            if (wsiStatus) wsiStatus.textContent = 'Saved to: ' + (result.path || '');
-                            Components.showToast('success', 'Workshop item downloaded (' + (result.message || 'ok') + ')');
-                        } else {
-                            if (wsiStatus) wsiStatus.textContent = result.message || 'Download failed.';
-                            Components.showToast('error', result.message || 'Workshop download failed.');
-                        }
-                    }
                     if (result.task === 'api_key_connected') {
                         Store.onApiKeyAvailable('');
                     }
@@ -363,7 +347,6 @@ window.App = (function() {
             case 'library': Library.onPageEnter(); break;
             case 'downloads': Downloads.onPageEnter(); break;
             case 'fixgame': FixGame.onPageEnter(); break;
-            case 'tools': Tools.onPageEnter(); break;
             case 'cloudsaves': CloudSaves.onPageEnter(); break;
             case 'settings': Settings.onPageEnter(); break;
         }
@@ -1161,29 +1144,6 @@ window.App = (function() {
             });
         }
 
-        // Workshop Item modal — Home tab quick download
-        var wsiDl = document.getElementById('workshop-item-download');
-        if (wsiDl) {
-            wsiDl.addEventListener('click', function() {
-                var appField = document.getElementById('workshop-item-appid');
-                var urlField = document.getElementById('workshop-item-url');
-                var statusEl = document.getElementById('workshop-item-status');
-                var appId = appField ? appField.value.trim() : '';
-                var itemUrl = urlField ? urlField.value.trim() : '';
-                if (!appId || !/^\d+$/.test(appId)) {
-                    if (statusEl) statusEl.textContent = 'Enter a numeric App ID first.';
-                    return;
-                }
-                if (!itemUrl) {
-                    if (statusEl) statusEl.textContent = 'Paste a Workshop URL or item ID.';
-                    return;
-                }
-                wsiDl.disabled = true;
-                if (statusEl) statusEl.textContent = 'Downloading... (cascade can take a couple minutes)';
-                Bridge.call('download_workshop_item', JSON.stringify({ app_id: appId, item_url: itemUrl }));
-            });
-        }
-
         var umToggleBtn = document.getElementById('um-toggle-all');
         if (umToggleBtn) {
             umToggleBtn.addEventListener('click', function() {
@@ -1875,90 +1835,6 @@ window.App = (function() {
         return select ? select.value : '';
     }
 
-    var _hvWarningInitialised = false;
-    function _initHvWarningModal() {
-        if (_hvWarningInitialised) return;
-        _hvWarningInitialised = true;
-
-        var cancelBtn = document.getElementById('hv-warning-cancel');
-        var okBtn     = document.getElementById('hv-warning-ok');
-        var discordA  = document.getElementById('hv-discord-btn');
-
-        if (cancelBtn) {
-            cancelBtn.addEventListener('click', function() {
-                _hvClearCountdown();
-                Components.hideModal('hv-warning-modal');
-            });
-        }
-        if (okBtn) {
-            okBtn.addEventListener('click', function() {
-                if (this.disabled) return;
-                _hvClearCountdown();
-                Components.hideModal('hv-warning-modal');
-                var appId   = this.dataset.pendingAppId   || '';
-                var outside = this.dataset.pendingOutside === '1';
-                var path    = this.dataset.pendingPath    || '';
-                var name    = this.dataset.pendingName    || _getOutsideGameName(path);
-                var oAppId  = this.dataset.pendingOAppId  || '0';
-                Bridge.call('set_setting', 'hv_first_use_warned', 'true');
-                Bridge.call('open_url', 'https://discord.gg/denuvowo');
-                if (outside) {
-                    Bridge.call('run_game_action_outside', path, name, oAppId, 'hv_fix');
-                } else {
-                    Bridge.call('run_game_action', appId, 'hv_fix');
-                }
-            });
-        }
-        if (discordA) {
-            discordA.addEventListener('click', function(e) {
-                e.preventDefault();
-                Bridge.call('open_url', 'https://discord.gg/denuvowo');
-            });
-        }
-    }
-
-    var _hvCountdownTimer = null;
-    function _hvClearCountdown() {
-        if (_hvCountdownTimer !== null) {
-            clearInterval(_hvCountdownTimer);
-            _hvCountdownTimer = null;
-        }
-    }
-
-    function _showHvWarning(onConfirmArgs) {
-        _initHvWarningModal();
-        var okBtn  = document.getElementById('hv-warning-ok');
-        var cdSpan = document.getElementById('hv-countdown');
-        if (!okBtn || !cdSpan) return false;
-
-        // Store context for the OK handler
-        okBtn.disabled = true;
-        okBtn.dataset.pendingAppId   = onConfirmArgs.appId   || '';
-        okBtn.dataset.pendingOutside = onConfirmArgs.outside ? '1' : '0';
-        okBtn.dataset.pendingPath    = onConfirmArgs.path    || '';
-        okBtn.dataset.pendingName    = onConfirmArgs.name    || '';
-        okBtn.dataset.pendingOAppId  = onConfirmArgs.oAppId  || '0';
-
-        var secs = 20;
-        cdSpan.textContent = secs;
-        okBtn.innerHTML = 'I Understand \u2014 Continue (<span id="hv-countdown">' + secs + '</span>s)';
-
-        _hvClearCountdown();
-        _hvCountdownTimer = setInterval(function() {
-            secs--;
-            var span = document.getElementById('hv-countdown');
-            if (span) span.textContent = secs;
-            if (secs <= 0) {
-                _hvClearCountdown();
-                okBtn.disabled = false;
-                okBtn.innerHTML = 'I Understand \u2014 Continue';
-            }
-        }, 1000);
-
-        Components.showModal('hv-warning-modal');
-        return true;
-    }
-
     function _renderLetUpdatesList(games) {
         var listEl = document.getElementById('lu-game-list');
         var countEl = document.getElementById('lu-count');
@@ -2056,36 +1932,6 @@ window.App = (function() {
     }
 
     function _handleHomeAction(action) {
-        // Workshop subscribed-mods auto-import — scans the local steamapps/workshop/content/<appid>
-        // tree and enqueues every numeric subdir that does not already have a complete
-        // download under <sff_data>/downloaded_files/workshop/<wid>/.
-        if (action === 'workshop_import') {
-            var wsAppId = _getSelectedGameId();
-            if (!wsAppId) {
-                Components.showToast('warning', 'Please select a game from the dropdown first.');
-                return;
-            }
-            var btn = document.getElementById('action-workshop-import');
-            if (btn) { btn.disabled = true; btn.classList.add('is-busy'); }
-            Components.showToast('info', 'Scanning subscribed mods for App ' + wsAppId + '...');
-            Bridge.call('workshop_auto_import', wsAppId);
-            return;
-        }
-
-        // Single workshop item download — opens the URL/ID prompt then runs the
-        // 4-method cascade (SteamWebAPI -> GGNetwork -> SteamCMD anon -> SteamCMD auth).
-        if (action === 'workshop') {
-            var preAppId = _getSelectedGameId() || '';
-            var appField = document.getElementById('workshop-item-appid');
-            var urlField = document.getElementById('workshop-item-url');
-            var statusEl = document.getElementById('workshop-item-status');
-            if (appField) appField.value = preAppId;
-            if (urlField) urlField.value = '';
-            if (statusEl) statusEl.textContent = '';
-            Components.showModal('workshop-item-modal');
-            return;
-        }
-
         // Show game-picker dialog before running update_manifests
         if (action === 'update_manifests') {
             var listEl = document.getElementById('um-game-list');
@@ -2122,50 +1968,6 @@ window.App = (function() {
                     listEl.innerHTML = html;
                     if (countEl) countEl.textContent = games.length + ' game' + (games.length !== 1 ? 's' : '');
                 });
-            });
-            return;
-        }
-
-        // HyperVisor action — check first-use warning
-        if (action === 'hv_fix') {
-            // Resolve the game/path context first, then decide whether to show warning
-            var hvAppId    = '';
-            var hvOutside  = false;
-            var hvPath     = '';
-            var hvOAppId   = '0';
-            var hvName     = '';
-            if (_outsideMode) {
-                hvPath    = (document.getElementById('outside-path-display') || {}).value || '';
-                hvOAppId  = (document.getElementById('outside-appid') || {}).value || '0';
-                hvName    = _getOutsideGameName(hvPath);
-                if (!hvPath) {
-                    Components.showToast('warning', 'Please select a game folder first.');
-                    return;
-                }
-                if (!hvName) {
-                    Components.showToast('warning', 'Please enter the game name first.');
-                    return;
-                }
-                hvOutside = true;
-            } else {
-                hvAppId = _getSelectedGameId();
-                if (!hvAppId) {
-                    Components.showToast('warning', 'Please select a game from the dropdown first.');
-                    return;
-                }
-            }
-            var confirmArgs = { appId: hvAppId, outside: hvOutside, path: hvPath, name: hvName, oAppId: hvOAppId };
-            Bridge.callWithCallback('get_setting', 'hv_first_use_warned', function(val) {
-                var warned = val === 'True' || val === 'true' || val === '1';
-                if (!warned) {
-                    _showHvWarning(confirmArgs);
-                } else {
-                    if (hvOutside) {
-                        Bridge.call('run_game_action_outside', hvPath, hvName, hvOAppId, 'hv_fix');
-                    } else {
-                        Bridge.call('run_game_action', hvAppId, 'hv_fix');
-                    }
-                }
             });
             return;
         }

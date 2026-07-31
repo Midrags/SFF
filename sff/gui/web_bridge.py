@@ -249,13 +249,11 @@ class WebBridge(QObject):
         self._provider_timer.setInterval(60 * 60 * 1000)
         self._provider_timer.timeout.connect(self._maybe_auto_contribute_provider)
         self._provider_timer.start()
-        QTimer.singleShot(3000, self._maybe_auto_contribute_provider)
         self._provider_cache_refreshing = False
         self._provider_cache_timer = QTimer(self)
         self._provider_cache_timer.setInterval(10 * 60 * 1000)
         self._provider_cache_timer.timeout.connect(self._maybe_auto_refresh_provider_cache)
         self._provider_cache_timer.start()
-        QTimer.singleShot(8000, self._maybe_auto_refresh_provider_cache)
         # Prefetch crack buildids in background so store search never blocks
         from sff.gui.web_bridge import _prefetch_crack_buildids
         QTimer.singleShot(5000, _prefetch_crack_buildids)
@@ -288,8 +286,8 @@ class WebBridge(QObject):
 
         def _do():
             try:
-                from sff.game_list_fallback import ensure_loaded
-                ensure_loaded(force=False)
+                from sff.game_list_fallback import ensure_loaded_cached
+                ensure_loaded_cached()
                 logger.debug("Preload: cached store metadata warmed")
             except Exception as e:
                 logger.debug("Preload: store data preload failed: %s", e)
@@ -2556,13 +2554,9 @@ class WebBridge(QObject):
                 "crack": MainMenu.CRACK_GAME,
                 "steamstub": MainMenu.REMOVE_DRM,
                 "dlc_check": MainMenu.DLC_CHECK,
-                "workshop": MainMenu.DL_WORKSHOP_ITEM,
                 "multiplayer": MainMenu.MULTIPLAYER_FIX,
                 "community_fixes": MainMenu.CRACK_FIX,
-                "hv_fix": MainMenu.HV_FIX,
-                "achievements": MainMenu.DL_USER_GAME_STATS,
                 "dlc_unlockers": MainMenu.MANAGE_DLC_UNLOCKERS,
-                "check_mod_updates": MainMenu.CHECK_MOD_UPDATES,
             }
 
             menu_choice = game_action_map.get(action)
@@ -2704,43 +2698,8 @@ class WebBridge(QObject):
 
     @pyqtSlot(str)
     def generate_gbe_token(self, config_json):
-        """Generate GBE token files."""
-        def _do():
-            config = json.loads(config_json)
-            api_key = config.get("api_key", "").strip()
-            app_id_str = str(config.get("app_id", "")).strip()
-            output_dir = config.get("output_dir", "").strip()
-            if not api_key:
-                return (False, "No Steam Web API key provided.")
-            if not app_id_str.isdigit():
-                return (False, "App ID must be a number.")
-            if not output_dir:
-                return (False, "No output directory provided.")
-            from sff.tools.gbe_token_generator import GBETokenGenerator
-            log_lines = []
-            def _log(msg):
-                log_lines.append(msg)
-                self.log_message.emit(msg)
-            gen = GBETokenGenerator(steam_web_api_key=api_key)
-            success = gen.generate(int(app_id_str), output_dir, log_func=_log)
-            if success:
-                try:
-                    from sff.storage.settings import set_setting
-                    from sff.structs import Settings
-                    set_setting(Settings.STEAM_WEB_API_KEY, api_key)
-                except Exception:
-                    pass
-            return (success, "\n".join(log_lines))
-
-        def _on_done(result):
-            if isinstance(result, tuple):
-                ok, log_text = result
-                msg = "GBE config generated successfully" if ok else log_text.split("\n")[-1]
-                self._emit_task_result("generate_gbe_token", ok, msg, log=log_text)
-            else:
-                self._emit_task_result("generate_gbe_token", False, "Generation failed")
-
-        self._run_async(_do, on_done=_on_done)
+        """GBE token generation removed."""
+        self._emit_task_result("generate_gbe_token", False, "GBE Token Generator has been removed.")
 
     @pyqtSlot(str, str)
     def scan_cloud_games(self, steam_path, steam32_id):
@@ -3068,188 +3027,23 @@ class WebBridge(QObject):
 
     @pyqtSlot(str)
     def open_workshop(self, app_id):
-        """Open the workshop browser for a game."""
-        try:
-            from sff.gui.workshop_browser import open_workshop_browser
-            open_workshop_browser(app_id, self.parent())
-        except Exception as e:
-            logger.exception("open_workshop failed: %s", e)
+        """Workshop browser removed."""
+        self._emit_task_result("workshop", False, "Workshop Browser has been removed.")
 
     @pyqtSlot(str)
     def download_workshop_item(self, params_json):
-        """Download a workshop item using 4-method cascade (SteamWebAPI, GGNetwork, SteamCMD).
-        params_json: {"app_id": "...", "item_url": "..."} or {"app_id": "...", "item_id": "..."}
-        Emits task_finished with task='workshop_download'."""
-        def _do():
-            try:
-                params = json.loads(params_json)
-                app_id = str(params.get("app_id", "0"))
-                item_url = params.get("item_url") or params.get("item_id") or ""
-                from sff.manifest.workshop_dl import (
-                    download_workshop_item as _dl,
-                    parse_workshop_item_id,
-                )
-                from sff.storage.settings import get_setting
-                from sff.structs import Settings
-                item_id = parse_workshop_item_id(item_url)
-                if not item_id:
-                    return {"success": False, "error": f"Could not parse item ID from: {item_url}"}
-                from sff.utils import sff_data_dir
-                out_dir = sff_data_dir() / "downloaded_files" / "workshop" / item_id
-                user = get_setting(Settings.STEAM_USER) or "anonymous"
-                pwd = get_setting(Settings.STEAM_PASS) or ""
-                result = _dl(item_id, app_id, out_dir, steam_username=user, steam_password=pwd)
-                return result
-            except Exception as e:
-                return {"success": False, "error": str(e)}
-
-        def _on_done(result):
-            result = result or {}
-            self._emit_task_result(
-                "workshop_download",
-                bool(result.get("success")),
-                result.get("method") or result.get("error") or "",
-                path=result.get("path") or "",
-            )
-
-        self._run_async(_do, on_done=_on_done)
+        """Workshop item download removed."""
+        self._emit_task_result("workshop_download", False, "Workshop item download has been removed.")
 
     @pyqtSlot(str)
     def workshop_auto_import(self, app_id):
-        """Scan local subscribed-mod folders and enqueue every not-yet-downloaded
-        workshop item. Emits task_finished with task='workshop_auto_import'.
-
-        The downloader adapter wraps the existing 4-method `download_workshop_item`
-        cascade so each enqueue runs through SteamWebAPI -> GGNetwork -> SteamCMD
-        -> authenticated SteamCMD just like the manual single-item button.
-        """
-        def _do():
-            try:
-                if not self._steam_path:
-                    return {"success": False, "error": "Steam path not set"}
-                if not str(app_id).strip().isdigit():
-                    return {"success": False, "error": f"Invalid App ID: {app_id!r}"}
-                aid = int(app_id)
-
-                from sff.manifest.workshop_auto_import import (
-                    workshop_auto_import as _impl,
-                )
-                from sff.manifest.workshop_dl import (
-                    download_workshop_item as _dl,
-                )
-                from sff.storage.settings import get_setting
-                from sff.structs import Settings
-                from sff.utils import sff_data_dir
-
-                user = get_setting(Settings.STEAM_USER) or "anonymous"
-                pwd = get_setting(Settings.STEAM_PASS) or ""
-
-                class _Adapter:
-                    """Adapter around download_workshop_item so the auto-import
-                    module can call enqueue(app_id, workshop_id) without knowing
-                    the cascade or output dir layout."""
-                    def enqueue(self, a_id: int, wid: str) -> None:
-                        out_dir = sff_data_dir() / "downloaded_files" / "workshop" / wid
-                        out_dir.mkdir(parents=True, exist_ok=True)
-                        _dl(
-                            wid, str(a_id), out_dir,
-                            steam_username=user, steam_password=pwd,
-                            log=logger.info,
-                        )
-
-                return _impl(self._steam_path, aid, _Adapter(), logger.info)
-            except Exception as e:
-                logger.exception("workshop_auto_import slot failed for app_id=%s", app_id)
-                return {"success": False, "error": str(e)}
-
-        def _on_done(result):
-            result = result or {}
-            success = bool(result.get("success"))
-            added = result.get("added") or []
-            skipped = result.get("skipped") or []
-            found = result.get("found") or []
-            if success:
-                msg = (
-                    f"Imported {len(added)} new, skipped {len(skipped)} already local "
-                    f"({len(found)} found)"
-                )
-            else:
-                msg = result.get("error") or "Auto-import failed"
-            self._emit_task_result(
-                "workshop_auto_import",
-                success,
-                msg,
-                added=added,
-                skipped=skipped,
-                found=found,
-                error=result.get("error") or "",
-            )
-
-        self._run_async(_do, on_done=_on_done)
+        """Workshop auto-import removed."""
+        self._emit_task_result("workshop_auto_import", False, "Workshop auto-import has been removed.")
 
     @pyqtSlot(str)
     def workshop_bypass_download(self, params_json):
-        """Ownership-bypass workshop download.
-
-        ``params_json`` shape:
-            {"input": "<URL or paste-list or collection URL>",
-             "api_key": "<optional override>"}
-
-        Streams ``task_progress`` events per item and finishes with
-        ``task_finished`` carrying the aggregate counts. The bypass path
-        sends only the Web API key and the UGC CDN GET, never Steam session
-        cookies.
-        """
-        def _do():
-            try:
-                params = json.loads(params_json)
-                raw_input = str(params.get("input") or "").strip()
-                override_key = str(params.get("api_key") or "").strip()
-                from sff.manifest.workshop_dl import run_bypass_batch
-                from sff.storage.settings import get_setting
-                from sff.structs import Settings
-                from sff.strings import STEAM_WEB_API_KEY as _DEFAULT_KEY
-
-                api_key = override_key
-                if not api_key:
-                    saved = get_setting(Settings.STEAM_WEB_API_KEY)
-                    if isinstance(saved, str) and saved.strip():
-                        api_key = saved.strip()
-                if not api_key:
-                    api_key = _DEFAULT_KEY
-
-                from sff.utils import sff_data_dir
-                out_dir = sff_data_dir() / "downloaded_files" / "workshop"
-
-                def _emit_progress(payload):
-                    try:
-                        self.task_progress.emit(json.dumps(payload))
-                    except Exception:
-                        logger.debug("task_progress emit failed", exc_info=True)
-
-                summary = run_bypass_batch(
-                    raw_input,
-                    out_dir,
-                    api_key,
-                    on_progress=_emit_progress,
-                )
-                return summary
-            except Exception as e:
-                logger.exception("workshop_bypass_download failed: %s", e)
-                return {"success": False, "error": str(e)}
-
-        def _on_done(result):
-            result = result or {}
-            self._emit_task_result(
-                "workshop_bypass",
-                bool(result.get("success")),
-                "",
-                added=int(result.get("added") or 0),
-                failed=int(result.get("failed") or 0),
-                error=result.get("error") or "",
-            )
-
-        self._run_async(_do, on_done=_on_done)
+        """Workshop bypass download removed."""
+        self._emit_task_result("workshop_bypass", False, "Workshop bypass download has been removed.")
 
     @pyqtSlot(str)
     def check_game_update(self, app_id):
@@ -3963,13 +3757,9 @@ class WebBridge(QObject):
                 "crack": MainMenu.CRACK_GAME,
                 "steamstub": MainMenu.REMOVE_DRM,
                 "dlc_check": MainMenu.DLC_CHECK,
-                "workshop": MainMenu.DL_WORKSHOP_ITEM,
                 "multiplayer": MainMenu.MULTIPLAYER_FIX,
                 "community_fixes": MainMenu.CRACK_FIX,
-                "hv_fix": MainMenu.HV_FIX,
-                "achievements": MainMenu.DL_USER_GAME_STATS,
                 "dlc_unlockers": MainMenu.MANAGE_DLC_UNLOCKERS,
-                "check_mod_updates": MainMenu.CHECK_MOD_UPDATES,
             }
             menu_choice = game_action_map.get(action)
             if menu_choice is None:
@@ -7219,7 +7009,9 @@ def _store_token_match(token, name_norm):
     return token in name_norm
 
 
-def _store_all_tokens_match(query_norm, name_norm):
+def _store_all_tokens_match(query_norm, name_norm, _depth=0):
+    if _depth > 5:
+        return False
     tokens = _store_words(query_norm)
     if not tokens:
         return True
@@ -7227,7 +7019,7 @@ def _store_all_tokens_match(query_norm, name_norm):
         if _store_token_match(token, name_norm):
             continue
         alts = _ALIAS_EXPANSIONS.get(token)
-        if alts and any(_store_all_tokens_match(_normalize_for_search(alt), name_norm) for alt in alts):
+        if alts and any(_store_all_tokens_match(_normalize_for_search(alt), name_norm, _depth + 1) for alt in alts):
             continue
         return False
     return True

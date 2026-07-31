@@ -482,17 +482,7 @@ def collect_submit_candidates(steam_path: Path | None = None) -> dict:
             if not cfg.exists():
                 continue
             try:
-                from sff.tools.vdf_key_extractor import VdfKeyExtractor
-
-                for key in VdfKeyExtractor().extract_keys(str(cfg)).keys:
-                    add({
-                        "id": str(key.depot_id),
-                        "key": key.key,
-                        "name": f"Depot {key.depot_id}",
-                        "kind": "depot",
-                        "parent_appid": "",
-                        "parent_name": "",
-                    })
+                pass  # VDF key extraction removed
             except Exception as exc:
                 logger.debug("provider config scan failed for %s: %s", cfg, exc)
 

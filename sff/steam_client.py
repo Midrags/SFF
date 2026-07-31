@@ -77,9 +77,9 @@ def _steam_transient_errors():
 def _ensure_client_session(client):
     if client.logged_on:
         return
-    print("Logging in anonymously...", end="", flush=True)
+    logger.debug("Logging in anonymously...")
     client.anonymous_login()
-    print(" Done!")
+    logger.debug("Anonymous login done")
 
 
 def _client_state(client):
@@ -108,7 +108,7 @@ def _empty_product_info():
 
 
 def _request_app_info(client, app_ids, timeout):
-    print("Getting app info...")
+    logger.debug("Getting app info...")
     logger.debug(
         "Getting info for %s with timeout=%ss (%s)",
         ", ".join([str(x) for x in app_ids]),
@@ -149,14 +149,15 @@ def _get_product_info_result(client, app_ids):
                     _client_state(client),
                 )
                 if attempt < _MAX_APP_INFO_RETRIES:
-                    print(
-                        f"Request timed out after {timeout}s. "
-                        f"Trying again ({attempt}/{_MAX_APP_INFO_RETRIES})..."
+                    logger.debug(
+                        "Request timed out after %ss. "
+                        "Trying again (%s/%s)...",
+                        timeout, attempt, _MAX_APP_INFO_RETRIES
                     )
                     _reopen_client_session(client)
                     time.sleep(2)
                     continue
-                print(
+                logger.debug(
                     "Steam appinfo timed out after several attempts. "
                     "SteaMidra will use cached/local manifests if available."
                 )
@@ -216,7 +217,7 @@ class SteamInfoProvider:
                     sorted(set(missing) - valid_ids),
                 )
         else:
-            print("Reading app info from cache...")
+            logger.debug("Reading app info from cache...")
         return {
             app_id: self._cache.get(app_id, {})
             for app_id in app_ids

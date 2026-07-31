@@ -48,6 +48,10 @@ namespace ManifestFetch {
     // Drops any pending future for `jobId` without waiting. Used when
     // the recv side decides not to patch (e.g. depot not in our scope).
     void Discard(uint64_t jobId);
+
+    // Clears the resolved-code cache. Call when Lua files are hot-reloaded
+    // so that stale manifest codes don't persist across config changes.
+    void ClearCache();
 }
 
 #endif
