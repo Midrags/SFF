@@ -613,3 +613,86 @@ def _ryuu_save_lua(lua_bytes, dest, app_id):
         pass
     print(Fore.GREEN + f"[OK] Ryuu: Downloaded Lua for {app_id}" + Style.RESET_ALL)
     return lua_path
+
+
+def get_depotbox(dest, app_id, depotbox_key=None):
+    """Download a .lua file from DepotBox.
+    Uses the direct-lua endpoint which returns just the .lua text.
+    Requires a DepotBox API key. Rate limit: 60/min (Starter) or 120/min (Pro).
+    """
+    if not app_id or not str(app_id).strip().isdigit():
+        print(Fore.RED + f"Invalid App ID: '{app_id}'" + Style.RESET_ALL)
+        return None
+
+    if not depotbox_key:
+        from sff.storage.settings import get_setting
+        depotbox_key = get_setting(Settings.DEPOTBOX_KEY)
+        if not depotbox_key:
+            depotbox_key = prompt_secret(
+                "Paste your DepotBox API key here: ",
+                lambda x: len(x.strip()) >= 20,
+                "That doesn't look like a DepotBox API key!",
+                long_instruction=(
+                    "Get an API key from https://depotbox.org — Starter (60 req/min) or Pro (120 req/min)."
+                ),
+            ).strip()
+            set_setting(Settings.DEPOTBOX_KEY, depotbox_key)
+
+    # Check rate limit plan
+    from sff.storage.settings import get_setting
+    rate_limit_str = get_setting(Settings.DEPOTBOX_RATE_LIMIT) or ""
+    rate_limit = int(rate_limit_str) if rate_limit_str.strip().isdigit() else None
+    if rate_limit is None:
+        from sff.prompts import prompt_select
+        plan = prompt_select(
+            "Select your DepotBox plan:",
+            [("Starter — 60 requests / minute", 60), ("Pro — 120 requests / minute", 120)],
+            cancellable=False,
+        )
+        rate_limit = plan if plan else 60
+        set_setting(Settings.DEPOTBOX_RATE_LIMIT, str(rate_limit))
+
+    headers = {"X-API-Key": depotbox_key}
+    url = f"https://depotbox.org/api/direct-lua?appid={app_id}"
+
+    try:
+        resp = httpx.get(url, headers=headers, timeout=(10, 300), follow_redirects=True)
+        if resp.status_code == 401:
+            print(Fore.RED + "DepotBox: Invalid API key." + Style.RESET_ALL)
+            set_setting(Settings.DEPOTBOX_KEY, "")
+            return None
+        if resp.status_code == 403:
+            print(Fore.RED + f"DepotBox: {resp.text[:300]}" + Style.RESET_ALL)
+            return None
+        if resp.status_code == 404:
+            print(Fore.YELLOW + f"DepotBox: No depot keys for App {app_id}. Try another provider." + Style.RESET_ALL)
+            return None
+        if resp.status_code == 429:
+            print(Fore.YELLOW + f"DepotBox: Rate limit ({rate_limit}/min) exceeded. {resp.text[:200]}" + Style.RESET_ALL)
+            return None
+        if resp.status_code != 200:
+            print(Fore.RED + f"DepotBox: HTTP {resp.status_code} — {resp.text[:300]}" + Style.RESET_ALL)
+            return None
+
+        lua_text = resp.text.strip()
+        if not lua_text or not lua_text.startswith("--"):
+            print(Fore.RED + "DepotBox: Response doesn't look like a valid .lua file." + Style.RESET_ALL)
+            return None
+
+        lua_path = dest / f"{app_id}.lua"
+        lua_path.write_text(lua_text, encoding="utf-8")
+        _update_fallback_depotkeys(lua_text.encode("utf-8"))
+        try:
+            from sff.lua.dlc_appid_enricher import append_depotless_dlcs
+            append_depotless_dlcs(lua_path, app_id)
+        except Exception:
+            pass
+        print(Fore.GREEN + f"[OK] DepotBox: Downloaded Lua for {app_id}" + Style.RESET_ALL)
+        return lua_path
+
+    except httpx.ConnectError:
+        print(Fore.RED + "DepotBox: Cannot connect. Check your internet." + Style.RESET_ALL)
+        return None
+    except Exception as e:
+        print(Fore.RED + f"DepotBox: Error — {e}" + Style.RESET_ALL)
+        return None

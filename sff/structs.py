@@ -185,6 +185,8 @@ class Settings(Enum):
     HUBCAP_KEY = SettingItem("morrenus_key", "Hubcap API Key", True, str)
     RYUU_KEY = SettingItem("ryuu_key", "Ryuu Reseller Key", True, str)
     RYUU_API_KEY = SettingItem("ryuu_api_key", "Ryuu API Key (premium)", True, str)
+    DEPOTBOX_KEY = SettingItem("depotbox_key", "DepotBox API Key", True, str)
+    DEPOTBOX_RATE_LIMIT = SettingItem("depotbox_rate_limit", "DepotBox Rate Limit (requests per minute)", False, str)
     STEAM_PATH = SettingItem(
         "steam_path", "Steam Installation Path", False, SettingCustomTypes.DIR
     )

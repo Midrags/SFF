@@ -298,23 +298,6 @@ class WebBridge(QObject):
 
     def _run_async(self, func, *args, on_done=None, on_error=None, **kwargs):
         """Spawn a QThread worker for the given function."""
-        # Forward stdout/stderr from the background thread to the parent window's
-        # StreamEmitter so that print() output appears in the Modern UI log panel.
-        # Classic UI's _start_worker does this too; we mirror that behaviour here.
-        parent = self.parent()
-        stream = getattr(parent, '_stream_emitter', None) if parent else None
-        if stream is not None:
-            _orig_func = func
-            def func(*_a, **_kw):   # noqa: E731
-                import sys as _sys
-                _old_out, _old_err = _sys.stdout, _sys.stderr
-                _sys.stdout = stream
-                _sys.stderr = stream
-                try:
-                    return _orig_func(*_a, **_kw)
-                finally:
-                    _sys.stdout = _old_out
-                    _sys.stderr = _old_err
         thread = QThread()
         worker = _Worker(func, *args, **kwargs)
         worker.moveToThread(thread)
@@ -354,6 +337,36 @@ class WebBridge(QObject):
         data = {"task": task_name, "success": success, "message": message}
         data.update(extra)
         self.task_finished.emit(json.dumps(data))
+
+    def _track_download(self, app_id, game_name, success):
+        try:
+            if hasattr(self._ui, 'download_manager') and self._ui.download_manager:
+                dl_id = self._ui.download_manager.track_external(
+                    app_id=str(app_id),
+                    game_name=str(game_name),
+                )
+                self._ui.download_manager.complete_external(dl_id, success=success)
+        except Exception:
+            pass
+
+    def _unlock_steam_readonly(self):
+        if sys.platform != "win32":
+            return
+        try:
+            from sff.storage.vdf import get_steam_libs
+            def _unlock(folder):
+                try:
+                    import subprocess
+                    subprocess.run(["attrib", "-r", str(folder)],
+                                   capture_output=True, timeout=5, shell=True)
+                except Exception:
+                    pass
+            if self._steam_path:
+                _unlock(self._steam_path)
+            for lib in get_steam_libs(self._steam_path) if self._steam_path else []:
+                _unlock(lib)
+        except Exception:
+            pass
 
     @pyqtSlot()
     def signal_ready(self):
@@ -1465,24 +1478,10 @@ class WebBridge(QObject):
             except Exception as e:
                 logger.warning("ensure_library_has_app failed: %s", e)
 
-            # Step 9: download manifests
-            self.download_progress.emit(json.dumps({
-                "app_id": app_id, "status": "Downloading manifests", "progress": 85
-            }))
-            try:
-                from sff.manifest.downloader import ManifestDownloader
-                from sff.steam_client import create_provider_for_current_thread
-                from sff.storage.settings import get_setting as _get_setting
-                from sff.structs import Settings as _Settings
-                _provider = create_provider_for_current_thread()
-                _dl = ManifestDownloader(_provider, steam_path)
-                _use_parallel = _get_setting(_Settings.USE_PARALLEL_DOWNLOADS)
-                if _use_parallel:
-                    _dl.download_manifests_parallel(parsed, auto_manifest=True)
-                else:
-                    _dl.download_manifests(parsed, auto_manifest=True)
-            except Exception as e:
-                logger.warning("download_manifests failed: %s", e)
+            # Step 9: skip manifest download — Lua + depotcache already seeded.
+            # ManifestDownloader would trigger a 20-45s steam_client login that
+            # freezes the UI. The acf_writer + ensure_library_has_app above
+            # already registered everything Steam needs.
 
             # Step 10: track in download manager
             self.download_progress.emit(json.dumps({
@@ -5052,9 +5051,10 @@ class WebBridge(QObject):
             self.download_progress.emit(json.dumps({
                 "app_id": app_id, "status": "Starting DDMod download", "progress": 0
             }))
+            self._unlock_steam_readonly()
             try:
                 from pathlib import Path as _Path
-                from sff.lua.endpoints import get_hubcap, get_oureverday, get_ryuu
+                from sff.lua.endpoints import get_hubcap, get_oureverday, get_ryuu, get_depotbox
                 from sff.lua.manager import parse_lua_contents
                 from sff.depot_downloader import run_download, filter_depots_by_os
 
@@ -5102,6 +5102,8 @@ class WebBridge(QObject):
                     lua_file = get_oureverday(lua_dest, app_id)
                 elif source == "ryuu":
                     lua_file = get_ryuu(lua_dest, app_id, request_update=False, branch=branch, file_type=file_type, depotcache=(steam_path / "depotcache") if steam_path else None)
+                elif source == "depotbox":
+                    lua_file = get_depotbox(lua_dest, app_id)
                 else:
                     return (False, f"Unknown source: {source}")
 
@@ -5521,6 +5523,9 @@ class WebBridge(QObject):
                 ok, msg = False, "Download failed"
             if ok and source in ("hubcap", "ryuu"):
                 QTimer.singleShot(1000, self._maybe_auto_contribute_provider)
+            # Track in download manager so it shows in Downloads tab
+            if isinstance(result, tuple) and result[0]:
+                self._track_download(app_id, parsed.get("game_name", f"App {app_id}") if parsed else f"App {app_id}", ok)
             self._emit_task_result("download_ddmod", ok, msg, app_id=app_id,
                                    is_windows=sys.platform == "win32")
 

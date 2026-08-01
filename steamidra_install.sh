@@ -262,7 +262,7 @@ install_source() {
     cat > "$INSTALL_DIR/run.sh" <<RUNEOF
 #!/usr/bin/env bash
 cd "$INSTALL_DIR"
-exec "$INSTALL_DIR/.venv/bin/python" "$INSTALL_DIR/Main.py" "\$@"
+exec "$INSTALL_DIR/.venv/bin/python" "$INSTALL_DIR/Main_gui.py" "\$@"
 RUNEOF
     chmod +x "$INSTALL_DIR/run.sh"
 

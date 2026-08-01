@@ -157,7 +157,7 @@ namespace HookStatus {
 #endif
 
         constexpr const char* kLumaCoreBuildStamp = __DATE__ " " __TIME__;
-        constexpr const char* kLumaCoreVersion = "V30";
+        constexpr const char* kLumaCoreVersion = "V31";
         constexpr const char* kStartupCaptureRevision = "package0-early-capture-v1";
 
         // Conservative escaper for JSON string literals. The values we emit are
@@ -639,6 +639,13 @@ namespace HookStatus {
             if (!MoveFileExA(narrowTmp.c_str(), narrowTarget.c_str(),
                              MOVEFILE_REPLACE_EXISTING)) {
                 DWORD err = GetLastError();
+                if (err == ERROR_ACCESS_DENIED || err == ERROR_FILE_NOT_FOUND) {
+                    SetFileAttributesA(narrowTarget.c_str(), FILE_ATTRIBUTE_NORMAL);
+                    DeleteFileA(narrowTarget.c_str());
+                    if (MoveFileA(narrowTmp.c_str(), narrowTarget.c_str())) {
+                        return true;
+                    }
+                }
                 LOG_WARN("HookStatus: MoveFileExA failed err={} for {}",
                          err, narrowTarget);
                 DeleteFileA(narrowTmp.c_str());

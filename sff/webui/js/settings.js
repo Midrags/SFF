@@ -157,6 +157,7 @@ window.Settings = (function() {
             'setting-manifesthub-save': { input: 'setting-manifesthub-key', key: 'manifesthub_api_key', label: 'ManifestHub API Key' },
             'setting-ryuu-save': { input: 'setting-ryuu-key', label: 'Ryuu Reseller Key', useRyuuConnect: true },
             'setting-ryuu-api-save': { input: 'setting-ryuu-api-key', key: 'ryuu_api_key', label: 'Ryuu Premium API Key' },
+            'setting-depotbox-save': { input: 'setting-depotbox-key', key: 'depotbox_key', label: 'DepotBox API Key' },
         };
         Object.keys(apiSaveMap).forEach(function(btnId) {
             var btn = document.getElementById(btnId);
@@ -500,6 +501,14 @@ window.Settings = (function() {
             }
         });
 
+        // Sync DepotBox rate limit plan
+        var depotboxRateEl = document.getElementById('setting-depotbox-rate-limit');
+        if (depotboxRateEl) {
+            depotboxRateEl.addEventListener('change', function() {
+                Bridge.call('set_setting', 'depotbox_rate_limit', this.value);
+            });
+        }
+
         // Sync hide-store-images flag to Components immediately on change
         var hideImagesEl = document.getElementById('setting-hide-store-images');
         if (hideImagesEl) {
@@ -685,6 +694,7 @@ window.Settings = (function() {
                 _setPasswordField('setting-hubcap-key', settings.morrenus_key);
                 _setPasswordField('setting-ryuu-key', settings.ryuu_key);
                 _setPasswordField('setting-ryuu-api-key', settings.ryuu_api_key);
+                _setPasswordField('setting-depotbox-key', settings.depotbox_key);
                 _setPasswordField('setting-steam-pass', settings.steam_pass);
                 _setPasswordField('setting-steam-web-api-key', settings.steam_web_api_key);
                 _setPasswordField('setting-manifesthub-key', settings.manifesthub_api_key);
@@ -695,6 +705,7 @@ window.Settings = (function() {
                 _setInputVal('setting-depot-download-timeout', settings.depot_download_timeout || '0');
                 _setInputVal('setting-parallel-workers', settings.parallel_downloads || '5');
                 _setInputVal('setting-backup-retention', settings.backup_retention || '4');
+                _setSelectVal('setting-depotbox-rate-limit', settings.depotbox_rate_limit || '60');
                 _setInputVal('setting-live-log-lines', settings.live_log_max_lines || '100');
                 _setInputVal('setting-manifest-excludes', settings.manifest_update_excludes || '');
                 _setInputVal('setting-custom-background', settings.custom_background_image || '');

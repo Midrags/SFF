@@ -1,5 +1,22 @@
 # Changelog
 
+## 6.5.9
+
+### Added
+
+- **DepotBox provider** — new download source. Uses `/api/direct-lua` endpoint with `X-API-Key` header. Supports Starter (60 req/min) and Pro (120 req/min) rate limit plans. Settings page includes key input + plan selector. DepotBox radio option added to all three download modals.
+- Steam folder read-only auto-unlock on Windows before download — runs `attrib -r` on Steam/library root folders to prevent "Disk Write Error".
+- Downloads now register with DownloadManager and appear in the Downloads tab.
+
+### Fixed
+
+- **Critical freeze on Windows "Download through Steam (Fastest)"** — removed `ManifestDownloader` + `create_provider_for_current_thread` (Step 9) from `_run_windows_fastest`. The 20-45 second Steam client login/connect timeout was blocking the Qt event loop even on a QThread. Manifests are already seeded to depotcache by the Lua download — Steam registration is handled by ACF writer + `ensure_library_has_app`.
+- **Stdout signal firehose removed** — `_run_async` no longer redirects `sys.stdout`/`sys.stderr` to `StreamEmitter`. During DDMod downloads, thousands of progress lines per second were emitting Qt signals that crossed from QThread to GUI thread, starving the event loop. Download functions already use dedicated `download_progress.emit()` signals.
+- **ACF writer crash on Linux** — `name 'sys' is not defined` in `sff/linux/acf_writer.py`. Added missing `import sys`. The `sys.platform` reference at line 102 was added in 6.5.8 without the import.
+- **CreamAPI ini orgapi path** — `steam_api.dll_o.dll` → `steam_api_o.dll`. The INI writer was using string concatenation instead of `.replace(".dll", BACKUP_SUFFIX)`. The fix already existed in `generate_config()` but was never applied to `_generate_ini_config()` (the actual INI writer).
+- **`run.sh` launches wrong entry point** — Changed `Main.py` → `Main_gui.py` in `steamidra_install.sh` generated run script.
+- **Steam folder read-only unlock throttled** — `attrib -r` no longer runs recursively (`/s /d`) on the entire Steam tree; only top-level root/library folders are processed.
+
 ## 6.5.8
 
 ### Added

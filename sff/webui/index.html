@@ -1125,6 +1125,20 @@ start YourGame-Shipping.exe</pre>
                     </div>
                 </div>
                 <div class="input-group">
+                    <label>DepotBox API Key:</label>
+                    <div class="input-with-btn">
+                        <input type="password" id="setting-depotbox-key" placeholder="Enter DepotBox API key" data-tooltip="DepotBox API key for Lua and manifest downloads">
+                        <button id="setting-depotbox-save" class="btn btn-primary">Save</button>
+                    </div>
+                    <div style="margin-top:8px;">
+                        <label style="font-size:12px;opacity:0.7;">Rate Limit Plan:</label>
+                        <select id="setting-depotbox-rate-limit" style="margin-left:6px;">
+                            <option value="60">Starter (60 req/min)</option>
+                            <option value="120">Pro (120 req/min)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="input-group">
                     <label>Steam Web API Key:</label>
                     <div class="input-with-btn">
                         <input type="password" id="setting-steam-web-api-key" placeholder="Enter Steam Web API Key" data-tooltip="Steam Web API Key for achievement data">
@@ -1381,6 +1395,9 @@ start YourGame-Shipping.exe</pre>
                         <input type="radio" name="dl-source" value="ryuu"> Ryuu
                     </label>
                     <label class="dl-source-option">
+                        <input type="radio" name="dl-source" value="depotbox"> DepotBox
+                    </label>
+                    <label class="dl-source-option">
                         <input type="radio" name="dl-source" value="local"> Local file
                     </label>
                 </div>
@@ -1563,6 +1580,9 @@ start YourGame-Shipping.exe</pre>
                         <input type="radio" name="steam-home-source" value="ryuu"> Ryuu
                     </label>
                     <label class="dl-source-option">
+                        <input type="radio" name="steam-home-source" value="depotbox"> DepotBox
+                    </label>
+                    <label class="dl-source-option">
                         <input type="radio" name="steam-home-source" value="local"> Local .lua
                     </label>
                     <label class="dl-source-option">
@@ -1648,6 +1668,9 @@ start YourGame-Shipping.exe</pre>
                     </label>
                     <label class="dl-source-option">
                         <input type="radio" name="ddmod-home-source" value="ryuu"> Ryuu
+                    </label>
+                    <label class="dl-source-option">
+                        <input type="radio" name="ddmod-home-source" value="depotbox"> DepotBox
                     </label>
                     <label class="dl-source-option">
                         <input type="radio" name="ddmod-home-source" value="local"> Local .lua
