@@ -173,16 +173,25 @@ window.App = (function() {
                         );
                     }
                     if (result.task === 'download_fastest' && result.success) {
-                        // 6.2.4: dropped the post-download Restart Steam
-                        // modal; LumaCore hot-reloads new entries on the
-                        // fly. The toast plus dropdown refresh is enough.
                         var addedKey = 'Added to library. Open Steam to download.';
                         var addedMsg = (window.I18n && I18n.t) ? I18n.t(addedKey) : addedKey;
                         Components.showToast('success', addedMsg);
                         _populateGameDropdown();
+                        if (result.is_windows && result.app_id) {
+                            var fastAutoUpdateMsg = 'Game downloaded successfully.\n\nWould you like to enable auto-updates for this game?\n(Keeps the Steam Update button visible for this game.)';
+                            if (window.confirm(fastAutoUpdateMsg)) {
+                                Bridge.call('let_updates_add_game', String(result.app_id));
+                            }
+                        }
                     }
                     if (result.task === 'download_ddmod' && result.success) {
                         _populateGameDropdown();
+                        if (result.is_windows && result.app_id) {
+                            var autoUpdateMsg = 'Game downloaded successfully.\n\nWould you like to enable auto-updates for this game?\n(Keeps the Steam Update button visible for this game.)';
+                            if (window.confirm(autoUpdateMsg)) {
+                                Bridge.call('let_updates_add_game', String(result.app_id));
+                            }
+                        }
                     }
                     if (result.task === 'auto_lc_setup') {
                         var runBtn = document.getElementById('lc-install-run');
@@ -821,13 +830,66 @@ window.App = (function() {
                     manifestFolder = (document.getElementById('dl-manifest-folder-path') || {}).value || '';
                 }
                 var destPath = (document.getElementById('dl-ddmod-dest-path') || {}).value || '';
+                var targetOs = (document.getElementById('dl-target-os') || {}).value || '';
+
+                function doDownload(dest) {
+                    Components.hideModal('download-modal');
+                    _startDdmodDownload(appId, source, luaPath, manifestFolder, targetOs, dest);
+                }
+
+                if (!destPath && _platform === 'linux') {
+                    // Linux: show Steam library picker before download
+                    Bridge.callSync('get_steam_libraries', function(json) {
+                        var libs;
+                        try { libs = JSON.parse(json || '[]'); } catch(e) { libs = []; }
+                        var container = document.getElementById('library-options');
+                        if (!container) { doDownload(destPath); return; }
+                        container.innerHTML = '';
+
+                        // Custom folder option first
+                        var customBtn = document.createElement('button');
+                        customBtn.className = 'library-option';
+                        customBtn.textContent = 'Custom folder (outside Steam, no ACF written)';
+                        customBtn.style.color = 'var(--accent, #e94560)';
+                        customBtn.addEventListener('click', function() {
+                            Components.hideModal('library-modal');
+                            Bridge.callSync('browse_ddmod_download_folder', function(customPath) {
+                                if (customPath) doDownload(customPath);
+                            });
+                        });
+                        container.appendChild(customBtn);
+
+                        // Steam library options
+                        libs.forEach(function(libPath) {
+                            var btn = document.createElement('button');
+                            btn.className = 'library-option';
+                            btn.textContent = libPath + ' (Steam Library)';
+                            btn.addEventListener('click', function() {
+                                Components.hideModal('library-modal');
+                                doDownload(libPath);
+                            });
+                            container.appendChild(btn);
+                        });
+
+                        if (libs.length === 0) {
+                            var noLib = document.createElement('span');
+                            noLib.style.opacity = '0.6';
+                            noLib.style.fontSize = '13px';
+                            noLib.textContent = 'No Steam libraries found. Use Custom folder.';
+                            container.appendChild(noLib);
+                        }
+
+                        Components.showModal('library-modal');
+                    });
+                    return;
+                }
+
                 if (!destPath) {
                     Components.showToast('warning', 'Choose a DDMod download location first.');
                     return;
                 }
-                Components.hideModal('download-modal');
-                var targetOs = (document.getElementById('dl-target-os') || {}).value || '';
-                _startDdmodDownload(appId, source, luaPath, manifestFolder, targetOs, destPath);
+
+                doDownload(destPath);
             });
         }
 
@@ -1993,6 +2055,12 @@ window.App = (function() {
             return;
         }
 
+        if (action === 'fix_slssteam_hash') {
+            Components.showToast('info', 'Fixing SLSsteam hash issue...');
+            Bridge.call('fix_slssteam_hash');
+            return;
+        }
+
         if (action === 'lc_online_fix') {
             _initLcOnlineFixModal();
             var appId = _getSelectedGameId();
@@ -2083,7 +2151,7 @@ window.App = (function() {
             'download_games', 'download_manifests', 'recent_lua', 'update_manifests',
             'mute_toggle', 'remove_game', 'context_menu', 'applist_menu',
             'check_updates', 'scan_library', 'analytics', 'auto_lc_setup', 'lc_online_fix',
-            'steam_updates', 'let_updates'
+            'steam_updates', 'let_updates', 'fix_slssteam_hash'
         ];
         // Outside-Steam game action
         if (_outsideMode && nonGameActions.indexOf(action) === -1) {
@@ -2150,6 +2218,22 @@ window.App = (function() {
         // never-set value still triggers the dialog.
         var achievementBreaking = ['crack', 'steamstub_crack', 'steam_auto'];
         if (achievementBreaking.indexOf(action) !== -1) {
+            if (action === 'crack') {
+                // Show emulator platform picker
+                var platformChoice = window.confirm(
+                    'Select emulator platform:\n\n' +
+                    'Click OK for Windows (gbe_fork — steam_api.dll / .exe games)\n' +
+                    'Click Cancel for Linux (gbe_fork_linux — libsteam_api.so / native games)'
+                );
+                var linuxNative = !platformChoice;
+                Bridge.call('fix_game', JSON.stringify({
+                    app_id: String(appId || ''),
+                    game_path: '',
+                    emu_mode: 'regular',
+                    linux_native: linuxNative
+                }));
+                return;
+            }
             Bridge.callWithCallback('get_setting', 'warn_before_breaking_achievements', function(val) {
                 // Setting stores the *opt-out* state. Treat unset / non-False as "warn".
                 var skipWarn = (val === 'False' || val === 'false' || val === '0');

@@ -1,5 +1,33 @@
 # Changelog
 
+## 6.5.8
+
+### Added
+
+- Steam error 86 added to home tab FAQ alongside errors 53/54.
+- "Auto Update Games" button added to Quick Start section on home tab. Tapping opens the LetUpdate modal for per-game Steam update control.
+- Post-download prompt on Windows asks to enable auto-updates for newly downloaded games. Uses `let_updates_add_game` bridge slot so existing auto-update selections are preserved.
+- "Fix Hash Issue" button in Quick Tools for Linux — runs headcrab reset (downgrades Steam bootstrap), repatches SLSsteam, and fixes "Unknown steamclient.so hash" errors following the headcrab wiki troubleshooting guide.
+- Emulator platform picker when using "Apply Goldberg Emu" — choose between Windows (gbe_fork) and Linux (gbe_fork_linux).
+
+### Improved
+
+- Complete UI cleanup for removed features: Workshop Browser page deleted, HV warning modal deleted, Quick Tools section trimmed, orphaned enum members and settings removed (DL_WORKSHOP_ITEM, CHECK_MOD_UPDATES, HV_FIX, DL_USER_GAME_STATS, HV_FIRST_USE_WARNED, WARN_BEFORE_BREAKING_ACHIEVEMENTS), orphaned JS handlers and CSS rules removed.
+- SLSsteam config patching now fills all required fields (FakeName, DisableUpdates, DumpClientInterfaces, DepotBlacklist, ManifestIds, SteamIdOverride) to prevent "Missing key" errors after headcrab install. Calls `yaml_config._patch_missing_slssteam_fields()` during setup.
+- SLSsteam default changed to `SafeMode: no` + `WarnHashMissmatch: yes` to prevent "Unknown steamclient.so hash! Aborting" crash when Steam Deck updates its Steam client.
+- SLSsteam setup via headcrab now detects Steam type (native/Flatpak) and routes config and install paths to the correct directory.
+- Name cache preload uses disk-only path at startup (`ensure_loaded_cached`), skipping the blocking HTTP download of 64K-entry games.json. Eliminates 5-10 second startup freeze.
+- Linux download flow now shows Steam library picker modal before DDMod download begins, with a "Custom folder (outside Steam)" option for manual installation without ACF or SLSsteam registration.
+
+### Fixed
+
+- Hubcap API key re-prompting during download when the key was already validated by the Store tab. `get_hubcap()` now accepts optional `hubcap_key=` parameter. Key passes directly from store validation to download flow.
+- Linux ACF writer now produces Steam-compatible ACFs with `LastOwner`, `UserConfig`, `MountedConfig` blocks, correct `Universe` capitalization, and optional `steam_path` parameter.
+- EAC fix guide modal cropping issue — modal now scrolls properly in smaller windows with `align-items: flex-start` and responsive `max-width`.
+- Double `[DEBU]` prefix in web UI live log panel — QtLogHandler level tag now properly stripped in `_forward_log_to_web`.
+- Deadlock in `ensure_loaded_cached()` removed — nested lock acquisition on `_LOAD_LOCK` was freezing the app when name cache TTL expired.
+- Steam client auto-contribute and provider-cache-refresh startup timers removed to prevent startup lag and unnecessary network requests.
+
 ## 6.5.7
 
 ### Removed
@@ -14,6 +42,7 @@
 ### Improved
 
 - Startup time significantly faster: removed drive-letter scanning (A-Z) during init. Only Steam VDF-configured library folders are scanned.
+- No automatic Steam API calls on startup — the initial update check sweep has been removed to avoid rate-limiting and IP blocks.
 - Cache disk writes debounced to at most once per 5 seconds instead of every set. Invalidate and cleanup force-save immediately.
 - Steam API diagnostic messages converted from print() to debug-level logging.
 

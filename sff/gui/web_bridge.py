@@ -1204,6 +1204,7 @@ class WebBridge(QObject):
                 success,
                 f"Download {'completed' if success else 'failed'} for App {app_id}",
                 app_id=app_id,
+                is_windows=sys.platform == "win32",
             )
 
         self._run_async(_do, on_done=_on_done)
@@ -3360,6 +3361,23 @@ class WebBridge(QObject):
             logger.exception("let_updates_apply failed: %s", e)
             return json.dumps({"ok": False, "error": str(e), "games": []})
 
+    @pyqtSlot(str, result=str)
+    def let_updates_add_game(self, app_id):
+        """Add a single game to the auto-update list without wiping existing selections."""
+        try:
+            from sff.lua.update_pins import discover_games, apply_selection
+            games = discover_games(self._steam_path)
+            allow = set()
+            for g in games:
+                if g.get("allow_update"):
+                    allow.add(str(g.get("app_id", "")))
+            allow.add(str(app_id))
+            result = apply_selection(self._steam_path, list(allow))
+            return json.dumps(result)
+        except Exception as e:
+            logger.exception("let_updates_add_game failed: %s", e)
+            return json.dumps({"ok": False, "error": str(e)})
+
     @pyqtSlot(str, result=bool)
     def get_game_update_override(self, app_id):
         """Return whether 00_LetUpdate_override.lua is active for this app."""
@@ -4477,6 +4495,33 @@ class WebBridge(QObject):
 
         self._run_async(_do, on_done=_on_done)
 
+    @pyqtSlot()
+    def fix_slssteam_hash(self):
+        """Fix 'Unknown steamclient.so hash' error via headcrab reset + repatch."""
+        def _do():
+            if not sys.platform.startswith("linux"):
+                return (False, "Hash fix is only available on Linux.")
+            log_lines: list[str] = []
+            try:
+                from pathlib import Path as _Path
+                from sff.linux.slssteam import detect_steam_type, fix_hash_mismatch
+
+                if detect_steam_type() == "flatpak":
+                    steam_path = _Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam"
+                else:
+                    steam_path = _Path.home() / ".steam" / "steam"
+                ok = fix_hash_mismatch(steam_path, log_lines.append)
+                return (ok, "\n".join(str(x) for x in log_lines) or ("Hash issue fixed." if ok else "Hash fix failed."))
+            except Exception as exc:
+                logger.exception("fix_slssteam_hash failed: %s", exc)
+                return (False, str(exc))
+
+        def _on_done(result):
+            ok, msg = result if isinstance(result, tuple) else (False, "Hash fix failed")
+            self._emit_task_result("fix_slssteam_hash", ok, msg)
+
+        self._run_async(_do, on_done=_on_done)
+
     @pyqtSlot(str, result=str)
     def get_webui_translations(self, lang):
         """Return the webui translation JSON for the given language."""
@@ -5052,7 +5097,7 @@ class WebBridge(QObject):
                     if not lua_file or not lua_file.exists():
                         return (False, f"Lua file not found: {lua_path}")
                 elif source == "hubcap":
-                    lua_file = get_hubcap(lua_dest, app_id, depotcache=(steam_path / "depotcache") if steam_path else None)
+                    lua_file = get_hubcap(lua_dest, app_id, depotcache=(steam_path / "depotcache") if steam_path else None, hubcap_key=self._api_key)
                 elif source == "oureveryday":
                     lua_file = get_oureverday(lua_dest, app_id)
                 elif source == "ryuu":
@@ -5423,6 +5468,7 @@ class WebBridge(QObject):
                         selected_depots=selected_depots,
                         size_on_disk=_size,
                         print_fn=_print_fn,
+                        steam_path=steam_path,
                     )
                 except Exception as _ae:
                     logger.warning("ACF write failed (non-fatal): %s", _ae)
@@ -5475,7 +5521,8 @@ class WebBridge(QObject):
                 ok, msg = False, "Download failed"
             if ok and source in ("hubcap", "ryuu"):
                 QTimer.singleShot(1000, self._maybe_auto_contribute_provider)
-            self._emit_task_result("download_ddmod", ok, msg, app_id=app_id)
+            self._emit_task_result("download_ddmod", ok, msg, app_id=app_id,
+                                   is_windows=sys.platform == "win32")
 
         self._run_async(_do, on_done=_on_done)
 

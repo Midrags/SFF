@@ -321,7 +321,7 @@ def get_oureverday(dest, app_id):
     return lua_path
 
 
-def get_hubcap(dest, app_id, depotcache = None):
+def get_hubcap(dest, app_id, depotcache = None, hubcap_key = None):
     if not app_id or not str(app_id).strip().isdigit():
         print(Fore.RED + f"Invalid App ID: '{app_id}'" + Style.RESET_ALL)
         return None
@@ -329,7 +329,9 @@ def get_hubcap(dest, app_id, depotcache = None):
 
     # Loop to allow retry with new API key
     while True:
-        if not (hubcap_key := get_setting(Settings.HUBCAP_KEY)):
+        if hubcap_key:
+            pass  # pre-validated key passed in — skip prompt/validation
+        elif not (hubcap_key := get_setting(Settings.HUBCAP_KEY)):
             hubcap_key = prompt_secret(
                 "Paste your Hubcap API key here: ",
                 lambda x: x.startswith("smm"),

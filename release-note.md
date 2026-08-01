@@ -1,20 +1,31 @@
-SteaMidra v6.5.7
+SteaMidra v6.5.8
 
 What's new:
 
-### Removed
+### New features
 
-* Removed **HyperVisor (HV/HVAuto) bypass support**. The third-party service hosting the required downloads became untrusted, so the feature has been discontinued. Utility functions previously shared with crack fixes have been integrated directly into SteaMidra.
-* Removed **Workshop Items**, **Import Subscribed Mods**, **Workshop bypass downloads**, and **automatic Workshop import**.
-* Removed **Achievement Data (UserGameStats)** and achievement schema downloads.
-* Removed the **Mod Updates** checker. LumaCore now handles game update management.
-* Removed the **Tools** tab, including the **GBE Token Generator** and **VDF Key Extractor**, as these relied on deprecated Steam Web API endpoints.
-* Removed **Buzzheavier** support from Crack Fix downloads. Crack fixes now download exclusively through **Pixeldrain** using the built-in proxy bypass.
+* Added **Steam Error 86** to the Home page FAQ alongside the existing Error 53 and 54 troubleshooting guides.
+* Added an **Auto Update Games** button to the Home page **Quick Start** section, providing quick access to the per-game Steam Auto Update manager.
+* Windows downloads can now prompt you to automatically enable Steam updates for newly downloaded games while preserving your existing Auto Update selections.
+* Added a **Fix Hash Issue** button to **Quick Tools** on Linux. It automatically resets the Steam bootstrap with Headcrab, reapplies SLSsteam, and fixes common **"Unknown steamclient.so hash"** errors.
+* Applying **Goldberg Emulator** now lets you choose between the **Windows (gbe_fork)** and **Linux (gbe_fork_linux)** versions.
 
-### Performance improvements
+### Improvements
 
-* Significantly improved startup time by removing full A–Z drive scanning during initialization. SteaMidra now scans only the Steam library folders configured in Steam's VDF files.
-* Reduced unnecessary disk activity by debouncing cache writes. Cached data is now written at most once every five seconds during normal operation, while invalidation and cleanup operations still save immediately.
-* Steam API diagnostic output now uses debug-level logging instead of `print()` calls, reducing console noise while keeping detailed diagnostics available when needed.
+* Completed the cleanup of deprecated features. Removed Workshop Browser remnants, HyperVisor dialogs, obsolete Quick Tools entries, unused settings, JavaScript handlers, CSS rules, and other leftover components from previously removed functionality.
+* SLSsteam configuration generation is now more complete. Missing required fields are automatically added during setup, preventing common **"Missing key"** configuration errors.
+* Updated the default SLSsteam configuration to improve compatibility with Steam Deck and Steam client updates by avoiding unnecessary hash-abort failures.
+* Headcrab setup now automatically detects whether Steam is installed natively or through Flatpak and installs SLSsteam to the correct locations.
+* Startup is noticeably faster. The game name cache now loads directly from disk during startup instead of waiting for a large online database download.
+* Linux downloads now display a Steam library selection dialog before downloading, including a **Custom folder (outside Steam)** option for manual installations without ACF generation or SLSsteam registration.
+
+### Fixes
+
+* Fixed Hubcap API keys being requested again during downloads after already being validated in the Store tab.
+* Improved Linux ACF generation to more closely match Steam's format, including additional metadata blocks and compatibility improvements.
+* Fixed the Easy Anti-Cheat guide dialog being cropped in smaller windows. The dialog now scrolls correctly when needed.
+* Fixed duplicate **[DEBU]** prefixes appearing in the live log panel.
+* Resolved a deadlock that could freeze SteaMidra while refreshing the cached game name database.
+* Removed automatic Steam client contribution and provider cache refresh timers during startup, reducing unnecessary network activity and improving launch performance.
 
 Full detailed changelog is in CHANGELOG.md

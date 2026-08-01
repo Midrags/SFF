@@ -299,6 +299,11 @@ start YourGame-Shipping.exe</pre>
                         <span class="action-title">DLC Check</span>
                         <span class="action-desc">Check available DLCs</span>
                     </button>
+                    <button class="action-card" data-action="let_updates" data-tooltip="Toggle which games should show the Update button in Steam. Comments/uncomments setManifestid in stplug-in Lua files.">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>
+                        <span class="action-title">Auto Update Games</span>
+                        <span class="action-desc">Toggle Steam update prompts</span>
+                    </button>
                 </div>
             </div>
 
@@ -370,11 +375,6 @@ start YourGame-Shipping.exe</pre>
                         <span class="action-title">Update All Games</span>
                         <span class="action-desc">Refresh all installed games</span>
                     </button>
-                    <button class="action-card" data-action="let_updates" data-tooltip="Toggle the helper Lua that lets Steam show update prompts for pinned manifest games">
-                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>
-                        <span class="action-title">Auto Update</span>
-                        <span class="action-desc">Toggle Steam update prompts</span>
-                    </button>
                 </div>
             </div>
 
@@ -424,6 +424,10 @@ start YourGame-Shipping.exe</pre>
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M5 9h14"/><path d="M5 15h14"/><path d="M17 3a9 9 0 010 18"/><path d="M7 3a9 9 0 000 18"/></svg>
                         <span class="action-title">Set Up Linux Tools</span>
                     </button>
+                    <button class="action-card compact platform-linux" data-action="fix_slssteam_hash" data-tooltip="Fix SLSsteam hash mismatch: resets Steam bootstrap, re-patches SLSsteam (resolves Unknown steamclient.so hash error)">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                        <span class="action-title">Fix Hash Issue</span>
+                    </button>
                     <button class="action-card compact" data-action="mute_toggle" data-tooltip="Toggle Steam game mute/unmute">
                         <svg class="action-icon" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
                         <span class="action-title">Mute/Unmute</span>
@@ -440,10 +444,6 @@ start YourGame-Shipping.exe</pre>
                         <svg class="action-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
                         <span class="action-title">Steam Updates</span>
                         <span class="action-desc">Block / unblock auto-updates</span>
-                    </button>
-                    <button class="action-card compact" data-action="check_mod_updates" data-tooltip="Check if your tracked Steam Workshop items have new updates">
-                        <svg class="action-icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-                        <span class="action-title">Mod Updates</span>
                     </button>
                     <button class="action-card compact platform-linux" data-action="applist_menu" data-tooltip="Manage SLS injection IDs (Linux only)">
                         <svg class="action-icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>

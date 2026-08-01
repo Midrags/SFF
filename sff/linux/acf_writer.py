@@ -50,6 +50,7 @@ def create_acf(
     selected_depots: list,
     size_on_disk: int = 0,
     print_fn=print,
+    steam_path: Path | None = None,
 ) -> bool:
     appid = str(game_data["appid"])
     game_name = game_data.get("game_name", f"App {appid}")
@@ -87,11 +88,23 @@ def create_acf(
 
     import time as _time
     _now = str(int(_time.time()))
+    _last_owner = "0"
+    try:
+        from sff.storage.settings import get_setting
+        from sff.structs import Settings
+        sid = get_setting(Settings.STEAM_ID)
+        if sid and str(sid).strip():
+            _last_owner = str(sid).strip()
+    except Exception:
+        pass
+    _launcher_path = ""
+    if steam_path:
+        _launcher_path = str(steam_path / "steam.exe" if sys.platform == "win32" else steam_path / "ubuntu12_32" / "steam")
     acf_content = (
         '"AppState"\n'
         '{\n'
         f'\t"appid"\t\t"{appid}"\n'
-        f'\t"universe"\t\t"1"\n'
+        f'\t"Universe"\t\t"1"\n'
         f'\t"name"\t\t"{game_name}"\n'
         f'\t"StateFlags"\t\t"4"\n'
         f'\t"installdir"\t\t"{installdir}"\n'
@@ -99,6 +112,7 @@ def create_acf(
         f'\t"SizeOnDisk"\t\t"{size_on_disk}"\n'
         f'\t"StagingSize"\t\t"0"\n'
         f'\t"buildid"\t\t"{buildid}"\n'
+        f'\t"LastOwner"\t\t"{_last_owner}"\n'
         f'\t"UpdateResult"\t\t"0"\n'
         f'\t"BytesToDownload"\t\t"{size_on_disk}"\n'
         f'\t"BytesDownloaded"\t\t"{size_on_disk}"\n'
@@ -112,6 +126,14 @@ def create_acf(
         f'\t"InstalledDepots"\n'
         f'\t{{\n'
         f'{installed_depots_block}\n'
+        f'\t}}\n'
+        f'\t"UserConfig"\n'
+        f'\t{{\n'
+        f'\t\t"language"\t\t"english"\n'
+        f'\t}}\n'
+        f'\t"MountedConfig"\n'
+        f'\t{{\n'
+        f'\t\t"language"\t\t"english"\n'
         f'\t}}\n'
         '}\n'
     )

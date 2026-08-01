@@ -580,6 +580,118 @@ def setup_via_headcrab(steam_path: Path, print_fn=print) -> bool:
             pass
 
 
+_HEADCRAB_RESET_URL = "https://headcrab.pages.dev/reset"
+_HEADCRAB_PATCH_URL = "https://headcrab.pages.dev"
+
+
+def fix_hash_mismatch(steam_path: Path, print_fn=print) -> bool:
+    """Fix 'Unknown steamclient.so hash' error by resetting + repatching SLSsteam.
+
+    1. Kill Steam
+    2. Run headcrab reset (downgrades Steam bootstrap to compatible version)
+    3. Launch Steam briefly (reconfigures bootstrap)
+    4. Kill Steam again
+    5. Run headcrab install (re-patches SLSsteam)
+    6. Re-patch config, steam.sh, steam.cfg
+
+    Follows the headcrab wiki troubleshooting guide.
+    """
+    if not _IS_LINUX:
+        return False
+    try:
+        import httpx
+    except ImportError:
+        print_fn(Fore.RED + "httpx not available." + Style.RESET_ALL)
+        return False
+
+    steam_type = detect_steam_type()
+
+    # 1. Kill Steam
+    print_fn(Fore.CYAN + "\n[hashfix] Stopping Steam..." + Style.RESET_ALL)
+    try:
+        from sff.linux.steam_process import kill_steam as _kill_steam
+        _kill_steam(print_fn)
+    except Exception as e:
+        print_fn(Fore.YELLOW + f"  Could not kill Steam: {e}" + Style.RESET_ALL)
+
+    # 2. Run headcrab reset (downgrades Steam client bootstrap)
+    print_fn(Fore.CYAN + "[hashfix] Running headcrab reset (downgrading Steam bootstrap)..." + Style.RESET_ALL)
+    try:
+        env = os.environ.copy()
+        env.pop("LD_LIBRARY_PATH", None)
+        env.pop("LD_PRELOAD", None)
+        proc = subprocess.run(
+            ["bash", "-c", f"curl -fsSL {_HEADCRAB_RESET_URL} | bash"],
+            capture_output=True, text=True, timeout=120, env=env,
+        )
+        if proc.stdout:
+            for line in proc.stdout.splitlines():
+                if line.strip():
+                    print_fn(line.strip())
+        if proc.stderr:
+            for line in proc.stderr.splitlines():
+                if line.strip():
+                    print_fn(Fore.YELLOW + line.strip() + Style.RESET_ALL)
+        if proc.returncode != 0:
+            print_fn(Fore.YELLOW + f"[hashfix] Reset exited with code {proc.returncode}" + Style.RESET_ALL)
+    except Exception as e:
+        print_fn(Fore.YELLOW + f"[hashfix] Reset failed: {e}" + Style.RESET_ALL)
+        return False
+
+    # 3. Launch Steam briefly to reconfigure bootstrap
+    print_fn(Fore.CYAN + "[hashfix] Launching Steam briefly to reconfigure bootstrap..." + Style.RESET_ALL)
+    try:
+        from sff.linux.steam_process import start_steam as _start_steam
+        _start_steam(print_fn)
+        print_fn("  Waiting 30 seconds for Steam to initialise...")
+        import time as _time
+        _time.sleep(30)
+    except Exception as e:
+        print_fn(Fore.YELLOW + f"  Steam launch failed: {e}" + Style.RESET_ALL)
+
+    # 4. Kill Steam again
+    print_fn(Fore.CYAN + "[hashfix] Stopping Steam again..." + Style.RESET_ALL)
+    try:
+        from sff.linux.steam_process import kill_steam as _kill_steam2
+        _kill_steam2(print_fn)
+    except Exception:
+        pass
+
+    # 5. Run headcrab install to repatch
+    print_fn(Fore.CYAN + "[hashfix] Running headcrab install to repatch SLSsteam..." + Style.RESET_ALL)
+    try:
+        env = os.environ.copy()
+        env.pop("LD_LIBRARY_PATH", None)
+        env.pop("LD_PRELOAD", None)
+        proc = subprocess.run(
+            ["bash", "-c", f"curl -fsSL {_HEADCRAB_PATCH_URL} | bash"],
+            capture_output=True, text=True, timeout=120, env=env,
+        )
+        if proc.stdout:
+            for line in proc.stdout.splitlines():
+                if line.strip():
+                    print_fn(line.strip())
+        if proc.stderr:
+            for line in proc.stderr.splitlines():
+                if line.strip():
+                    print_fn(Fore.YELLOW + line.strip() + Style.RESET_ALL)
+        if proc.returncode != 0:
+            print_fn(Fore.YELLOW + f"[hashfix] Repatch exited with code {proc.returncode}" + Style.RESET_ALL)
+    except Exception as e:
+        print_fn(Fore.YELLOW + f"[hashfix] Repatch failed: {e}" + Style.RESET_ALL)
+        return False
+
+    # 6. Re-patch config, steam.sh, steam.cfg
+    print_fn(Fore.CYAN + "[hashfix] Re-patching SLSsteam configuration..." + Style.RESET_ALL)
+    _cleanup_headcrab_zombies()
+    patch_slssteam_config(steam_type, print_fn)
+    patch_steam_sh(steam_path, print_fn)
+    create_steam_cfg(steam_path, print_fn)
+
+    print_fn(Fore.GREEN + "[hashfix] SLSsteam hash issue fixed. Launch Steam normally." + Style.RESET_ALL)
+    return True
+
+
 def install_from_github(steam_path: Path, print_fn=print) -> bool:
     if not _IS_LINUX:
         return False
