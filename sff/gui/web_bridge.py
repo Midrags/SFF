@@ -33,6 +33,10 @@ import subprocess
 import sys
 import unicodedata as _ud
 from functools import lru_cache
+import urllib
+import urllib.request as _req
+import urllib.parse as _urlparse
+import urllib.error as _urlerror
 
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
 _DDMOD_PCT_RE = re.compile(r"^\s*(\d{1,3}(?:\.\d+)?)%\s")
@@ -340,6 +344,11 @@ class WebBridge(QObject):
 
     def _track_download(self, app_id, game_name, success):
         try:
+            if not game_name or game_name == f"App {app_id}":
+                from sff.game_list_fallback import search_name_fallback
+                fallback_name = search_name_fallback(app_id)
+                if fallback_name:
+                    game_name = fallback_name
             if hasattr(self._ui, 'download_manager') and self._ui.download_manager:
                 dl_id = self._ui.download_manager.track_external(
                     app_id=str(app_id),
@@ -5525,7 +5534,7 @@ class WebBridge(QObject):
                 QTimer.singleShot(1000, self._maybe_auto_contribute_provider)
             # Track in download manager so it shows in Downloads tab
             if isinstance(result, tuple) and result[0]:
-                self._track_download(app_id, parsed.get("game_name", f"App {app_id}") if parsed else f"App {app_id}", ok)
+                self._track_download(app_id, f"App {app_id}", ok)
             self._emit_task_result("download_ddmod", ok, msg, app_id=app_id,
                                    is_windows=sys.platform == "win32")
 
