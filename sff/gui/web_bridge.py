@@ -32,6 +32,7 @@ import ssl as _ssl
 import subprocess
 import sys
 import unicodedata as _ud
+import urllib.error
 from functools import lru_cache
 
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
@@ -310,7 +311,7 @@ class WebBridge(QObject):
             if thread in self._threads:
                 self._threads.remove(thread)
             if on_done:
-                on_done(result)
+               on_done(result)
 
         def _on_error(msg):
             thread.quit()
@@ -5047,17 +5048,57 @@ class WebBridge(QObject):
         if not app_id or not app_id.strip().isdigit():
             self._emit_task_result("download_ddmod", False, f"Invalid App ID: '{app_id}'")
             return
+
+        import io
+        import sys
+
+        class LoggerStream(io.StringIO):
+            """Intercepts terminal print and pipes them into a logger."""
+            def __init__(self, logger_func):
+                super().__init__()
+                self.logger_func = logger_func
+                self._line_buffer = ""
+
+            def write(self, string):
+                self._line_buffer += string
+                if "\n" in self._line_buffer:
+                    lines = self._line_buffer.split("\n")
+                    self._line_buffer = lines.pop()
+                    for line in lines:
+                        if line.strip():  # Avoid logging empty lines
+                            self.logger_func(line)
+                return len(string)
+
+            def flush(self):
+                if self._line_buffer.strip():
+                    self.logger_func(self._line_buffer)
+                    self._line_buffer = ""
+
         def _do():
             self.download_progress.emit(json.dumps({
                 "app_id": app_id, "status": "Starting DDMod download", "progress": 0
             }))
             self._unlock_steam_readonly()
+
+           # --- START REDIRECTION CAPTURE ---
+            # Create streams pointing directly to logger.debug
+            log_stream = LoggerStream(logger.debug)
+            old_stdout = sys.stdout
+            old_stderr = sys.stderr
+            
+            # Hijack the terminal channels for this thread execution
+            sys.stdout = log_stream
+            sys.stderr = log_stream
+            # ----------------------------------
+
             try:
                 from pathlib import Path as _Path
                 from sff.lua.endpoints import get_hubcap, get_oureverday, get_ryuu, get_depotbox
                 from sff.lua.manager import parse_lua_contents
                 from sff.depot_downloader import run_download, filter_depots_by_os
 
+                # Everything inside here that normally prints to the screen (including run_download)
+                # will now go directly into your logger.debug() instead!
                 steam_path = self._steam_path
                 dest = _Path(self._active_library) if self._active_library else steam_path
                 if dest is None:
@@ -5375,6 +5416,7 @@ class WebBridge(QObject):
                     "installdir": installdir,
                     "buildid": buildid,
                 }
+                self._current_game_data = game_data  
 
                 selected_depots = list(depots_dict.keys())
                 if not selected_depots:
@@ -5516,19 +5558,25 @@ class WebBridge(QObject):
                 logger.exception("download_game_ddmod failed: %s", e)
                 return (False, str(e))
 
-        def _on_done(result):
-            if isinstance(result, tuple):
-                ok, msg = result
-            else:
-                ok, msg = False, "Download failed"
-            if ok and source in ("hubcap", "ryuu"):
-                QTimer.singleShot(1000, self._maybe_auto_contribute_provider)
-            # Track in download manager so it shows in Downloads tab
-            if isinstance(result, tuple) and result[0]:
-                self._track_download(app_id, parsed.get("game_name", f"App {app_id}") if parsed else f"App {app_id}", ok)
-            self._emit_task_result("download_ddmod", ok, msg, app_id=app_id,
-                                   is_windows=sys.platform == "win32")
+            finally:
+                # --- STOP REDIRECTION CAPTURE ---
+                log_stream.flush()
+                sys.stdout = old_stdout
+                sys.stderr = old_stderr
 
+        def _on_done(result):
+                if isinstance(result, tuple):
+                    ok, msg = result[0], result[1]
+                else:
+                    ok, msg = False, "Download failed"
+                if ok and source in ("hubcap", "ryuu"):
+                    QTimer.singleShot(1000, self._maybe_auto_contribute_provider)
+                game_data = getattr(self, '_current_game_data', None)
+                if isinstance(result, tuple) and result[0]:
+                    game_name = game_data.get("game_name", f"App {app_id}") if game_data else f"App {app_id}"
+                    self._track_download(app_id, game_name, ok)
+                self._emit_task_result("download_ddmod", ok, msg, app_id=app_id,
+                                    is_windows=sys.platform == "win32")
         self._run_async(_do, on_done=_on_done)
 
     @pyqtSlot(str, str, str)
