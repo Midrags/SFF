@@ -3532,6 +3532,7 @@ class WebBridge(QObject):
                 **{k: v for k, v in result.items() if k != "ok"})
         self._run_async(_do, on_done=_on_done)
 
+    @pyqtSlot(str)
     def lure_fix_acf(self, app_id):
         """Patch the game's ACF with the latest Steam CM manifest IDs and buildid.
         No files are downloaded — pure ACF update to suppress Steam's update prompt.
