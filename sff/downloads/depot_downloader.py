@@ -23,13 +23,16 @@ import subprocess
 import sys
 import tempfile
 import time
+import logging
 from pathlib import Path
 from typing import Tuple
-
+from venv import logger
 from colorama import Fore, Style
 
 from sff.downloads.dotnet_utils import get_dotnet_path
 from sff.core.utils import root_folder
+
+logger = logging.getLogger(__name__)
 
 KEYS_TMP = Path(tempfile.gettempdir()) / "mistwalker_keys.vdf"
 MANIFESTS_TMP = Path(tempfile.gettempdir()) / "mistwalker_manifests"
@@ -91,23 +94,24 @@ def get_ddmod_dll() -> Path:
 def _copy_manifests_to_temp(steam_path: Path, manifests: dict) -> None:
     MANIFESTS_TMP.mkdir(parents=True, exist_ok=True)
 
-    # Check both depotcache locations — SteaMidra syncs manifests to config/depotcache
-    # on Linux, while steamapps/depotcache is the standard Windows location.
-    depotcache_candidates = [
-        steam_path / "steamapps" / "depotcache",
-        steam_path / "config" / "depotcache",
-    ]
+    # SteaMidra syncs manifests to config/depotcache on Linux
+    # while steamapps/depotcache is the standard Windows location.
+    if os.name == "nt":
+        depotcache = steam_path / "steamapps" / "depotcache"
+    elif os.name == "posix":
+        depotcache = steam_path / "config" / "depotcache"
+    else:
+        depotcache = steam_path / "steamapps" / "depotcache"
 
     for depot_id, manifest_id in manifests.items():
         filename = f"{depot_id}_{manifest_id}.manifest"
         dst = MANIFESTS_TMP / filename
         if dst.exists():
             continue  # already copied
-        for depotcache in depotcache_candidates:
-            src = depotcache / filename
-            if src.exists():
-                shutil.copy2(src, dst)
-                break
+        src = depotcache / filename
+        if src.exists():
+            shutil.copy2(src, dst)
+            break
 
     # Also check the canonical staging folder (where ZIP-based providers
     # like Hubcap / oureveryday / Ryuu drop manifests after extraction).
@@ -238,7 +242,7 @@ def _read_process_output(proc: subprocess.Popen, print_fn, depot_timeout: float 
 # decimal percent followed by '%'. Tightened to require the percent to
 # anchor at the start so we don't match unrelated lines that happen to
 # contain a percent (e.g. depot summaries).
-_DDMOD_PROGRESS_RE = re.compile(r"^\s*(\d{1,3}(?:\.\d+)?)%\s")
+_DDMOD_PROGRESS_RE = re.compile(r"^\s*(\d{1,3}(?:\.\d+)?)%\s*")
 
 
 def _calculate_dir_size(path: Path) -> int:
@@ -310,6 +314,10 @@ def run_download(
             print_fn(Fore.CYAN + "\n[Native] Starting Steam CDN download (no .NET required)" + Style.RESET_ALL)
             all_ok = True
             total_size = 0
+            download_dir = None  # native downloader deactivated
+            download_dir.mkdir(parents=True, exist_ok=True)
+            target_os = (os_name or ("linux" if sys.platform.startswith("linux") else "windows")).lower()
+
             for depot_id in selected_depots:
                 depot_id_str = str(depot_id)
                 manifest_id = manifests.get(depot_id_str)
@@ -333,7 +341,7 @@ def run_download(
                         if mf.exists():
                             manifest_path = mf
                     ok, size = _native_dl(
-                        app_id, depot_id_str, manifest_id, key, download_dir,
+                        appid, depot_id_str, manifest_id, key, download_dir,
                         print_fn=print_fn, os_filter=os_name or "linux",
                         steam_path=steam_path,
                         manifest_path=manifest_path,
@@ -362,6 +370,7 @@ def run_download(
     dotnet_path = get_dotnet_path()
     if not dotnet_path:
         print_fn(Fore.RED + ".NET 9 not available. Cannot download." + Style.RESET_ALL)
+        logger.error(".NET 9 not available. Cannot download.")
         return False, 0
 
     dll_path = get_ddmod_dll()
@@ -390,14 +399,14 @@ def run_download(
     if sys.platform.startswith("linux"):
         _add_bundled_openssl_to_env(env, dotnet_root)
 
-    download_dir = dest_path / "steamapps" / "common" / installdir
-    download_dir.mkdir(parents=True, exist_ok=True)
-
     MANIFESTS_TMP.mkdir(parents=True, exist_ok=True)
     deps_dir = get_deps_dir()
     total_depots = len(selected_depots)
     all_ok = True
     target_os = (os_name or ("linux" if sys.platform.startswith("linux") else "windows")).lower()
+
+    download_dir = dest_path / "steamapps" / "common" / installdir
+    download_dir.mkdir(parents=True, exist_ok=True)
 
     for i, depot_id in enumerate(selected_depots):
         depot_id_str = str(depot_id)
@@ -436,6 +445,7 @@ def run_download(
             + f"\n--- Downloading depot {depot_id_str} ({i + 1}/{total_depots}) ---"
             + Style.RESET_ALL
         )
+        logger.debug("Downloading depot %s (%d/%d)", depot_id_str, i + 1, total_depots)
 
         creation_flags = 0
         if sys.platform == "win32" and hasattr(subprocess, "CREATE_NO_WINDOW"):
@@ -547,6 +557,7 @@ def filter_depots_by_os(
     app_info: dict,
     print_fn=print,
     os_name: str | None = None,
+    os_arch: str | None = None, # Adds explicit '32' or '64' architecture overrule
 ) -> list:
     """Return selected_depots with depots outside the target OS removed.
 
@@ -557,7 +568,15 @@ def filter_depots_by_os(
     """
     if not app_info:
         return selected_depots
+
     target_os = (os_name or ("linux" if sys.platform.startswith("linux") else "windows")).lower()
+    # 2. Detect Host Architecture (Defaults to '64' unless running on actual 32-bit machines)
+    if not os_arch:
+        is_64bit = sys.maxsize > 2**32
+        target_arch = "64" if is_64bit else "32"
+    else:
+        target_arch = str(os_arch).strip()
+
     depots_section = app_info.get("depots", {}) if isinstance(app_info, dict) else {}
 
     # Build set of Steam China depot IDs from depots-level and top-level steamchina sections
@@ -568,6 +587,33 @@ def filter_depots_by_os(
     top_sc = app_info.get("steamchina", {}) if isinstance(app_info, dict) else {}
     if isinstance(top_sc, dict):
         steamchina_ids |= {str(k) for k in top_sc if str(k).isdigit()}
+
+    # --- FALLBACK MECHANISM ARCHITECTURE MAPPING ---
+    # First, scan which architectures are actually available in the selected depots
+    available_archs = set()
+    for depot_id in selected_depots:
+        depot_meta = depots_section.get(str(depot_id), {})
+        if isinstance(depot_meta, dict):
+            config = depot_meta.get("config", {})
+            if isinstance(config, dict):
+                # Check explicit config rules
+                meta_arch = str(config.get("osarch", "") or config.get("ostype", ""))
+                if "64" in meta_arch:
+                    available_archs.add("64")
+                elif "32" in meta_arch or "x86" in meta_arch:
+                    available_archs.add("32")
+                else:
+                    # Fallback check on string name formatting tags
+                    name_lo = (depot_meta.get("name", "") or "").lower()
+                    if any(t in name_lo for t in ["64", "x64"]):
+                        available_archs.add("64")
+                    elif any(t in name_lo for t in ["32", "x86", "win32"]):
+                        available_archs.add("32")
+
+    # If the user requested 64-bit, but the game ONLY provides 32-bit depots,
+    # fall back to allowing 32-bit depots to install (Proton/Wine handles them fine).
+    allow_32bit_fallback = (target_arch == "64" and "64" not in available_archs and "32" in available_archs)
+    # ------------------------------------------------
 
     filtered = []
     for depot_id in selected_depots:
@@ -585,6 +631,8 @@ def filter_depots_by_os(
                 category = config.get("category", "") or ""
                 realm = config.get("realm", "") or ""
                 ostype = config.get("ostype", "") or ""
+                osarch_config = config.get("osarch", "") or ""
+
         if target_os and oslist and target_os not in oslist.lower():
             print_fn(
                 Fore.YELLOW
@@ -615,6 +663,33 @@ def filter_depots_by_os(
                     + Style.RESET_ALL
                 )
                 continue
+
+        # --- ARCHITECTURE FILTERING LOGIC ---
+        depot_arch = ""
+        if "64" in str(osarch_config) or "64" in str(ostype):
+            depot_arch = "64"
+        elif "32" in str(osarch_config) or "32" in str(ostype) or "x86" in str(ostype):
+            depot_arch = "32"
+        elif depot_name:
+            name_lo = depot_name.lower()
+            if any(t in name_lo for t in ["64", "x64"]):
+                depot_arch = "64"
+            elif any(t in name_lo for t in ["32", "x86", "win32"]):
+                depot_arch = "32"   
+
+        # Apply strict architecture isolation or fire the fallback condition
+        if depot_arch and not allow_32bit_fallback:
+            if depot_arch != target_arch:
+                print_fn(
+                    Fore.YELLOW 
+                    + f"Skipping depot {depot_id} ({depot_name or 'No Name'}) (Bitness: {depot_arch}-bit, target is {target_arch}-bit)" 
+                    + Style.RESET_ALL
+                )
+                continue
+        elif allow_32bit_fallback and depot_arch == "32":
+            print_fn(Fore.CYAN + f"Fallback Active: Keeping 32-bit depot {depot_id} on 64-bit target OS." + Style.RESET_ALL)
+        # ------------------------------------
+
         sc_flag = (
             str(depot_id) in steamchina_ids
             or "steamchina" in category.lower()
@@ -637,22 +712,37 @@ def filter_depots_by_os(
                 + Style.RESET_ALL
             )
             continue
-        filtered.append(depot_id)
+        filtered.append(str(depot_id))
     return filtered
 
-
-def move_manifests_to_depotcache(dest_path: Path, manifests_dict: dict, print_fn=print) -> None:
-    depotcache = dest_path / "depotcache"
+# depotcache updated so manifest are moved to correct path for os
+def move_manifests_to_depotcache(steam_path: Path, manifests_dict: dict, filtered_depot_ids=None, print_fn=print) -> None:
+    if os.name == "nt":
+        depotcache = steam_path / "steamapps" / "depotcache"
+    elif os.name == "posix":
+        depotcache = steam_path / "config" / "depotcache"
+    else:
+        # fallback
+        depotcache = steam_path / "steamapps" / "depotcache"
     depotcache.mkdir(parents=True, exist_ok=True)
+
+    filtered_set = None
+    if filtered_depot_ids is not None:
+        filtered_set = set(filtered_depot_ids)
 
     if MANIFESTS_TMP.exists():
         for depot_id, manifest_id in manifests_dict.items():
+            if filtered_set is not None and depot_id not in filtered_set:
+                continue
+
             manifest_filename = f"{depot_id}_{manifest_id}.manifest"
             src = MANIFESTS_TMP / manifest_filename
             dst = depotcache / manifest_filename
+
             if src.exists():
                 try:
                     shutil.move(str(src), str(dst))
+                    print_fn(f"Moved: {manifest_filename} -> {depotcache}")
                 except Exception:
                     try:
                         shutil.copy2(src, dst)
@@ -674,4 +764,6 @@ def move_manifests_to_depotcache(dest_path: Path, manifests_dict: dict, print_fn
                 except Exception:
                     pass
 
+
     print_fn(Fore.GREEN + f"Manifests placed in depotcache: {depotcache}" + Style.RESET_ALL)
+

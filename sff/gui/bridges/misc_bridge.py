@@ -2196,7 +2196,7 @@ def _bridge_update_games_file(bridge):
                 f.write("\n".join(games_str))
             print(f"Game list updated: {len(games_str)} games written.")
             return len(games_str)
-        except urllib.error.HTTPError as e:
+        except _urlerror.HTTPError as e:
             if e.code == 403:
                 msg = (
                     "Steam Web API key rejected (403 Forbidden). "

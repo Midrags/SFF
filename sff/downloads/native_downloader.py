@@ -141,14 +141,22 @@ def decode_manifest(raw_manifest: bytes, depot_key: bytes) -> dict:
         fn = m.filename or ""
         if fn_encrypted and fn:
             fn = _decrypt_filename(fn, depot_key)
+        # normalize separators for win/linux friendliness
+        fn = re.sub(r"[\\/]+", "/", fn).lstrip("/")
         chunks = []
-        for ch in m.chunks:
+        for ch in (m.chunks or []):
+            if not ch.sha:
+                continue
             chunks.append({
-                "sha": ch.sha.hex() if ch.sha else "",
+                "sha": ch.sha.hex(),
                 "offset": ch.offset or 0,
                 "cb_original": ch.cb_original or 0,
                 "cb_compressed": ch.cb_compressed or 0,
             })
+        # Skip placeholders/directories (no chunks => nothing to download/write)
+        if not fn or not chunks:
+            continue
+
         mappings.append({
             "filename": fn,
             "size": m.size or 0,
@@ -211,11 +219,26 @@ def _decompress_vzstd(data: bytes) -> bytes:
         import subprocess, tempfile
         ti = tempfile.NamedTemporaryFile(suffix=".zst", delete=False)
         to_ = tempfile.NamedTemporaryFile(suffix=".raw", delete=False)
-        ti.write(compressed); ti.close(); to_.close()
-        subprocess.run(["zstd", "-d", "-f", "-o", to_.name, ti.name],
-                       capture_output=True, timeout=60)
-        out = Path(to_.name).read_bytes()
-        os.unlink(ti.name); os.unlink(to_.name)
+        try:
+            ti.write(compressed)
+            ti.close()
+            to_.close()
+
+            r = subprocess.run(
+                ["zstd", "-d", "-f", "-o", to_.name, ti.name],
+                capture_output=True,
+                timeout=60,
+            )
+            if r.returncode != 0:
+                raise RuntimeError(
+                    r.stderr.decode("utf-8", "replace").strip() or "zstd failed"
+                )
+
+            out = Path(to_.name).read_bytes()
+        finally:
+            os.unlink(ti.name)
+            os.unlink(to_.name)
+
     if len(out) != expected_size:
         raise ValueError(f"VSZTD size {len(out)} != {expected_size}")
     actual = zlib.crc32(out) & 0xFFFFFFFF
@@ -223,14 +246,12 @@ def _decompress_vzstd(data: bytes) -> bytes:
         raise ValueError(f"VSZTD CRC 0x{actual:08X} != 0x{hdr_crc:08X}")
     return out
 
-
 def _decompress_chunk(data: bytes) -> bytes:
     if data[:3] == b"VZa":
         return _decompress_vz1(data)
     if data[:4] == b"VSZa":
         return _decompress_vzstd(data)
     raise ValueError(f"unknown chunk magic: {data[:4].hex()}")
-
 
 # ---------------------------------------------------------------------------
 # CDN helpers
@@ -370,7 +391,7 @@ def download_depot(
     if manifest_bytes:
         print_fn(f"[native] Using provided manifest ({len(manifest_bytes)} bytes)")
 
-    if manifest_bytes is None:
+    if manifest_bytes is None or len(manifest_bytes) == 0:
         # ── Request code ──────────────────────────────────
         request_code = _resolve_request_code(cdn, app_id, depot_id, manifest_gid, print_fn)
 
@@ -389,7 +410,7 @@ def download_depot(
                 break
             last_err = f"HTTP error from {host}"
 
-        if manifest_bytes is None:
+        if manifest_bytes is None or len(manifest_bytes) == 0:
             client.disconnect()
             print_fn(f"[native] Manifest download failed: {last_err}")
             return False, 0
@@ -402,36 +423,65 @@ def download_depot(
         print_fn(f"[native] Manifest decrypt failed: {e}")
         return False, 0
 
+    if isinstance(manifest, dict):
+        logger.debug(f"[native] manifest keys={list(manifest.keys())}")
     mappings = manifest.get("mappings", [])
+    if isinstance(mappings, list) and mappings:
+        m0 = mappings[0]
     total_chunks = sum(len(m.get("chunks", [])) for m in mappings)
     total_size = sum(m.get("size", 0) for m in mappings)
-    print_fn(f"[native] {len(mappings)} files, {total_chunks} chunks, {total_size:,} bytes")
+    logger.debug(f"[native] {len(mappings)} files, {total_chunks} chunks, {total_size:,} bytes")
 
     # ── Build flat chunk list + pre-verify ─────────────────
     # Each entry: (sha, offset, cb_original, file_path)
     all_flat: list[tuple[str, int, int, Path]] = []
     os_filtered_count = 0
 
+    total_mappings = len(mappings)
+    skipped_flags = 0
+    skipped_no_filename = 0
+    skipped_os = 0
+    skipped_empty_sha = 0
+    added_entries = 0
+
     for mapping in mappings:
         filename = mapping.get("filename", "")
+        filename = re.sub(r"[\\/]+", "/", filename)
+        filename = filename.lstrip("/")
         flags = mapping.get("flags", 0)
-        if flags & 0x40 or not filename:
-            continue
+
+        # skip hidden/irrelevant mappings
+        #if flags & 0x40 or not filename:
+        #    if flags & 0x40:
+        #        skipped_flags += 1
+        #    else:
+        #        skipped_no_filename += 1
+        #    continue
+
+        # optional OS filtering
         if os_filter and os_filter != "all":
             lo = filename.lower()
+
             if os_filter == "linux":
                 if lo.endswith((".dll", ".exe")):
-                    os_filtered_count += 1; continue
+                    os_filtered_count += 1
+                    skipped_os += 1
+                    continue
                 if "/win" in lo and "/window" not in lo:
-                    os_filtered_count += 1; continue
+                    os_filtered_count += 1
+                    skipped_os += 1
+                    continue
+
             elif os_filter == "windows":
                 if lo.endswith((".so", ".dylib")):
-                    os_filtered_count += 1; continue
-                if re.search(r"/(linux|osx|mac)/", lo):
-                    os_filtered_count += 1; continue
+                    os_filtered_count += 1
+                    skipped_os += 1
+                    continue
 
         file_path = output_dir / filename
         file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # pre-verify target file size (optional)
         file_size = mapping.get("size", 0)
         if file_size and not file_path.exists():
             try:
@@ -440,15 +490,22 @@ def download_depot(
             except OSError:
                 pass
 
+        # flatten chunks
         for chunk in mapping.get("chunks", []):
             sha = chunk.get("sha", "")
             if not sha:
+                skipped_empty_sha += 1
                 continue
-            all_flat.append((sha, chunk.get("offset", 0),
-                             chunk.get("cb_original", 0), file_path))
+
+            offset = chunk.get("offset", 0) or 0
+            cb_original = chunk.get("cb_original", 0) or 0
+
+            all_flat.append((sha, int(offset), int(cb_original), file_path))
+            added_entries += 1
 
     # ── Pre-verify: SHA1-check existing chunks ───────────
-    verified_sha: set[str] = set()
+    verified_keys: set[tuple[str, int, str]] = set()
+
     for sha, offset, cb_original, fpath in all_flat:
         try:
             if not fpath.exists():
@@ -456,23 +513,19 @@ def download_depot(
             fsize = fpath.stat().st_size
             if offset + cb_original > fsize:
                 continue
+
             with open(fpath, "rb") as vf:
                 vf.seek(offset)
                 disk_data = vf.read(cb_original)
+
             if hashlib.sha1(disk_data).hexdigest() == sha:
-                verified_sha.add(sha)
+                verified_keys.add((sha, offset, str(fpath)))
         except OSError:
             continue
 
-    pending = [(s, o, c, p) for s, o, c, p in all_flat if s not in verified_sha]
-    skipped = len(verified_sha)
-    if skipped:
-        print_fn(f"[native] {skipped}/{total_chunks} chunks already on disk (skipping)")
-
-    if not pending:
-        client.disconnect()
-        print_fn(f"[native] Depot {depot_id} fully cached: {skipped} chunks, 0 downloaded")
-        return True, total_size
+    pending = [(s, o, c, p) for (s, o, c, p) in all_flat
+                if (s, o, str(p)) not in verified_keys]
+    skipped = len(all_flat) - len(pending)
 
     # ── Server pool (sorted by load preference) ───────────
     server_hosts: list[str] = []
@@ -509,8 +562,7 @@ def download_depot(
 
     def _download_one_chunk(sha: str, offset: int, cb_original: int, fpath: Path) -> int:
         """Downloads one chunk. Returns bytes written or -1 on failure."""
-        if fatal_error[0] is not None:
-            return -1
+        fatal_error[0] = "download failed"
 
         host = host_for_chunk.get(sha, server_hosts[0])
         use_https = any(
@@ -572,22 +624,18 @@ def download_depot(
         futures = {}
         for sha, offset, cb_original, fpath in pending:
             fut = executor.submit(_download_one_chunk, sha, offset, cb_original, fpath)
-            futures[fut] = sha
+            futures[fut] = (sha, offset, cb_original, fpath)
 
         total = len(pending)
         for fut in concurrent.futures.as_completed(futures):
-            sha = futures[fut]
+            sha, offset, cb_original, fpath = futures[fut]
             try:
                 result = fut.result()
-            except Exception:
+            except Exception as e:
                 result = -1
 
             if result < 0:
-                # Retry once on a different server
-                sha2, off2, cb2, fp2 = next(
-                    (s, o, c, p) for s, o, c, p in pending if s == sha
-                )
-                result = _download_one_chunk(sha2, off2, cb2, fp2)
+                result = _download_one_chunk(sha, offset, cb_original, fpath)
 
             if result < 0:
                 http_client.close()

@@ -38,6 +38,9 @@ GreenLuma/
 dlc_unlocker_cache/
 backups/
 saved_lua/
+sff/lua/
+manifests/
+.vscode/
 
 # Test / temp folders
 tmp/

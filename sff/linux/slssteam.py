@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import logging
 from pathlib import Path
 
 from colorama import Fore, Style

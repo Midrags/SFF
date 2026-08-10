@@ -39,11 +39,12 @@ import time as _time
 from pathlib import Path
 
 from PyQt6.QtCore import QTimer
+from sff.linux.acf_writer import create_acf
 
 logger = logging.getLogger(__name__)
 
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
-_DDMOD_PCT_RE = re.compile(r"^\s*(\d{1,3}(?:\.\d+)?)%\s")
+_DDMOD_PCT_RE = re.compile(r"^\s*(\d{1,3}(?:\.\d+)?)%\s*")
 
 
 # ── Private helpers used ONLY by download-domain methods ──────────────
@@ -1533,7 +1534,8 @@ def _bridge_download_game_ddmod(bridge, app_id, source, lua_path, manifest_folde
             # for "running download" so we don't snap back to 35
             # mid-flight or pre-empt the 95% "Updating tracker" stage.
             _DDMOD_FLOOR = 35.0
-            _DDMOD_CEIL = 95.0
+            # download completion shows 100% in the ui now
+            _DDMOD_CEIL = 100.0
             _last_pct = [-1.0]
 
             def _print_fn(msg):
@@ -1588,13 +1590,15 @@ def _bridge_download_game_ddmod(bridge, app_id, source, lua_path, manifest_folde
                     print_fn=_print_fn,
                     steam_path=steam_path,
                 )
+                logger.info("ACF write completed successfully")
             except Exception as _ae:
                 logger.warning("ACF write failed (non-fatal): %s", _ae)
 
-            # Move manifests to library depotcache so Steam can validate
+            # Move manifests to library depotcache so Steam can validate for downloaded depots.
             try:
                 from sff.downloads.depot_downloader import move_manifests_to_depotcache
-                move_manifests_to_depotcache(dest, steam_path)
+                filtered = [str(depot_id) for depot_id in selected_depots]
+                move_manifests_to_depotcache(steam_path, manifests_dict, filtered_depot_ids=filtered)
             except Exception as _me:
                 logger.debug("Manifest move skipped: %s", _me)
 

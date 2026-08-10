@@ -140,8 +140,10 @@ def create_acf(
     )
 
     try:
+        if acf_path.exists():
+            os.chmod(acf_path, 0o644)  # Normal Read/Write permissions
         acf_path.write_text(acf_content, encoding="utf-8")
-        os.chmod(acf_path, 0o444)
+        os.chmod(acf_path, 0o444)       # Lock it again
         print_fn(Fore.GREEN + f"ACF written: {acf_path}" + Style.RESET_ALL)
         return True
     except Exception as e:
