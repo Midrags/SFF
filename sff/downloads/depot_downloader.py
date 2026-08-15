@@ -267,6 +267,8 @@ def run_download(
     depots = game_data.get("depots", {})
     manifests = dict(game_data.get("manifests", {}) or {})
     installdir = game_data.get("installdir") or f"App_{appid}"
+    download_dir = dest_path / "steamapps" / "common" / installdir
+    download_dir.mkdir(parents=True, exist_ok=True)
 
     # Auto-fill manifests from the staging dir for any selected depot
     # the caller did not pin a manifest for. The staging dir is what
@@ -333,7 +335,7 @@ def run_download(
                         if mf.exists():
                             manifest_path = mf
                     ok, size = _native_dl(
-                        app_id, depot_id_str, manifest_id, key, download_dir,
+                        appid, depot_id_str, manifest_id, key, download_dir,
                         print_fn=print_fn, os_filter=os_name or "linux",
                         steam_path=steam_path,
                         manifest_path=manifest_path,
@@ -345,7 +347,6 @@ def run_download(
                         all_ok = False
                 except Exception as e:
                     print_fn(Fore.RED + f"Native download failed for depot {depot_id_str}: {e}" + Style.RESET_ALL)
-                    logger.exception("Native downloader: depot %s failed", depot_id_str)
                     all_ok = False
             try:
                 KEYS_TMP.unlink(missing_ok=True)
@@ -389,9 +390,6 @@ def run_download(
 
     if sys.platform.startswith("linux"):
         _add_bundled_openssl_to_env(env, dotnet_root)
-
-    download_dir = dest_path / "steamapps" / "common" / installdir
-    download_dir.mkdir(parents=True, exist_ok=True)
 
     MANIFESTS_TMP.mkdir(parents=True, exist_ok=True)
     deps_dir = get_deps_dir()
