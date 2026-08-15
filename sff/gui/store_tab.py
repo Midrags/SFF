@@ -407,14 +407,18 @@ class VersionPickerDialog(QDialog):
         )
         self._dl_worker.moveToThread(self._dl_thread)
         self._dl_worker.finished.connect(self._on_download_done)
+        self._dl_worker.finished.connect(self._dl_thread.quit)
+        self._dl_worker.finished.connect(self._dl_worker.deleteLater)
+        self._dl_thread.finished.connect(self._dl_thread.deleteLater)
+        self._dl_thread.finished.connect(
+            lambda thread=self._dl_thread, worker=self._dl_worker:
+                self._clear_thread_refs('_dl_thread', '_dl_worker', thread, worker)
+        )
         self._dl_worker.progress.connect(lambda msg: self._status_label.setText(msg))
         self._dl_thread.started.connect(self._dl_worker.run)
         self._dl_thread.start()
 
     def _on_download_done(self, ok, total):
-        if self._dl_thread:
-            self._dl_thread.quit()
-            self._dl_thread.wait()
         self._dl_btn.setEnabled(True)
         self._status_label.setText(f"Done — {ok}/{total} manifests downloaded.")
         if ok == total:
@@ -672,14 +676,20 @@ class StoreTab(QWidget):
         self._worker.moveToThread(self._thread)
         self._worker.finished.connect(self._on_results)
         self._worker.error.connect(self._on_error)
+        self._worker.finished.connect(self._thread.quit)
+        self._worker.error.connect(self._thread.quit)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.error.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._thread.deleteLater)
+        self._thread.finished.connect(
+            lambda thread=self._thread, worker=self._worker:
+                self._clear_thread_refs('_thread', '_worker', thread, worker)
+        )
         self._thread.started.connect(self._worker.run)
         self._thread.start()
 
     def _on_results(self, result):
         self._search_btn.setEnabled(True)
-        if self._thread:
-            self._thread.quit()
-            self._thread.wait()
         if result is None:
             self._status_label.setText("No results.")
             return
@@ -704,9 +714,6 @@ class StoreTab(QWidget):
 
     def _on_error(self, msg):
         self._search_btn.setEnabled(True)
-        if self._thread:
-            self._thread.quit()
-            self._thread.wait()
         self._status_label.setText(f"Error: {msg}")
 
     def _resolve_app_id_for_picker(self):
@@ -756,13 +763,19 @@ class StoreTab(QWidget):
         )
         self._hist_worker.error.connect(self._on_hist_error)
         self._hist_worker.progress.connect(self._status_label.setText)
+        self._hist_worker.finished.connect(self._hist_thread.quit)
+        self._hist_worker.error.connect(self._hist_thread.quit)
+        self._hist_worker.finished.connect(self._hist_worker.deleteLater)
+        self._hist_worker.error.connect(self._hist_worker.deleteLater)
+        self._hist_thread.finished.connect(self._hist_thread.deleteLater)
+        self._hist_thread.finished.connect(
+            lambda thread=self._hist_thread, worker=self._hist_worker:
+                self._clear_thread_refs('_hist_thread', '_hist_worker', thread, worker)
+        )
         self._hist_thread.started.connect(self._hist_worker.run)
         self._hist_thread.start()
 
     def _on_hist_done(self, app_id, game_name, hist):
-        if self._hist_thread:
-            self._hist_thread.quit()
-            self._hist_thread.wait()
         self._fetching = False
         self._dl_btn.setEnabled(True)
         self._refresh_btn.setEnabled(True)
@@ -786,12 +799,15 @@ class StoreTab(QWidget):
         dlg.exec()
 
     def _on_hist_error(self, msg):
-        if self._hist_thread:
-            self._hist_thread.quit()
-            self._hist_thread.wait()
         self._fetching = False
         self._dl_btn.setEnabled(True)
         self._refresh_btn.setEnabled(True)
         self._search_btn.setEnabled(True)
         self._browse_btn.setEnabled(True)
         self._status_label.setText(f"Error fetching depot history: {msg}")
+
+    def _clear_thread_refs(self, thread_attr, worker_attr, thread, worker):
+        if getattr(self, thread_attr, None) is thread:
+            setattr(self, thread_attr, None)
+        if getattr(self, worker_attr, None) is worker:
+            setattr(self, worker_attr, None)

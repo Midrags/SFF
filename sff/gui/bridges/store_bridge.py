@@ -48,6 +48,7 @@ import urllib.parse as _urlparse
 from PyQt6.QtCore import QTimer
 
 from sff.game_list_fallback import (
+    browse_games_json,
     enrich_game_dict,
     has_fallback_data,
     search_games_json,
@@ -858,7 +859,18 @@ def _bridge_refresh_store_metadata(bridge):
 
 
 def _bridge_warm_store_metadata(bridge):
-    _bridge_refresh_store_metadata(bridge)
+    if getattr(bridge, "_store_metadata_warming", False):
+        return
+    bridge._store_metadata_warming = True
+
+    def _do():
+        from sff.game_list_fallback import ensure_loaded_cached
+        return ensure_loaded_cached()
+
+    def _finished(_result=None):
+        bridge._store_metadata_warming = False
+
+    bridge._run_async(_do, on_done=_finished, on_error=_finished)
 
 
 def _bridge_search_games(bridge, query, offset, per_page, sort_by='updated', tag='', request_id=''):
@@ -878,6 +890,16 @@ def _bridge_search_games(bridge, query, offset, per_page, sort_by='updated', tag
 
     When tag is set with no query, uses games.json tag search instead.
     """
+    # Search/filter clicks can arrive faster than the Steam/Hubcap request can
+    # finish. Keep one worker in flight and retain only the newest intent;
+    # spawning an unbounded QThread per click was a major source of memory
+    # growth and made the Store appear frozen under rapid navigation.
+    request_args = (query, offset, per_page, sort_by, tag, request_id)
+    if getattr(bridge, "_store_search_in_flight", False):
+        bridge._pending_store_search = request_args
+        return
+    bridge._store_search_in_flight = True
+
     def _do():
         block_nsfw = _store_blocks_nsfw()
         if block_nsfw and _looks_nsfw_by_name(query):
@@ -897,6 +919,21 @@ def _bridge_search_games(bridge, query, offset, per_page, sort_by='updated', tag
             result["total"] = len(rows)
             result["games"] = rows[offset:offset + per_page]
             result['has_hubcap'] = False
+            return result
+
+        # The unfiltered landing page must be instant and offline-first.
+        # Building IStoreService's full ~190k app list here used to hold the
+        # Store on its loading state for 30+ seconds on every cold launch.
+        if not query:
+            result = browse_games_json(
+                offset=offset,
+                per_page=per_page,
+                sort_by=sort_by or 'updated',
+                block_nsfw=block_nsfw,
+            )
+            result.pop('fallback', None)
+            result['has_hubcap'] = bool(getattr(bridge, '_store_client', None)) and not bridge._hubcap_unavailable
+            result['has_fallback_data'] = has_fallback_data()
             return result
 
         # Steam catalog is always the primary source.
@@ -1361,11 +1398,29 @@ def _bridge_search_games(bridge, query, offset, per_page, sort_by='updated', tag
             QTimer.singleShot(200, lambda: _ensure_fallback_loaded(force=True))
         return result
 
+    def _start_pending():
+        bridge._store_search_in_flight = False
+        pending = getattr(bridge, "_pending_store_search", None)
+        bridge._pending_store_search = None
+        if pending:
+            QTimer.singleShot(0, lambda args=pending: _bridge_search_games(bridge, *args))
+
     def _on_done(data):
         _rjson = json.dumps(_attach_store_request_id(data, request_id))
         bridge.search_results.emit(_rjson)
+        _start_pending()
 
-    bridge._run_async(_do, on_done=_on_done)
+    def _on_error(message):
+        logger.warning("Store search failed: %s", message)
+        bridge.search_results.emit(json.dumps({
+            "games": [],
+            "total": 0,
+            "request_id": str(request_id or ""),
+            "error": str(message or "Store search failed"),
+        }))
+        _start_pending()
+
+    bridge._run_async(_do, on_done=_on_done, on_error=_on_error)
 
 
 def _bridge_connect_store(bridge, api_key):

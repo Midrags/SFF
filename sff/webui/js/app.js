@@ -378,20 +378,26 @@ window.App = (function() {
         _currentPage = pageId;
         localStorage.setItem('currentPage', pageId);
 
-        // Trigger page-specific init if needed
-        switch(pageId) {
-            case 'home':
-                _populateGameDropdown();
-                _refreshHomeLumacoreNotice();
-                break;
-            case 'store': Store.onPageEnter(); break;
-            case 'library': Library.onPageEnter(); break;
-            case 'downloads': Downloads.onPageEnter(); break;
-            case 'fixgame': FixGame.onPageEnter(); break;
-            case 'cloudsaves': CloudSaves.onPageEnter(); break;
-            case 'settings': Settings.onPageEnter(); break;
-            case 'linuxguide': break;  // static guide page, no dynamic module
-        }
+        // Page initialization is deferred by one frame so the active-page
+        // change is painted before any native bridge work begins.  Besides
+        // making navigation feel instant, this prevents a synchronous bridge
+        // slot from leaving the previous page visible with a busy cursor.
+        window.requestAnimationFrame(function() {
+            if (_currentPage !== pageId) return;
+            switch(pageId) {
+                case 'home':
+                    _populateGameDropdown();
+                    _refreshHomeLumacoreNotice();
+                    break;
+                case 'store': Store.onPageEnter(); break;
+                case 'library': Library.onPageEnter(); break;
+                case 'downloads': Downloads.onPageEnter(); break;
+                case 'fixgame': FixGame.onPageEnter(); break;
+                case 'cloudsaves': CloudSaves.onPageEnter(); break;
+                case 'settings': Settings.onPageEnter(); break;
+                case 'linuxguide': break;  // static guide page, no dynamic module
+            }
+        });
     }
 
     var _logMinLevel = 20; // INFO by default

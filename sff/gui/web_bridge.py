@@ -242,7 +242,6 @@ class _Worker(QObject):
                 raise
             logger.exception("Worker error: %s", e)
             self.error.emit(str(e))
-            self.finished.emit(None)
 
 
 def _should_show_software() -> str:
@@ -404,15 +403,19 @@ class WebBridge(QObject):
         self._provider_timer.setInterval(60 * 60 * 1000)
         self._provider_timer.timeout.connect(self._maybe_auto_contribute_provider)
         self._provider_timer.start()
-        QTimer.singleShot(3000, self._maybe_auto_contribute_provider)
+        # Provider enrichment can perform dozens of Steam app-info requests.
+        # Let the user interact with the app first instead of competing with
+        # the initial Store/Library render immediately after startup.
+        QTimer.singleShot(120_000, self._maybe_auto_contribute_provider)
         self._provider_cache_refreshing = False
         self._provider_cache_timer = QTimer(self)
         self._provider_cache_timer.setInterval(10 * 60 * 1000)
         self._provider_cache_timer.timeout.connect(self._maybe_auto_refresh_provider_cache)
         self._provider_cache_timer.start()
-        # Prefetch crack buildids in background so store search never blocks
-        from sff.gui.web_bridge import _prefetch_crack_buildids
-        QTimer.singleShot(5000, _prefetch_crack_buildids)
+        # Network prefetches must never run on Qt's GUI thread.  The old
+        # singleShot called the HTTP function directly and could stall every
+        # paint/input event for the full request timeout.
+        QTimer.singleShot(5000, lambda: self._run_async(_prefetch_crack_buildids))
         self._library_image_cache: "_OrderedDict[str, str]" = _OrderedDict()
         self._LIBRARY_IMAGE_CACHE_MAX = 500
 
@@ -425,56 +428,68 @@ class WebBridge(QObject):
         self._games_prefetch_timer.start()
         QTimer.singleShot(2000, self._prefetch_installed_games)
 
-        # Preload fallback data (games.json + name cache) at startup
-        # so the first Store tab search doesn't wait 9s for the
-        # download.  Runs deferred so the UI loads first.
+        self._store_metadata_warming = False
+        self._store_search_in_flight = False
+        self._pending_store_search = None
+
+        # Preload disk-cached fallback data after the first frame.  Parsing
+        # games.json can involve tens of MB, so it belongs on a worker too.
         self._preload_all_store_data()
 
     def _preload_all_store_data(self):
-        """Warm cached store metadata without forcing visible network work.
+        """Warm store metadata off the GUI thread, once per process window."""
+        def _start():
+            # If the Store is already searching, that worker will populate the
+            # same caches. Do not create a second parser/network contender.
+            if self._store_metadata_warming or self._store_search_in_flight:
+                return
+            self._store_metadata_warming = True
 
-        Deferred 1.5s after construction onto the Qt event loop (not a
-        background thread) because ssl.create_default_context — called by
-        game_list_fallback — segfaults on Windows when run concurrently
-        with QtWebEngine's render process spawn during window.show().
-        """
-        from PyQt6.QtCore import QTimer as _QTimer
-
-        def _do():
-            try:
+            def _do():
                 from sff.game_list_fallback import ensure_loaded_cached
-                ensure_loaded_cached()
-                logger.debug("Preload: cached store metadata warmed")
-            except Exception as e:
-                logger.debug("Preload: store data preload failed: %s", e)
+                return ensure_loaded_cached()
 
-        _QTimer.singleShot(1500, _do)
+            def _done(_result):
+                self._store_metadata_warming = False
+                logger.debug("Preload: cached store metadata warmed")
+
+            def _error(message):
+                self._store_metadata_warming = False
+                logger.debug("Preload: store data preload failed: %s", message)
+
+            self._run_async(_do, on_done=_done, on_error=_error)
+
+        QTimer.singleShot(3500, _start)
 
     # ── helpers ──────────────────────────────────────────────────
 
     def _run_async(self, func, *args, on_done=None, on_error=None, **kwargs):
-        """Spawn a QThread worker for the given function."""
+        """Spawn a disposable QThread worker without blocking the GUI.
+
+        Cleanup used to call ``thread.wait()`` from the result callback and
+        retained both QObject instances indefinitely on some error paths.
+        Qt's normal quit/deleteLater lifecycle is non-blocking and makes each
+        task collectible as soon as its event loop exits.
+        """
         thread = QThread()
         worker = _Worker(func, *args, **kwargs)
         worker.moveToThread(thread)
 
-        def _cleanup(result):
-            thread.quit()
-            thread.wait()
-            if worker in self._workers:
+        def _forget_refs():
+            try:
                 self._workers.remove(worker)
-            if thread in self._threads:
+            except ValueError:
+                pass
+            try:
                 self._threads.remove(thread)
+            except ValueError:
+                pass
+
+        def _on_done(result):
             if on_done:
                 on_done(result)
 
         def _on_error(msg):
-            thread.quit()
-            thread.wait()
-            if worker in self._workers:
-                self._workers.remove(worker)
-            if thread in self._threads:
-                self._threads.remove(thread)
             if on_error:
                 on_error(msg)
             else:
@@ -482,12 +497,19 @@ class WebBridge(QObject):
                     "task": "unknown", "success": False, "message": msg
                 }))
 
-        worker.finished.connect(_cleanup)
+        worker.finished.connect(_on_done)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
         worker.error.connect(_on_error)
+        worker.error.connect(thread.quit)
+        worker.error.connect(worker.deleteLater)
+        thread.finished.connect(_forget_refs)
+        thread.finished.connect(thread.deleteLater)
         thread.started.connect(worker.run)
         self._workers.append(worker)
         self._threads.append(thread)
         thread.start()
+        return thread
 
     def _emit_task_result(self, task_name, success, message="", **extra):
         data = {"task": task_name, "success": success, "message": message}

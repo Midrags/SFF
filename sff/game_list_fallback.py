@@ -33,6 +33,7 @@ Files are expected alongside all_games.txt in the internal data folder:
 
 import json
 import logging
+import os
 import ssl
 import tempfile
 import threading
@@ -299,14 +300,49 @@ def ensure_loaded(force=False):
 
 
 def ensure_loaded_cached():
-    """Load fallback data from disk cache only — never hit the network."""
+    """Load fallback data from disk only — never create SSL or hit the network.
+
+    The previous implementation delegated to ``_load_name_cache`` which may
+    refresh stale files over HTTPS.  Besides contradicting this function's
+    contract, that made a startup warm-up capable of freezing the GUI.
+    """
     global _games_cache, _games_cache_time, _loaded
+    global _name_cache, _dlc_name_cache, _name_cache_time, _name_mtime
     if _loaded and _games_cache:
         return bool(_games_cache)
-    if _load_cached_games_json():
-        _loaded = True
-        _games_cache_time = time.time()
-    _load_name_cache(force=False)
+    with _LOAD_LOCK:
+        if not _games_cache and _load_cached_games_json():
+            _loaded = True
+            _games_cache_time = time.time()
+
+        cache_dir = _get_cache_dir()
+        names = {}
+        dlc_names = {}
+        latest_mtime = 0.0
+        for fname in _NAME_JSON_URLS:
+            path = cache_dir / fname
+            if not path.exists():
+                continue
+            try:
+                with path.open(encoding="utf-8") as handle:
+                    names.update(_normalize_name_data(json.load(handle)))
+                latest_mtime = max(latest_mtime, path.stat().st_mtime)
+            except Exception as exc:
+                logger.debug("Failed to load cached %s: %s", fname, exc)
+        for fname in _DLC_JSON_URLS:
+            path = cache_dir / fname
+            if not path.exists():
+                continue
+            try:
+                with path.open(encoding="utf-8") as handle:
+                    dlc_names.update(_normalize_name_data(json.load(handle)))
+                latest_mtime = max(latest_mtime, path.stat().st_mtime)
+            except Exception as exc:
+                logger.debug("Failed to load cached %s: %s", fname, exc)
+        _name_cache = names
+        _dlc_name_cache = dlc_names
+        _name_mtime = latest_mtime
+        _name_cache_time = time.time()
     return bool(_games_cache)
 
 
@@ -466,6 +502,84 @@ def search_games_json(query: str, limit=500):
                 if len(results) >= limit:
                     break
     return results
+
+
+def browse_games_json(offset=0, per_page=20, sort_by="updated", block_nsfw=False):
+    """Return one Store page directly from the local metadata cache.
+
+    This is deliberately network-free after ``ensure_loaded`` and keeps only
+    ``offset + per_page`` candidates in memory.  Opening the Store previously
+    built a separate 190k-entry Steam catalog and could take 30+ seconds.
+    """
+    import heapq
+
+    ensure_loaded()
+    if not _games_cache:
+        return {"games": [], "total": 0, "fallback": True}
+
+    window = max(1, int(offset or 0) + max(1, int(per_page or 20)))
+    sort_mode = (sort_by or "updated").lower()
+    total = 0
+
+    def eligible_items():
+        nonlocal total
+        for appid_str, info in _games_cache.items():
+            if not isinstance(info, dict) or not _is_game_entry(info):
+                continue
+            if block_nsfw and bool(info.get("nsfw", False)):
+                continue
+            name = str(info.get("name") or "").strip()
+            if not name:
+                continue
+            total += 1
+            try:
+                appid = int(appid_str)
+            except (TypeError, ValueError):
+                continue
+            yield appid, name, info
+
+    def name_key(item):
+        return (item[1].casefold(), item[0])
+
+    def id_key(item):
+        return item[0]
+
+    def updated_key(item):
+        info = item[2]
+        return (
+            str(info.get("updated_date") or info.get("release_date") or ""),
+            item[0],
+        )
+
+    items = eligible_items()
+    if sort_mode == "name_asc":
+        selected = heapq.nsmallest(window, items, key=name_key)
+    elif sort_mode == "name_desc":
+        selected = heapq.nlargest(window, items, key=name_key)
+    elif sort_mode == "oldest":
+        selected = heapq.nsmallest(window, items, key=id_key)
+    elif sort_mode == "newest":
+        selected = heapq.nlargest(window, items, key=id_key)
+    else:
+        selected = heapq.nlargest(window, items, key=updated_key)
+
+    page = selected[int(offset or 0):int(offset or 0) + int(per_page or 20)]
+    games = []
+    for appid, name, info in page:
+        games.append({
+            "app_id": appid,
+            "name": name,
+            "last_updated": info.get("updated_date", ""),
+            "status": "",
+            "size": 0,
+            "image_url": info.get("header_image", ""),
+            "drm": info.get("drm", []),
+            "tags": info.get("tags", []),
+            "nsfw": bool(info.get("nsfw", False)),
+            "dlc": info.get("dlc", {}),
+            "source": "games_json",
+        })
+    return {"games": games, "total": total, "fallback": True}
 
 
 _NON_GAME_NAME_KEYWORDS = ("soundtrack", "art book", "artbook", "ost", "music pack", "digital artbook")

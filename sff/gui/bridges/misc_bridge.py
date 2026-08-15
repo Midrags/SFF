@@ -1620,10 +1620,18 @@ def _bridge_provider_update_now(bridge):
 
 def _bridge_get_provider_cache_status(bridge):
     try:
-        from sff.lua.provider import provider_update_state, load_provider
+        from sff.lua.provider import provider_file_candidates, provider_update_state
 
         data = provider_update_state()
-        data["count"] = len(load_provider())
+        # This slot is called synchronously by QWebChannel.  Loading the
+        # provider here used to parse, validate and sort a ~65 MB JSON file on
+        # Qt's GUI thread merely to display an entry count.  Opening Store then
+        # looked completely frozen for several seconds.  A stat is enough for
+        # the status badge; the provider itself is only loaded by operations
+        # that actually need its keys.
+        candidates = [path for path in provider_file_candidates() if path.exists()]
+        data["available"] = bool(candidates)
+        data["size_bytes"] = max((path.stat().st_size for path in candidates), default=0)
         return json.dumps(data)
     except Exception as exc:
         return json.dumps({
@@ -2577,4 +2585,3 @@ def _bridge_dump_achievement_diagnostic(bridge):
     except Exception as exc:
         logger.exception("dump_achievement_diagnostic failed: %s", exc)
         return ""
-

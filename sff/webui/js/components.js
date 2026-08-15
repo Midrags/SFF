@@ -8,33 +8,51 @@ window.Components = (function() {
 
     var _hideImages = false;
 
-    // Steam CDN image URL templates — ordered by 2026 reliability (akamai.shared first, matches Steam API responses)
+    // A short fallback chain avoids issuing a dozen failed requests for every
+    // delisted title while still covering Steam's current asset layouts.
     var _CDN = [
         'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{id}/library_600x900.jpg',
-        'https://cdn.akamai.steamstatic.com/steam/apps/{id}/header.jpg',
         'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{id}/header.jpg',
-        'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{id}/library_header.jpg',
-        'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{id}/capsule_616x353.jpg',
-        'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{id}/library_600x900.jpg',
-        'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{id}/header.jpg',
-        'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{id}/library_header.jpg',
-        'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{id}/capsule_616x353.jpg',
-        'https://shared.steamstatic.com/store_item_assets/steam/apps/{id}/library_600x900.jpg',
-        'https://shared.steamstatic.com/store_item_assets/steam/apps/{id}/header.jpg',
-        'https://shared.steamstatic.com/store_item_assets/steam/apps/{id}/library_header.jpg',
         'https://shared.steamstatic.com/store_item_assets/steam/apps/{id}/capsule_616x353.jpg',
         'https://cdn.cloudflare.steamstatic.com/steam/apps/{id}/header.jpg'
     ];
     var STEAM_CDN_LIBRARY = 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{appid}/library_600x900.jpg';
 
-    var _COVER_CACHE_PREFIX = 'sff_cover_';
+    var _COVER_CACHE_KEY = 'sff_cover_cache_v2';
+    var _COVER_CACHE_MAX = 160;
+    var _coverCache = null;
+
+    function _loadCoverCache() {
+        if (_coverCache) return _coverCache;
+        try {
+            _coverCache = JSON.parse(localStorage.getItem(_COVER_CACHE_KEY) || '{}');
+        } catch(e) {
+            _coverCache = {};
+        }
+        return _coverCache;
+    }
+
+    function _persistCoverCache() {
+        var cache = _loadCoverCache();
+        var ids = Object.keys(cache);
+        if (ids.length > _COVER_CACHE_MAX) {
+            ids.sort(function(a, b) {
+                return (cache[b].t || 0) - (cache[a].t || 0);
+            }).slice(_COVER_CACHE_MAX).forEach(function(id) { delete cache[id]; });
+        }
+        try { localStorage.setItem(_COVER_CACHE_KEY, JSON.stringify(cache)); } catch(e) {}
+    }
 
     function _getCachedCoverUrl(appId) {
-        try { return localStorage.getItem(_COVER_CACHE_PREFIX + appId) || null; } catch(e) { return null; }
+        var entry = _loadCoverCache()[String(appId)];
+        if (!entry || !entry.url) return null;
+        entry.t = Date.now();
+        return entry.url;
     }
 
     function _saveCoverCache(appId, url) {
-        try { localStorage.setItem(_COVER_CACHE_PREFIX + appId, url); } catch(e) {}
+        _loadCoverCache()[String(appId)] = { url: url, t: Date.now() };
+        _persistCoverCache();
     }
 
     // SVG placeholder for missing game images (image-off icon)
@@ -100,6 +118,7 @@ window.Components = (function() {
             img.className = 'game-card-img';
             img.alt = game.name;
             img.loading = 'lazy';
+            img.decoding = 'async';
             var urls = getCoverUrls(game.app_id, game.image_url || null);
             var urlIdx = 0;
             function tryNextCard() {
@@ -164,6 +183,7 @@ window.Components = (function() {
             img.className = 'game-list-thumb';
             img.alt = '';
             img.loading = 'lazy';
+            img.decoding = 'async';
             var urls = getCoverUrls(game.app_id, game.image_url || null);
             var urlIdx = 0;
             function tryNextList() {

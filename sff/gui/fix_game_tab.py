@@ -616,6 +616,12 @@ class FixGameTab(QWidget):
         self._worker.moveToThread(self._thread)
         self._worker.log_msg.connect(self._log_area.append)
         self._worker.finished.connect(self._on_fix_finished)
+        self._worker.finished.connect(self._thread.quit)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._thread.deleteLater)
+        self._thread.finished.connect(
+            lambda thread=self._thread, worker=self._worker: self._clear_worker_refs(thread, worker)
+        )
         self._thread.started.connect(self._worker.run)
         self._thread.start()
 
@@ -644,15 +650,18 @@ class FixGameTab(QWidget):
         self._worker.moveToThread(self._thread)
         self._worker.log_msg.connect(self._log_area.append)
         self._worker.finished.connect(self._on_revert_finished)
+        self._worker.finished.connect(self._thread.quit)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._thread.deleteLater)
+        self._thread.finished.connect(
+            lambda thread=self._thread, worker=self._worker: self._clear_worker_refs(thread, worker)
+        )
         self._thread.started.connect(self._worker.run)
         self._thread.start()
 
     def _on_fix_finished(self, success, msg):
         self._run_btn.setEnabled(True)
         self._revert_btn.setEnabled(True)
-        if self._thread:
-            self._thread.quit()
-            self._thread.wait()
         if success:
             QMessageBox.information(self, "Success", "Game fixed successfully!")
         else:
@@ -661,10 +670,13 @@ class FixGameTab(QWidget):
     def _on_revert_finished(self, success, msg):
         self._run_btn.setEnabled(True)
         self._revert_btn.setEnabled(True)
-        if self._thread:
-            self._thread.quit()
-            self._thread.wait()
         if success:
             QMessageBox.information(self, "Reverted", "Changes reverted successfully.")
         else:
             QMessageBox.critical(self, "Error", f"Revert failed:\n{msg}")
+
+    def _clear_worker_refs(self, thread, worker):
+        if self._thread is thread:
+            self._thread = None
+        if self._worker is worker:
+            self._worker = None

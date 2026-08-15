@@ -325,6 +325,11 @@ class CloudSavesTab(QWidget):
         self._worker.log_msg.connect(self._log.append)
         self._worker.finished.connect(self._on_done)
         self._worker.finished.connect(self._thread.quit)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._thread.deleteLater)
+        self._thread.finished.connect(
+            lambda thread=self._thread, worker=self._worker: self._clear_worker_refs(thread, worker)
+        )
         self._thread.start()
 
     def _on_done(self, succeeded, detail):
@@ -333,3 +338,9 @@ class CloudSavesTab(QWidget):
             self._log.append(f"\n✓ Done! {detail}")
         else:
             self._log.append(f"\n✗ {detail}")
+
+    def _clear_worker_refs(self, thread, worker):
+        if self._thread is thread:
+            self._thread = None
+        if self._worker is worker:
+            self._worker = None

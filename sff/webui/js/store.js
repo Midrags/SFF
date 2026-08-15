@@ -193,6 +193,9 @@ window.Store = (function() {
                 if (data.request_id && data.request_id !== _activeRequestId) return;
                 _initialFetchDone = true;
                 _hideLoading();
+                if (data.error) {
+                    Components.showToast('error', data.error);
+                }
                 var games = data.games || [];
                 if (_blockNsfw) {
                     games = games.filter(function(g) { return !g.nsfw && !_looksNsfwByName(g); });
@@ -252,14 +255,24 @@ window.Store = (function() {
         init();
         _active = true;
         _page = 1;
-        Bridge.call('warm_store_metadata');
+        _showLoading();
+        // Let Chromium paint the Store shell before QWebChannel dispatches
+        // any native work.  This also keeps navigation feedback immediate on
+        // slower disks and large local catalogs.
+        window.setTimeout(_startPageLoad, 0);
+    }
+
+    function _startPageLoad() {
+        if (!_active) return;
         Bridge.callWithCallback('get_setting', 'hide_store_images', function(val) {
+            if (!_active) return;
             _imagesHidden = (val === 'True');
             Components.setHideImages(_imagesHidden);
             var btn = document.getElementById('store-toggle-images');
             if (btn) btn.classList.toggle('active', _imagesHidden);
         });
         Bridge.callWithCallback('get_setting', 'store_block_nsfw', function(val) {
+            if (!_active) return;
             _blockNsfw = (val !== 'False');
             var btn = document.getElementById('store-toggle-nsfw');
             if (btn) btn.classList.toggle('active', _blockNsfw);
@@ -348,17 +361,20 @@ window.Store = (function() {
     function _renderCurrentView() {
         var grid = document.getElementById('store-grid');
         var list = document.getElementById('store-list');
+        var fragment = document.createDocumentFragment();
         if (_viewMode === 'list') {
             if (!list || list.children.length) return;
             _lastGames.forEach(function(game) {
-                list.appendChild(Components.createGameListItem(game));
+                fragment.appendChild(Components.createGameListItem(game));
             });
+            list.appendChild(fragment);
             return;
         }
         if (!grid || grid.children.length) return;
         _lastGames.forEach(function(game, index) {
-            grid.appendChild(Components.createGameCard(game, { index: index }));
+            fragment.appendChild(Components.createGameCard(game, { index: index }));
         });
+        grid.appendChild(fragment);
     }
 
     function _updatePagination() {
@@ -448,11 +464,11 @@ window.Store = (function() {
 
     function _renderProviderStatus(data) {
         data = data || {};
-        var parts = [
-            'Depot keys: ' + (data.count || 0) + ' entries',
-            'last attempt ' + _fmtProviderTime(data.last_attempt_at),
-            'last success ' + _fmtProviderTime(data.last_success_at)
-        ];
+        var cacheLabel = data.count
+            ? 'Depot keys: ' + data.count + ' entries'
+            : (data.available ? 'Depot key cache: ready' : 'Depot key cache: unavailable');
+        var parts = [cacheLabel, 'last attempt ' + _fmtProviderTime(data.last_attempt_at),
+            'last success ' + _fmtProviderTime(data.last_success_at)];
         if (data.last_error) parts.push('last error: ' + data.last_error);
         _setProviderStatus(parts.join(' • '));
     }

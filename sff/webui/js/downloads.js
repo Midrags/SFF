@@ -8,6 +8,18 @@ window.Downloads = (function() {
 
     var _downloads = {};
     var _initialized = false;
+    var _MAX_HISTORY = 100;
+
+    function _trimHistory() {
+        var completed = Object.keys(_downloads).filter(function(id) {
+            return !_downloads[id].active;
+        }).sort(function(a, b) {
+            return (_downloads[b].timestamp || 0) - (_downloads[a].timestamp || 0);
+        });
+        completed.slice(_MAX_HISTORY).forEach(function(id) {
+            delete _downloads[id];
+        });
+    }
 
     function init() {
         if (_initialized) return;
@@ -64,6 +76,7 @@ window.Downloads = (function() {
                 timestamp: Date.now()
             };
         }
+        _trimHistory();
         _render();
     }
 

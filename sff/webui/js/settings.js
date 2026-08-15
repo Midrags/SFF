@@ -7,6 +7,7 @@ window.Settings = (function() {
     'use strict';
 
     var _initialized = false;
+    var _themeFilter = 'all';
     var THEMES = [
         { id: 'dark', name: 'Dark', bg: '#2d2d2d', accent: '#4a9eff' },
         { id: 'light', name: 'Light', bg: '#fafafa', accent: '#2563eb' },
@@ -50,6 +51,7 @@ window.Settings = (function() {
         if (_initialized) return;
         _initialized = true;
 
+        _enhanceSettingsLayout();
         _renderThemePicker();
         _initPathControls();
         _initPreferenceControls();
@@ -66,44 +68,193 @@ window.Settings = (function() {
         _loadCurrentAvatar();
     }
 
+    function _enhanceSettingsLayout() {
+        var page = document.getElementById('page-settings');
+        if (!page || page.querySelector('.settings-shell')) return;
+        var sections = Array.prototype.slice.call(page.querySelectorAll(':scope > .settings-section'));
+        if (!sections.length) return;
+
+        var preferredOrder = [
+            'Theme', 'Preferences', 'Paths & Keys', 'Account & Credentials',
+            'Download Settings', 'DLC Unlockers', 'Auto Backup', 'GBE Identity',
+            'Settings Backup', 'Updates', 'About'
+        ];
+        sections.sort(function(a, b) {
+            var aTitle = (a.querySelector('h2') || {}).textContent || '';
+            var bTitle = (b.querySelector('h2') || {}).textContent || '';
+            var ai = preferredOrder.indexOf(aTitle.trim());
+            var bi = preferredOrder.indexOf(bTitle.trim());
+            return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+        });
+
+        var shell = document.createElement('div');
+        shell.className = 'settings-shell';
+        var nav = document.createElement('nav');
+        nav.className = 'settings-index';
+        nav.setAttribute('aria-label', 'Settings sections');
+        nav.innerHTML = '<div class="settings-index-title">Settings</div>' +
+            '<p class="settings-index-hint">Jump to a section</p>';
+        var main = document.createElement('div');
+        main.className = 'settings-main';
+
+        sections.forEach(function(section, index) {
+            var heading = section.querySelector('h2');
+            var title = heading ? heading.textContent.trim() : ('Section ' + (index + 1));
+            var id = 'settings-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            section.id = id;
+
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'settings-index-item' + (index === 0 ? ' active' : '');
+            button.textContent = title;
+            button.addEventListener('click', function() {
+                nav.querySelectorAll('.settings-index-item').forEach(function(item) {
+                    item.classList.remove('active');
+                });
+                button.classList.add('active');
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+            nav.appendChild(button);
+            main.appendChild(section);
+        });
+
+        shell.appendChild(nav);
+        shell.appendChild(main);
+        page.appendChild(shell);
+    }
+
+    function _themeCategory(theme) {
+        if (theme.image) return 'photo';
+        var hex = theme.bg.replace('#', '');
+        var r = parseInt(hex.slice(0, 2), 16) || 0;
+        var g = parseInt(hex.slice(2, 4), 16) || 0;
+        var b = parseInt(hex.slice(4, 6), 16) || 0;
+        return ((r * 299 + g * 587 + b * 114) / 255000) > 0.56 ? 'light' : 'dark';
+    }
+
+    function _themePhotoUrl(themeId) {
+        if (themeId === 'midnight-city') return 'img/themes/midnightcity.jpg';
+        return 'img/themes/' + themeId + '.jpg';
+    }
+
     function _renderThemePicker() {
         var picker = document.getElementById('theme-picker');
         if (!picker) return;
 
         picker.innerHTML = '';
         var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        var studio = document.createElement('div');
+        studio.className = 'theme-studio';
+        studio.innerHTML =
+            '<div class="theme-current">' +
+                '<div class="theme-current-preview" aria-hidden="true">' +
+                    '<span class="theme-preview-sidebar"></span>' +
+                    '<span class="theme-preview-window"><i></i><i></i><i></i></span>' +
+                '</div>' +
+                '<div class="theme-current-copy"><span class="theme-eyebrow">Current theme</span>' +
+                    '<strong id="theme-current-name"></strong><span id="theme-current-kind"></span></div>' +
+            '</div>' +
+            '<div class="theme-browser">' +
+                '<div class="theme-toolbar">' +
+                    '<input id="theme-search" type="search" placeholder="Search themes..." aria-label="Search themes">' +
+                    '<div class="theme-filters" role="group" aria-label="Theme type"></div>' +
+                '</div>' +
+                '<div class="theme-options" role="radiogroup" aria-label="Choose a theme"></div>' +
+                '<div class="theme-empty hidden">No themes match your search.</div>' +
+            '</div>';
+        picker.appendChild(studio);
+
+        var options = studio.querySelector('.theme-options');
+        var search = studio.querySelector('#theme-search');
+        var filters = studio.querySelector('.theme-filters');
+
+        function updatePreview(theme) {
+            if (!theme) return;
+            var preview = studio.querySelector('.theme-current-preview');
+            preview.style.setProperty('--theme-preview-bg', theme.bg);
+            preview.style.setProperty('--theme-preview-accent', theme.accent);
+            preview.style.backgroundImage = theme.image ? 'url("' + _themePhotoUrl(theme.id) + '")' : '';
+            studio.querySelector('#theme-current-name').textContent = theme.name;
+            studio.querySelector('#theme-current-kind').textContent = theme.image ? 'Photo background' : (_themeCategory(theme) === 'light' ? 'Light palette' : 'Dark palette');
+        }
+
+        function applyFilter() {
+            var query = (search.value || '').trim().toLowerCase();
+            var visible = 0;
+            options.querySelectorAll('.theme-card').forEach(function(card) {
+                var matchesType = _themeFilter === 'all' || card.dataset.category === _themeFilter;
+                var matchesText = !query || card.dataset.name.indexOf(query) !== -1;
+                var show = matchesType && matchesText;
+                card.classList.toggle('hidden', !show);
+                if (show) visible++;
+            });
+            studio.querySelector('.theme-empty').classList.toggle('hidden', visible !== 0);
+        }
+
+        [
+            { id: 'all', label: 'All' }, { id: 'dark', label: 'Dark' },
+            { id: 'light', label: 'Light' }, { id: 'photo', label: 'Photo' }
+        ].forEach(function(filter) {
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'theme-filter' + (_themeFilter === filter.id ? ' active' : '');
+            button.textContent = filter.label;
+            button.addEventListener('click', function() {
+                _themeFilter = filter.id;
+                filters.querySelectorAll('.theme-filter').forEach(function(item) {
+                    item.classList.toggle('active', item === button);
+                });
+                applyFilter();
+            });
+            filters.appendChild(button);
+        });
 
         THEMES.forEach(function(theme) {
-            var swatch = document.createElement('div');
-            swatch.className = 'theme-swatch' + (theme.id === currentTheme ? ' active' : '') + (theme.image ? ' theme-swatch-photo' : '');
-            if (theme.image) {
-                swatch.style.backgroundImage = 'url(img/themes/' + theme.id.replace('midnight-city', 'midnightcity') + '.jpg)';
-                swatch.style.backgroundSize = 'cover';
-                swatch.style.backgroundPosition = 'center';
-            } else {
-                swatch.style.background = theme.bg;
-            }
-            swatch.style.color = theme.accent;
-            swatch.style.borderColor = theme.id === currentTheme ? theme.accent : 'transparent';
-            swatch.textContent = theme.name;
-            swatch.dataset.theme = theme.id;
-            swatch.addEventListener('click', function() {
+            var card = document.createElement('button');
+            card.type = 'button';
+            card.className = 'theme-card' + (theme.id === currentTheme ? ' active' : '');
+            card.dataset.theme = theme.id;
+            card.dataset.name = theme.name.toLowerCase();
+            card.dataset.category = _themeCategory(theme);
+            card.style.setProperty('--theme-card-bg', theme.bg);
+            card.style.setProperty('--theme-card-accent', theme.accent);
+            card.setAttribute('role', 'radio');
+            card.setAttribute('aria-checked', theme.id === currentTheme ? 'true' : 'false');
+
+            var visual = document.createElement('span');
+            visual.className = 'theme-card-visual';
+            visual.innerHTML = '<i></i><i></i><i></i>';
+            var label = document.createElement('span');
+            label.className = 'theme-card-label';
+            label.textContent = theme.name;
+            var kind = document.createElement('span');
+            kind.className = 'theme-card-kind';
+            kind.textContent = theme.image ? 'Photo' : (_themeCategory(theme) === 'light' ? 'Light' : 'Dark');
+            card.appendChild(visual);
+            card.appendChild(label);
+            card.appendChild(kind);
+
+            card.addEventListener('click', function() {
                 _applyTheme(theme.id);
-                picker.querySelectorAll('.theme-swatch').forEach(function(s) {
-                    s.classList.remove('active');
-                    s.style.borderColor = 'transparent';
+                options.querySelectorAll('.theme-card').forEach(function(item) {
+                    var active = item === card;
+                    item.classList.toggle('active', active);
+                    item.setAttribute('aria-checked', active ? 'true' : 'false');
                 });
-                swatch.classList.add('active');
-                swatch.style.borderColor = theme.accent;
+                updatePreview(theme);
             });
-            picker.appendChild(swatch);
+            options.appendChild(card);
         });
+
+        search.addEventListener('input', applyFilter);
+        updatePreview(THEMES.filter(function(theme) { return theme.id === currentTheme; })[0] || THEMES[0]);
+        applyFilter();
     }
 
-    function _applyTheme(themeId) {
+    function _applyTheme(themeId, persist) {
         document.documentElement.setAttribute('data-theme', themeId);
         localStorage.setItem('theme', themeId);
-        Bridge.call('set_setting', 'theme', themeId);
+        if (persist !== false) Bridge.call('set_setting', 'theme', themeId);
         var _photoMap = {
             'dawn': 'img/themes/dawn.jpg',
             'dusk': 'img/themes/dusk.jpg',
@@ -776,7 +927,11 @@ window.Settings = (function() {
                 );
                 _setCheckbox('setting-auto-enable-new-game-updates', settings.auto_enable_updates_new_games);
                 // Theme
-                if (settings.theme) _applyTheme(settings.theme);
+                if (settings.theme) {
+                    var displayedTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+                    _applyTheme(settings.theme, false);
+                    if (displayedTheme !== settings.theme) _renderThemePicker();
+                }
             } catch(e) {
                 // Fallback: load just steam_path and theme
                 Bridge.callWithCallback('get_setting', 'steam_path', function(val) {
