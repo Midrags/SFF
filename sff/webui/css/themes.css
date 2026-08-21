@@ -58,6 +58,7 @@
     --fg: #c0f0c0;
     --card-bg: #102d10;
     --accent: #40e840;
+    --on-accent: #14140a;
     --border: #205a20;
     --btn-bg: #102d10;
     --btn-hover: #184a18;
@@ -162,8 +163,10 @@
 [data-theme="bee"] {
     --bg: #fcdd6a;
     --fg: #1b1b1b;
+    --sidebar-fg: #fcdd6a;
     --card-bg: #f8c600;
     --accent: #fff200;
+    --on-accent: #14140a;
     --border: #aa8100;
     --btn-bg: #aa8100;
     --btn-hover: #ba972a;
@@ -187,9 +190,13 @@
 
 [data-theme="crystalmeth"] {
     --bg: #69a1cf;
-    --fg: #c5f5ff;
+    --fg: #0b1f2e;
+    --sidebar-fg: #c5f5ff;
     --card-bg: #4a7a9d;
     --accent: #68d8ff;
+    --btn-fg: #ffffff;
+    --input-fg: #ffffff;
+    --on-accent: #14140a;
     --border: #0017ff;
     --btn-bg: #005fc0;
     --btn-hover: #2881dc;
@@ -304,9 +311,12 @@
 
 [data-theme="gld-midnight"] {
     --bg: #9aa6ee;
-    --fg: #d9dafd;
+    --fg: #15173d;
+    --sidebar-fg: #d9dafd;
     --card-bg: #7b8adb;
     --accent: #8789fa;
+    --btn-fg: #ffffff;
+    --input-fg: #ffffff;
     --border: #5060cc;
     --btn-bg: #222e85;
     --btn-hover: #3644aa;
@@ -317,9 +327,12 @@
 
 [data-theme="neon-rider"] {
     --bg: #66d1c2;
-    --fg: #ffffff;
+    --fg: #10222b;
+    --sidebar-fg: #ffffff;
     --card-bg: #4bb5a5;
     --accent: #f000ff;
+    --btn-fg: #ffffff;
+    --input-fg: #ffffff;
     --border: #6b6b6b;
     --btn-bg: #7d1e70;
     --btn-hover: #ac2199;
@@ -343,9 +356,11 @@
 
 [data-theme="real-madrid"] {
     --bg: #ababab;
-    --fg: #ffffff;
+    --fg: #1a1a1a;
+    --sidebar-fg: #ffffff;
     --card-bg: #c8c8c8;
     --accent: #fabc01;
+    --on-accent: #14140a;
     --border: #6b6b6b;
     --btn-bg: #c09414;
     --btn-hover: #deb02d;
@@ -359,6 +374,8 @@
     --fg: #ffffff;
     --card-bg: #1e252b;
     --accent: #00ff86;
+    --btn-fg: #111111;
+    --on-accent: #14140a;
     --border: #7e97a1;
     --btn-bg: #7e97a1;
     --btn-hover: #99becc;
@@ -400,6 +417,7 @@
     --fg: #dbdbdb;
     --card-bg: rgba(39, 41, 59, 0.82);
     --accent: #979ffb;
+    --btn-fg: #ffffff;
     --border: #6b6b6b;
     --btn-bg: rgba(150, 140, 186, 0.8);
     --btn-hover: rgba(173, 161, 219, 0.85);
@@ -428,6 +446,7 @@
     --fg: #c5f5ff;
     --card-bg: rgba(0, 74, 132, 0.82);
     --accent: #68d8ff;
+    --on-accent: #14140a;
     --border: #0017ff;
     --btn-bg: rgba(0, 95, 192, 0.8);
     --btn-hover: rgba(40, 129, 220, 0.85);
@@ -470,6 +489,7 @@
     --fg: #000000;
     --card-bg: rgba(107, 159, 231, 0.82);
     --accent: #00eeff;
+    --on-accent: #14140a;
     --border: #4a80c0;
     --btn-bg: rgba(195, 254, 255, 0.8);
     --btn-hover: rgba(178, 253, 254, 0.85);
