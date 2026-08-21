@@ -33,7 +33,7 @@ echo.
 
 REM Suppress pkg_resources deprecation from PyInstaller/build deps so log stays clean
 set PYTHONWARNINGS=ignore::UserWarning
-python -m PyInstaller build_sff_gui.spec
+python -m PyInstaller build_sff_gui.spec --noconfirm
 
 if errorlevel 1 (
     echo.
@@ -41,7 +41,7 @@ if errorlevel 1 (
     echo BUILD FAILED!
     echo ========================================
     echo.
-    echo Install requirements first (two steps):
+    echo Install requirements first ^(two steps^):
     echo   1. pip install -r requirements.txt
     echo   2. pip install steam==1.4.4 --no-deps
     echo.
@@ -59,9 +59,9 @@ echo Folder:     dist\SteaMidra_GUI\
 echo Executable: dist\SteaMidra_GUI\SteaMidra_GUI.exe
 echo.
 
-if exist "dist\SteaMidra_GUI\SteaMidra_GUI.exe" (
-    python -c "import os; size = sum(os.path.getsize(os.path.join(r,f)) for r,d,files in os.walk('dist/SteaMidra_GUI') for f in files); print(f'Total size: {size / (1024*1024):.1f} MB')"
-)
+if not exist "dist\SteaMidra_GUI\SteaMidra_GUI.exe" goto :skipsize
+python -c "import os; size = sum(os.path.getsize(os.path.join(r,f)) for r,d,files in os.walk('dist/SteaMidra_GUI') for f in files); print(f'Total size: {size / 1048576:.1f} MB')"
+:skipsize
 
 echo.
 echo You can now run: dist\SteaMidra_GUI\SteaMidra_GUI.exe
