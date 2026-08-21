@@ -68,9 +68,25 @@ window.Settings = (function() {
         _loadCurrentAvatar();
     }
 
+    var SETTINGS_BLURBS = {
+        'Theme': 'Palette, background image, accent colour',
+        'Preferences': 'Language, notifications, startup behaviour',
+        'Paths & Keys': 'Steam folder, API keys, provider endpoints',
+        'Account & Credentials': 'Steam login used for depot access',
+        'Download Settings': 'Sources, concurrency, target OS',
+        'DLC Unlockers': 'CreamAPI and SmokeAPI defaults',
+        'Auto Backup': 'Scheduled save backups and destination',
+        'GBE Identity': 'Name, Steam ID and avatar for Goldberg',
+        'Settings Backup': 'Export or restore your SteaMidra config',
+        'Updates': 'Version and update channel',
+        'About': 'Build info, links, credits'
+    };
+
+    var WIDE_SETTINGS = ['Theme'];
+
     function _enhanceSettingsLayout() {
         var page = document.getElementById('page-settings');
-        if (!page || page.querySelector('.settings-shell')) return;
+        if (!page || page.querySelector('.settings-grid')) return;
         var sections = Array.prototype.slice.call(page.querySelectorAll(':scope > .settings-section'));
         if (!sections.length) return;
 
@@ -87,40 +103,27 @@ window.Settings = (function() {
             return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
         });
 
-        var shell = document.createElement('div');
-        shell.className = 'settings-shell';
-        var nav = document.createElement('nav');
-        nav.className = 'settings-index';
-        nav.setAttribute('aria-label', 'Settings sections');
-        nav.innerHTML = '<div class="settings-index-title">Settings</div>' +
-            '<p class="settings-index-hint">Jump to a section</p>';
-        var main = document.createElement('div');
-        main.className = 'settings-main';
+        var grid = document.createElement('div');
+        grid.className = 'settings-grid';
 
         sections.forEach(function(section, index) {
             var heading = section.querySelector('h2');
             var title = heading ? heading.textContent.trim() : ('Section ' + (index + 1));
-            var id = 'settings-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-            section.id = id;
+            section.id = 'settings-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            if (WIDE_SETTINGS.indexOf(title) !== -1) section.classList.add('settings-wide');
 
-            var button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'settings-index-item' + (index === 0 ? ' active' : '');
-            button.textContent = title;
-            button.addEventListener('click', function() {
-                nav.querySelectorAll('.settings-index-item').forEach(function(item) {
-                    item.classList.remove('active');
-                });
-                button.classList.add('active');
-                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            });
-            nav.appendChild(button);
-            main.appendChild(section);
+            var blurb = SETTINGS_BLURBS[title];
+            var next = heading && heading.nextElementSibling;
+            if (heading && blurb && !(next && next.classList.contains('settings-blurb'))) {
+                var p = document.createElement('p');
+                p.className = 'settings-blurb';
+                p.textContent = blurb;
+                heading.insertAdjacentElement('afterend', p);
+            }
+            grid.appendChild(section);
         });
 
-        shell.appendChild(nav);
-        shell.appendChild(main);
-        page.appendChild(shell);
+        page.appendChild(grid);
     }
 
     function _themeCategory(theme) {
