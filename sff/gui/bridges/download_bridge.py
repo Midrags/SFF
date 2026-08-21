@@ -1083,6 +1083,44 @@ def _start_steam_again(steam_path):
         return False
 
 
+def _stop_steam_before_config_write(steam_path):
+    """Stop Steam with the correct platform-specific implementation.
+
+    The Linux helper caches the loaded SLSsteam library paths before stopping
+    Steam so a later restart can restore the injection.
+    """
+    if sys.platform == "win32":
+        try:
+            import time as _time
+            from sff.core.processes import SteamProcess, is_proc_running
+
+            steam_process = SteamProcess(steam_path)
+            if not is_proc_running(steam_process.exe_name):
+                return False
+            steam_process.kill()
+            waited = 0.0
+            while is_proc_running(steam_process.exe_name) and waited < 20:
+                _time.sleep(0.5)
+                waited += 0.5
+            return not is_proc_running(steam_process.exe_name)
+        except Exception as exc:
+            logger.debug("Could not stop Steam on Windows: %s", exc)
+            return False
+
+    if sys.platform.startswith("linux"):
+        try:
+            from sff.linux.steam_process import kill_steam
+
+            return bool(kill_steam(
+                print_fn=lambda message: logger.debug("%s", message)
+            ))
+        except Exception as exc:
+            logger.debug("Could not stop Steam on Linux: %s", exc)
+            return False
+
+    return False
+
+
 def _native_install_pinned(bridge, app_id, lua_path, manifest_override, skip_auto_update=False, buildid_override=None):
     from sff.lua.manager import parse_lua_contents, write_manifest_pins_to_lua
     from sff.steam_tools_compat import install_lua_to_steam
@@ -1536,17 +1574,7 @@ def _bridge_download_game_ddmod(bridge, app_id, source, lua_path, manifest_folde
             # Kill Steam before writing config files — Steam locks
             # config.vdf while running, which blocks depot key writes and
             # causes "Content Still Encrypted" on launch.
-            try:
-                from sff.core.processes import SteamProcess, is_proc_running
-                _sp = SteamProcess(steam_path)
-                if is_proc_running(_sp.exe_name):
-                    _sp.kill()
-                    import time as _t3
-                    _w = 0
-                    while is_proc_running(_sp.exe_name) and _w < 20:
-                        _t3.sleep(0.5); _w += 0.5
-            except Exception:
-                pass
+            _stop_steam_before_config_write(steam_path)
 
             if sys.platform == "win32":
                 # Calls install_lua_to_steam, ConfigVDFWriter.add_decryption_keys_to_config,
