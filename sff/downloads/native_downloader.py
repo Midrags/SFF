@@ -61,7 +61,21 @@ SIGNATURE_MAGIC = 0x1B81B817
 END_MAGIC = 0x32C415AB
 
 _CDN_TIMEOUT = 60.0
-_CHUNK_RETRIES = 3
+# Full passes over the host pool per chunk: one main pass plus one
+# requeue round (after any deny-triggered token re-mints).
+_MAX_CHUNK_ROUNDS = 2
+# Steam CDN deny blobs (invalid/foreign token, missing chunk on that
+# edge) are a few hundred bytes; real chunks are far larger. Used only
+# to label diagnostics — decryption still decides correctness.
+_DENY_BLOB_MAX_BYTES = 65536
+
+
+class _ChunkError(Exception):
+    """A chunk failed on every host. Carries per-attempt diagnostics."""
+
+    def __init__(self, report: list):
+        super().__init__("chunk failed on all hosts")
+        self.report = report
 
 _REQUEST_CODE_FALLBACKS = (
     ("https://manifest.steam.run/api/manifest/{}", "json", "content"),
@@ -278,15 +292,97 @@ def _resolve_request_code(
     raise RuntimeError(f"No manifest request code for depot {depot_id}")
 
 
-def _get_cdn_servers(cdn_client) -> list:
+_CDN_SERVERLIST_URL = (
+    "https://api.steampowered.com/IContentServerDirectoryService/"
+    "GetServersForSteamPipe/v1/"
+)
+# Well-known Steam CDN hosts that resolve globally. Used only when both
+# the Steam client's server list and the public webapi endpoint fail.
+_FALLBACK_CDN_HOSTS = ("steampipe.akamaized.net", "cs.steampowered.com")
+
+
+def _normalize_cdn_server(s) -> dict:
+    """Normalize a CDN server entry (ContentServer object or dict) into a
+    plain dict with host/vhost/https_support/NumEntries keys."""
+    if isinstance(s, dict):
+        host = str(s.get("host") or "")
+        return {
+            "host": host,
+            "vhost": str(s.get("vhost") or host),
+            "https_support": str(s.get("https_support") or ""),
+            "NumEntries": int(s.get("NumEntries") or s.get("num_entries_in_client_list") or 1),
+        }
+    host = str(getattr(s, "host", "") or "")
+    return {
+        "host": host,
+        "vhost": str(getattr(s, "vhost", "") or host),
+        "https_support": str(getattr(s, "https_support", "") or ""),
+        "NumEntries": int(getattr(s, "NumEntries", 1) or 1),
+    }
+
+
+def _fetch_cdn_servers_via_webapi(cell_id=0) -> list:
+    """Fetch the CDN server list from the public Steam webapi with httpx.
+
+    The steam client's CDNClient fetches this list over the bundled
+    requests/gevent stack, which stalls inside the AppImage (issue #144)
+    even though the endpoint answers in ~0.3s standalone. httpx is the
+    same stack the chunk downloads already use successfully.
+    """
+    try:
+        resp = httpx.get(
+            _CDN_SERVERLIST_URL,
+            params={"cell_id": int(cell_id or 0), "max_servers": 20},
+            timeout=10,
+            follow_redirects=True,
+        )
+        if resp.status_code != 200:
+            logger.debug("CDN server list webapi HTTP %s", resp.status_code)
+            return []
+        servers = (resp.json().get("response") or {}).get("servers") or []
+        out = []
+        for s in servers:
+            if not isinstance(s, dict) or not s.get("host"):
+                continue
+            out.append({
+                "host": str(s["host"]),
+                "vhost": str(s.get("vhost") or s["host"]),
+                "https_support": str(s.get("https_support") or ""),
+                "NumEntries": int(s.get("num_entries_in_client_list") or 1),
+            })
+        logger.debug("CDN server list via webapi: %d host(s)", len(out))
+        return out
+    except Exception as e:
+        logger.debug("CDN server list webapi fetch failed: %s", e)
+        return []
+
+
+def _get_cdn_servers(cdn_client, cell_id=0) -> list:
+    """Return a list of CDN server dicts, trying sources in order:
+
+    1. the Steam client's CDNClient list (may be a deque of
+       ContentServer objects, not a list — normalize it),
+    2. the public GetServersForSteamPipe webapi endpoint via httpx,
+    3. a small hard-coded list of well-known hosts.
+    """
     try:
         raw = cdn_client.servers
-        if isinstance(raw, list):
-            return raw
+        if raw:
+            servers = [_normalize_cdn_server(s) for s in raw]
+            servers = [s for s in servers if s.get("host")]
+            if servers:
+                logger.debug("CDN server list via Steam client: %d host(s)", len(servers))
+                return servers
     except Exception:
         pass
-    # Fallback: well-known Steam CDN host
-    return [{"host": "steampipe.akamaized.net"}]
+    servers = _fetch_cdn_servers_via_webapi(cell_id)
+    if servers:
+        return servers
+    logger.warning("CDN server list: using hard-coded fallback hosts %r", _FALLBACK_CDN_HOSTS)
+    return [
+        {"host": h, "vhost": h, "https_support": "", "NumEntries": 1}
+        for h in _FALLBACK_CDN_HOSTS
+    ]
 
 
 def _download_file(url: str, timeout: float = _CDN_TIMEOUT) -> bytes | None:
@@ -370,24 +466,60 @@ def download_depot(
         client.anonymous_login()
 
     cdn = CDNClient(client)
-    servers = _get_cdn_servers(cdn)
+    servers = _get_cdn_servers(cdn, cell_id=getattr(cdn, "cell_id", 0) or 0)
     if not servers:
         client.disconnect()
         return False, 0
 
-    # ── CDN auth token (needed for chunk downloads) ────────
-    auth_token = ""
+    # ── CDN server pool + per-host auth tokens ────────────
+    # Steam CDN auth tokens are per-host: a token minted for one host is
+    # rejected (deny blob) by the others. The old code minted a single
+    # token and applied it to every host, deterministically killing the
+    # chunks routed to non-token hosts (issue #144). Mint lazily per
+    # host; re-mint once after a deny so revoked/expired tokens recover.
+    server_hosts: list[str] = []
+    host_scheme: dict[str, str] = {}
     for s in servers:
         host = s.get("host", "") if isinstance(s, dict) else str(s)
-        if not host:
+        if not host or host in server_hosts:
             continue
-        try:
-            token = cdn.get_auth_token(app_id=app_id, depot_id=depot_id, host=host)
-            if token:
-                auth_token = token
-                break
-        except Exception:
-            pass
+        server_hosts.append(host)
+        host_scheme[host] = "https" if s.get("https_support") == "mandatory" else "http"
+    if not server_hosts:
+        server_hosts = ["steampipe.akamaized.net"]
+        host_scheme["steampipe.akamaized.net"] = "http"
+
+    tokens: dict[str, str] = {}
+    token_reset: set[str] = set()
+
+    def _get_token(host: str, reset: bool = False) -> str:
+        if reset and host in tokens:
+            tokens.pop(host, None)
+        if host not in tokens:
+            try:
+                t = cdn.get_auth_token(app_id=app_id, depot_id=depot_id, host=host)
+                tokens[host] = t or ""
+                logger.debug("auth token for %s: %s", host, "ok" if t else "empty")
+            except Exception as e:
+                logger.debug("auth token for %s failed: %s", host, e)
+                tokens[host] = ""
+        return tokens[host]
+
+    # Primary token (first host that grants) — used for the manifest URL.
+    auth_token = ""
+    for host in server_hosts:
+        auth_token = _get_token(host)
+        if auth_token:
+            break
+
+    print_fn(
+        "[native] CDN servers: %d host(s) (%s%s)"
+        % (
+            len(server_hosts),
+            ", ".join(server_hosts[:4]),
+            "..." if len(server_hosts) > 4 else "",
+        )
+    )
 
     # ── Manifest (local or CDN) ────────────────────────────
     if manifest_path:
@@ -499,18 +631,7 @@ def download_depot(
         print_fn(f"[native] Depot {depot_id} fully cached: {skipped} chunks, 0 downloaded")
         return True, total_size
 
-    # ── Server pool (sorted by load preference) ───────────
-    server_hosts: list[str] = []
-    for s in servers:
-        host = s.get("host", "") if isinstance(s, dict) else str(s)
-        if not host:
-            continue
-        entries = s.get("NumEntries", 1) if isinstance(s, dict) else 1
-        for _ in range(max(entries, 1)):
-            server_hosts.append(host)
-    if not server_hosts:
-        server_hosts = ["steampipe.akamaized.net"]
-
+    # ── Chunk -> preferred host assignment (rotation) ─────
     host_for_chunk: dict[str, str] = {}
     host_idx = 0
     for sha, _, _, _ in pending:
@@ -532,56 +653,85 @@ def download_depot(
     total_bytes = [0]
     fatal_error = [None]
 
+    reports_lock = threading.Lock()
+    chunk_reports: dict[str, list] = {}
+
+    def _report_for_sha(sha: str) -> list:
+        with reports_lock:
+            return chunk_reports.setdefault(sha, [])
+
     def _download_one_chunk(sha: str, offset: int, cb_original: int, fpath: Path) -> int:
-        """Downloads one chunk. Returns bytes written or -1 on failure."""
+        """Downloads one chunk across the full host pool.
+
+        Tries every host (rotated so the preferred host goes first),
+        using that host's own auth token. A chunk must fail on EVERY
+        host before it is reported. Returns bytes written, or raises
+        _ChunkError carrying per-attempt diagnostics.
+        """
         if fatal_error[0] is not None:
             return -1
 
-        host = host_for_chunk.get(sha, server_hosts[0])
-        use_https = any(
-            isinstance(s, dict) and s.get("https_support") == "mandatory" and s.get("host") == host
-            for s in servers
-        )
-        scheme = "https" if use_https else "http"
-
-        chunk_data = None
-        for retry in range(_CHUNK_RETRIES):
-            cur_host = server_hosts[(server_hosts.index(host) + retry) % len(server_hosts)]
-            if retry > 0:
-                time.sleep(min(0.25 * (2 ** retry), 15.0))
-            url = f"{scheme}://{cur_host}/depot/{depot_id}/chunk/{sha}{auth_token}"
-            try:
-                resp = http_client.get(url)
-                if resp.status_code == 200 and resp.content:
-                    chunk_data = resp.content
-                    break
-            except Exception:
-                continue
-
-        if chunk_data is None:
-            return -1
-
+        start = host_for_chunk.get(sha, server_hosts[0])
         try:
-            dec = _aes_symmetric_decrypt(chunk_data, key_bytes)
-            raw = _decompress_chunk(dec)
-        except Exception:
-            return -1
+            start_i = server_hosts.index(start)
+        except ValueError:
+            start_i = 0
+        order = server_hosts[start_i:] + server_hosts[:start_i]
 
-        if hashlib.sha1(raw).hexdigest() != sha:
-            return -1
+        for round_no in range(_MAX_CHUNK_ROUNDS):
+            for host in order:
+                if fatal_error[0] is not None:
+                    raise _ChunkError(_report_for_sha(sha))
+                scheme = host_scheme.get(host, "http")
+                token = _get_token(host, reset=host in token_reset)
+                url = f"{scheme}://{host}/depot/{depot_id}/chunk/{sha}{token}"
+                t0 = time.time()
+                status = None
+                size = 0
+                outcome = "?"
+                try:
+                    resp = http_client.get(url)
+                    status = resp.status_code
+                    content = resp.content or b""
+                    size = len(content)
+                    if status == 200 and content:
+                        try:
+                            dec = _aes_symmetric_decrypt(content, key_bytes)
+                            raw = _decompress_chunk(dec)
+                            if hashlib.sha1(raw).hexdigest() != sha:
+                                outcome = "sha-mismatch"
+                            else:
+                                with open(fpath, "r+b") as f:
+                                    f.seek(offset)
+                                    f.write(raw)
+                                n = len(raw)
+                                with done_lock:
+                                    total_bytes[0] += n
+                                    total_done[0] += 1
+                                return n
+                        except Exception as e:
+                            outcome = f"decrypt-fail({type(e).__name__})"
+                    else:
+                        outcome = f"http-{status}"
+                except Exception as e:
+                    outcome = f"conn-err({type(e).__name__})"
 
-        try:
-            with open(fpath, "r+b") as f:
-                f.seek(offset)
-                f.write(raw)
-        except OSError:
-            return -1
-
-        n = len(raw)
-        with done_lock:
-            total_bytes[0] += n
-            total_done[0] += 1
-        return n
+                elapsed = time.time() - t0
+                _report_for_sha(sha).append({
+                    "host": host, "status": status, "size": size,
+                    "outcome": outcome, "elapsed": round(elapsed, 2),
+                })
+                logger.debug("[native] chunk %s host %s -> %s (%dB, %.1fs)",
+                             sha[:16], host, outcome, size, elapsed)
+                # A tiny 200 that fails to decrypt is the CDN deny blob
+                # (foreign/expired token): re-mint and retry next round.
+                if size and size < _DENY_BLOB_MAX_BYTES and outcome.startswith("decrypt-fail"):
+                    token_reset.add(host)
+                if outcome.startswith("http-401") or outcome.startswith("http-403"):
+                    token_reset.add(host)
+            if round_no < _MAX_CHUNK_ROUNDS - 1:
+                time.sleep(min(0.5 * (2 ** round_no), 10.0))
+        raise _ChunkError(_report_for_sha(sha))
 
     # ── Concurrent chunk download ─────────────────────────
     try:
@@ -593,6 +743,7 @@ def download_depot(
         MAX_WORKERS = 32
     print_fn(f"[native] Downloading {len(pending)} chunks ({MAX_WORKERS} concurrent)...")
 
+    failures: dict[str, list] = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {}
         for sha, offset, cb_original, fpath in pending:
@@ -603,22 +754,14 @@ def download_depot(
         for fut in concurrent.futures.as_completed(futures):
             sha = futures[fut]
             try:
-                result = fut.result()
-            except Exception:
-                result = -1
-
-            if result < 0:
-                # Retry once on a different server
-                sha2, off2, cb2, fp2 = next(
-                    (s, o, c, p) for s, o, c, p in pending if s == sha
-                )
-                result = _download_one_chunk(sha2, off2, cb2, fp2)
-
-            if result < 0:
-                http_client.close()
-                client.disconnect()
-                print_fn(f"[native] Failed chunk {sha[:16]}... ({total_done[0]}/{total} done)")
-                return False, total_bytes[0]
+                fut.result()
+            except _ChunkError as e:
+                failures[sha] = e.report
+            except Exception as e:
+                failures[sha] = [{
+                    "host": "?", "status": None, "size": 0,
+                    "outcome": f"unexpected({type(e).__name__})", "elapsed": 0.0,
+                }]
 
             if total_done[0] % 100 == 0 or total_done[0] == total:
                 pct = (total_done[0] / total) * 100
@@ -626,6 +769,22 @@ def download_depot(
 
     http_client.close()
     client.disconnect()
+
+    if failures:
+        fatal_error[0] = "chunk failures"  # bail any stragglers fast
+        print_fn(
+            f"[native] Failed {len(failures)} chunk(s) after {_MAX_CHUNK_ROUNDS} round(s) "
+            f"across {len(server_hosts)} host(s):"
+        )
+        for sha, report in list(failures.items())[:10]:
+            details = ", ".join(
+                f"{r.get('host')}={r.get('status')}/{r.get('outcome')}({r.get('size')}B)"
+                for r in report
+            ) or "no attempts"
+            print_fn(f"[native]   {sha[:16]}... {details}")
+        if len(failures) > 10:
+            print_fn(f"[native]   ... and {len(failures) - 10} more")
+        return False, total_bytes[0]
 
     print_fn(f"[native] Depot {depot_id} done: {total_bytes[0]:,} bytes ({skipped} cached, {total} downloaded)")
     return True, total_bytes[0]
