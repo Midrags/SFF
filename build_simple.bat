@@ -42,7 +42,7 @@ if errorlevel 1 (
     echo BUILD FAILED!
     echo ========================================
     echo.
-    echo Install requirements first (two steps):
+    echo Install requirements first ^(two steps^):
     echo   1. pip install -r requirements.txt
     echo   2. pip install steam==1.4.4 --no-deps
     echo.

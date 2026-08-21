@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SteaMidra</title>
-    <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/themes.css">
-    <link rel="stylesheet" href="css/cards.css">
-    <link rel="stylesheet" href="css/animations.css">
-    <link rel="stylesheet" href="css/premium.css">
+    <link rel="stylesheet" href="css/app.css">
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 </head>
 <body>
@@ -84,7 +81,7 @@
                 </a>
             </div>
 
-            <div id="home-lumacore-alert" class="hint-banner platform-win hidden" style="border-left-color:#5fa8ff;" data-tooltip="SteaMidra checks your Steam folder and only shows this when LumaCore is missing or outdated.">
+            <div id="home-lumacore-alert" class="hint-banner platform-win hidden" data-tooltip="SteaMidra checks your Steam folder and only shows this when LumaCore is missing or outdated.">
                 <svg class="hint-icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                 <div class="hint-text">
                     <strong id="home-lumacore-alert-title">LumaCore Installation Required</strong>
@@ -93,7 +90,7 @@
                 </div>
             </div>
 
-            <div class="hint-banner platform-linux" style="border-left-color:#ffb84d;display:none;" data-tooltip="LumaCore is a Steam-client DLL hijack and is Windows-only. SteaMidra on Linux uses SLSsteam plus SLScheevo for ownership and achievements; SteaMidra still writes manifests, registers depot keys, and installs ACFs, but family bypass and on-launch ownership injection run via SLSsteam, not LumaCore.">
+            <div class="hint-banner is-warn platform-linux" data-tooltip="LumaCore is a Steam-client DLL hijack and is Windows-only. SteaMidra on Linux uses SLSsteam plus SLScheevo for ownership and achievements; SteaMidra still writes manifests, registers depot keys, and installs ACFs, but family bypass and on-launch ownership injection run via SLSsteam, not LumaCore.">
                 <svg class="hint-icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
                 <div class="hint-text">
                     <strong>LumaCore is not available on Linux.</strong>
@@ -123,10 +120,9 @@
                 </button>
             </div>
 
-            <div class="section-group">
+            <div class="home-picker">
                 <h2 class="section-title">Select Game</h2>
                 <input type="text" id="home-game-search" class="home-game-search" placeholder="Filter games..." autocomplete="off" aria-label="Search and filter games" role="combobox" aria-expanded="false" aria-controls="home-game-select-ui">
-
 
                 <div class="game-source-row">
                     <label class="game-source-label">
@@ -138,8 +134,8 @@
                         <span>Games outside of Steam</span>
                     </label>
                 </div>
-                <div id="steam-mode-row" class="input-group" style="max-width:500px;margin-top:8px;display:flex;gap:8px;align-items:center;">
-                    <select id="home-game-select" style="display:none" data-tooltip="Select a game from your Steam libraries for quick actions" aria-label="Select a game">
+                <div id="steam-mode-row" class="input-row w-narrow mt-1">
+                    <select id="home-game-select" class="hidden" data-tooltip="Select a game from your Steam libraries for quick actions" aria-label="Select a game">
                         <option value="">-- Select a game --</option>
                     </select>
                     <div class="custom-select" id="home-game-select-ui" role="listbox" aria-label="Game selection list">
@@ -149,9 +145,9 @@
                         </div>
                         <div class="custom-select-dropdown hidden"></div>
                     </div>
-                    <button id="home-game-refresh" class="btn" style="flex-shrink:0;" data-tooltip="Rescan installed games">↻</button>
+                    <button id="home-game-refresh" class="btn btn-icon" data-tooltip="Rescan installed games">↻</button>
                 </div>
-                <div id="outside-mode-row" class="outside-game-row" style="display:none;margin-top:8px">
+                <div style="display:none" id="outside-mode-row" class="outside-game-row mt-1">
                     <input type="text" id="outside-path-display" class="outside-path-input" readonly placeholder="No folder selected" data-tooltip="Game folder path">
                     <button id="outside-path-browse" class="btn" data-tooltip="Browse for game folder">Browse</button>
                     <label class="outside-name-label" data-tooltip="Game name used for Multiplayer Fix and outside-Steam actions">Game name:
@@ -163,133 +159,32 @@
                 </div>
             </div>
 
-            <div class="hint-banner" id="home-hint-banner" data-tooltip="Common issues and how to fix them. Read this before reporting bugs.">
-                <svg class="hint-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                <div class="hint-text" id="home-hint-text">
-                    <strong style="font-size:14px;display:block;margin-bottom:6px;">FAQ</strong>
-                    <strong>Hitting Steam error 53 / 54 / 86 or "Application load error 6:0000065432"?</strong>
-                    Steam DRM (SteamStub). Use <em>Remove SteamStub DRM (Steamless)</em> below. Important: the .exe you launch from the root folder is not always the one with SteamStub. For Unreal Engine games the correct .exe is usually at <em>...\Game\Binaries\Win64\Game-Win64-Shipping.exe</em>. Look for that shipping.exe if Steamless says "Failed to unpack file". Achievement-safe. <br>
-                    <strong>Game says EAC isn't installed or won't launch with anti-cheat errors?</strong>
-                    <button id="btn-eac-guide" class="hint-inline-btn" type="button">Show EAC fix steps</button>
-                    <br>
-                    <strong>Steam says "Content Still Encrypted" on update or download?</strong>
-                    The manifests for that game are missing or stale. Delete the game from your Steam library, then add it again using <em>Hubcap</em> as the source. Running Update All Games may also fix it.
-                </div>
-                <button id="home-hint-toggle" class="hint-toggle-btn" data-tooltip="Collapse / expand hints" aria-label="Toggle hints">&uarr;</button>
+            <div class="faq" data-tooltip="Common issues and how to fix them. Read this before reporting bugs.">
+                <h2 class="section-title">Common Problems</h2>
+                <details class="faq-item">
+                    <summary>Steam error 53 / 54 / 86, or "Application load error 6:0000065432"</summary>
+                    <div class="faq-body">
+                        <p>Steam DRM (SteamStub). Use <em>Remove SteamStub DRM (Steamless)</em> in Quick Start below.</p>
+                        <p>The .exe in the root folder is not always the one carrying SteamStub. For Unreal Engine games the right one is usually <em>...\Game\Binaries\Win64\Game-Win64-Shipping.exe</em> — look for that shipping.exe if Steamless reports "Failed to unpack file". Achievement-safe.</p>
+                    </div>
+                </details>
+                <details class="faq-item">
+                    <summary>Game says EAC isn't installed, or won't launch with anti-cheat errors</summary>
+                    <div class="faq-body">
+                        <p>SteaMidra's tools don't touch EAC — it's a separate kernel-level service. Seven ranked workarounds, easiest first:</p>
+                        <p><button id="btn-eac-guide" class="hint-inline-btn" type="button">Show EAC fix steps</button></p>
+                    </div>
+                </details>
+                <details class="faq-item">
+                    <summary>Steam says "Content Still Encrypted" on update or download</summary>
+                    <div class="faq-body">
+                        <p>The manifests for that game are missing or stale. Delete the game from your Steam library, then add it again using <em>Hubcap</em> as the source. Running <em>Update All Games</em> may also fix it.</p>
+                    </div>
+                </details>
             </div>
 
-            <div id="eac-guide-modal" class="modal hidden">
-                <div class="modal-overlay"></div>
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h2>EAC fixes — disable EAC for offline / performance</h2>
-                        <button class="modal-close" data-tooltip="Close">&times;</button>
-                    </div>
-                    <div class="modal-body">
-                        <p style="margin-top:0;">SteaMidra's tools (Goldberg, Remove SteamStub DRM, SteamAutoCrack) do <strong>not</strong> fix EAC. EAC is a separate kernel-level service the game itself loads. Use one of the methods below. Methods are ranked easiest first. Try them in order.</p>
-                        <p style="opacity:0.75;font-size:13px;">For competitive online games (Apex, Rust, Fortnite, Dead by Daylight) bypassing EAC will get you banned. Only use these for offline / single-player / modding.</p>
-
-                        <div class="eac-page-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin:12px 0;">
-                            <button class="eac-tab eac-tab-active" data-page="1" type="button">1. Verify + first launch</button>
-                            <button class="eac-tab" data-page="2" type="button">2. Steam launch options</button>
-                            <button class="eac-tab" data-page="3" type="button">3. Rename EAC folder</button>
-                            <button class="eac-tab" data-page="4" type="button">4. Executable swap</button>
-                            <button class="eac-tab" data-page="5" type="button">5. steam_appid.txt / .bat</button>
-                            <button class="eac-tab" data-page="6" type="button">6. Firewall block</button>
-                            <button class="eac-tab" data-page="7" type="button">7. Crack files</button>
-                        </div>
-
-                        <div class="eac-page" data-page="1">
-                            <h3 style="margin-top:0;">1. Verify game files, then launch once with EAC armed</h3>
-                            <p>Easiest one. Works when EAC service files got corrupted or the local EAC client never bootstrapped. Try this <strong>before</strong> anything else.</p>
-                            <ol style="line-height:1.7;">
-                                <li>Open Steam, right-click the game, then <strong>Properties</strong>.</li>
-                                <li>Open <strong>Installed Files</strong> (or <strong>Local Files</strong> on older Steam).</li>
-                                <li>Click <strong>Verify integrity of game files</strong> and let it finish.</li>
-                                <li>Launch the game once <strong>with EAC enabled</strong>. Wait until the EAC installer prompt finishes or the title screen renders, then close the game.</li>
-                                <li>Now retry whatever you were doing. The EAC service is registered on disk so any further launch (cracked or vanilla) sees a sane environment.</li>
-                            </ol>
-                            <p style="opacity:0.85;">If the game already loaded once with EAC armed and still throws the error, jump to method 2.</p>
-                        </div>
-
-                        <div class="eac-page hidden" data-page="2">
-                            <h3 style="margin-top:0;">2. Steam launch options</h3>
-                            <p>Some games respect a launch-arg toggle. Right-click the game, <strong>Properties</strong>, scroll to <strong>Launch Options</strong>, paste one of these and try the game:</p>
-                            <pre style="background:rgba(0,0,0,0.25);padding:10px;border-radius:4px;line-height:1.5;">-noeac
--eac-nop
---no-anti-cheat</pre>
-                            <p>Test one at a time. If the game still boots EAC, the dev didn't expose a flag. Move to method 3.</p>
-                        </div>
-
-                        <div class="eac-page hidden" data-page="3">
-                            <h3 style="margin-top:0;">3. Rename the EasyAntiCheat folder</h3>
-                            <p>Works on titles where EAC is loosely integrated. Game falls through to offline mode if it can't find the EAC dir.</p>
-                            <ol style="line-height:1.7;">
-                                <li>Right-click the game in Steam, <strong>Manage</strong>, <strong>Browse local files</strong>.</li>
-                                <li>Find the <code>EasyAntiCheat</code> folder.</li>
-                                <li>Rename it to <code>EasyAntiCheat_BACKUP</code>.</li>
-                                <li>Launch the game from its main <code>.exe</code> directly, not through Steam.</li>
-                            </ol>
-                            <p>If the game crashes instantly, EAC is deeply integrated and this won't work. Restore the folder name and try method 4.</p>
-                        </div>
-
-                        <div class="eac-page hidden" data-page="4">
-                            <h3 style="margin-top:0;">4. Executable swap (FromSoftware-style)</h3>
-                            <p>The classic Elden Ring / Armored Core VI offline trick. Steam thinks it's launching the EAC wrapper but actually launches the raw game.</p>
-                            <ol style="line-height:1.7;">
-                                <li>Open the game's install folder.</li>
-                                <li>Find the EAC launcher (usually <code>start_protected_game.exe</code> or <code>EACLauncher.exe</code>).</li>
-                                <li>Rename it to <code>start_protected_game_BACKUP.exe</code>.</li>
-                                <li>Find the real game executable (e.g. <code>eldenring.exe</code>). Copy it.</li>
-                                <li>Rename the copy to match the original wrapper name (<code>start_protected_game.exe</code>).</li>
-                                <li>Launch through Steam normally.</li>
-                            </ol>
-                            <p>Game boots straight into offline mode. Multiplayer is gone, single-player and mods work.</p>
-                        </div>
-
-                        <div class="eac-page hidden" data-page="5">
-                            <h3 style="margin-top:0;">5. steam_appid.txt or a .bat launcher</h3>
-                            <p>Most common bypass for Unreal Engine games. Skips the Steam bootstrapper that loads EAC.</p>
-                            <p><strong>steam_appid.txt:</strong></p>
-                            <ol style="line-height:1.7;">
-                                <li>Browse to where the actual game <code>.exe</code> lives (often <code>Binaries/Win64</code>).</li>
-                                <li>Create a new file named exactly <code>steam_appid.txt</code>.</li>
-                                <li>Paste the game's Steam App ID inside (the number from the Steam store URL). Save.</li>
-                                <li>Launch the game by double-clicking the <code>.exe</code>, NOT through Steam.</li>
-                            </ol>
-                            <p>If the game errors out with "tampered file", use a .bat instead. Same folder as the .exe, paste this and rename App ID + exe name:</p>
-                            <pre style="background:rgba(0,0,0,0.25);padding:10px;border-radius:4px;line-height:1.5;">set SteamAppId=1234567
-set SteamGameId=1234567
-start YourGame-Shipping.exe</pre>
-                            <p>Save as <code>LaunchOffline.bat</code>. Double-click to play.</p>
-                        </div>
-
-                        <div class="eac-page hidden" data-page="6">
-                            <h3 style="margin-top:0;">6. Firewall block (zero-risk offline)</h3>
-                            <p>Cuts the game's network access so EAC can't reach its servers. Forces local offline mode without touching any game files. Safest of the bunch.</p>
-                            <ol style="line-height:1.7;">
-                                <li>Start menu, type <strong>Windows Defender Firewall with Advanced Security</strong>, open it.</li>
-                                <li>Left sidebar, <strong>Outbound Rules</strong>.</li>
-                                <li>Right sidebar, <strong>New Rule</strong>.</li>
-                                <li>Pick <strong>Program</strong>, browse to the game's main <code>.exe</code>.</li>
-                                <li>Choose <strong>Block the connection</strong>. Leave Domain / Private / Public all checked.</li>
-                                <li>Name it (e.g. "Block Elden Ring online") and finish.</li>
-                            </ol>
-                            <p>Game boots, EAC fails to phone home, game falls through to offline mode. No file edits needed.</p>
-                        </div>
-
-                        <div class="eac-page hidden" data-page="7">
-                            <h3 style="margin-top:0;">7. Crack / fix files</h3>
-                            <p>If none of the above work, the game's EAC integration is too deep and you'll need pre-made crack files for that specific title. Check the game's NexusMods page or its modding subreddit and look for "EAC bypass" or "offline launcher". Drop the files in per the README they ship with.</p>
-                            <p>SteaMidra's <em>Crack Files</em> button on the home page also pulls community-maintained fix files from the CrakFiles repo for some games. Try that first before hunting on Nexus.</p>
-                            <p style="opacity:0.75;font-size:13px;">Don't ever launch a cracked online game on official servers. Permanent ban risk.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="section-group">
-                <h2 class="section-title">Quick Start</h2>
+            <details class="section-group" open>
+                <summary><span class="section-title">Fixes &amp; Patches</span></summary>
                 <div class="action-grid">
                     <button class="action-card" data-action="crack" data-tooltip="Replace steam_api DLLs with Goldberg Emulator. Breaks Steam achievements and cloud saves.">
                         <svg class="action-icon" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="12" x2="6" y2="12"/><line x1="10" y1="12" x2="10" y2="12"/></svg>
@@ -316,23 +211,22 @@ start YourGame-Shipping.exe</pre>
                         <span class="action-title">Auto Update Games</span>
                         <span class="action-desc">Toggle Steam update prompts</span>
                     </button>
-                </div>
-            </div>
-
-            <div class="section-group">
-                <h2 class="section-title">Crack Files</h2>
-                <div class="action-grid">
                     <button class="action-card" data-action="community_fixes" data-tooltip="Apply community-maintained crack files from the CrakFiles repo. Achievement-safe — only adds bypass DLLs, leaves the Steam API intact.">
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                         <span class="action-title">Crack Files</span>
                         <span class="action-desc safe-achievements">Achievements safe</span>
                     </button>
+                    <button class="action-card" data-action="dlc_unlockers" data-tooltip="Install or manage CreamAPI / SmokeAPI DLC unlocker DLLs">
+                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                        <span class="action-title">DLC Unlockers</span>
+                        <span class="action-desc">CreamAPI, SmokeAPI</span>
+                    </button>
                 </div>
-            </div>
+            </details>
 
             <!-- A12: Bulk Import surface (Folder Scan + Drag-and-Drop) -->
-            <div class="section-group" id="bulk-import-section">
-                <h2 class="section-title" data-i18n="Bulk Import">Bulk Import</h2>
+            <details class="section-group" id="bulk-import-section">
+                <summary><span class="section-title" data-i18n="Bulk Import">Bulk Import</span></summary>
                 <div class="action-grid">
                     <button class="action-card" id="bulk-import-folder" data-action="folder_scan" data-tooltip="Pick a folder; SteaMidra walks it recursively and imports every valid .lua / .manifest file in one batch.">
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
@@ -362,10 +256,10 @@ start YourGame-Shipping.exe</pre>
                     <h3 class="bulk-results-title" data-i18n="Results">Results</h3>
                     <ul id="bulk-results-list" class="bulk-results-list"></ul>
                 </div>
-            </div>
+            </details>
 
-            <div class="section-group">
-                <h2 class="section-title">Lua / Manifest Processing</h2>
+            <details class="section-group" open>
+                <summary><span class="section-title">Lua / Manifest Processing</span></summary>
                 <div class="action-grid">
                     <button class="action-card" data-action="download_games" data-tooltip="Download a game using Lua files — fetches manifests and keys so Steam installs the game">
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -388,11 +282,11 @@ start YourGame-Shipping.exe</pre>
                         <span class="action-desc">Refresh all installed games</span>
                     </button>
                 </div>
-            </div>
+            </details>
 
-            <div class="section-group">
-                <h2 class="section-title">Provider</h2>
-                <p class="setting-hint">Share only clean depot IDs, 64-character keys, names, kind, and parent info. Lua files, Steam config, paths, accounts, logs, tokens, cookies, credentials, manifests, and personal files are never uploaded.</p>
+            <details class="section-group">
+                <summary><span class="section-title">Provider</span></summary>
+                <p class="setting-hint mb-1">Share only clean depot IDs, 64-character keys, names, kind, and parent info. Lua files, Steam config, paths, accounts, logs, tokens, cookies, credentials, manifests, and personal files are never uploaded.</p>
                 <div class="action-grid small">
                     <button class="action-card compact" data-action="provider_preview" data-tooltip="Preview how many clean local keys can be contributed">
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -411,30 +305,21 @@ start YourGame-Shipping.exe</pre>
                         <span class="action-title">Reset Submitted Keys</span>
                     </button>
                 </div>
-                <label class="setting-checkbox" style="margin-top:10px;">
-                    <input type="checkbox" id="home-provider-contribute">
-                    <span>Contribute clean keys every 3 hours</span>
-                </label>
-                <label class="setting-checkbox" style="margin-top:8px;" data-tooltip="Optional: asks Steam for appinfo before submitting so missing depot names and parent info can be filled. This may slow submission on large key sets.">
-                    <input type="checkbox" id="home-provider-enrich">
-                    <span>Fill missing metadata with Steam appinfo before submit</span>
-                </label>
-                <p id="home-provider-status" class="setting-hint" style="margin-top:8px;"></p>
-            </div>
-
-            <div class="section-group">
-                <h2 class="section-title">DLC Unlockers</h2>
-                <div class="action-grid">
-                    <button class="action-card" data-action="dlc_unlockers" data-tooltip="Install or manage CreamAPI / SmokeAPI DLC unlocker DLLs">
-                        <svg class="action-icon" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-                        <span class="action-title">DLC Unlockers</span>
-                        <span class="action-desc">CreamAPI, SmokeAPI</span>
-                    </button>
+                <div class="checkbox-group mt-1">
+                    <label class="setting-checkbox">
+                        <input type="checkbox" id="home-provider-contribute">
+                        <span>Contribute clean keys every 3 hours</span>
+                    </label>
+                    <label class="setting-checkbox" data-tooltip="Optional: asks Steam for appinfo before submitting so missing depot names and parent info can be filled. This may slow submission on large key sets.">
+                        <input type="checkbox" id="home-provider-enrich">
+                        <span>Fill missing metadata with Steam appinfo before submit</span>
+                    </label>
                 </div>
-            </div>
+                <p id="home-provider-status" class="setting-hint"></p>
+            </details>
 
-            <div class="section-group">
-                <h2 class="section-title">Quick Tools</h2>
+            <details class="section-group">
+                <summary><span class="section-title">Quick Tools</span></summary>
                 <div class="action-grid small">
                     <button class="action-card compact platform-linux" data-action="linux_setup" data-tooltip="Set up or update Linux tools: SLSsteam and .NET 9">
                         <svg class="action-icon" viewBox="0 0 24 24"><path d="M12 2v20"/><path d="M5 9h14"/><path d="M5 15h14"/><path d="M17 3a9 9 0 010 18"/><path d="M7 3a9 9 0 000 18"/></svg>
@@ -466,7 +351,7 @@ start YourGame-Shipping.exe</pre>
                         <span class="action-title">AppList IDs</span>
                     </button>
                 </div>
-            </div>
+            </details>
             </div><!-- /.home-actions -->
 
             <!-- Mini live log panel (top-right) -->
@@ -482,8 +367,8 @@ start YourGame-Shipping.exe</pre>
             </div><!-- /.home-log -->
 
             </div><!-- /.home-layout -->
-            <div style="text-align:center; padding:12px 0;">
-                <button id="home-toggle-ui" class="btn" data-tooltip="Switch between Modern (Web) UI and Classic (Qt) UI">Switch to Classic UI</button>
+            <div class="home-footer">
+                <button id="home-toggle-ui" class="btn btn-ghost" data-tooltip="Switch between Modern (Web) UI and Classic (Qt) UI">Switch to Classic UI</button>
             </div>
         </section>
 
@@ -526,15 +411,15 @@ start YourGame-Shipping.exe</pre>
                     </div>
                 </div>
             </div>
-            <p id="store-provider-status" class="setting-hint" style="margin:8px 0 0;"></p>
+            <p id="store-provider-status" class="setting-hint"></p>
             <div id="store-select-bar" class="store-select-bar hidden">
                 <span id="store-select-count">0 selected</span>
-                <span style="display:inline-flex;align-items:center;gap:6px;margin-left:12px;font-size:12px;">
-                    <span style="opacity:0.7;">Provider:</span>
-                    <label style="font-size:12px;"><input type="radio" name="store-select-source" value="oureveryday" checked> MidraEveryDay</label>
-                    <label style="font-size:12px;"><input type="radio" name="store-select-source" value="hubcap"> Hubcap</label>
-                    <label style="font-size:12px;"><input type="radio" name="store-select-source" value="ryuu"> Ryuu</label>
-                    <label style="font-size:12px;"><input type="radio" name="store-select-source" value="depotbox"> DepotBox</label>
+                <span class="store-select-sources">
+                    <span>Provider:</span>
+                    <label><input type="radio" name="store-select-source" value="oureveryday" checked> MidraEveryDay</label>
+                    <label><input type="radio" name="store-select-source" value="hubcap"> Hubcap</label>
+                    <label><input type="radio" name="store-select-source" value="ryuu"> Ryuu</label>
+                    <label><input type="radio" name="store-select-source" value="depotbox"> DepotBox</label>
                 </span>
                 <button id="store-select-all-page" class="btn btn-sm">Select all on page</button>
                 <button id="store-select-clear" class="btn btn-sm">Clear</button>
@@ -637,7 +522,7 @@ start YourGame-Shipping.exe</pre>
             </div>
             <div id="downloads-queue" class="downloads-section">
                 <h2 class="section-title">Download Queue</h2>
-                <div id="downloads-queue-controls" class="button-row" style="display:flex;gap:8px;margin-bottom:8px;">
+                <div id="downloads-queue-controls" class="button-row">
                     <button id="queue-pause" class="btn btn-sm">Pause</button>
                     <button id="queue-resume" class="btn btn-sm">Resume</button>
                     <button id="queue-clear-finished" class="btn btn-sm">Clear finished</button>
@@ -659,7 +544,7 @@ start YourGame-Shipping.exe</pre>
                 <div class="fixgame-step">
                     <h2 class="section-title">1. Select Game</h2>
                     <p class="step-desc">Choose an installed game from the dropdown, or Browse to its folder manually. The App ID is detected automatically from the ACF manifest.</p>
-                    <div class="input-group" style="display:flex;gap:8px;align-items:center;">
+                    <div class="input-group input-row">
                         <select id="fixgame-game-select" style="display:none" data-tooltip="Select an installed game to fix">
                             <option value="">-- Select a game --</option>
                         </select>
@@ -670,8 +555,8 @@ start YourGame-Shipping.exe</pre>
                             </div>
                             <div class="custom-select-dropdown hidden"></div>
                         </div>
-                        <button id="fixgame-browse" class="btn" style="flex-shrink:0;" data-tooltip="Browse for a game folder manually">Browse</button>
-                        <button id="fixgame-refresh" class="btn" style="flex-shrink:0;" data-tooltip="Rescan for installed games">↻</button>
+                        <button id="fixgame-browse" class="btn no-shrink" data-tooltip="Browse for a game folder manually">Browse</button>
+                        <button id="fixgame-refresh" class="btn no-shrink" data-tooltip="Rescan for installed games">↻</button>
                     </div>
                     <div class="input-group" id="fixgame-folder-row" style="display:none;">
                         <label>Game Folder:</label>
@@ -694,10 +579,10 @@ start YourGame-Shipping.exe</pre>
                         <label>Steam ID:</label>
                         <input type="text" id="fixgame-steamid" placeholder="76561198000000000" data-tooltip="Your Steam64 ID for achievements">
                     </div>
-                    <div class="input-group" style="display:flex;gap:8px;align-items:center;">
-                        <label style="flex-shrink:0;font-size:12px;font-weight:600;opacity:0.8;min-width:88px;">Avatar Image:</label>
-                        <input type="text" id="fixgame-avatar" placeholder="Optional — .png / .jpg / .jpeg" style="flex:1;font-size:12px;" readonly data-tooltip="Profile avatar used by Goldberg Emulator in-game">
-                        <button id="fixgame-avatar-browse" class="btn" style="flex-shrink:0;" data-tooltip="Pick a PNG or JPG avatar image">Browse</button>
+                    <div class="input-group input-row">
+                        <label class="field-label">Avatar Image:</label>
+                        <input class="grow" type="text" id="fixgame-avatar" placeholder="Optional — .png / .jpg / .jpeg" readonly data-tooltip="Profile avatar used by Goldberg Emulator in-game">
+                        <button id="fixgame-avatar-browse" class="btn no-shrink" data-tooltip="Pick a PNG or JPG avatar image">Browse</button>
                     </div>
                 </div>
 
@@ -912,7 +797,7 @@ start YourGame-Shipping.exe</pre>
                         </div>
                     </div>
                     <div class="input-group">
-                        <label>Cloud Provider <small style="opacity:0.6;">(click to pre-fill destination format)</small></label>
+                        <label>Cloud Provider <small class="faint">(click to pre-fill destination format)</small></label>
                         <div class="rclone-provider-chips" id="rclone-provider-chips">
                             <button class="btn rclone-chip" data-prefix="dropbox:SteaMidra/Saves" data-tooltip="Dropbox — free 2 GB, paid plans available">Dropbox</button>
                             <button class="btn rclone-chip" data-prefix="onedrive:SteaMidra/Saves" data-tooltip="Microsoft OneDrive — 5 GB free with Microsoft account">OneDrive</button>
@@ -934,26 +819,26 @@ start YourGame-Shipping.exe</pre>
                         </div>
                     </div>
                     <div class="input-group">
-                        <label>Remote Destination <small style="opacity:0.6;">(replace the remote name with yours from rclone config)</small></label>
+                        <label>Remote Destination <small class="faint">(replace the remote name with yours from rclone config)</small></label>
                         <div class="input-with-btn">
                             <input type="text" id="provider-rclone-remote" list="rclone-remotes-list" placeholder="e.g. dropbox:SteaMidra/Saves  or  onedrive:SteaMidra/Saves">
                             <datalist id="rclone-remotes-list"></datalist>
                             <button id="provider-rclone-test" class="btn" data-tooltip="Test that the remote destination is reachable">Test</button>
                         </div>
-                        <small style="opacity:0.6;">No remote yet? Click <b>Setup in Terminal</b> above, then run <code>rclone config</code> and follow the prompts. <a href="#" id="rclone-docs-link" style="opacity:0.8;">rclone.org/docs</a></small>
+                        <small class="faint">No remote yet? Click <b>Setup in Terminal</b> above, then run <code>rclone config</code> and follow the prompts. <a class="muted" href="#" id="rclone-docs-link">rclone.org/docs</a></small>
                     </div>
                 </div>
-                <button id="provider-save-config" class="btn btn-primary" style="margin-top:10px;display:none">Save Provider Config</button>
+                <button style="display:none" id="provider-save-config" class="btn btn-primary">Save Provider Config</button>
 
-                <div id="cloud-backup-dest-row" class="input-group" style="margin-top:12px;">
+                <div id="cloud-backup-dest-row" class="input-group mt-2">
                     <label>Local Backup Folder:
-                        <small style="opacity:0.6;">(where your Steam-cloud saves get copied to)</small>
+                        <small class="faint">(where your Steam-cloud saves get copied to)</small>
                     </label>
                     <div class="input-with-btn">
                         <input type="text" id="cloud-backup-dest" placeholder="Browse to a folder on your PC..." data-tooltip="The folder Local-provider backups will be saved to. Each game gets its own subfolder named like 'Game Name [AppID]\remote'.">
                         <button id="cloud-backup-browse" class="btn">Browse</button>
                     </div>
-                    <small style="opacity:0.55;">Defaults to <code>&lt;SteaMidra folder&gt;\save_backups\</code> if you leave this blank, but the per-game backup goes wherever you point this.</small>
+                    <small class="faint">Defaults to <code>&lt;SteaMidra folder&gt;\save_backups\</code> if you leave this blank, but the per-game backup goes wherever you point this.</small>
                 </div>
             </div>
 
@@ -1011,15 +896,15 @@ start YourGame-Shipping.exe</pre>
             <div class="cloudsaves-allsaves" id="all-saves-section">
                 <h2 class="section-title">All Save Locations</h2>
                 <p class="section-desc">Scan and back up all emu save folders (CODEX, EMPRESS, RUNE, OnlineFix, Goldberg, GSE, Steam userdata) and any custom save paths you've registered.</p>
-                <div class="tool-card" style="margin-bottom:12px;">
+                <div class="tool-card mb-2">
                     <h3>Custom Save Path Per Game</h3>
-                    <p class="section-desc" style="margin-top:4px;">Some games store saves outside Steam (Documents&#92;My Games, AppData, etc). Add the path here and the next scan will pick it up alongside the standard locations.</p>
-                    <div class="input-group" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
-                        <div style="flex:0 0 160px;">
+                    <p class="section-desc mt-1">Some games store saves outside Steam (Documents&#92;My Games, AppData, etc). Add the path here and the next scan will pick it up alongside the standard locations.</p>
+                    <div class="input-group row row-wrap">
+                        <div class="no-shrink">
                             <label for="custom-save-appid">App ID</label>
                             <input type="text" id="custom-save-appid" inputmode="numeric" placeholder="e.g. 2358720">
                         </div>
-                        <div style="flex:1 1 280px;">
+                        <div class="grow">
                             <label for="custom-save-path">Save Folder</label>
                             <div class="input-with-btn">
                                 <input type="text" id="custom-save-path" placeholder="Browse to the game's save folder...">
@@ -1028,7 +913,7 @@ start YourGame-Shipping.exe</pre>
                         </div>
                         <button id="custom-save-add" class="btn btn-primary">Save Path</button>
                     </div>
-                    <div id="custom-save-list" style="margin-top:10px;"></div>
+                    <div class="mt-1" id="custom-save-list"></div>
                 </div>
                 <div class="all-saves-actions">
                     <button id="all-saves-scan-btn" class="btn btn-primary">Scan All Locations</button>
@@ -1098,10 +983,10 @@ start YourGame-Shipping.exe</pre>
                 <p class="page-subtitle">Pin an installed game to an older build. Paste a Build ID from SteamDB and the manifest IDs are pulled and applied for you. Windows only.</p>
             </div>
 
-            <div class="provider-section" style="max-width:640px;">
+            <div class="provider-section w-mid">
                 <h2 class="section-title">Select Game</h2>
-                <div class="input-group" style="margin-bottom:14px;">
-                    <label style="font-size:12px;font-weight:600;opacity:0.8;">Installed game:</label>
+                <div class="input-group mb-2">
+                    <label>Installed game:</label>
                     <select id="downgrade-game-select" style="display:none;">
                         <option value="">-- Select a game --</option>
                     </select>
@@ -1113,17 +998,17 @@ start YourGame-Shipping.exe</pre>
                         <div class="custom-select-dropdown hidden"></div>
                     </div>
                 </div>
-                <div class="input-group" style="margin-bottom:14px;">
-                    <label style="font-size:12px;font-weight:600;opacity:0.8;">App ID:</label>
-                    <input id="downgrade-appid" type="text" inputmode="numeric" placeholder="e.g. 730" style="width:100%; font-size:13px; padding:8px 10px; box-sizing:border-box; background:var(--input-bg,rgba(255,255,255,0.07)); border:1px solid var(--border,rgba(255,255,255,0.12)); border-radius:6px; color:inherit;">
+                <div class="input-group mb-2">
+                    <label>App ID:</label>
+                    <input id="downgrade-appid" type="text" inputmode="numeric" placeholder="e.g. 730">
                 </div>
-                <div class="input-group" style="margin-bottom:16px;">
-                    <label style="font-size:12px;font-weight:600;opacity:0.8;">Build ID:</label>
-                    <input id="downgrade-buildid" type="text" inputmode="numeric" placeholder="e.g. 17704973" style="width:100%; font-size:13px; padding:8px 10px; box-sizing:border-box; background:var(--input-bg,rgba(255,255,255,0.07)); border:1px solid var(--border,rgba(255,255,255,0.12)); border-radius:6px; color:inherit;">
+                <div class="input-group mb-2">
+                    <label>Build ID:</label>
+                    <input id="downgrade-buildid" type="text" inputmode="numeric" placeholder="e.g. 17704973">
                 </div>
                 <button id="downgrade-apply" class="btn btn-primary">Downgrade</button>
-                <button id="downgrade-unlock" class="btn" style="margin-left:8px;" data-tooltip="Remove the version lock so Steam updates this game back to the latest build">Unlock Updates</button>
-                <div id="downgrade-status" style="margin-top:14px; font-size:13px; opacity:0.9; white-space:pre-wrap;"></div>
+                <button id="downgrade-unlock" class="btn" data-tooltip="Remove the version lock so Steam updates this game back to the latest build">Unlock Updates</button>
+                <div class="mt-2 muted prewrap" id="downgrade-status"></div>
             </div>
         </section>
 
@@ -1140,8 +1025,8 @@ start YourGame-Shipping.exe</pre>
 
             <div class="settings-section">
                 <h2 class="section-title">Settings Backup</h2>
-                <p class="setting-hint" style="margin-bottom:12px;">Export your current settings or import a saved settings JSON after reinstalling or moving PCs.</p>
-                <div class="button-row" style="display:flex;gap:10px;flex-wrap:wrap;">
+                <p class="setting-hint mb-2">Export your current settings or import a saved settings JSON after reinstalling or moving PCs.</p>
+                <div class="button-row">
                     <button id="settings-export-file" class="btn btn-primary">Export Settings</button>
                     <button id="settings-import-file" class="btn">Import Settings</button>
                 </div>
@@ -1149,8 +1034,8 @@ start YourGame-Shipping.exe</pre>
 
             <div class="settings-section">
                 <h2 class="section-title">Updates</h2>
-                <p class="setting-hint" style="margin-bottom:12px;">Current version: <strong id="settings-version-label">loading...</strong></p>
-                <button id="about-update" class="btn btn-primary" style="min-width:180px;">Check for Updates</button>
+                <p class="setting-hint mb-2">Current version: <strong id="settings-version-label">loading...</strong></p>
+                <button id="about-update" class="btn btn-primary">Check for Updates</button>
             </div>
 
             <div class="settings-section">
@@ -1212,13 +1097,13 @@ start YourGame-Shipping.exe</pre>
                         <input type="password" id="setting-depotbox-key" placeholder="Enter DepotBox API key" data-tooltip="DepotBox API key for Lua and manifest downloads">
                         <button id="setting-depotbox-save" class="btn btn-primary">Save</button>
                     </div>
-                    <div style="margin-top:8px;">
-                        <label style="font-size:12px;opacity:0.7;">Rate Limit Plan:</label>
+                    <div class="mt-1">
+                        <label class="faint">Rate Limit Plan:</label>
                         <select id="setting-depotbox-rate-limit" style="display:none" data-tooltip="DepotBox plan (Starter 60/min or Pro 120/min)">
                             <option value="60">Starter (60 req/min)</option>
                             <option value="120">Pro (120 req/min)</option>
                         </select>
-                        <div class="custom-select" id="setting-depotbox-rate-limit-ui" style="margin-left:6px;">
+                        <div class="custom-select" id="setting-depotbox-rate-limit-ui">
                             <div class="custom-select-display">
                                 <span class="custom-select-text">Starter (60 req/min)</span>
                                 <span class="custom-select-arrow">&#9662;</span>
@@ -1270,20 +1155,20 @@ start YourGame-Shipping.exe</pre>
 
             <div class="settings-section">
                 <h2 class="section-title">GBE Identity</h2>
-                <div class="input-group" style="align-items:flex-start;gap:16px;">
-                    <div id="avatar-preview-wrap" style="flex-shrink:0;">
-                        <div id="avatar-placeholder" style="width:80px;height:80px;border-radius:6px;background:var(--bg-secondary,#1a1a2e);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;opacity:0.4;">
+                <div class="input-group row-top gap-lg">
+                    <div class="no-shrink" id="avatar-preview-wrap">
+                        <div class="avatar-box" id="avatar-placeholder">
                             <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                         </div>
-                        <img id="avatar-preview" src="" alt="Avatar" style="display:none;width:80px;height:80px;border-radius:6px;object-fit:cover;border:1px solid var(--border);">
+                        <img style="display:none" class="avatar-box" id="avatar-preview" src="" alt="Avatar">
                     </div>
-                    <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
-                        <label style="font-size:12px;opacity:0.7;">Global GBE avatar (applied to all games via GSE Saves/settings/)</label>
+                    <div class="col grow">
+                        <label class="faint">Global GBE avatar (applied to all games via GSE Saves/settings/)</label>
                         <div class="input-with-btn">
-                            <input type="text" id="setting-avatar-path" placeholder="No avatar set" readonly style="cursor:default;">
+                            <input type="text" id="setting-avatar-path" placeholder="No avatar set" readonly>
                             <button id="setting-avatar-browse" class="btn">Browse</button>
                         </div>
-                        <button id="setting-avatar-apply" class="btn btn-primary" style="align-self:flex-start;">Apply Avatar</button>
+                        <button id="setting-avatar-apply" class="btn btn-primary">Apply Avatar</button>
                     </div>
                 </div>
             </div>
@@ -1422,7 +1307,7 @@ start YourGame-Shipping.exe</pre>
 
             <div class="settings-section">
                 <h2 class="section-title">Auto Backup</h2>
-                <p class="setting-hint" style="margin-bottom:12px;">SteaMidra checks your save files in the background and backs them up automatically. Choose the provider and interval below.</p>
+                <p class="setting-hint mb-2">SteaMidra checks your save files in the background and backs them up automatically. Choose the provider and interval below.</p>
                 <div class="input-group">
                     <label>Check interval (minutes, 0 = off):</label>
                     <input type="number" id="setting-autobackup-interval" value="10" min="0" max="1440" data-tooltip="How often to check for changed saves. Set to 0 to disable.">
@@ -1437,23 +1322,23 @@ start YourGame-Shipping.exe</pre>
                 </div>
                 <div id="autobackup-local-panel" class="input-group">
                     <label>Destination folder:</label>
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        <input type="text" id="setting-autobackup-local-dest" placeholder="C:\Backups\SteaMidra" style="flex:1;" data-tooltip="Local folder to store save backups">
-                        <button id="setting-autobackup-local-browse" class="btn btn-secondary" style="white-space:nowrap;">Browse</button>
+                    <div class="input-row">
+                        <input class="grow" type="text" id="setting-autobackup-local-dest" placeholder="C:\Backups\SteaMidra" data-tooltip="Local folder to store save backups">
+                        <button id="setting-autobackup-local-browse" class="btn btn-secondary nowrap">Browse</button>
                     </div>
                 </div>
                 <div id="autobackup-rclone-panel" class="input-group hidden">
                     <label>Remote destination (e.g. mydrive:SteaMidraBackups):</label>
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        <input type="text" id="setting-autobackup-rclone-dest" placeholder="mydrive:SteaMidraBackups" style="flex:1;" list="autobackup-rclone-datalist" data-tooltip="rclone remote and path, e.g. gdrive:SteaMidraBackups">
+                    <div class="input-row">
+                        <input class="grow" type="text" id="setting-autobackup-rclone-dest" placeholder="mydrive:SteaMidraBackups" list="autobackup-rclone-datalist" data-tooltip="rclone remote and path, e.g. gdrive:SteaMidraBackups">
                         <datalist id="autobackup-rclone-datalist"></datalist>
-                        <button id="setting-autobackup-rclone-loadremotes" class="btn btn-secondary" style="white-space:nowrap;">Load Remotes</button>
+                        <button id="setting-autobackup-rclone-loadremotes" class="btn btn-secondary nowrap">Load Remotes</button>
                     </div>
                 </div>
                 <div id="autobackup-gdrive-panel" class="input-group hidden">
                     <p class="setting-hint">Uses your connected Google Drive account. Connect it in the Cloud Saves tab first.</p>
                 </div>
-                <div class="input-group" style="margin-top:8px;">
+                <div class="input-group mt-1">
                     <button id="setting-autobackup-save" class="btn btn-primary">Save Auto Backup Settings</button>
                 </div>
             </div>
@@ -1463,7 +1348,7 @@ start YourGame-Shipping.exe</pre>
                 <p id="about-info">SteaMidra — Steam game setup and manifest tool<br>
                     <a href="#" id="about-github">GitHub</a>
                 </p>
-                <p style="font-size:12px;opacity:0.85;margin-top:6px;line-height:1.6;">
+                <p class="mt-1 muted">
                     Download providers: MidraEveryDay, Hubcap, Ryuu, DepotBox<br>
                     Community servers (API keys):
                     <a href="#" id="about-link-hubcap">Hubcap</a> ·
@@ -1482,47 +1367,47 @@ start YourGame-Shipping.exe</pre>
 
             <div class="section-group">
                 <h2 class="section-title">SLSsteam Overview</h2>
-                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:16px 20px;line-height:1.6;font-size:13px;">
-                    <p style="margin-top:0;">SteaMidra on Linux uses <strong>SLSsteam</strong> to handle ownership injection, DLC unlocking, and achievement support. Click <strong>Set Up Linux Tools</strong> below or on the Home page to automatically download and configure SLSsteam via <a href="https://github.com/Deadboy666/h3adcr-b" target="_blank">h3adcr-b</a>.</p>
+                <div class="panel">
+                    <p>SteaMidra on Linux uses <strong>SLSsteam</strong> to handle ownership injection, DLC unlocking, and achievement support. Click <strong>Set Up Linux Tools</strong> below or on the Home page to automatically download and configure SLSsteam via <a href="https://github.com/Deadboy666/h3adcr-b" target="_blank">h3adcr-b</a>.</p>
                     <p><strong>LumaCore is Windows-only</strong> — it does not work on Linux. SLSsteam is the Linux equivalent.</p>
                 </div>
             </div>
 
             <div class="section-group">
                 <h2 class="section-title">Prerequisites</h2>
-                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:16px 20px;line-height:1.6;font-size:13px;">
-                    <ol style="padding-left:18px;">
-                        <li style="margin-bottom:8px;"><strong>.NET 9 Runtime</strong> — needed for DepotDownloaderMod. SteaMidra installs it automatically, or download from <a href="https://dotnet.microsoft.com/en-us/download/dotnet/9.0" target="_blank">Microsoft</a> (recommended).</li>
-                        <li style="margin-bottom:8px;"><strong>Steam (native Linux client)</strong> — installed and logged in.</li>
-                        <li style="margin-bottom:8px;"><strong>Proton</strong> (if running Windows games) — enabled in Steam Play settings.</li>
+                <div class="panel">
+                    <ol>
+                        <li class="mb-1"><strong>.NET 9 Runtime</strong> — needed for DepotDownloaderMod. SteaMidra installs it automatically, or download from <a href="https://dotnet.microsoft.com/en-us/download/dotnet/9.0" target="_blank">Microsoft</a> (recommended).</li>
+                        <li class="mb-1"><strong>Steam (native Linux client)</strong> — installed and logged in.</li>
+                        <li class="mb-1"><strong>Proton</strong> (if running Windows games) — enabled in Steam Play settings.</li>
                     </ol>
                 </div>
             </div>
 
             <div class="section-group">
                 <h2 class="section-title">SteamOS / Steam Deck Users</h2>
-                <div style="background:var(--card-bg);border:1px solid #ffb84d;border-radius:10px;padding:16px 20px;line-height:1.6;font-size:13px;">
-                    <p style="margin-top:0;color:#ffb84d;font-weight:700;">IMPORTANT: Follow these steps before running Linux Setup.</p>
-                    <ol style="padding-left:18px;">
-                        <li style="margin-bottom:8px;">Open Konsole and set a sudo password: <code>passwd</code></li>
-                        <li style="margin-bottom:8px;">Disable the read-only filesystem: <code>sudo steamos-readonly disable</code></li>
-                        <li style="margin-bottom:8px;">Run SteaMidra's <strong>Linux Setup</strong> to install SLSsteam</li>
-                        <li style="margin-bottom:8px;"><strong>Enable SafeMode:</strong> Open <code>~/.config/SLSsteam/config.yaml</code> and change:<br><code style="background:var(--btn-bg);padding:2px 6px;border-radius:3px;">SafeMode: no</code> → <code style="background:#4caf50;color:#fff;padding:2px 6px;border-radius:3px;">SafeMode: yes</code><br>This prevents SLSsteam from crashing your Deck into a boot loop when Steam updates.</li>
+                <div class="panel panel-warn">
+                    <p class="panel-warn-title">IMPORTANT: Follow these steps before running Linux Setup.</p>
+                    <ol>
+                        <li class="mb-1">Open Konsole and set a sudo password: <code>passwd</code></li>
+                        <li class="mb-1">Disable the read-only filesystem: <code>sudo steamos-readonly disable</code></li>
+                        <li class="mb-1">Run SteaMidra's <strong>Linux Setup</strong> to install SLSsteam</li>
+                        <li class="mb-1"><strong>Enable SafeMode:</strong> Open <code>~/.config/SLSsteam/config.yaml</code> and change:<br><code class="kbd">SafeMode: no</code> → <code class="kbd kbd-ok">SafeMode: yes</code><br>This prevents SLSsteam from crashing your Deck into a boot loop when Steam updates.</li>
                     </ol>
                 </div>
             </div>
 
             <div class="section-group">
                 <h2 class="section-title">Gaming Mode Setup</h2>
-                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:16px 20px;line-height:1.6;font-size:13px;">
-                    <p style="margin-top:0;">For SteaMidra/SLSsteam to work in Gaming Mode, you must edit the Steam launch script. <strong style="color:#ffb84d;">Steam updates will reset this file — repeat these steps after every update.</strong></p>
-                    <ol style="padding-left:18px;">
-                        <li style="margin-bottom:8px;"><strong>Backup the file:</strong> <code>sudo cp /usr/bin/steam-jupiter /usr/bin/steam-jupiter.bak</code></li>
-                        <li style="margin-bottom:8px;"><strong>Open as root:</strong> <code>sudo kate /usr/bin/steam-jupiter</code></li>
-                        <li style="margin-bottom:8px;">Find the line starting with <code>exec</code> near the bottom. <strong>Before</strong> that line, insert:<br><code style="background:var(--btn-bg);padding:4px 8px;border-radius:3px;display:inline-block;margin:4px 0;">export LD_AUDIT="/home/deck/.local/share/SLSsteam/library-inject.so:/home/deck/.local/share/SLSsteam/SLSsteam.so"</code></li>
-                        <li style="margin-bottom:8px;"><strong>Save and close.</strong></li>
-                        <li style="margin-bottom:8px;"><strong>Test in Desktop Mode first:</strong> launch Steam normally. If it opens and SLSsteam loads (you'll see a notification), Gaming Mode should work.</li>
-                        <li style="margin-bottom:8px;"><strong>Your backup is at:</strong> <code>/usr/bin/steam-jupiter.bak</code></li>
+                <div class="panel">
+                    <p>For SteaMidra/SLSsteam to work in Gaming Mode, you must edit the Steam launch script. <strong class="warn-text">Steam updates will reset this file — repeat these steps after every update.</strong></p>
+                    <ol>
+                        <li class="mb-1"><strong>Backup the file:</strong> <code>sudo cp /usr/bin/steam-jupiter /usr/bin/steam-jupiter.bak</code></li>
+                        <li class="mb-1"><strong>Open as root:</strong> <code>sudo kate /usr/bin/steam-jupiter</code></li>
+                        <li class="mb-1">Find the line starting with <code>exec</code> near the bottom. <strong>Before</strong> that line, insert:<br><code class="kbd kbd-block">export LD_AUDIT="/home/deck/.local/share/SLSsteam/library-inject.so:/home/deck/.local/share/SLSsteam/SLSsteam.so"</code></li>
+                        <li class="mb-1"><strong>Save and close.</strong></li>
+                        <li class="mb-1"><strong>Test in Desktop Mode first:</strong> launch Steam normally. If it opens and SLSsteam loads (you'll see a notification), Gaming Mode should work.</li>
+                        <li class="mb-1"><strong>Your backup is at:</strong> <code>/usr/bin/steam-jupiter.bak</code></li>
                     </ol>
                 </div>
             </div>
@@ -1547,8 +1432,8 @@ start YourGame-Shipping.exe</pre>
 
             <div class="section-group">
                 <h2 class="section-title">Troubleshooting</h2>
-                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:16px 20px;line-height:1.6;font-size:13px;">
-                    <p style="margin-top:0;"><strong>Unknown steamclient.so hash</strong> — run <em>Fix Hash Issue</em>. If that doesn't help, re-run <em>Linux Setup</em>.</p>
+                <div class="panel">
+                    <p><strong>Unknown steamclient.so hash</strong> — run <em>Fix Hash Issue</em>. If that doesn't help, re-run <em>Linux Setup</em>.</p>
                     <p><strong>Games showing "Purchase" instead of "Play"</strong> — SLSsteam may not be initialized. Restart Steam, or re-run <em>Linux Setup</em>.</p>
                     <p><strong>DDMod fails to download</strong> — verify .NET 9: <code>dotnet --version</code>. Should show 9.x.</p>
                     <p><strong>Gaming Mode black screen / boot loop</strong> — boot to Desktop Mode, restore steam-jupiter from backup: <code>sudo cp /usr/bin/steam-jupiter.bak /usr/bin/steam-jupiter</code>, then check <code>SafeMode: yes</code> is set in config.yaml.</p>
@@ -1557,17 +1442,127 @@ start YourGame-Shipping.exe</pre>
 
             <div class="section-group">
                 <h2 class="section-title">Further Reading</h2>
-                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:16px 20px;line-height:1.6;font-size:13px;display:flex;flex-direction:column;gap:10px;">
-                    <a href="https://github.com/Deadboy666/h3adcr-b/wiki/Headcrab-Wiki" target="_blank" style="color:var(--accent);text-decoration:none;">h3adcr-b Official Wiki — installation, troubleshooting, and config management</a>
-                    <a href="https://www.reddit.com/r/SteamDeckPirates/comments/1leqim0/guide_slssteam_how_to_unlock_dlcs_bypass_family/" target="_blank" style="color:var(--accent);text-decoration:none;">Community SLSsteam Guide — DLC unlocking, Family Sharing bypass, and more</a>
-                    <a href="https://www.youtube.com/watch?v=0Wyd3FzkHoo" target="_blank" style="color:var(--accent);text-decoration:none;">Video: Complete Guide to ACCELA 2026 — Installing and Configuring Linux Tools</a>
-                    <a href="https://github.com/AceSLS/SLSsteam" target="_blank" style="color:var(--accent);text-decoration:none;">SLSsteam GitHub — official source and releases</a>
+                <div class="panel col">
+                    <a href="https://github.com/Deadboy666/h3adcr-b/wiki/Headcrab-Wiki" target="_blank">h3adcr-b Official Wiki — installation, troubleshooting, and config management</a>
+                    <a href="https://www.reddit.com/r/SteamDeckPirates/comments/1leqim0/guide_slssteam_how_to_unlock_dlcs_bypass_family/" target="_blank">Community SLSsteam Guide — DLC unlocking, Family Sharing bypass, and more</a>
+                    <a href="https://www.youtube.com/watch?v=0Wyd3FzkHoo" target="_blank">Video: Complete Guide to ACCELA 2026 — Installing and Configuring Linux Tools</a>
+                    <a href="https://github.com/AceSLS/SLSsteam" target="_blank">SLSsteam GitHub — official source and releases</a>
                 </div>
             </div>
         </section>
     </main>
 
     <!-- Download Modal -->
+    <div id="eac-guide-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h2>EAC fixes — disable EAC for offline / performance</h2>
+                <button class="modal-close" data-tooltip="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>SteaMidra's tools (Goldberg, Remove SteamStub DRM, SteamAutoCrack) do <strong>not</strong> fix EAC. EAC is a separate kernel-level service the game itself loads. Use one of the methods below. Methods are ranked easiest first. Try them in order.</p>
+                <p class="faint tiny">For competitive online games (Apex, Rust, Fortnite, Dead by Daylight) bypassing EAC will get you banned. Only use these for offline / single-player / modding.</p>
+
+                <div class="eac-page-tabs tab-strip">
+                    <button class="eac-tab eac-tab-active" data-page="1" type="button">1. Verify + first launch</button>
+                    <button class="eac-tab" data-page="2" type="button">2. Steam launch options</button>
+                    <button class="eac-tab" data-page="3" type="button">3. Rename EAC folder</button>
+                    <button class="eac-tab" data-page="4" type="button">4. Executable swap</button>
+                    <button class="eac-tab" data-page="5" type="button">5. steam_appid.txt / .bat</button>
+                    <button class="eac-tab" data-page="6" type="button">6. Firewall block</button>
+                    <button class="eac-tab" data-page="7" type="button">7. Crack files</button>
+                </div>
+
+                <div class="eac-page" data-page="1">
+                    <h3>1. Verify game files, then launch once with EAC armed</h3>
+                    <p>Easiest one. Works when EAC service files got corrupted or the local EAC client never bootstrapped. Try this <strong>before</strong> anything else.</p>
+                    <ol>
+                        <li>Open Steam, right-click the game, then <strong>Properties</strong>.</li>
+                        <li>Open <strong>Installed Files</strong> (or <strong>Local Files</strong> on older Steam).</li>
+                        <li>Click <strong>Verify integrity of game files</strong> and let it finish.</li>
+                        <li>Launch the game once <strong>with EAC enabled</strong>. Wait until the EAC installer prompt finishes or the title screen renders, then close the game.</li>
+                        <li>Now retry whatever you were doing. The EAC service is registered on disk so any further launch (cracked or vanilla) sees a sane environment.</li>
+                    </ol>
+                    <p class="muted">If the game already loaded once with EAC armed and still throws the error, jump to method 2.</p>
+                </div>
+
+                <div class="eac-page hidden" data-page="2">
+                    <h3>2. Steam launch options</h3>
+                    <p>Some games respect a launch-arg toggle. Right-click the game, <strong>Properties</strong>, scroll to <strong>Launch Options</strong>, paste one of these and try the game:</p>
+                    <pre>-noeac
+-eac-nop
+--no-anti-cheat</pre>
+                    <p>Test one at a time. If the game still boots EAC, the dev didn't expose a flag. Move to method 3.</p>
+                </div>
+
+                <div class="eac-page hidden" data-page="3">
+                    <h3>3. Rename the EasyAntiCheat folder</h3>
+                    <p>Works on titles where EAC is loosely integrated. Game falls through to offline mode if it can't find the EAC dir.</p>
+                    <ol>
+                        <li>Right-click the game in Steam, <strong>Manage</strong>, <strong>Browse local files</strong>.</li>
+                        <li>Find the <code>EasyAntiCheat</code> folder.</li>
+                        <li>Rename it to <code>EasyAntiCheat_BACKUP</code>.</li>
+                        <li>Launch the game from its main <code>.exe</code> directly, not through Steam.</li>
+                    </ol>
+                    <p>If the game crashes instantly, EAC is deeply integrated and this won't work. Restore the folder name and try method 4.</p>
+                </div>
+
+                <div class="eac-page hidden" data-page="4">
+                    <h3>4. Executable swap (FromSoftware-style)</h3>
+                    <p>The classic Elden Ring / Armored Core VI offline trick. Steam thinks it's launching the EAC wrapper but actually launches the raw game.</p>
+                    <ol>
+                        <li>Open the game's install folder.</li>
+                        <li>Find the EAC launcher (usually <code>start_protected_game.exe</code> or <code>EACLauncher.exe</code>).</li>
+                        <li>Rename it to <code>start_protected_game_BACKUP.exe</code>.</li>
+                        <li>Find the real game executable (e.g. <code>eldenring.exe</code>). Copy it.</li>
+                        <li>Rename the copy to match the original wrapper name (<code>start_protected_game.exe</code>).</li>
+                        <li>Launch through Steam normally.</li>
+                    </ol>
+                    <p>Game boots straight into offline mode. Multiplayer is gone, single-player and mods work.</p>
+                </div>
+
+                <div class="eac-page hidden" data-page="5">
+                    <h3>5. steam_appid.txt or a .bat launcher</h3>
+                    <p>Most common bypass for Unreal Engine games. Skips the Steam bootstrapper that loads EAC.</p>
+                    <p><strong>steam_appid.txt:</strong></p>
+                    <ol>
+                        <li>Browse to where the actual game <code>.exe</code> lives (often <code>Binaries/Win64</code>).</li>
+                        <li>Create a new file named exactly <code>steam_appid.txt</code>.</li>
+                        <li>Paste the game's Steam App ID inside (the number from the Steam store URL). Save.</li>
+                        <li>Launch the game by double-clicking the <code>.exe</code>, NOT through Steam.</li>
+                    </ol>
+                    <p>If the game errors out with "tampered file", use a .bat instead. Same folder as the .exe, paste this and rename App ID + exe name:</p>
+                    <pre>set SteamAppId=1234567
+set SteamGameId=1234567
+start YourGame-Shipping.exe</pre>
+                    <p>Save as <code>LaunchOffline.bat</code>. Double-click to play.</p>
+                </div>
+
+                <div class="eac-page hidden" data-page="6">
+                    <h3>6. Firewall block (zero-risk offline)</h3>
+                    <p>Cuts the game's network access so EAC can't reach its servers. Forces local offline mode without touching any game files. Safest of the bunch.</p>
+                    <ol>
+                        <li>Start menu, type <strong>Windows Defender Firewall with Advanced Security</strong>, open it.</li>
+                        <li>Left sidebar, <strong>Outbound Rules</strong>.</li>
+                        <li>Right sidebar, <strong>New Rule</strong>.</li>
+                        <li>Pick <strong>Program</strong>, browse to the game's main <code>.exe</code>.</li>
+                        <li>Choose <strong>Block the connection</strong>. Leave Domain / Private / Public all checked.</li>
+                        <li>Name it (e.g. "Block Elden Ring online") and finish.</li>
+                    </ol>
+                    <p>Game boots, EAC fails to phone home, game falls through to offline mode. No file edits needed.</p>
+                </div>
+
+                <div class="eac-page hidden" data-page="7">
+                    <h3>7. Crack / fix files</h3>
+                    <p>If none of the above work, the game's EAC integration is too deep and you'll need pre-made crack files for that specific title. Check the game's NexusMods page or its modding subreddit and look for "EAC bypass" or "offline launcher". Drop the files in per the README they ship with.</p>
+                    <p>SteaMidra's <em>Crack Files</em> button on the home page also pulls community-maintained fix files from the CrakFiles repo for some games. Try that first before hunting on Nexus.</p>
+                    <p class="faint tiny">Don't ever launch a cracked online game on official servers. Permanent ban risk.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="download-modal" class="modal hidden">
         <div class="modal-overlay"></div>
         <div class="modal-content">
@@ -1594,54 +1589,54 @@ start YourGame-Shipping.exe</pre>
                         <input type="radio" name="dl-source" value="local"> Local file
                     </label>
                 </div>
-                <div id="dl-source-key-hint" style="display:none; margin-top:8px; padding-left:4px; font-size:12px; opacity:0.85;">
+                <div style="display:none" class="mt-1 muted" id="dl-source-key-hint">
                 </div>
-                <div id="dl-crack-banner" style="display:none; margin-top:8px; padding:8px 10px; border:1px solid var(--accent,#4a9eff); border-radius:6px; font-size:12px;">
+                <div style="display:none" class="mt-1 inline-banner" id="dl-crack-banner">
                     <span id="dl-crack-banner-text"></span>
-                    <div style="margin-top:6px; display:flex; gap:6px;">
+                    <div class="input-row mt-1">
                         <button id="dl-crack-older-btn" class="btn btn-sm btn-primary">Download Older Version</button>
                         <button id="dl-crack-source-btn" class="btn btn-sm">Crack instructions</button>
                     </div>
                 </div>
-                <div id="ryuu-update-option" style="display:none; margin-top:8px; padding-left:4px;">
+                <div style="display:none" class="mt-1" id="ryuu-update-option">
                     <label class="dl-source-option">
                         <input type="checkbox" id="ryuu-request-update"> Request Ryuu update before download
-                        <small style="color:#888; display:block; margin-top:2px;">(can be slow and may fail)</small>
+                        <small class="faint">(can be slow and may fail)</small>
                     </label>
-                    <div style="margin-top:8px;">
-                        <div style="display:flex; gap:6px; align-items:center;">
-                            <label style="font-size:12px;">Branch:</label>
-                            <button id="ryuu-refresh-branches" class="btn btn-sm" style="font-size:10px; padding:1px 6px;" title="Re-fetch branches from Steam">&#x21bb; Refresh</button>
+                    <div class="mt-1">
+                        <div class="input-row">
+                            <label>Branch:</label>
+                            <button id="ryuu-refresh-branches" class="btn btn-sm btn-sm" title="Re-fetch branches from Steam">&#x21bb; Refresh</button>
                         </div>
-                        <select id="ryuu-branch-select" style="width:100%; font-size:12px; margin-top:2px; max-height:200px;" size="1">
+                        <select class="mt-1" id="ryuu-branch-select" size="1">
                             <option value="public">public (default)</option>
                         </select>
-                        <button id="ryuu-request-branch-btn" class="btn btn-sm" style="font-size:10px; padding:2px 6px; margin-top:3px; width:100%;" title="Request this branch from Ryuu (needs premium API key)">Request Branch</button>
+                        <button id="ryuu-request-branch-btn" class="btn btn-sm btn-sm mt-1" title="Request this branch from Ryuu (needs premium API key)">Request Branch</button>
                     </div>
-                    <div style="margin-top:6px;">
-                        <label style="font-size:12px;">File type:</label>
-                        <select id="ryuu-file-type" style="width:100%; font-size:12px; margin-top:2px;">
+                    <div class="mt-1">
+                        <label>File type:</label>
+                        <select class="mt-1" id="ryuu-file-type">
                             <option value="zip">ZIP (lua + manifests)</option>
                             <option value="lua">Lua only</option>
                             <option value="manifest">Manifests only</option>
                         </select>
                     </div>
                 </div>
-                <div id="dl-local-row" style="display:none; margin-top:8px; padding-left:4px; display:none;">
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="text" id="dl-local-lua-path" readonly placeholder="Select a .lua, .zip, .rar, or .7z file..." style="flex:1; font-size:12px;">
+                <div style="display:none" class="mt-1" id="dl-local-row">
+                    <div class="input-row">
+                        <input class="grow" type="text" id="dl-local-lua-path" readonly placeholder="Select a .lua, .zip, .rar, or .7z file...">
                         <button id="dl-local-lua-browse" class="btn btn-sm">Browse</button>
                     </div>
                 </div>
-                <div id="dl-manifest-folder-row" style="display:none; margin-top:6px; padding-left:4px;">
-                    <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">Manifest folder (optional — for local .manifest files):</div>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="text" id="dl-manifest-folder-path" readonly placeholder="Select folder with .manifest files..." style="flex:1; font-size:12px;">
+                <div style="display:none" class="mt-1" id="dl-manifest-folder-row">
+                    <div class="field-hint">Manifest folder (optional — for local .manifest files):</div>
+                    <div class="input-row">
+                        <input class="grow" type="text" id="dl-manifest-folder-path" readonly placeholder="Select folder with .manifest files...">
                         <button id="dl-manifest-folder-browse" class="btn btn-sm">Browse</button>
                     </div>
                 </div>
-                <div style="margin-top:8px; padding-left:4px;">
-                    <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">Depot OS:</div>
+                <div class="mt-1">
+                    <div class="field-hint">Depot OS:</div>
                     <select id="dl-target-os" style="display:none">
                         <option value="">Auto</option>
                         <option value="windows">Windows</option>
@@ -1656,10 +1651,10 @@ start YourGame-Shipping.exe</pre>
                         <div class="custom-select-dropdown hidden"></div>
                     </div>
                 </div>
-                <div style="margin-top:8px; padding-left:4px;">
-                    <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">DDMod download location:</div>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="text" id="dl-ddmod-dest-path" readonly placeholder="Choose where DDMod should download..." style="flex:1; font-size:12px;">
+                <div class="mt-1">
+                    <div class="field-hint">DDMod download location:</div>
+                    <div class="input-row">
+                        <input class="grow" type="text" id="dl-ddmod-dest-path" readonly placeholder="Choose where DDMod should download...">
                         <button id="dl-ddmod-dest-browse" class="btn btn-sm">Browse</button>
                         <button id="dl-ddmod-dest-clear" class="btn btn-sm">Clear</button>
                     </div>
@@ -1701,7 +1696,7 @@ start YourGame-Shipping.exe</pre>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:14px;opacity:0.85;">Choose how to download this game.</p>
+                <p class="mb-2 muted">Choose how to download this game.</p>
                 <button id="ddmod-choose-steam" class="download-option platform-win" data-tooltip="LumaCore handles ownership so Steam installs the game natively via manifest injection">
                     <svg class="dl-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                     <div class="dl-info">
@@ -1732,7 +1727,7 @@ start YourGame-Shipping.exe</pre>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:14px;opacity:0.85;">Choose how to download the older version.</p>
+                <p class="mb-2 muted">Choose how to download the older version.</p>
                 <button id="older-method-ddmod" class="download-option" data-tooltip="Download game files directly using DepotDownloaderMod (requires .NET 9)">
                     <svg class="dl-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     <div class="dl-info">
@@ -1762,7 +1757,7 @@ start YourGame-Shipping.exe</pre>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:14px;opacity:0.85;">Choose how to pick the version.</p>
+                <p class="mb-2 muted">Choose how to pick the version.</p>
                 <button id="older-mode-manual" class="download-option">
                     <svg class="dl-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
                     <div class="dl-info">
@@ -1792,11 +1787,11 @@ start YourGame-Shipping.exe</pre>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:12px;opacity:0.85;">Open the game on SteamDB, go to Patches, copy the Build ID of the version you want, and paste it here.</p>
-                <p style="margin-bottom:12px;font-size:12px;opacity:0.7;">Build ID manifest data provided by DepotBox.</p>
+                <p class="mb-2 muted">Open the game on SteamDB, go to Patches, copy the Build ID of the version you want, and paste it here.</p>
+                <p class="mb-2 faint tiny">Build ID manifest data provided by DepotBox.</p>
                 <div class="input-group">
-                    <label style="font-size:12px;font-weight:600;opacity:0.8;">Build ID:</label>
-                    <input id="older-auto-buildid" type="text" inputmode="numeric" placeholder="e.g. 17704973" style="width:100%; font-size:13px; padding:8px 10px; box-sizing:border-box; background:var(--input-bg,rgba(255,255,255,0.07)); border:1px solid var(--border,rgba(255,255,255,0.12)); border-radius:6px; color:inherit;">
+                    <label>Build ID:</label>
+                    <input id="older-auto-buildid" type="text" inputmode="numeric" placeholder="e.g. 17704973">
                 </div>
             </div>
             <div class="modal-footer">
@@ -1815,14 +1810,14 @@ start YourGame-Shipping.exe</pre>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="input-group" style="margin-bottom:10px;">
-                    <label style="font-size:12px;font-weight:600;opacity:0.8;">Game:</label>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <div id="steam-home-game-display" data-appid="" style="flex:1; font-size:13px; padding:6px 10px; background:var(--input-bg,rgba(255,255,255,0.07)); border:1px solid var(--border,rgba(255,255,255,0.12)); border-radius:6px; min-height:32px; opacity:0.85;">No game selected</div>
+                <div class="input-group mb-1">
+                    <label>Game:</label>
+                    <div class="input-row">
+                        <div class="field-static grow" id="steam-home-game-display" data-appid="">No game selected</div>
                         <button id="steam-home-browse-game" class="btn btn-sm">Browse...</button>
                     </div>
                 </div>
-                <div class="dl-source-picker" style="margin-bottom:10px;">
+                <div class="dl-source-picker mb-1">
                     <span class="dl-source-label">Lua source:</span>
                     <label class="dl-source-option">
                         <input type="radio" name="steam-home-source" value="oureveryday" checked> MidraEveryDay
@@ -1843,26 +1838,26 @@ start YourGame-Shipping.exe</pre>
                         <input type="radio" name="steam-home-source" value="recent"> Recent .lua
                     </label>
                 </div>
-                <div id="steam-home-ryuu-option" style="display:none; margin-bottom:8px;">
-                    <label style="font-size:12px;">
+                <div style="display:none" id="steam-home-ryuu-option">
+                    <label>
                         <input type="checkbox" id="steam-home-request-update"> Request update from Ryuu before downloading
                     </label>
                 </div>
-                <div id="steam-home-local-row" style="display:none; margin-bottom:10px;">
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="text" id="steam-home-local-path" readonly placeholder="Select a .lua, .zip, .rar, or .7z file..." style="flex:1; font-size:12px;">
+                <div style="display:none" id="steam-home-local-row">
+                    <div class="input-row">
+                        <input class="grow" type="text" id="steam-home-local-path" readonly placeholder="Select a .lua, .zip, .rar, or .7z file...">
                         <button id="steam-home-local-browse" class="btn btn-sm">Browse</button>
                     </div>
                 </div>
-                <div id="steam-home-manifest-row" style="display:none; margin-bottom:10px;">
-                    <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">Manifest folder (optional):</div>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="text" id="steam-home-manifest-path" readonly placeholder="Select folder with .manifest files..." style="flex:1; font-size:12px;">
+                <div style="display:none" id="steam-home-manifest-row">
+                    <div class="field-hint">Manifest folder (optional):</div>
+                    <div class="input-row">
+                        <input class="grow" type="text" id="steam-home-manifest-path" readonly placeholder="Select folder with .manifest files...">
                         <button id="steam-home-manifest-browse" class="btn btn-sm">Browse</button>
                     </div>
                 </div>
-                <div id="steam-home-recent-row" style="display:none; margin-bottom:10px;">
-                    <select id="steam-home-recent-select" style="width:100%; font-size:13px;">
+                <div style="display:none" id="steam-home-recent-row">
+                    <select id="steam-home-recent-select">
                         <option value="">-- select a recent file --</option>
                     </select>
                 </div>
@@ -1877,20 +1872,20 @@ start YourGame-Shipping.exe</pre>
     <!-- Steam Game Picker Modal -->
     <div id="steam-game-picker-modal" class="modal hidden">
         <div class="modal-overlay"></div>
-        <div class="modal-content" style="max-width:520px;">
+        <div class="modal-content modal-lg">
             <div class="modal-header">
                 <h2>Select Game</h2>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-                    <span id="sgp-last-updated" style="font-size:11px; opacity:0.6; flex:1;"></span>
+                <div class="input-row mb-1">
+                    <span class="faint tiny grow" id="sgp-last-updated"></span>
                     <button id="sgp-update-btn" class="btn btn-sm">Update list</button>
                 </div>
-                <input type="text" id="sgp-search" placeholder="Search games..." style="width:100%; font-size:13px; margin-bottom:8px; box-sizing:border-box;">
-                <div id="sgp-list" style="max-height:320px; overflow-y:auto; border:1px solid var(--border,rgba(255,255,255,0.12)); border-radius:6px; padding:4px 0;"></div>
-                <div id="sgp-empty" style="display:none; text-align:center; padding:24px; opacity:0.5; font-size:13px;">No games found. Try updating the list first.</div>
-                <div id="sgp-loading" style="display:none; text-align:center; padding:16px; opacity:0.7; font-size:13px;">Loading...</div>
+                <input class="mb-1" type="text" id="sgp-search" placeholder="Search games...">
+                <div class="pick-list" id="sgp-list"></div>
+                <div style="display:none" class="empty-state small" id="sgp-empty">No games found. Try updating the list first.</div>
+                <div style="display:none" class="empty-state small" id="sgp-loading">Loading...</div>
             </div>
             <div class="modal-footer">
                 <button id="sgp-select" class="btn btn-primary" disabled>Select</button>
@@ -1908,11 +1903,11 @@ start YourGame-Shipping.exe</pre>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="input-group" style="margin-bottom:10px;">
-                    <label style="font-size:12px;font-weight:600;opacity:0.8;">App ID:</label>
-                    <input type="text" id="ddmod-home-appid" placeholder="e.g. 570" style="font-size:13px;">
+                <div class="input-group mb-1">
+                    <label>App ID:</label>
+                    <input type="text" id="ddmod-home-appid" placeholder="e.g. 570">
                 </div>
-                <div class="dl-source-picker" style="margin-bottom:10px;">
+                <div class="dl-source-picker mb-1">
                     <span class="dl-source-label">Lua source:</span>
                     <label class="dl-source-option">
                         <input type="radio" name="ddmod-home-source" value="oureveryday" checked> MidraEveryDay
@@ -1933,26 +1928,26 @@ start YourGame-Shipping.exe</pre>
                         <input type="radio" name="ddmod-home-source" value="recent"> Recent .lua
                     </label>
                 </div>
-                <div id="ddmod-home-local-row" style="display:none; margin-bottom:10px;">
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="text" id="ddmod-home-local-path" readonly placeholder="Select a .lua, .zip, .rar, or .7z file..." style="flex:1; font-size:12px;">
+                <div style="display:none" id="ddmod-home-local-row">
+                    <div class="input-row">
+                        <input class="grow" type="text" id="ddmod-home-local-path" readonly placeholder="Select a .lua, .zip, .rar, or .7z file...">
                         <button id="ddmod-home-local-browse" class="btn btn-sm">Browse</button>
                     </div>
                 </div>
-                <div id="ddmod-home-manifest-row" style="display:none; margin-bottom:10px;">
-                    <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">Manifest folder (optional):</div>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="text" id="ddmod-home-manifest-path" readonly placeholder="Select folder with .manifest files..." style="flex:1; font-size:12px;">
+                <div style="display:none" id="ddmod-home-manifest-row">
+                    <div class="field-hint">Manifest folder (optional):</div>
+                    <div class="input-row">
+                        <input class="grow" type="text" id="ddmod-home-manifest-path" readonly placeholder="Select folder with .manifest files...">
                         <button id="ddmod-home-manifest-browse" class="btn btn-sm">Browse</button>
                     </div>
                 </div>
-                <div id="ddmod-home-recent-row" style="display:none; margin-bottom:10px;">
-                    <select id="ddmod-home-recent-select" style="width:100%; font-size:13px;">
+                <div style="display:none" id="ddmod-home-recent-row">
+                    <select id="ddmod-home-recent-select">
                         <option value="">-- select a recent file --</option>
                     </select>
                 </div>
-                <div style="margin-bottom:10px;">
-                    <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">Depot OS:</div>
+                <div class="mb-1">
+                    <div class="field-hint">Depot OS:</div>
                     <select id="ddmod-home-target-os" style="display:none">
                         <option value="">Auto</option>
                         <option value="windows">Windows</option>
@@ -1967,10 +1962,10 @@ start YourGame-Shipping.exe</pre>
                         <div class="custom-select-dropdown hidden"></div>
                     </div>
                 </div>
-                <div style="margin-bottom:10px;">
-                    <div style="font-size:11px; opacity:0.7; margin-bottom:4px;">Download location:</div>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <input type="text" id="ddmod-home-dest-path" readonly placeholder="Choose where DDMod should download..." style="flex:1; font-size:12px;">
+                <div class="mb-1">
+                    <div class="field-hint">Download location:</div>
+                    <div class="input-row">
+                        <input class="grow" type="text" id="ddmod-home-dest-path" readonly placeholder="Choose where DDMod should download...">
                         <button id="ddmod-home-dest-browse" class="btn btn-sm">Browse</button>
                         <button id="ddmod-home-dest-clear" class="btn btn-sm">Clear</button>
                     </div>
@@ -1999,33 +1994,33 @@ start YourGame-Shipping.exe</pre>
                         <tbody id="version-tbody"></tbody>
                     </table>
                 </div>
-                <div id="version-depot-edit" class="hidden" style="margin-top:8px;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-                        <label style="font-size:12px;font-weight:600;opacity:0.8;">Edit Depot Manifest IDs</label>
-                        <button id="version-edit-done" class="btn" style="padding:4px 10px;font-size:11px;">Done Editing</button>
+                <div id="version-depot-edit" class="hidden mt-1">
+                    <div class="row mb-1">
+                        <label>Edit Depot Manifest IDs</label>
+                        <button id="version-edit-done" class="btn btn-sm">Done Editing</button>
                     </div>
                     <div class="data-table">
                         <table>
-                            <thead><tr><th style="width:100px;">Depot ID</th><th>Manifest ID</th><th style="width:40px;"></th></tr></thead>
+                            <thead><tr><th class="w-xs">Depot ID</th><th>Manifest ID</th><th class="w-2xs"></th></tr></thead>
                             <tbody id="version-edit-tbody"></tbody>
                         </table>
                     </div>
-                    <div style="display:flex;gap:6px;margin-top:6px;">
-                        <input id="version-edit-add-depot" type="text" placeholder="Depot ID" style="width:100px;font-family:monospace;font-size:12px;padding:4px;">
-                        <input id="version-edit-add-manifest" type="text" placeholder="Manifest ID" style="flex:1;font-family:monospace;font-size:12px;padding:4px;">
-                        <button id="version-edit-add-btn" class="btn" style="padding:4px 10px;font-size:11px;">Add</button>
+                    <div class="input-row mt-1">
+                        <input class="mono no-shrink" id="version-edit-add-depot" type="text" placeholder="Depot ID">
+                        <input class="mono grow" id="version-edit-add-manifest" type="text" placeholder="Manifest ID">
+                        <button id="version-edit-add-btn" class="btn btn-sm">Add</button>
                     </div>
                 </div>
-                <div style="margin-top:12px;border-top:1px solid var(--border,rgba(255,255,255,0.12));padding-top:10px;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-                        <label style="font-size:12px;font-weight:600;opacity:0.8;">Manual Depot / Manifest IDs</label>
-                        <div style="display:flex;gap:6px;">
-                            <button id="version-edit-toggle" class="btn" style="padding:6px 10px;font-size:12px;">Edit Depots</button>
-                            <button id="version-import-html" class="btn" style="padding:6px 10px;font-size:12px;">Import HTML</button>
+                <div class="divider-top">
+                    <div class="row">
+                        <label>Manual Depot / Manifest IDs</label>
+                        <div class="row">
+                            <button id="version-edit-toggle" class="btn btn-sm">Edit Depots</button>
+                            <button id="version-import-html" class="btn btn-sm">Import HTML</button>
                         </div>
                     </div>
-                    <textarea id="version-manual-input" rows="4" placeholder="One per line, for example:&#10;939851=2233225956230312354&#10;939852 45510479311498930" style="width:100%;box-sizing:border-box;margin-top:6px;font-family:monospace;font-size:12px;"></textarea>
-                    <div style="font-size:11px;opacity:0.65;margin-top:4px;">Use this when the history list is empty or SteamDB blocks the request. Format: depot ID, then manifest GID. Import HTML lists saved SteamDB depot pages above so you can select them.</div>
+                    <textarea class="mono mt-1" id="version-manual-input" rows="4" placeholder="One per line, for example:&#10;939851=2233225956230312354&#10;939852 45510479311498930"></textarea>
+                    <div class="field-hint mt-1">Use this when the history list is empty or SteamDB blocks the request. Format: depot ID, then manifest GID. Import HTML lists saved SteamDB depot pages above so you can select them.</div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -2063,13 +2058,13 @@ start YourGame-Shipping.exe</pre>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:10px;opacity:0.85;">Select which games to update. Only games with saved Lua files are shown.</p>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <span style="font-size:12px;opacity:0.6;" id="um-count">Loading...</span>
-                    <button id="um-toggle-all" class="btn btn-sm" style="font-size:12px;padding:3px 10px;">Deselect All</button>
+                <p class="mb-1 muted">Select which games to update. Only games with saved Lua files are shown.</p>
+                <div class="row mb-1">
+                    <span class="faint" id="um-count">Loading...</span>
+                    <button id="um-toggle-all" class="btn btn-sm btn-sm">Deselect All</button>
                 </div>
-                <div id="um-game-list" style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:6px 10px;background:var(--bg-secondary, var(--bg));">
-                    <span style="opacity:0.5;font-size:13px;">Loading games...</span>
+                <div class="pick-list" id="um-game-list">
+                    <span class="faint">Loading games...</span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -2088,19 +2083,19 @@ start YourGame-Shipping.exe</pre>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:10px;opacity:0.85;">
+                <p class="mb-1 muted">
                     Select games that should update through Steam. SteaMidra writes the global
                     <code>00_LetUpdate_override.lua</code> so new games update by default, and keeps unchecked games pinned.
                     It also comments <code>setManifestid</code> lines for checked game Lua files.
                 </p>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <span style="font-size:12px;opacity:0.6;" id="lu-count">Loading...</span>
-                    <button id="lu-toggle-all" class="btn btn-sm" style="font-size:12px;padding:3px 10px;">Deselect All</button>
+                <div class="row mb-1">
+                    <span class="faint" id="lu-count">Loading...</span>
+                    <button id="lu-toggle-all" class="btn btn-sm btn-sm">Deselect All</button>
                 </div>
-                <div id="lu-helper-status" style="font-size:12px;opacity:0.7;margin-bottom:8px;">Helper status: checking...</div>
-                <input type="text" id="lu-search" placeholder="Search games..." style="width:100%;padding:6px 10px;margin-bottom:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:12px;">
-                <div id="lu-game-list" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:6px 10px;background:var(--bg-secondary, var(--bg));">
-                    <span style="opacity:0.5;font-size:13px;">Loading games...</span>
+                <div class="faint mb-1" id="lu-helper-status">Helper status: checking...</div>
+                <input class="mb-1" type="text" id="lu-search" placeholder="Search games...">
+                <div class="pick-list" id="lu-game-list">
+                    <span class="faint">Loading games...</span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -2120,21 +2115,21 @@ start YourGame-Shipping.exe</pre>
     <!-- Library Delete Modal -->
     <div id="library-delete-modal" class="modal hidden">
         <div class="modal-overlay"></div>
-        <div class="modal-content" style="max-width:440px;">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2>Remove Game</h2>
                 <button class="modal-close" id="library-delete-cancel">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:14px;opacity:0.9;">How do you want to remove <strong id="library-delete-game-name"></strong>?</p>
-                <div style="display:flex;flex-direction:column;gap:10px;">
-                    <button id="library-delete-applist" class="btn btn-primary" style="text-align:left;padding:12px 16px;">
+                <p class="mb-2 muted">How do you want to remove <strong id="library-delete-game-name"></strong>?</p>
+                <div class="col">
+                    <button id="library-delete-applist" class="btn btn-primary btn-block">
                         <strong>Remove from library</strong>
-                        <span style="display:block;font-size:12px;opacity:0.7;margin-top:3px;">Removes the stplug-in Lua entry. Game files stay on disk.</span>
+                        <span class="btn-sub">Removes the stplug-in Lua entry. Game files stay on disk.</span>
                     </button>
-                    <button id="library-delete-full" class="btn btn-danger" style="text-align:left;padding:12px 16px;">
+                    <button id="library-delete-full" class="btn btn-danger btn-block">
                         <strong>Remove completely</strong>
-                        <span style="display:block;font-size:12px;opacity:0.7;margin-top:3px;">Permanently deletes all game files from disk. This cannot be undone.</span>
+                        <span class="btn-sub">Permanently deletes all game files from disk. This cannot be undone.</span>
                     </button>
                 </div>
             </div>
@@ -2147,42 +2142,42 @@ start YourGame-Shipping.exe</pre>
     <!-- Auto LC Setup Modal -->
     <div id="lc-setup-modal" class="modal hidden">
         <div class="modal-overlay"></div>
-        <div class="modal-content" style="max-width:480px;">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2>Auto LC Setup</h2>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:14px;opacity:0.85;font-size:13px;">Downloads the latest <code>LumaCore</code> release from GitHub, removes all GreenLuma files (first run only), cleans up old LumaCore DLLs, then installs <code>dwmapi.dll</code>, <code>xinput1_4.dll</code>, and <code>LumaCore.dll</code> into your Steam directory.</p>
-                <div id="lc-version-row" style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:14px;font-size:12px;opacity:0.85;">
+                <p class="mb-2 muted">Downloads the latest <code>LumaCore</code> release from GitHub, removes all GreenLuma files (first run only), cleans up old LumaCore DLLs, then installs <code>dwmapi.dll</code>, <code>xinput1_4.dll</code>, and <code>LumaCore.dll</code> into your Steam directory.</p>
+                <div class="row row-wrap mb-2 muted" id="lc-version-row">
                     <span><strong>Installed:</strong> <span id="lc-version-installed">—</span></span>
                     <span><strong>Latest:</strong> <span id="lc-version-latest">—</span></span>
-                    <button id="lc-version-refresh" class="btn btn-sm" style="margin-left:auto;">Check for updates</button>
+                    <button id="lc-version-refresh" class="btn btn-sm push">Check for updates</button>
                 </div>
-                <div id="lc-version-update-banner" class="hint-banner" style="display:none;border-left-color:#5fa8ff;margin-bottom:12px;">
-                    <div class="hint-text" style="font-size:12px;">
+                <div style="display:none" id="lc-version-update-banner" class="hint-banner mb-2">
+                    <div class="hint-text">
                         <strong>A new LumaCore version is available.</strong>
                         Click <em>Install LumaCore</em> below to download and apply it. Steam will close automatically.
                     </div>
                 </div>
-                <div id="lc-steam-updates-warning" class="hint-banner" style="border-left-color:#ef4444;margin-bottom:12px;background:rgba(239,68,68,0.08);">
-                    <div class="hint-text" style="font-size:12px;">
-                        <strong style="color:#fca5a5;">Recommended before using LumaCore:</strong>
+                <div id="lc-steam-updates-warning" class="hint-banner is-danger mb-2">
+                    <div class="hint-text">
+                        <strong>Recommended before using LumaCore:</strong>
                         block Steam client auto-updates so a Steam update does not replace the patched launch files.
                         You can unblock it later from the Steam Updates tile.
                     </div>
                     <button id="lc-block-steam-updates" class="btn btn-sm" type="button">Block Steam updates</button>
                 </div>
-                <div class="input-group" style="margin-bottom:14px;">
-                    <label style="font-size:12px;font-weight:600;opacity:0.7;">STEAM PATH</label>
-                    <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
-                        <input type="text" id="lc-steam-path" placeholder="Auto-detected" style="flex:1;">
+                <div class="input-group mb-2">
+                    <label>STEAM PATH</label>
+                    <div class="input-row mt-1">
+                        <input class="grow" type="text" id="lc-steam-path" placeholder="Auto-detected">
                         <button id="lc-steam-path-browse" class="btn btn-sm" type="button">Browse</button>
                     </div>
                 </div>
-                <div class="input-group" style="margin-bottom:14px;">
-                    <label style="font-size:12px;font-weight:600;opacity:0.7;">BUILD</label>
-                    <div style="display:flex;gap:14px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+                <div class="input-group mb-2">
+                    <label>BUILD</label>
+                    <div class="row row-wrap mt-1">
                         <label class="dl-source-option" data-tooltip="Production build, smaller DLL, normal log volume. Default for everyone.">
                             <input type="radio" name="lc-variant" value="release" checked> Release
                         </label>
@@ -2191,7 +2186,7 @@ start YourGame-Shipping.exe</pre>
                         </label>
                     </div>
                 </div>
-                <div id="lc-setup-status" style="font-size:12px;opacity:0.75;min-height:18px;"></div>
+                <div class="status-line" id="lc-setup-status"></div>
             </div>
             <div class="modal-footer">
                 <button id="lc-install-run" class="btn btn-primary">Install LumaCore</button>
@@ -2204,18 +2199,18 @@ start YourGame-Shipping.exe</pre>
     <!-- LC Online Fix Modal -->
     <div id="lc-online-fix-modal" class="modal hidden">
         <div class="modal-overlay"></div>
-        <div class="modal-content" style="max-width:440px;">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2>LC Online Fix</h2>
                 <button class="modal-close">&times;</button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom:14px;opacity:0.85;font-size:13px;">Toggles <code>-onlinefix</code> in Steam's <code>localconfig.vdf</code> for the chosen app. LumaCore redirects the launch through AppID 480 so online play works.</p>
-                <div class="input-group" style="margin-bottom:14px;">
-                    <label style="font-size:12px;font-weight:600;opacity:0.7;">APP ID</label>
-                    <input type="text" id="lc-onlinefix-appid" placeholder="e.g. 1172470" style="margin-top:6px;width:100%;">
+                <p class="mb-2 muted">Toggles <code>-onlinefix</code> in Steam's <code>localconfig.vdf</code> for the chosen app. LumaCore redirects the launch through AppID 480 so online play works.</p>
+                <div class="input-group mb-2">
+                    <label>APP ID</label>
+                    <input class="mt-1" type="text" id="lc-onlinefix-appid" placeholder="e.g. 1172470">
                 </div>
-                <div id="lc-onlinefix-status" style="font-size:12px;opacity:0.75;min-height:18px;"></div>
+                <div class="status-line" id="lc-onlinefix-status"></div>
             </div>
             <div class="modal-footer">
                 <button id="lc-onlinefix-check" class="btn">Check Status</button>
@@ -2228,7 +2223,7 @@ start YourGame-Shipping.exe</pre>
     <!-- DLC Check Modal -->
     <div id="dlc-check-modal" class="modal hidden">
         <div class="modal-overlay"></div>
-        <div class="modal-content" style="max-width:680px;">
+        <div class="modal-content modal-lg">
             <div class="modal-header">
                 <div>
                     <h2 id="dlc-check-title">DLC Check</h2>
@@ -2236,11 +2231,11 @@ start YourGame-Shipping.exe</pre>
                 </div>
                 <button class="modal-close" aria-label="Close">&times;</button>
             </div>
-            <div id="dlc-check-body" class="modal-body" style="max-height:60vh;overflow-y:auto;">
+            <div id="dlc-check-body" class="modal-body">
             </div>
-            <div class="modal-footer" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                <div id="dlc-check-bulk-actions" style="display:none;gap:8px;flex-wrap:wrap;">
-                    <span style="font-size:12px;color:var(--fg-muted);align-self:center;">Download checked DLCs through:</span>
+            <div class="modal-footer footer-split">
+                <div style="display:none" class="row row-wrap" id="dlc-check-bulk-actions">
+                    <span class="faint">Download checked DLCs through:</span>
                     <button class="btn dlc-bulk-dl" data-source="hubcap">Hubcap</button>
                     <button class="btn dlc-bulk-dl" data-source="oureveryday">MidraEveryDay</button>
                     <button class="btn dlc-bulk-dl" data-source="ryuu">Ryuu</button>
@@ -2272,17 +2267,17 @@ start YourGame-Shipping.exe</pre>
     <script src="js/dlc_check.js"></script>
     <div id="confirm-dialog" class="modal hidden">
         <div class="modal-overlay"></div>
-        <div class="modal-content" style="max-width:400px;">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2 id="confirm-dialog-title">Confirm</h2>
                 <button class="modal-close" id="confirm-dialog-cancel">&times;</button>
             </div>
             <div class="modal-body">
-                <p id="confirm-dialog-message" style="white-space:pre-line;line-height:1.5;"></p>
+                <p class="prewrap" id="confirm-dialog-message"></p>
             </div>
-            <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:0 20px 16px;">
-                <button id="confirm-dialog-no" class="btn" style="min-width:80px;">No</button>
-                <button id="confirm-dialog-yes" class="btn btn-primary" style="min-width:80px;">Yes</button>
+            <div class="modal-footer">
+                <button id="confirm-dialog-no" class="btn">No</button>
+                <button id="confirm-dialog-yes" class="btn btn-primary">Yes</button>
             </div>
         </div>
     </div>
