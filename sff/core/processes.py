@@ -124,6 +124,10 @@ class SteamProcess:
 
     def kill(self):
 
+        if os.name != "nt":
+            logger.debug("SteamProcess.kill skipped outside Windows")
+            return
+
         print(" ", end="", flush=True)
         # Use taskkill - works without elevation and is very reliable
         try:
