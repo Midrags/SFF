@@ -27,7 +27,7 @@ greenlet==3.2.4
 h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
-idna>=3.10
+idna>=3.15
 importlib-metadata==8.7.1
 inquirerpy @ git+https://github.com/kazhala/InquirerPy@714d9068896c1a1f9f4d1354f43f922cd5cfe16d
 jaraco-classes==3.4.0
@@ -46,7 +46,7 @@ pathvalidate==3.3.1
 pfzy==0.3.4
 Pillow==11.2.1
 prompt-toolkit==3.0.52
-protobuf==3.20.3
+protobuf==4.25.8
 psutil==7.2.2
 pycparser==2.23
 pycryptodome==3.23.0
@@ -95,3 +95,7 @@ zstandard>=0.22
 # Linux AppImage build (build_linux_appimage.sh) needs PyInstaller too;
 # without it the workflow runner can't produce the AppImage payload.
 # zstandard is needed by the native Steam CDN downloader for VSZTD chunk decompression.
+cryptography>=46.0.5 # not directly required, pinned by Snyk to avoid a vulnerability
+pyasn1>=0.6.2 # not directly required, pinned by Snyk to avoid a vulnerability
+soupsieve>=2.8.4 # not directly required, pinned by Snyk to avoid a vulnerability
+httplib2>=0.32.0 # not directly required, pinned by Snyk to avoid a vulnerability
