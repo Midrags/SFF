@@ -14,6 +14,7 @@
 #include "patterns/PatternFetcher.h"
 #include "runtime/DirWatch.h"
 #include "runtime/Diagnostics.h"
+#include "runtime/DiversionStore.h"
 #include "runtime/HookStatus.h"
 #include "runtime/IpcSpecLoader.h"
 #include "runtime/BootDiag.h"
@@ -127,14 +128,13 @@ namespace CoreInit {
 
         // Prepares the runtime paths and loads the hooked copy of steamclient64.dll.
         //
-        // The diversion pattern: instead of hooking the real steamclient64.dll directly,
-        // LumaCore copies it to bin\lcoverlay.dll and loads that copy. The SteamUI hook then
-        // intercepts steamui.dll's LoadModuleWithPath("steamclient64.dll") call and returns
-        // diversion_hModule, so Steam's UI layer ends up using the hooked copy transparently.
+        // With [diversion] multiinstance enabled the copy lives at
+        // bin\lcoverlay-<sha16>.dll and is never rewritten once published,
+        // so concurrent Steam sessions (Duo isolation) can load it side by
+        // side. Legacy mode keeps the fixed-name overwrite behaviour.
         //
-        // CopyFileA is retried up to 25 times (3 seconds total) because steamclient64.dll can be
-        // briefly locked by the Steam service during early startup. Same retry logic for LoadLibraryA.
-        // Returns false if either operation fails after all retries.
+        // CopyFileA/LoadLibraryA are retried because steamclient64.dll can be
+        // briefly locked by the Steam service during early startup.
         bool PrepareAndLoad()
         {
             constexpr int kCopyRetries  = 25;
@@ -156,12 +156,27 @@ namespace CoreInit {
             sprintf_s(LuaDir,          MAX_PATH, "%s\\config\\stplug-in",   SteamInstallPath);
             sprintf_s(ConfigPath,      MAX_PATH, "%s\\lumacore.toml",       SteamInstallPath);
             sprintf_s(PayloadPath,     MAX_PATH, "%s\\LumaCorePayload.dll", SteamInstallPath);
-            // ensure bin\ directory exists before copying
-            char binDir[MAX_PATH];
-            sprintf_s(binDir, MAX_PATH, "%s\\bin", SteamInstallPath);
-            CreateDirectoryA(binDir, nullptr);
-            // Retry: steamclient64.dll may be briefly locked during Steam startup
-            {
+
+            const bool multiInstance = DiversionStore::Enabled();
+
+            if (multiInstance) {
+                std::string sourceSha;
+                char artifact[MAX_PATH];
+                if (!DiversionStore::Prepare(SteamclientPath, SteamInstallPath,
+                                             artifact, MAX_PATH, &sourceSha)) {
+                    LOG_COREIN_ERROR("\"stage\" \"Diversion\" \"err\" \"prepare-fail\" \"from\" \"{}\"",
+                                     SteamclientPath);
+                    return false;
+                }
+                sprintf_s(DiversionPath, MAX_PATH, "%s", artifact);
+                HookStatus::SetBinarySnapshot(std::string(), SteamclientPath,
+                                              std::string(), DiversionPath,
+                                              sourceSha, std::string(), sourceSha);
+            } else {
+                // Legacy fixed-name path, unchanged from stock.
+                char binDir[MAX_PATH];
+                sprintf_s(binDir, MAX_PATH, "%s\\bin", SteamInstallPath);
+                CreateDirectoryA(binDir, nullptr);
                 int attempts = 0;
                 while (!CopyFileA(SteamclientPath, DiversionPath, FALSE)) {
                     if (++attempts >= kCopyRetries) {
@@ -185,6 +200,12 @@ namespace CoreInit {
             }
             LOG_COREIN_INFO("\"stage\" \"Diversion\" \"act\" \"loaded\" \"path\" \"{}\"", DiversionPath);
             HookStatus::SetDiversionState(true, "loaded");
+            HookStatus::SetDiversionDetails(true, true,
+                multiInstance ? "content-addressed-multiinstance"
+                              : "legacy-fixed-path",
+                "");
+            if (multiInstance)
+                DiversionStore::StartDeferredPrune(SteamInstallPath, DiversionPath);
             return true;
         }
 

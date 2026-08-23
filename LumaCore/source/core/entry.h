@@ -44,7 +44,11 @@ inline std::atomic<bool> g_HooksInstalled{false};
 // Runtime paths filled in by LoadDiversion() from the process working directory.
 inline char SteamInstallPath[MAX_PATH] = {};  // Steam root: the folder containing steam.exe
 inline char SteamclientPath[MAX_PATH] = {};  // <SteamInstallPath>\steamclient64.dll
-inline char DiversionPath[MAX_PATH]   = {};  // <SteamInstallPath>\bin\lcoverlay.dll (hooked copy)
+// Hooked copy of steamclient64.dll that this session loads.
+// Multi-instance mode ([diversion] multiinstance): bin\lcoverlay-<sha16>.dll,
+// an immutable content-addressed artifact shared read-only by every session.
+// Legacy mode: the fixed <SteamInstallPath>\bin\lcoverlay.dll.
+inline char DiversionPath[MAX_PATH]   = {};
 inline char LuaDir[MAX_PATH]          = {};  // <SteamInstallPath>\config\stplug-in
 inline char ConfigPath[MAX_PATH]      = {};  // <SteamInstallPath>\lumacore.toml
 inline char PayloadPath[MAX_PATH]    = {};  // <SteamInstallPath>\LumaCorePayload.dll

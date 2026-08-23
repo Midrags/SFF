@@ -206,6 +206,9 @@ namespace HookStatus {
             out += "  \"lumacore_version\": \"";
             out += JsonEscape(kLumaCoreVersion);
             out += "\",\n";
+            out += "  \"pid\": ";
+            out += std::to_string(static_cast<unsigned long>(::GetCurrentProcessId()));
+            out += ",\n";
             out += "  \"build_config\": \"";
             out += JsonEscape(kBuildConfig);
             out += "\",\n";
@@ -599,6 +602,66 @@ namespace HookStatus {
             return out;
         }
 
+        // Drops status.<pid>.json files whose process no longer exists.
+        void PruneDeadSessionFiles(const std::filesystem::path& dir) {
+            static std::atomic<DWORD> s_lastPruneMs{0};
+            const DWORD now = GetTickCount();
+            const DWORD last = s_lastPruneMs.load(std::memory_order_relaxed);
+            if (last && now - last < 60000) return;
+            s_lastPruneMs.store(now, std::memory_order_relaxed);
+
+            std::error_code ec;
+            for (std::filesystem::directory_iterator it(dir, ec), end;
+                 !ec && it != end; it.increment(ec)) {
+                if (ec) break;
+                const std::string name = it->path().filename().string();
+                if (name.rfind("status.", 0) != 0) continue;
+                const size_t dot = name.find('.', 7);
+                if (dot == std::string::npos) continue;
+                const std::string mid = name.substr(7, dot - 7);
+                bool numeric = !mid.empty();
+                for (const char c : mid)
+                    if (c < '0' || c > '9') { numeric = false; break; }
+                if (!numeric) continue;
+
+                const DWORD pid =
+                    static_cast<DWORD>(std::strtoul(mid.c_str(), nullptr, 10));
+                if (pid == ::GetCurrentProcessId()) continue;
+
+                HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,
+                                       FALSE, pid);
+                if (h) {
+                    CloseHandle(h);   // session still alive
+                    continue;
+                }
+                if (GetLastError() != ERROR_INVALID_PARAMETER)
+                    continue;         // alive but not inspectable: keep
+
+                std::error_code rmEc;
+                std::filesystem::remove(it->path(), rmEc);
+            }
+        }
+
+        // Per-instance copy of the snapshot, next to the shared status.json.
+        void WritePerInstanceMirror(const std::filesystem::path& dir,
+                                    const std::string& body) {
+            const std::string pid =
+                std::to_string(static_cast<unsigned long>(::GetCurrentProcessId()));
+            const std::filesystem::path target =
+                dir / ("status." + pid + ".json");
+            std::filesystem::path tmp = target;
+            tmp += "." + pid + ".tmp";
+
+            {
+                std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
+                if (!f) return;
+                f.write(body.data(), static_cast<std::streamsize>(body.size()));
+                if (!f) return;
+            }
+            MoveFileExA(tmp.string().c_str(), target.string().c_str(),
+                        MOVEFILE_REPLACE_EXISTING);
+        }
+
         bool WriteBodyAtomic(const std::string& body) {
             static std::atomic<DWORD> s_lastFailMs{0};
             static constexpr DWORD kCooldownMs = 5000;
@@ -618,10 +681,13 @@ namespace HookStatus {
                 LOG_WARN("HookStatus: create_directories failed: {}", ec.message());
                 return false;
             }
+            PruneDeadSessionFiles(dir);
 
             std::filesystem::path target = dir / "status.json";
             std::filesystem::path tmp    = target;
-            tmp += ".tmp";
+            tmp += "." +
+                   std::to_string(static_cast<unsigned long>(::GetCurrentProcessId())) +
+                   ".tmp";
 
             std::string narrowTmp    = tmp.string();
             std::string narrowTarget = target.string();
@@ -661,6 +727,7 @@ namespace HookStatus {
                 return false;
             }
             s_lastFailMs.store(0, std::memory_order_relaxed);
+            WritePerInstanceMirror(dir, body);
             return true;
         }
 
