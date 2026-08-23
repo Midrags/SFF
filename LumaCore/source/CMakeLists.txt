@@ -71,6 +71,7 @@ add_library(LumaCore SHARED
     runtime/ProcessInspect.cpp
     runtime/IntegrityScanner.cpp
     runtime/LibraryInjector.cpp
+    runtime/DiversionStore.cpp
 
     patterns/ByteScan.cpp
     patterns/PatternSig.cpp

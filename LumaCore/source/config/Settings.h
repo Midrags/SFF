@@ -113,6 +113,14 @@ namespace Settings {
     // override in the Lua pattern still works).
     inline bool steamstubAutoEnabled = false;
 
+    // [diversion] multiinstance
+    // Copy steamclient64.dll to an immutable content-addressed artifact
+    // (bin\lcoverlay-<sha16>.dll) shared read-only by concurrent sessions
+    // instead of overwriting a fixed lcoverlay.dll on every boot. Required
+    // for more than one simultaneous session (Duo Steam Isolation).
+    // LUMACORE_MULTIINSTANCE=0/1 overrides this at runtime.
+    inline bool diversionMultiInstance = true;
+
     // [boot]
     // When true, BootDiag::ReportMissing shows a MessageBoxA popup with
     // Steam build ID and steamclient SHA256 when IPC specs cannot be

@@ -53,6 +53,7 @@ namespace Settings {
             processExtensionX64.clear();
             onlineFixInjectEnabled = true;
             steamstubAutoEnabled = false;
+            diversionMultiInstance = true;
         }
 
         void RememberStamp(const std::filesystem::path& cfgPath)
@@ -204,6 +205,12 @@ namespace Settings {
                     steamstubAutoEnabled = *v;
             }
 
+            // [diversion]
+            if (auto dv = tbl["diversion"].as_table()) {
+                if (auto v = (*dv)["multiinstance"].value<bool>())
+                    diversionMultiInstance = *v;
+            }
+
             std::string urlsLog;
             for (const auto& u : manifestFetchUrls) {
                 if (!urlsLog.empty()) urlsLog += " | ";
@@ -222,7 +229,8 @@ namespace Settings {
                      "pattern_fetch.mirror={} manifest_fetch.urls=[{}] "
                      "manifest_fetch.timeout_sec={} manifest_fetch.trusted_hosts=[{}] "
                      "stats.enable_api={} process_extension.enabled={} "
-                     "onlinefix.inject_enabled={} steamstub.auto_enabled={}",
+                     "onlinefix.inject_enabled={} steamstub.auto_enabled={} "
+                     "diversion.multiinstance={}",
                      LevelName(logLevel), verbose ? "true" : "false",
                      static_cast<uint32_t>(luaPaths.size()),
                      patternMirror.empty() ? "<none>" : patternMirror,
@@ -232,7 +240,8 @@ namespace Settings {
                      statsEnableApi ? "true" : "false",
                      processExtensionEnabled ? "true" : "false",
                      onlineFixInjectEnabled ? "true" : "false",
-                     steamstubAutoEnabled ? "true" : "false");
+                     steamstubAutoEnabled ? "true" : "false",
+                     diversionMultiInstance ? "true" : "false");
             RememberStamp(cfgPath);
 
         } catch (const toml::parse_error& e) {
