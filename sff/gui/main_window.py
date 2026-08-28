@@ -1852,6 +1852,7 @@ class SFFMainWindow(QMainWindow):
             return
         provider = cfg.get('provider', 'local').lower()
         backed_up = 0
+        failed = 0
         if provider == 'local':
             dest_path = cfg.get('dest_path', '')
             if not dest_path:
@@ -1884,28 +1885,65 @@ class SFFMainWindow(QMainWindow):
                     except Exception:
                         pass
         elif provider == 'gdrive_api':
+            import threading
             from sff.cloud.google_drive import get_service, get_backup_root, is_authenticated
             from concurrent.futures import ThreadPoolExecutor, as_completed
             if not is_authenticated():
+                logger.debug('Save watcher: Google Drive not connected, nothing backed up')
                 return
             svc = get_service()
             if not svc:
+                logger.debug('Save watcher: could not connect to Google Drive')
                 return
             root_id = get_backup_root(svc)
             if not root_id:
+                logger.debug('Save watcher: could not open the Drive backup root')
                 return
             folder_cache = {}
+            lock = threading.Lock()
+            local = threading.local()
+
+            def _backup_one(entry):
+                # One Drive service per worker thread; the client is not
+                # thread-safe and rebuilding it per entry is wasted work.
+                thread_svc = getattr(local, 'svc', None)
+                if thread_svc is None:
+                    thread_svc = get_service()
+                    local.svc = thread_svc
+                if thread_svc is None:
+                    logger.debug('Save watcher: %s skipped, no Drive service',
+                                 entry.get('label', '?'))
+                    return False
+                lines = []
+                with lock:
+                    thread_cache = dict(folder_cache)
+                ok = backup_save_location_gdrive(
+                    entry, thread_svc, root_id,
+                    log_func=lines.append, folder_cache=thread_cache,
+                )
+                with lock:
+                    folder_cache.update(thread_cache)
+                if not ok:
+                    # Without this the watcher reports success for entries
+                    # whose uploads all failed.
+                    logger.debug('Save watcher: %s failed\n%s',
+                                 entry.get('label', '?'), '\n'.join(lines))
+                return ok
+
             with ThreadPoolExecutor(max_workers=10) as ex:
-                futures = {ex.submit(backup_save_location_gdrive, e, get_service(), root_id,
-                                     None, dict(folder_cache)): e for e in entries}
+                futures = {ex.submit(_backup_one, e): e for e in entries}
                 for fut in as_completed(futures):
                     try:
                         if fut.result():
                             backed_up += 1
+                        else:
+                            failed += 1
                     except Exception:
-                        pass
-        if backed_up:
-            logger.debug('Save watcher (%s): backed up %d entries', provider, backed_up)
+                        failed += 1
+                        logger.debug('Save watcher entry error', exc_info=True)
+        if backed_up or failed:
+            logger.debug('Save watcher (%s): %d entry(s) synced, %d failed',
+                         provider, backed_up, failed)
 
     # ── About ────────────────────────────────────────────────────
 

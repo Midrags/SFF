@@ -1173,6 +1173,7 @@ def backup_save_location_gdrive(entry, service, backup_root_id, log_func=None, f
     local_fc = dict(folder_cache) if folder_cache is not None else {}
 
     meta_sources = []
+    all_uploads_ok = True
     try:
         game_folder_id = get_or_create_folder(service, label, backup_root_id)
         if not game_folder_id:
@@ -1184,8 +1185,11 @@ def backup_save_location_gdrive(entry, service, backup_root_id, log_func=None, f
             if not src or not src.exists():
                 log(f"  [!] Source not found: {source.get('source_path')}")
                 continue
-            upload_folder(service, src, game_folder_id, log_func=log,
-                          folder_cache=local_fc, drive_folder_name=source.get("storage_path", ""))
+            if not upload_folder(service, src, game_folder_id, log_func=log,
+                                 folder_cache=local_fc,
+                                 drive_folder_name=source.get("storage_path", "")):
+                all_uploads_ok = False
+                log(f"  [FAIL] Upload incomplete: {src}")
             saved_source = dict(source)
             saved_source["source_path"] = str(src)
             meta_sources.append(saved_source)
@@ -1193,13 +1197,20 @@ def backup_save_location_gdrive(entry, service, backup_root_id, log_func=None, f
         if not meta_sources:
             log(f"  [FAIL] No valid sources to upload: {label}")
             return False
+        if not all_uploads_ok:
+            # Do not stamp a fresh backup time over a partial upload; the
+            # metadata would claim a good backup that is not on Drive.
+            return False
 
         meta = _entry_meta(entry, meta_sources)
         tmp = Path(tempfile.mkdtemp(prefix="steamidra_meta_"))
         try:
             meta_file = tmp / "steamidra_meta.json"
             meta_file.write_text(json.dumps(meta, indent=2), encoding="utf-8")
-            upload_file_replace(service, meta_file, game_folder_id, log_func=log)
+            if not upload_file_replace(service, meta_file, game_folder_id, log_func=log,
+                                       force=True):
+                log(f"  [FAIL] Could not write metadata for {label}")
+                return False
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

@@ -75,6 +75,12 @@ fallback_db = os.path.join(spec_root, 'sff', 'lua', 'fallback_depotkeys.json')
 if os.path.exists(fallback_db):
     datas.append((fallback_db, 'sff/lua'))
 
+# Ludusavi save-path manifest used by Cloud Saves. Without it the custom
+# save-path scan silently finds nothing and only Steam userdata is backed up.
+sff_data_dir = os.path.join(spec_root, 'sff', 'data')
+if os.path.isdir(sff_data_dir):
+    datas.append((sff_data_dir, 'sff/data'))
+
 c_dir = os.path.join(spec_root, 'c')
 if os.path.exists(c_dir):
     datas.append((c_dir, 'c'))
