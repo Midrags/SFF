@@ -49,7 +49,9 @@ _STEAM_ID_RE = re.compile(r"^  steam:\s*?\n    id:\s*(\d+)", re.MULTILINE)
 
 
 def _manifest_path() -> Path:
-    return Path(__file__).resolve().parent / "data" / "manifest.yaml"
+    # The manifest ships in sff/data/, not next to this module. Frozen builds
+    # keep the same layout under _internal/, so parent.parent works for both.
+    return Path(__file__).resolve().parent.parent / "data" / "manifest.yaml"
 
 
 def _load_manifest_index() -> None:

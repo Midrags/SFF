@@ -175,22 +175,39 @@ def get_or_create_folder(service, name, parent_id="root"):
     return None
 
 
+def _local_md5(path):
+    """MD5 of a local file, or None if it cannot be read."""
+    import hashlib
+    h = hashlib.md5()
+    try:
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                h.update(chunk)
+    except OSError:
+        return None
+    return h.hexdigest()
+
+
 def _list_folder_index(service, parent_id):
-    """Return {name: (file_id, size)} for all non-trashed files in a Drive folder."""
+    """Return {name: {"id", "size", "md5"}} for non-trashed files in a Drive folder."""
     index = {}
     page_token = None
     while True:
         try:
             params = {
                 "q": f"'{parent_id}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'",
-                "fields": "nextPageToken,files(id,name,size)",
+                "fields": "nextPageToken,files(id,name,size,md5Checksum)",
                 "pageSize": 1000,
             }
             if page_token:
                 params["pageToken"] = page_token
             res = service.files().list(**params).execute()
             for f in res.get("files", []):
-                index[f["name"]] = (f["id"], int(f.get("size", -1)))
+                index[f["name"]] = {
+                    "id": f["id"],
+                    "size": int(f.get("size", -1)),
+                    "md5": f.get("md5Checksum") or "",
+                }
             page_token = res.get("nextPageToken")
             if not page_token:
                 break
@@ -200,8 +217,17 @@ def _list_folder_index(service, parent_id):
     return index
 
 
-def _upload_file_smart(service, local_path, parent_id, existing_index, log_func=None):
-    """Upload a single file using smart sync: skip if same size, update if changed, create if new."""
+def _upload_file_smart(service, local_path, parent_id, existing_index, log_func=None,
+                       force=False):
+    """Upload a single file: skip only when the content hash matches, else update/create.
+
+    Size alone is not a change signal. Plenty of save files are rewritten in
+    place at a constant length (fixed-width slots, container formats, the
+    backup metadata JSON with its fixed-length timestamp), so a size check
+    marks them unchanged forever and the remote copy silently goes stale.
+    Drive hands back md5Checksum for uploaded binaries, so compare that and
+    fall back to size only when the checksum is unavailable.
+    """
     from googleapiclient.http import MediaFileUpload
     local_path = Path(local_path)
     if not local_path.exists():
@@ -209,16 +235,23 @@ def _upload_file_smart(service, local_path, parent_id, existing_index, log_func=
     name = local_path.name
     local_size = local_path.stat().st_size
     existing = existing_index.get(name)
-    if existing and existing[1] == local_size:
-        if log_func:
-            log_func(f"  Skipped (unchanged): {name}")
-        return True
+    if existing and not force:
+        remote_md5 = existing.get("md5") or ""
+        if remote_md5:
+            if _local_md5(local_path) == remote_md5:
+                if log_func:
+                    log_func(f"  Skipped (unchanged): {name}")
+                return True
+        elif existing.get("size") == local_size:
+            if log_func:
+                log_func(f"  Skipped (unchanged): {name}")
+            return True
     import time as _time
     for _attempt in range(4):
         try:
             media = MediaFileUpload(str(local_path), resumable=False)
             if existing:
-                fid = existing[0]
+                fid = existing["id"]
                 service.files().update(fileId=fid, media_body=media).execute()
                 if log_func:
                     log_func(f"  Updated: {name}")
@@ -280,10 +313,11 @@ def upload_file(service, local_path, parent_id, log_func=None):
     return False
 
 
-def upload_file_replace(service, local_path, parent_id, log_func=None):
+def upload_file_replace(service, local_path, parent_id, log_func=None, force=False):
     """Upload or replace one file by name in parent_id."""
     index = _list_folder_index(service, parent_id)
-    return _upload_file_smart(service, local_path, parent_id, index, log_func=log_func)
+    return _upload_file_smart(service, local_path, parent_id, index, log_func=log_func,
+                              force=force)
 
 
 def upload_folder(service, local_folder, parent_id, log_func=None, folder_cache=None, drive_folder_name=None):
@@ -410,7 +444,10 @@ def write_backup_meta(service, backup_root_id, location, folder_name, meta, log_
     try:
         meta_path = tmp / _meta_file_name(str(location or ""), str(folder_name or ""))
         meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
-        return bool(upload_file_replace(service, meta_path, loc_root, log_func=log_func))
+        # Always rewrite the metadata; "backed_up_at" is what tells the user
+        # when the last sync ran, so it must never be skipped as unchanged.
+        return bool(upload_file_replace(service, meta_path, loc_root, log_func=log_func,
+                                        force=True))
     finally:
         try:
             import shutil

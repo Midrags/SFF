@@ -70,6 +70,12 @@ fallback_db = os.path.join(spec_root, 'sff', 'lua', 'fallback_depotkeys.json')
 if os.path.exists(fallback_db):
     datas.append((fallback_db, 'sff/lua'))
 
+# Ludusavi save-path manifest used by Cloud Saves. Without it the custom
+# save-path scan silently finds nothing and only Steam userdata is backed up.
+sff_data_dir = os.path.join(spec_root, 'sff', 'data')
+if os.path.isdir(sff_data_dir):
+    datas.append((sff_data_dir, 'sff/data'))
+
 # Include all_games.txt for offline game name resolution in Cloud Saves
 all_games_txt = os.path.join(spec_root, 'all_games.txt')
 if os.path.exists(all_games_txt):
