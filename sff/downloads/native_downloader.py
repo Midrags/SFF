@@ -229,7 +229,13 @@ def _decompress_chunk(data: bytes) -> bytes:
         return _decompress_vz1(data)
     if data[:4] == b"VSZa":
         return _decompress_vzstd(data)
-    raise ValueError(f"unknown chunk magic: {data[:4].hex()}")
+    if data[:4] == b"PK\x03\x04":
+        # zip-framed chunk (e.g. shared redist depots like 228990): single
+        # entry 'z' holds the payload
+        with zipfile.ZipFile(io.BytesIO(data)) as _zf:
+            return _zf.read(_zf.namelist()[0])
+    # no known magic = stored uncompressed; caller's SHA1 check validates
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -279,13 +285,24 @@ def _resolve_request_code(
 
 
 def _get_cdn_servers(cdn_client) -> list:
+    # steam lib returns a deque of ContentServer objects (not a list of dicts)
+    # — normalize both shapes; a single-host pool got us IP-throttled mid-run
     try:
         raw = cdn_client.servers
-        if isinstance(raw, list):
-            return raw
+        out = []
+        for s in (raw or []):
+            if isinstance(s, dict):
+                host = s.get("host", "")
+                https = s.get("https_support") == "mandatory"
+            else:
+                host = getattr(s, "host", "") or ""
+                https = bool(getattr(s, "https", False))
+            if host:
+                out.append({"host": host, "https_support": "mandatory" if https else ""})
+        if out:
+            return out
     except Exception:
         pass
-    # Fallback: well-known Steam CDN host
     return [{"host": "steampipe.akamaized.net"}]
 
 
