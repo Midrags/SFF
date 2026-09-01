@@ -2095,19 +2095,30 @@ window.App = (function() {
             try { games = JSON.parse(json || '[]'); } catch(e) { games = []; }
             var select = document.getElementById('home-game-select');
             if (!select) return;
-            // Keep the placeholder option
-            select.innerHTML = '<option value="">-- Select a game --</option>';
+            // Preserve the currently selected value so the visible display
+            // doesn't flash to blank while the list rebuilds.
+            var prevValue = select.value;
+            // Build into a fragment — one DOM flush prevents layout thrash
+            var frag = document.createDocumentFragment();
+            var placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '-- Select a game --';
+            frag.appendChild(placeholder);
             games.forEach(function(game) {
                 var opt = document.createElement('option');
                 opt.value = game.app_id;
                 opt.textContent = game.name + ' (' + game.app_id + ')';
-                select.appendChild(opt);
+                frag.appendChild(opt);
             });
+            select.innerHTML = '';
+            select.appendChild(frag);
+            // Restore previous selection if it still exists
+            if (prevValue) select.value = prevValue;
             // Re-apply active search filter after dropdown rebuilds
             var searchInp = document.getElementById('home-game-search');
             if (searchInp && searchInp.value.trim()) {
                 var filterVal = searchInp.value.trim().toLowerCase();
-                setTimeout(function() { _filterGameDropdown(filterVal); }, 60);
+                setTimeout(function() { _filterGameDropdown(filterVal); }, 0);
             }
         });
     }

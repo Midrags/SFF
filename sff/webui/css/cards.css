@@ -204,8 +204,9 @@
 /* ── Card stagger animation ─────────────────────────── */
 
 .game-card.stagger-in {
-    animation: cardStaggerIn 0.3s ease forwards;
+    animation: cardStaggerIn 0.25s ease forwards;
     opacity: 0;
+    will-change: opacity, transform;
 }
 
 @keyframes cardStaggerIn {

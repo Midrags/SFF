@@ -148,11 +148,18 @@ a:hover { text-decoration: underline; }
 
 .page {
     display: none;
+    opacity: 0;
 }
 
 .page.active {
     display: block;
-    animation: fadeIn 0.2s ease;
+    opacity: 1;
+    animation: fadeIn 0.18s ease forwards;
+    /* Prevent layout thrash — start from rendered state */
+    will-change: opacity;
+    /* CSS containment: this page's layout/style changes don't
+       affect siblings, eliminating cross-page repaint flicker */
+    contain: layout style;
 }
 
 .page-header {
