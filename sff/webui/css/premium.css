@@ -20,6 +20,10 @@ body::before {
     radial-gradient(ellipse 40% 30% at 15% 85%, rgba(80, 200, 150, 0.025) 0%, transparent 40%);
   pointer-events: none;
   z-index: 0;
+  /* Promote to GPU compositing layer — prevents this static gradient
+     from triggering main-thread repaints on scroll / page transitions */
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .content {
@@ -90,7 +94,7 @@ h3 { font-size: 15px; font-weight: 600; }
   padding: 16px 18px;
   border-radius: 14px;
   border: 1px solid transparent;
-  transition: all 0.25s ease;
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
   background: rgba(255, 255, 255, 0.02);
   position: relative;
 }
@@ -125,7 +129,7 @@ h3 { font-size: 15px; font-weight: 600; }
   justify-content: center;
   background: transparent;
   border-radius: 0;
-  transition: all 0.25s ease;
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
   position: relative;
   z-index: 1;
 }
@@ -190,7 +194,7 @@ h3 { font-size: 15px; font-weight: 600; }
   background: rgba(255, 255, 255, 0.02);
   position: relative;
   overflow: hidden;
-  transition: all 0.25s ease;
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
   text-align: center;
 }
 
@@ -223,7 +227,7 @@ h3 { font-size: 15px; font-weight: 600; }
   justify-content: center;
   background: transparent;
   border-radius: 0;
-  transition: all 0.25s ease;
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
   position: relative;
   z-index: 1;
 }
@@ -372,7 +376,7 @@ h3 { font-size: 15px; font-weight: 600; }
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.02);
   position: relative;
-  transition: all 0.25s ease;
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .game-list-item::before {
@@ -426,7 +430,7 @@ h3 { font-size: 15px; font-weight: 600; }
   border-radius: 10px;
   font-weight: 600;
   padding: 10px 20px;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   font-family: 'Manrope', sans-serif;
   font-size: 13px;
 }
@@ -580,7 +584,7 @@ input:focus, select:focus {
   border-radius: 10px;
   font-size: 12px;
   font-weight: 600;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .theme-swatch:hover {
@@ -1192,7 +1196,7 @@ select:focus-visible,
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.02);
   position: relative;
-  transition: all 0.25s ease;
+  transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .download-item::before {
@@ -1253,7 +1257,7 @@ select:focus-visible,
   border-radius: 12px;
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.02);
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .library-option:hover {

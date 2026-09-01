@@ -137,9 +137,11 @@ window.Components = (function() {
             wrap.appendChild(img);
         }
 
-        // Stagger animation delay
+        // Stagger animation delay — capped at 0.4s so large grids don't
+        // have late cards blinking in after the user thinks rendering is done.
         if (typeof options.index === 'number') {
-            card.style.animationDelay = (options.index * 0.05) + 's';
+            var delay = Math.min(options.index * 0.04, 0.4);
+            card.style.animationDelay = delay + 's';
         }
 
         return card;
@@ -250,17 +252,26 @@ window.Components = (function() {
     }
 
     // Show/hide a modal
+    // Uses a generation counter per modal to cancel stale hide timeouts —
+    // previously a hideModal timer would fire after a showModal call and
+    // re-hide the freshly opened modal (visible as a blink).
     function showModal(modalId) {
         var modal = document.getElementById(modalId);
         if (!modal) return;
+        // Bump generation so any pending hideModal setTimeout becomes a no-op
+        modal.dataset.modalGen = ((parseInt(modal.dataset.modalGen, 10) || 0) + 1).toString();
         modal.classList.remove('hidden', 'modal-hiding');
     }
 
     function hideModal(modalId) {
         var modal = document.getElementById(modalId);
         if (!modal || modal.classList.contains('hidden')) return;
+        var gen = ((parseInt(modal.dataset.modalGen, 10) || 0) + 1).toString();
+        modal.dataset.modalGen = gen;
         modal.classList.add('modal-hiding');
         setTimeout(function() {
+            // Only apply if no showModal() or newer hideModal() has run since
+            if (modal.dataset.modalGen !== gen) return;
             modal.classList.remove('modal-hiding');
             modal.classList.add('hidden');
         }, 150);
@@ -451,7 +462,10 @@ window.Components = (function() {
 
         new MutationObserver(function() {
             clearTimeout(syncTimer);
-            syncTimer = setTimeout(function() { self._syncOptions(); }, 10);
+            // 50ms debounce: batches rapid option inserts (e.g. filling a
+            // 300-game dropdown one option at a time) into a single sync,
+            // eliminating the visible flicker of intermediate states.
+            syncTimer = setTimeout(function() { self._syncOptions(); }, 50);
         }).observe(this._select, { childList: true });
 
         this._ui.querySelector('.custom-select-display').addEventListener('click', function(e) {
