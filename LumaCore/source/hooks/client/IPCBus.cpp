@@ -131,16 +131,15 @@ namespace {
         }
     };
 
-    LM_HOOK(IClientRemoteStorage_FileExists, bool, void* pThis, const char* pchFile)
+    LM_HOOK(IClientRemoteStorage_FileExists, bool,
+              void* pThis, AppId_t appId, uint32_t fileRoot, const char* pchFile)
     {
-        uint32_t* pAppId = reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(pThis) + 0x38);
-        uint32_t saved = *pAppId;
         AppId_t real = SteamCapture::ActiveRouteRealAppId();
-        if (real && saved == kOnlineFixAppId)
-            *pAppId = real;
-        bool result = oIClientRemoteStorage_FileExists(pThis, pchFile);
-        *pAppId = saved;
-        return result;
+        if (real && appId == kOnlineFixAppId)
+            appId = real;
+
+        return oIClientRemoteStorage_FileExists(
+            pThis, appId, fileRoot, pchFile);
     }
 
     LM_HOOK(IClientRemoteStorage_Dispatch, bool, void* pThis, void* pArg)
